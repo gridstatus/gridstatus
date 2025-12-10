@@ -71,7 +71,10 @@ AS_PRICES_ENDPOINT = "/np4-188-cd/dam_clear_price_for_cap"
 # We only use the historical API for AS REPORTS because those downloads are easier
 # to parse (all the files are included in one zip file)
 # https://data.ercot.com/data-product-archive/NP3-911-ER
-AS_REPORTS_EMIL_ID = "np3-911-er"
+AS_REPORTS_DAM_EMIL_ID = "np3-911-er"
+
+# https://data.ercot.com/data-product-archive/NP3-906-EX
+AS_REPORTS_SCED_EMIL_ID = "np3-906-ex"
 
 # https://data.ercot.com/data-product-archive/NP4-33-CD
 AS_PLAN_ENDPOINT = "/np4-33-cd/dam_as_plan"
@@ -723,7 +726,6 @@ class ErcotAPI:
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency=None)
     def get_as_reports(self, date, end=None, verbose=False):
         """Get Ancillary Services Reports. Data contains 48 hours disclosures
 
@@ -749,7 +751,7 @@ class ErcotAPI:
             end = self._handle_end_date(report_date, end, days_to_add_if_no_end=1)
 
         links_and_posted_datetimes = self._get_historical_data_links(
-            emil_id=AS_REPORTS_EMIL_ID,
+            emil_id=AS_REPORTS_DAM_EMIL_ID,
             start_date=report_date,
             end_date=end,
             verbose=verbose,
@@ -772,6 +774,112 @@ class ErcotAPI:
             .drop(columns=["Time"])
             .sort_values("Interval Start")
         )
+
+    @support_date_range(frequency=None)
+    def get_as_reports_dam(self, date, end=None, verbose=False):
+        """Get Day-Ahead Market Ancillary Services Reports.
+
+        Published with a 2 day delay around 3am central.
+
+        Contains cleared, self-arranged, and bid curve data for each AS product.
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with DAM ancillary services reports
+        """
+        if date == "latest":
+            date = self.local_start_of_today() - pd.DateOffset(days=2)
+
+        offset = pd.DateOffset(days=2)
+
+        # Published with a 2-day delay
+        report_date = date.normalize() + offset
+
+        if end:
+            end = end + offset
+        else:
+            end = self._handle_end_date(report_date, end, days_to_add_if_no_end=1)
+
+        links_and_posted_datetimes = self._get_historical_data_links(
+            emil_id=AS_REPORTS_DAM_EMIL_ID,
+            start_date=report_date,
+            end_date=end,
+            verbose=verbose,
+        )
+
+        urls = [tup[0] for tup in links_and_posted_datetimes]
+
+        dfs = [
+            self.ercot._handle_as_reports_dam_file(
+                url,
+                verbose=verbose,
+                headers=self.headers(),
+            )
+            for url in urls
+        ]
+
+        return (
+            pd.concat(dfs)
+            .reset_index(drop=True)
+            .drop(columns=["Time"])
+            .sort_values("Interval Start")
+        )
+
+    @support_date_range(frequency=None)
+    def get_as_reports_sced(self, date, end=None, verbose=False):
+        """Get 2-Day SCED Ancillary Service Disclosure Reports.
+
+        Published with a 2 day delay around 3am central.
+
+        Contains offer curves (MW offered and price) for each AS product
+        at each SCED timestamp.
+
+        Output columns: SCED Timestamp, AS Type, Offer Curve
+
+        Arguments:
+            date (str): the date to fetch reports for.
+            end (str, optional): the end date to fetch reports for. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with SCED ancillary services offers
+        """
+        if date == "latest":
+            date = self.local_start_of_today() - pd.DateOffset(days=2)
+
+        offset = pd.DateOffset(days=2)
+
+        # Published with a 2-day delay
+        report_date = date.normalize() + offset
+
+        if end:
+            end = end + offset
+        else:
+            end = self._handle_end_date(report_date, end, days_to_add_if_no_end=1)
+
+        links_and_posted_datetimes = self._get_historical_data_links(
+            emil_id=AS_REPORTS_SCED_EMIL_ID,
+            start_date=report_date,
+            end_date=end,
+            verbose=verbose,
+        )
+
+        urls = [tup[0] for tup in links_and_posted_datetimes]
+
+        dfs = [
+            self.ercot._handle_as_reports_sced_file(
+                url,
+                verbose=verbose,
+                headers=self.headers(),
+            )
+            for url in urls
+        ]
+
+        return pd.concat(dfs).reset_index(drop=True).sort_values("SCED Timestamp")
 
     @support_date_range(frequency=None)
     def get_as_plan(self, date, end=None, verbose=False):

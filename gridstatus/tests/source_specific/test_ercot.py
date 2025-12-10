@@ -1065,6 +1065,96 @@ class TestErcot(BaseTestISO):
             assert isinstance(first_non_null_value, list)
             assert all(isinstance(x, list) for x in first_non_null_value)
 
+    """get_as_reports_dam"""
+
+    def _check_as_reports_dam(self, df):
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Cleared"] == "float64"
+        assert df.dtypes["Self Arranged"] == "float64"
+        assert df.dtypes["Offer Curve"] == "object"
+
+        # Check that AS Type contains expected products
+        expected_products = {
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "ECRSS",
+            "ECRSM",
+            "NSPNM",
+            "RRSFFR",
+            "RRSPFR",
+            "RRSUFR",
+        }
+
+        actual_products = set(df["AS Type"])
+        assert expected_products == actual_products
+
+        # Check that offer curves are lists of [MW, Price] pairs
+        offer_curves = df["Offer Curve"].dropna()
+        if len(offer_curves) > 0:
+            first_curve = offer_curves.iloc[0]
+            assert isinstance(first_curve, list)
+            if first_curve:
+                assert all(isinstance(x, list) and len(x) == 2 for x in first_curve)
+
+    def test_get_as_reports_dam(self):
+        """Test get_as_reports_dam method - long format with AS Type column"""
+        start = self.local_start_of_today() - pd.Timedelta(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_reports_dam_{start}.yaml",
+        ):
+            df = self.iso.get_as_reports_dam(start=start)
+
+        self._check_as_reports_dam(df)
+
+        assert df["Interval Start"].dt.date.unique() == start.date()
+
+    """get_as_reports_sced"""
+
+    def _check_as_reports_sced(self, df):
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Offer Curve"] == "object"
+
+        # Check that AS Type contains expected products
+        expected_products = {
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "ECRSS",
+            "ECRSM",
+            "NSPNM",
+            "RRSFFR",
+            "RRSPFR",
+            "RRSUFR",
+        }
+        actual_products = set(df["AS Type"])
+        assert expected_products == actual_products
+
+        # Check that offer curves are lists of [MW, Price] pairs
+        first_curve = df["Offer Curve"].iloc[0]
+        assert isinstance(first_curve, list)
+        if first_curve:
+            assert all(isinstance(x, list) and len(x) == 2 for x in first_curve)
+
+    def test_get_as_reports_sced(self):
+        """Test get_as_reports_sced method for SCED ancillary service offers"""
+        # SCED AS reports started on December 5, 2025
+        # Use a date after that with the 2-day delay
+        test_date = self.local_start_of_today() - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_reports_sced_{test_date}.yaml",
+        ):
+            df = self.iso.get_as_reports_sced(date=test_date)
+
+        self._check_as_reports_sced(df)
+
+        assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
+
     """get_reported_outages"""
 
     @pytest.mark.integration

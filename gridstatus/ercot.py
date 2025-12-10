@@ -268,9 +268,13 @@ UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
 THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
 
-# 2-Day Ancillary Services Reports
+# 2-Day Ancillary Services Reports (DAM)
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-911-ER
 TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
+
+# 2-Day SCED Ancillary Service Disclosure
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-906-ex
+TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID = 25814
 
 # Hourly Resource Outage Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
@@ -2997,6 +3001,13 @@ class Ercot(ISOBase):
 
         Published with a 2 day delay around 3am central
         """
+        # This method is not supported starting with the file published on 2025-12-08
+        # (with data for 2025-12-06)
+        if date >= pd.Timestamp("2025-12-06", tz=self.default_timezone):
+            raise ValueError(
+                "This method is not supported starting with the file published on 2025-12-08 (with data for 2025-12-06) because the data significantly changed with the launch of ERCOT RTC+B. Please use get_reports_as_dam on or after this date.",
+            )
+
         report_date = date.normalize() + pd.DateOffset(days=2)
 
         doc = self._get_document(
@@ -3096,6 +3107,7 @@ class Ercot(ISOBase):
 
         for as_name in offers_products:
             suffix = f"{as_name}-{date_str}.csv"
+            # Starting 2025-12-08, files have DAM in the name
             offers = f"{prefix}_Agg_AS_Offers_{suffix}"
 
             if as_name in exclude_products and offers not in z.namelist():
@@ -3127,6 +3139,326 @@ class Ercot(ISOBase):
         ).reset_index()
 
         return self.parse_doc(df, verbose=verbose)
+
+    @support_date_range("DAY_START")
+    def get_as_reports_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day-Ahead Market Ancillary Services Reports.
+
+        Published with a 2 day delay around 3am central.
+
+        Contains cleared, self-arranged, and bid curve data for each AS product.
+
+        Arguments:
+            date: date to fetch reports for
+            verbose: print verbose output
+
+        Returns:
+            pandas.DataFrame: A DataFrame with DAM ancillary services reports
+        """
+        if date == "latest":
+            date = self.local_now().normalize() - pd.DateOffset(days=2)
+
+        report_date = date.normalize() + pd.DateOffset(days=2)
+
+        doc = self._get_document(
+            report_type_id=TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        return self._handle_as_reports_dam_file(doc.url, verbose=verbose)
+
+    def _handle_as_reports_dam_file(
+        self,
+        file_path: str,
+        verbose: bool = False,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Parse DAM AS reports into long format with columns:
+        interval_start, interval_end, as_type, cleared, self_arranged, offer_curve
+        """
+        z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
+
+        # extract the date from the file name
+        date_str = z.namelist()[0][-13:-4]
+
+        # AS products that may be present
+        as_products = [
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "NSPNM",
+        ]
+
+        # Some products are not in earlier data
+        exclude_products = [
+            "ECRSM",
+            "ECRSS",
+            "NSPNM",
+            "RRSFFR",
+            "RRSUFR",
+            "RRSPFR",
+        ]
+
+        prefix = "2d"
+
+        # Earlier prefixes are 48h
+        if z.namelist()[0].split("_")[0] == "48h":
+            prefix = "48h"
+
+        # Process each AS product
+        product_dfs = []
+
+        for as_name in as_products:
+            suffix = f"{as_name}-{date_str}.csv"
+            cleared_file = f"{prefix}_Cleared_DAM_AS_{suffix}"
+            self_arranged_file = f"{prefix}_Self_Arranged_AS_{suffix}"
+            # Files before 2025-12-08 (before RTC+B) do not have DAM in the name.
+            offers_file = (
+                f"{prefix}_Agg_DAM_AS_Offers_{suffix}"
+                if pd.Timestamp(date_str, tz=self.default_timezone)
+                >= pd.Timestamp("2025-12-08", tz=self.default_timezone)
+                else f"{prefix}_Agg_AS_Offers_{suffix}"
+            )
+
+            # Skip if product not in this file
+            if as_name in exclude_products and cleared_file not in z.namelist():
+                continue
+
+            # Read cleared data
+            df_cleared = None
+            if cleared_file in z.namelist():
+                df_cleared = pd.read_csv(z.open(cleared_file))
+                df_cleared = df_cleared.rename(
+                    columns={df_cleared.columns[-1]: "Cleared"},
+                )
+
+            # Read self-arranged data
+            df_self = None
+            if self_arranged_file in z.namelist():
+                df_self = pd.read_csv(z.open(self_arranged_file))
+                df_self = df_self.rename(
+                    columns={df_self.columns[-1]: "Self Arranged"},
+                )
+
+            # Read offers data and create bid curves
+            df_offers = None
+            if offers_file in z.namelist():
+                df_offers_raw = pd.read_csv(z.open(offers_file))
+                if not df_offers_raw.empty:
+                    # Create offer curve as list of [MW, Price] pairs
+                    def _make_offer_curve(group_df: pd.DataFrame) -> list[list[float]]:
+                        return [
+                            [mw, price]
+                            for mw, price in zip(
+                                group_df["MW Offered"],
+                                group_df[f"{as_name} Offer Price"],
+                            )
+                        ]
+
+                    df_offers = (
+                        df_offers_raw.groupby(["Delivery Date", "Hour Ending"])
+                        .apply(_make_offer_curve, include_groups=False)
+                        .reset_index(name="Offer Curve")
+                    )
+
+            # Merge cleared, self-arranged, and offers data
+            df_product = None
+            if df_cleared is not None:
+                df_product = df_cleared.copy()
+            if df_self is not None:
+                if df_product is None:
+                    df_product = df_self.copy()
+                else:
+                    df_product = df_product.merge(
+                        df_self[["Delivery Date", "Hour Ending", "Self Arranged"]],
+                        on=["Delivery Date", "Hour Ending"],
+                        how="outer",
+                    )
+            if df_offers is not None:
+                if df_product is None:
+                    df_product = df_offers.copy()
+                else:
+                    df_product = df_product.merge(
+                        df_offers,
+                        on=["Delivery Date", "Hour Ending"],
+                        how="outer",
+                    )
+
+            if df_product is not None:
+                # Add AS Type column
+                df_product["AS Type"] = as_name
+                product_dfs.append(df_product)
+
+        if not product_dfs:
+            raise NoDataFoundException("No DAM AS reports found in zip file")
+
+        # Combine all products into long format
+        df = pd.concat(product_dfs, ignore_index=True)
+
+        # Select and order columns
+        df = df[
+            [
+                "Delivery Date",
+                "Hour Ending",
+                "AS Type",
+                "Cleared",
+                "Self Arranged",
+                "Offer Curve",
+            ]
+        ]
+
+        return self.parse_doc(df, verbose=verbose)
+
+    @support_date_range("DAY_START")
+    def get_as_reports_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get 2-Day SCED Ancillary Service Disclosure Reports.
+
+        Published with a 2 day delay around 3am central.
+
+        Contains offer curves (MW offered and price) for each AS product
+        at each SCED timestamp.
+
+        Output columns: SCED Timestamp, AS Type, Offer Curve
+
+        Arguments:
+            date: date to fetch reports for
+            verbose: print verbose output
+
+        Returns:
+            pandas.DataFrame: A DataFrame with SCED ancillary services offers
+        """
+        if date == "latest":
+            date = self.local_now().normalize() - pd.DateOffset(days=2)
+
+        report_date = date.normalize() + pd.DateOffset(days=2)
+
+        doc = self._get_document(
+            report_type_id=TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        return self._handle_as_reports_sced_file(doc.url, verbose=verbose)
+
+    def _handle_as_reports_sced_file(
+        self,
+        file_path: str,
+        verbose: bool = False,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Parse SCED AS reports with columns:
+        sced_timestamp, as_type, offer_curve (list of [MW, Price] pairs)
+
+        Based on primary key: sced_timestamp, as_type, mw_offered
+        But output format uses offer_curve column containing list of pairs
+        """
+        z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
+
+        # SCED AS products
+        as_products = [
+            "ECRSM",
+            "ECRSS",
+            "REGUP",
+            "REGDN",
+            "RRSPFR",
+            "RRSUFR",
+            "RRSFFR",
+            "NSPIN",
+            "NSPNM",
+        ]
+
+        all_dfs = []
+
+        for file_name in z.namelist():
+            # Skip non-CSV files
+            if not file_name.endswith(".csv"):
+                continue
+
+            # Determine AS type from file name
+            as_type = None
+            for product in as_products:
+                if product in file_name.upper():
+                    as_type = product
+                    break
+
+            if as_type is None:
+                continue
+
+            df = pd.read_csv(z.open(file_name))
+
+            if df.empty:
+                continue
+
+            # Add AS Type column
+            df["AS Type"] = as_type
+
+            # Find the price column - it should contain "Offer Price"
+            price_col = None
+            for col in df.columns:
+                if "Offer Price" in col:
+                    price_col = col
+                    break
+
+            if price_col is None:
+                continue
+
+            # Rename columns to standardized names
+            df = df.rename(columns={price_col: "Offer Price"})
+
+            # Create offer curve as list of [MW, Price] pairs for each SCED timestamp
+            def _make_offer_curve(group_df: pd.DataFrame) -> list[list[float]]:
+                return [
+                    [mw, price]
+                    for mw, price in zip(
+                        group_df["MW Offered"],
+                        group_df["Offer Price"],
+                    )
+                ]
+
+            df_grouped = (
+                df.groupby(["SCED Timestamp", "AS Type"])
+                .apply(_make_offer_curve, include_groups=False)
+                .reset_index(name="Offer Curve")
+            )
+
+            all_dfs.append(df_grouped)
+
+        if not all_dfs:
+            raise NoDataFoundException("No SCED AS reports found in zip file")
+
+        df = pd.concat(all_dfs, ignore_index=True)
+
+        # Parse SCED Timestamp directly (it's already a timestamp, not date + hour)
+        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+
+        # Convert to local timezone
+        if df["SCED Timestamp"].dt.tz is None:
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+                self.default_timezone,
+            )
+        else:
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_convert(
+                self.default_timezone,
+            )
+
+        df = df[["SCED Timestamp", "AS Type", "Offer Curve"]]
+        df = df.sort_values("SCED Timestamp").reset_index(drop=True)
+
+        return df
 
     @support_date_range("DAY_START")
     def get_dam_system_lambda(

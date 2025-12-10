@@ -19,6 +19,7 @@ from gridstatus.ercot_constants import (
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.source_specific.test_ercot import (
+    TestErcot,
     check_60_day_dam_disclosure,
     check_60_day_sced_disclosure,
 )
@@ -419,6 +420,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_as_reports"""
 
     def _check_as_reports(self, df, before_full_columns=False):
+        """Check AS reports in original wide format"""
         # Earlier datasets only have these limited columns
         if before_full_columns:
             columns = [
@@ -550,6 +552,33 @@ class TestErcotAPI(TestHelperMixin):
         assert {"2024-11-03 01:00:00-05:00", "2024-11-03 01:00:00-06:00"}.issubset(
             set(df["Interval Start"].astype(str).unique()),
         )
+
+    """get_as_reports_dam"""
+
+    def test_get_as_reports_dam(self):
+        """Test get_as_reports_dam method - long format"""
+        date = self.local_start_of_today() - pd.Timedelta(days=4)
+
+        with api_vcr.use_cassette(f"test_get_as_reports_dam_{date}.yaml"):
+            df = self.iso.get_as_reports_dam(date, verbose=True)
+
+        TestErcot()._check_as_reports_dam(df)
+
+        assert df["Interval Start"].dt.date.unique() == date.date()
+
+    """get_as_reports_sced"""
+
+    def test_get_as_reports_sced(self):
+        """Test get_as_reports_sced method for SCED ancillary service offers"""
+        # SCED AS reports started on December 5, 2025
+        date = self.local_start_of_today() - pd.Timedelta(days=4)
+
+        with api_vcr.use_cassette(f"test_get_as_reports_sced_{date}.yaml"):
+            df = self.iso.get_as_reports_sced(date, verbose=True)
+
+        TestErcot()._check_as_reports_sced(df)
+
+        assert df["SCED Timestamp"].dt.date.unique() == date.date()
 
     """get_as_plan"""
 
