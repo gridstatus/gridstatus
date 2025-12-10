@@ -42,6 +42,7 @@ class MISOAPI:
         load_generation_and_interchange_api_key: str | None = None,
         initial_sleep_seconds: int = 1,
         max_retries: int = 3,
+        exponential_base: int = 2,
     ) -> None:
         """
         Class for querying the MISO API. Currently supports only pricing data.
@@ -52,8 +53,11 @@ class MISOAPI:
         initial_sleep_seconds (int): The number of seconds to wait between each request.
             Used to address rate limiting (429 responses).
         max_retries (int): The maximum number of retries for failed requests.
-            Uses exponential backoff (2^attempt seconds) between retries. Used to
-            address the common 503 errors from the MISO API.
+            Uses exponential backoff between retries. Used to address the common
+            503 errors from the MISO API.
+        exponential_base (int): The base for exponential backoff calculation.
+            Sleep time = exponential_base^(attempt+1) seconds. Default is 2,
+            which gives delays of 2, 4, 8 seconds for attempts 0, 1, 2.
         """
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
@@ -80,6 +84,7 @@ class MISOAPI:
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
         self.max_retries = max_retries
+        self.exponential_base = exponential_base
 
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
@@ -1724,6 +1729,9 @@ class MISOAPI:
     ) -> requests.Response:
         """Make a request with exponential backoff retry logic.
 
+        Only retries on 429 (Too Many Requests) and 503 (Service Unavailable) errors.
+        Other HTTP errors are raised immediately without retry.
+
         Arguments:
             url: The URL to request.
             headers: The headers to include in the request.
@@ -1734,29 +1742,40 @@ class MISOAPI:
             The successful response.
 
         Raises:
-            requests.HTTPError: If all retries are exhausted.
+            requests.HTTPError: If a non-retryable error occurs or all retries
+                are exhausted.
         """
+        retryable_status_codes = {429, 503}
         last_exception: Exception | None = None
 
         for attempt in range(self.max_retries + 1):
-            try:
-                response = requests.get(
-                    url,
-                    params=params,
-                    headers=headers,
-                    verify=CERTIFICATES_CHAIN_FILE,
-                )
-                response.raise_for_status()
+            response = requests.get(
+                url,
+                params=params,
+                headers=headers,
+                verify=CERTIFICATES_CHAIN_FILE,
+            )
+
+            if response.ok:
                 return response
-            except requests.RequestException as e:
-                last_exception = e
-                if attempt < self.max_retries:
-                    sleep_seconds = 2 ** (attempt + 1)
-                    logger.warning(
-                        f"Request failed: {e}. Retrying in {sleep_seconds} seconds "
-                        f"(attempt {attempt + 1}/{self.max_retries})...",
-                    )
-                    time.sleep(sleep_seconds)
+
+            # Only retry on specific status codes
+            if response.status_code not in retryable_status_codes:
+                response.raise_for_status()
+
+            last_exception = requests.HTTPError(
+                f"{response.status_code} Error: {response.reason}",
+                response=response,
+            )
+
+            if attempt < self.max_retries:
+                sleep_seconds = self.exponential_base ** (attempt + 1)
+                logger.warning(
+                    f"Request failed with status {response.status_code}. "
+                    f"Retrying in {sleep_seconds} seconds "
+                    f"(attempt {attempt + 1}/{self.max_retries})...",
+                )
+                time.sleep(sleep_seconds)
 
         # If we've exhausted all retries, raise the last exception
         raise last_exception  # type: ignore[misc]
