@@ -1330,20 +1330,20 @@ class TestMISOAPIRetryMechanism:
         assert mock_get.call_count == 1
 
     @patch("time.sleep")
-    def test_make_request_with_retry_503_then_success(self, mock_sleep):
-        """Test retry on 503 Service Unavailable with exponential backoff."""
+    def test_make_request_with_retry_5xx_then_success(self, mock_sleep):
+        """Test retry on 5xx server errors with exponential backoff."""
         api = MISOAPI(max_retries=3)
 
-        # Create mock responses: 2x 503 errors then success
+        # Create mock responses: 500 error, 502 error, then success
         error_response_1 = Mock()
         error_response_1.ok = False
-        error_response_1.status_code = 503
-        error_response_1.reason = "Service Unavailable"
+        error_response_1.status_code = 500
+        error_response_1.reason = "Internal Server Error"
 
         error_response_2 = Mock()
         error_response_2.ok = False
-        error_response_2.status_code = 503
-        error_response_2.reason = "Service Unavailable"
+        error_response_2.status_code = 502
+        error_response_2.reason = "Bad Gateway"
 
         success_response = Mock()
         success_response.ok = True
@@ -1421,17 +1421,17 @@ class TestMISOAPIRetryMechanism:
         mock_sleep.assert_called_once_with(3)
 
     @patch("time.sleep")
-    def test_make_request_with_retry_exhausted_on_503(self, mock_sleep):
-        """Test that exception is raised when all retries are exhausted on 503."""
+    def test_make_request_with_retry_exhausted_on_5xx(self, mock_sleep):
+        """Test that exception is raised when all retries are exhausted on 5xx."""
         api = MISOAPI(max_retries=2)
 
         error_response = Mock()
         error_response.ok = False
-        error_response.status_code = 503
-        error_response.reason = "Service Unavailable"
+        error_response.status_code = 500
+        error_response.reason = "Internal Server Error"
 
         with patch("requests.get", return_value=error_response) as mock_get:
-            with pytest.raises(requests.HTTPError, match="503"):
+            with pytest.raises(requests.HTTPError, match="500"):
                 api._make_request_with_retry(
                     url="https://example.com/test",
                     headers={"Authorization": "test"},

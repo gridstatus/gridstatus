@@ -1729,7 +1729,7 @@ class MISOAPI:
     ) -> requests.Response:
         """Make a request with exponential backoff retry logic.
 
-        Only retries on 429 (Too Many Requests) and 503 (Service Unavailable) errors.
+        Only retries on 429 (Too Many Requests) and 5xx server errors.
         Other HTTP errors are raised immediately without retry.
 
         Arguments:
@@ -1745,7 +1745,6 @@ class MISOAPI:
             requests.HTTPError: If a non-retryable error occurs or all retries
                 are exhausted.
         """
-        retryable_status_codes = {429, 503}
         last_exception: Exception | None = None
 
         for attempt in range(self.max_retries + 1):
@@ -1759,8 +1758,11 @@ class MISOAPI:
             if response.ok:
                 return response
 
-            # Only retry on specific status codes
-            if response.status_code not in retryable_status_codes:
+            # Only retry on 429 (rate limiting) and 5xx server errors
+            is_retryable = response.status_code == 429 or (
+                500 <= response.status_code < 600
+            )
+            if not is_retryable:
                 response.raise_for_status()
 
             last_exception = requests.HTTPError(
