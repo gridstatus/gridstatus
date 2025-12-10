@@ -2347,9 +2347,9 @@ class TestErcot(BaseTestISO):
         # 2 hours / 15 minutes/interval = 8 intervals
         assert df["Interval Start"].nunique() == 8
 
-    """get_as_demand_curves"""
+    """get_as_demand_curves_dam_and_sced"""
 
-    def _check_get_as_demand_curves(self, df: pd.DataFrame):
+    def _check_get_as_demand_curves_dam_and_sced(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -2367,13 +2367,13 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
-    def test_get_as_demand_curves_latest(self):
+    def test_get_as_demand_curves_dam_and_sced_latest(self):
         with api_vcr.use_cassette(
-            "test_get_as_demand_curves_date_range_latest.yaml",
+            "test_get_as_demand_curves_dam_and_sced_date_range_latest.yaml",
         ):
-            df = self.iso.get_as_demand_curves("latest")
+            df = self.iso.get_as_demand_curves_dam_and_sced("latest")
 
-        self._check_get_as_demand_curves(df)
+        self._check_get_as_demand_curves_dam_and_sced(df)
 
         # The "latest" method will still get us two days of data
         assert df["Interval Start"].min() == self.local_now().normalize()
@@ -2381,16 +2381,16 @@ class TestErcot(BaseTestISO):
             "Interval Start"
         ].max() == self.local_now().normalize() + pd.DateOffset(days=1, hours=23)
 
-    def test_get_as_demand_curves_date_range(self):
+    def test_get_as_demand_curves_dam_and_sced_date_range(self):
         date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_as_demand_curves_date_range_{date}_{end}.yaml",
+            f"test_get_as_demand_curves_dam_and_sced_date_range_{date}_{end}.yaml",
         ):
-            df = self.iso.get_as_demand_curves(date, end)
+            df = self.iso.get_as_demand_curves_dam_and_sced(date, end)
 
-        self._check_get_as_demand_curves(df)
+        self._check_get_as_demand_curves_dam_and_sced(df)
 
         assert df["Interval Start"].min() == date.tz_localize(
             self.iso.default_timezone,
