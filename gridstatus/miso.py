@@ -1664,10 +1664,12 @@ class MISO(ISOBase):
                 "Only latest MISO interchange data is available. Use 'latest' as date.",
             )
 
-        # The actuals are available with historical data in the Imports endpoint
+        # The actuals are available with historical data in the Imports endpoint. Data
+        # in this file is in UTC, confirmed using https://publiccharts.misoenergy.org/charts/interchange
         actual_url = "https://public-api.misoenergy.org/api/Interchange/GetNai/Imports"
 
-        # Scheduled data with historical 5-minute data including all components
+        # Scheduled data with historical 5-minute data including all components. Data
+        # in this file is in EST, confirmed using https://publiccharts.misoenergy.org/charts/interchange
         scheduled_url = (
             "https://public-api.misoenergy.org/api/Interchange/GetNsi/FiveMinute"
         )
@@ -1684,7 +1686,8 @@ class MISO(ISOBase):
         actual_data["Time"] = pd.to_datetime(
             actual_data["Time"],
             format="%Y-%m-%d %I:%M:%S %p",
-        ).dt.tz_localize(self.default_timezone)
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
 
         # Convert Value to numeric
         actual_data["Value"] = pd.to_numeric(actual_data["Value"])
