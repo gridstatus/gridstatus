@@ -5,6 +5,7 @@
 ### Additions (New Features/Datasets)
 
 #### ERCOT
+* ERCOT AS Reports DAM and SCED in [#749](https://github.com/gridstatus/gridstatus/pull/749)
 * ERCOT Hourly, Daily, and Weekly AS Demand Curves in [#743](https://github.com/gridstatus/gridstatus/pull/743)
 * ERCOT AS Deployment Factors Weekly RUC in [#744](https://github.com/gridstatus/gridstatus/pull/744)
 * ERCOT System Capacity AS Monitor in [#740](https://github.com/gridstatus/gridstatus/pull/740)
@@ -88,6 +89,8 @@
 * AESO Solar and Wind Handle DST in [#695](https://github.com/gridstatus/gridstatus/pull/695)
 
 #### MISO
+* Update MISO Real Time URLs in [#751](https://github.com/gridstatus/gridstatus/pull/751)
+* Update MISO API Retry in [#750](https://github.com/gridstatus/gridstatus/pull/750)
 * Fix support date range decorators on miso pricing api in [#690](https://github.com/gridstatus/gridstatus/pull/690)
 * Fix miso lmp mapping instead of merge in [#728](https://github.com/gridstatus/gridstatus/pull/728)
 
