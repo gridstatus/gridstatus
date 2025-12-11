@@ -50,9 +50,53 @@ class TestMISO(BaseTestISO):
     def test_get_fuel_mix_start_end_same_day(self):
         pass
 
+    def _check_fuel_mix(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Coal",
+            "Imports",
+            "Natural Gas",
+            "Nuclear",
+            "Other",
+            "Solar",
+            "Wind",
+        ]
+
+        for col in [
+            "Coal",
+            "Imports",
+            "Natural Gas",
+            "Nuclear",
+            "Other",
+            "Solar",
+            "Wind",
+        ]:
+            assert df.dtypes[col] == "Int64"
+
     def test_get_fuel_mix_today(self):
-        with pytest.raises(NotSupported):
-            super().test_get_fuel_mix_today()
+        with miso_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
+            df = self.iso.get_fuel_mix("today")
+
+        self._check_fuel_mix(df)
+
+    def test_get_fuel_mix_latest(self):
+        with miso_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
+            df = self.iso.get_fuel_mix("latest")
+
+        self._check_fuel_mix(df)
+        assert len(df) == 1
+
+    def test_get_fuel_mix_yesterdays_date(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=1)
+        with miso_vcr.use_cassette(
+            f"test_get_fuel_mix_{date.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_fuel_mix(date)
+
+        self._check_fuel_mix(df)
+        assert len(df) == 288
 
     def test_get_interconnection_queue(self):
         with miso_vcr.use_cassette("test_get_interconnection_queue.yaml"):

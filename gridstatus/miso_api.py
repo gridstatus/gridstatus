@@ -41,15 +41,23 @@ class MISOAPI:
         pricing_api_key: str | None = None,
         load_generation_and_interchange_api_key: str | None = None,
         initial_sleep_seconds: int = 1,
+        max_retries: int = 3,
+        exponential_base: int = 2,
     ) -> None:
         """
         Class for querying the MISO API. Currently supports only pricing data.
 
         Arguments:
         pricing_api_key (str): The API key for the pricing API. Can be a comma-separated
-        list of keys if you have multiple keys.
+            list of keys if you have multiple keys.
         initial_sleep_seconds (int): The number of seconds to wait between each request.
-        Used to prevent rate limiting.
+            Used to address rate limiting (429 responses).
+        max_retries (int): The maximum number of retries for failed requests.
+            Uses exponential backoff between retries. Used to address the common
+            503 errors from the MISO API.
+        exponential_base (int): The base for exponential backoff calculation.
+            Sleep time = exponential_base^(attempt+1) seconds. Default is 2,
+            which gives delays of 2, 4, 8 seconds for attempts 0, 1, 2.
         """
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
@@ -75,6 +83,8 @@ class MISOAPI:
 
         self.default_timezone = "EST"
         self.initial_sleep_seconds = initial_sleep_seconds
+        self.max_retries = max_retries
+        self.exponential_base = exponential_base
 
     def get_lmp_day_ahead_hourly_ex_ante(
         self,
@@ -291,7 +301,9 @@ class MISOAPI:
         return data_list
 
     def _get_node_to_type_mapping(
-        self, start: pd.Timestamp, end: pd.Timestamp
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
     ) -> pd.DataFrame:
         # use miso pricing api (Aggregated Pnode) to get location types
         df = self.get_pricing_nodes(start, end)
@@ -1660,7 +1672,6 @@ class MISOAPI:
         url: str,
         product: str,
         verbose: bool = False,
-        max_retries: int = 3,
     ) -> List[Dict[str, Any]]:
         headers = self._headers(product=product)
         data_list = []
@@ -1668,13 +1679,13 @@ class MISOAPI:
         if verbose:
             logger.info(f"Getting data from {url}")
 
-        response = requests.get(
-            url,
+        # First request with retry logic
+        response = self._make_request_with_retry(
+            url=url,
             headers=headers,
-            verify=CERTIFICATES_CHAIN_FILE,
+            params=None,
+            verbose=verbose,
         )
-
-        response.raise_for_status()
 
         data = response.json()
         data_list.extend(data["data"])
@@ -1694,31 +1705,13 @@ class MISOAPI:
 
             params = {"pageNumber": page_number}
 
-            attempt = 0
-            response = requests.get(
-                url,
-                params=params,
+            response = self._make_request_with_retry(
+                url=url,
                 headers=headers,
-                verify=CERTIFICATES_CHAIN_FILE,
+                params=params,
+                verbose=verbose,
             )
 
-            while response.status_code != 200 and attempt < max_retries:
-                attempt += 1
-
-                logger.warning(
-                    f"Request failed with {response.status_code}. Retrying in "
-                    f"{2**attempt} seconds...",
-                )
-
-                time.sleep(self.initial_sleep_seconds**attempt)
-                response = requests.get(
-                    url,
-                    params=params,
-                    headers=headers,
-                    verify=CERTIFICATES_CHAIN_FILE,
-                )
-
-            response.raise_for_status()
             data = response.json()
 
             last_page = data["page"]["lastPage"]
@@ -1726,6 +1719,68 @@ class MISOAPI:
             time.sleep(self.initial_sleep_seconds)
 
         return data_list
+
+    def _make_request_with_retry(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        params: Dict[str, Any] | None = None,
+        verbose: bool = False,
+    ) -> requests.Response:
+        """Make a request with exponential backoff retry logic.
+
+        Only retries on 429 (Too Many Requests) and 5xx server errors.
+        Other HTTP errors are raised immediately without retry.
+
+        Arguments:
+            url: The URL to request.
+            headers: The headers to include in the request.
+            params: Optional query parameters.
+            verbose: Whether to log verbose output.
+
+        Returns:
+            The successful response.
+
+        Raises:
+            requests.HTTPError: If a non-retryable error occurs or all retries
+                are exhausted.
+        """
+        last_exception: Exception | None = None
+
+        for attempt in range(self.max_retries + 1):
+            response = requests.get(
+                url,
+                params=params,
+                headers=headers,
+                verify=CERTIFICATES_CHAIN_FILE,
+            )
+
+            if response.ok:
+                return response
+
+            # Only retry on 429 (rate limiting) and 5xx server errors
+            is_retryable = response.status_code == 429 or (
+                500 <= response.status_code < 600
+            )
+            if not is_retryable:
+                response.raise_for_status()
+
+            last_exception = requests.HTTPError(
+                f"{response.status_code} Error: {response.reason}",
+                response=response,
+            )
+
+            if attempt < self.max_retries:
+                sleep_seconds = self.exponential_base ** (attempt + 1)
+                logger.warning(
+                    f"Request failed with status {response.status_code}. "
+                    f"Retrying in {sleep_seconds} seconds "
+                    f"(attempt {attempt + 1}/{self.max_retries})...",
+                )
+                time.sleep(sleep_seconds)
+
+        # If we've exhausted all retries, raise the last exception
+        raise last_exception  # type: ignore[misc]
 
     def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
@@ -2102,7 +2157,9 @@ class MISOAPI:
         return df_pivot
 
     def _miso_quarterly_days(
-        self, start: pd.Timestamp, end: pd.Timestamp
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
     ) -> List[pd.Timestamp]:
         """
         MISO pricing nodes are updated quarterly on March 1st, June 1st, September 1st, and December 1st.
