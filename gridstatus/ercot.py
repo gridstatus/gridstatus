@@ -276,6 +276,29 @@ TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 # https://www.ercot.com/mp/data-products/data-product-details?id=np3-906-ex
 TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID = 25814
 
+# Ancillary Services products - used across multiple AS report methods
+AS_PRODUCTS = [
+    "RRSPFR",
+    "RRSUFR",
+    "RRSFFR",
+    "ECRSM",
+    "ECRSS",
+    "REGUP",
+    "REGDN",
+    "NSPIN",
+    "NSPNM",
+]
+
+# Products that are not present in earlier data (before certain product launches)
+AS_EXCLUDE_PRODUCTS = [
+    "ECRSM",
+    "ECRSS",
+    "NSPNM",
+    "RRSFFR",
+    "RRSUFR",
+    "RRSPFR",
+]
+
 # Hourly Resource Outage Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
 HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
@@ -3029,27 +3052,9 @@ class Ercot(ISOBase):
         # extract the date from the file name
         date_str = z.namelist()[0][-13:-4]
 
-        self_arranged_products = [
-            "RRSPFR",
-            "RRSUFR",
-            "RRSFFR",
-            "ECRSM",
-            "ECRSS",
-            "REGUP",
-            "REGDN",
-            "NSPIN",
-            "NSPNM",
-        ]
-        cleared_products = [
-            "RRSPFR",
-            "RRSUFR",
-            "RRSFFR",
-            "ECRSM",
-            "ECRSS",
-            "REGUP",
-            "REGDN",
-            "NSPIN",
-        ]
+        # Legacy method uses slightly different product lists
+        self_arranged_products = AS_PRODUCTS
+        cleared_products = [p for p in AS_PRODUCTS if p != "NSPNM"]
         offers_products = [
             "RRSPFR",
             "RRSUFR",
@@ -3062,28 +3067,14 @@ class Ercot(ISOBase):
             "OFFNS",
         ]
 
-        # Some of these produces are not in earlier data
-        exclude_products = [
-            "ECRSM",
-            "ECRSS",
-            "NSPNM",
-            "RRSFFR",
-            "RRSUFR",
-            "RRSPFR",
-        ]
-
-        prefix = "2d"
-
-        # Earlier prefixes are 48h
-        if z.namelist()[0].split("_")[0] == "48h":
-            prefix = "48h"
+        prefix = self._get_as_report_prefix(z)
 
         all_dfs = []
         for as_name in cleared_products:
             suffix = f"{as_name}-{date_str}.csv"
             cleared = f"{prefix}_Cleared_DAM_AS_{suffix}"
 
-            if as_name in exclude_products and cleared not in z.namelist():
+            if as_name in AS_EXCLUDE_PRODUCTS and cleared not in z.namelist():
                 continue
 
             df_cleared = pd.read_csv(z.open(cleared))
@@ -3093,7 +3084,7 @@ class Ercot(ISOBase):
             suffix = f"{as_name}-{date_str}.csv"
             self_arranged = f"{prefix}_Self_Arranged_AS_{suffix}"
 
-            if as_name in exclude_products and self_arranged not in z.namelist():
+            if as_name in AS_EXCLUDE_PRODUCTS and self_arranged not in z.namelist():
                 continue
 
             df_self_arranged = pd.read_csv(z.open(self_arranged))
@@ -3110,7 +3101,7 @@ class Ercot(ISOBase):
             # Starting 2025-12-08, files have DAM in the name
             offers = f"{prefix}_Agg_AS_Offers_{suffix}"
 
-            if as_name in exclude_products and offers not in z.namelist():
+            if as_name in AS_EXCLUDE_PRODUCTS and offers not in z.namelist():
                 continue
 
             df_offers = pd.read_csv(z.open(offers))
@@ -3140,6 +3131,68 @@ class Ercot(ISOBase):
 
         return self.parse_doc(df, verbose=verbose)
 
+    def _get_as_report_document(
+        self,
+        date: str | pd.Timestamp,
+        report_type_id: str,
+        verbose: bool = False,
+    ) -> Document:
+        """Get the AS report document for a given date.
+
+        Handles "latest" date and applies the 2-day delay offset.
+
+        Arguments:
+            date: date to fetch reports for (or "latest")
+            report_type_id: RTID of the report type to fetch
+            verbose: print verbose output
+
+        Returns:
+            Document: The document for the requested date
+        """
+        if date == "latest":
+            date = self.local_now().normalize() - pd.DateOffset(days=2)
+
+        report_date = date.normalize() + pd.DateOffset(days=2)
+
+        return self._get_document(
+            report_type_id=report_type_id,
+            date=report_date,
+            verbose=verbose,
+        )
+
+    def _get_as_report_prefix(self, z: ZipFile) -> str:
+        """Determine the file prefix for AS report files.
+
+        Earlier files use '48h' prefix, newer files use '2d'.
+
+        Arguments:
+            z: ZipFile containing the AS report files
+
+        Returns:
+            str: The prefix ('2d' or '48h')
+        """
+        if z.namelist()[0].split("_")[0] == "48h":
+            return "48h"
+        return "2d"
+
+    @staticmethod
+    def _make_offer_curve(
+        group_df: pd.DataFrame,
+        mw_col: str = "MW Offered",
+        price_col: str = "Offer Price",
+    ) -> list[list[float]]:
+        """Create an offer curve as a list of [MW, Price] pairs.
+
+        Arguments:
+            group_df: DataFrame containing MW and price columns
+            mw_col: Name of the MW column
+            price_col: Name of the price column
+
+        Returns:
+            list[list[float]]: List of [MW, Price] pairs
+        """
+        return [[mw, price] for mw, price in zip(group_df[mw_col], group_df[price_col])]
+
     @support_date_range("DAY_START")
     def get_as_reports_dam(
         self,
@@ -3159,14 +3212,9 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with DAM ancillary services reports
         """
-        if date == "latest":
-            date = self.local_now().normalize() - pd.DateOffset(days=2)
-
-        report_date = date.normalize() + pd.DateOffset(days=2)
-
-        doc = self._get_document(
+        doc = self._get_as_report_document(
+            date=date,
             report_type_id=TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID,
-            date=report_date,
             verbose=verbose,
         )
 
@@ -3186,39 +3234,12 @@ class Ercot(ISOBase):
         # extract the date from the file name
         date_str = z.namelist()[0][-13:-4]
 
-        # AS products that may be present
-        as_products = [
-            "RRSPFR",
-            "RRSUFR",
-            "RRSFFR",
-            "ECRSM",
-            "ECRSS",
-            "REGUP",
-            "REGDN",
-            "NSPIN",
-            "NSPNM",
-        ]
-
-        # Some products are not in earlier data
-        exclude_products = [
-            "ECRSM",
-            "ECRSS",
-            "NSPNM",
-            "RRSFFR",
-            "RRSUFR",
-            "RRSPFR",
-        ]
-
-        prefix = "2d"
-
-        # Earlier prefixes are 48h
-        if z.namelist()[0].split("_")[0] == "48h":
-            prefix = "48h"
+        prefix = self._get_as_report_prefix(z)
 
         # Process each AS product
         product_dfs = []
 
-        for as_name in as_products:
+        for as_name in AS_PRODUCTS:
             suffix = f"{as_name}-{date_str}.csv"
             cleared_file = f"{prefix}_Cleared_DAM_AS_{suffix}"
             self_arranged_file = f"{prefix}_Self_Arranged_AS_{suffix}"
@@ -3231,7 +3252,7 @@ class Ercot(ISOBase):
             )
 
             # Skip if product not in this file
-            if as_name in exclude_products and cleared_file not in z.namelist():
+            if as_name in AS_EXCLUDE_PRODUCTS and cleared_file not in z.namelist():
                 continue
 
             # Read cleared data
@@ -3341,14 +3362,9 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with SCED ancillary services offers
         """
-        if date == "latest":
-            date = self.local_now().normalize() - pd.DateOffset(days=2)
-
-        report_date = date.normalize() + pd.DateOffset(days=2)
-
-        doc = self._get_document(
+        doc = self._get_as_report_document(
+            date=date,
             report_type_id=TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID,
-            date=report_date,
             verbose=verbose,
         )
 
@@ -3368,19 +3384,6 @@ class Ercot(ISOBase):
         """
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
-        # SCED AS products
-        as_products = [
-            "ECRSM",
-            "ECRSS",
-            "REGUP",
-            "REGDN",
-            "RRSPFR",
-            "RRSUFR",
-            "RRSFFR",
-            "NSPIN",
-            "NSPNM",
-        ]
-
         all_dfs = []
 
         for file_name in z.namelist():
@@ -3390,7 +3393,7 @@ class Ercot(ISOBase):
 
             # Determine AS type from file name
             as_type = None
-            for product in as_products:
+            for product in AS_PRODUCTS:
                 if product in file_name.upper():
                     as_type = product
                     break
