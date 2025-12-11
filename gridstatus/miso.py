@@ -39,7 +39,7 @@ def add_interval_end(df: pd.DataFrame, duration_min: int) -> pd.DataFrame:
 Notes
 
 - Real-time 5-minute LMP data for current day, previous day available
-https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=json
+https://public-api.misoenergy.org/api/MarketPricing/GetRealTimeFiveMinExPost/Rolling
 
 - market reports https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=
 historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AHistorical%20Generation%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
@@ -51,8 +51,6 @@ historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time
 
 class MISO(ISOBase):
     """Midcontinent Independent System Operator (MISO)"""
-
-    BASE = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx"
 
     interconnection_homepage = (
         "https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/"
@@ -93,7 +91,7 @@ class MISO(ISOBase):
         """Get the fuel mix for a given day for a provided MISO.
 
         Arguments:
-            date (datetime.date, str): "latest", "today", or an object
+            date (datetime.date, str): "latest", "today", "yesterday", or an object
                 that can be parsed as a datetime for the day to return data.
 
             verbose (bool, optional): print verbose output. Defaults to False.
@@ -101,28 +99,46 @@ class MISO(ISOBase):
         Returns:
             pandas.DataFrame: DataFrame with columns "Time", "Load", "Fuel Mix"
         """
-        if date != "latest":
-            raise NotSupported()
+        if date == "latest":
+            url = "https://public-api.misoenergy.org/api/FuelMix"
+        elif utils.is_today(date, tz=self.default_timezone):
+            url = "https://public-api.misoenergy.org/api/FuelMix/Today"
+        elif utils.is_yesterday(date, tz=self.default_timezone):
+            url = "https://public-api.misoenergy.org/api/FuelMix/Yesterday"
+        else:
+            raise NotSupported(
+                "Only 'latest', 'today', and yesterday's date are supported",
+            )
 
-        url = self.BASE + "?messageType=getfuelmix&returnType=json"
         response_json = self._get_json(url, verbose=verbose)
         return self._parse_fuel_mix(response_json)
 
     def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
-        time = pd.to_datetime(raw_json["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+        df = pd.json_normalize(raw_json["Fuel"]["Type"])
+        df["INTERVALEST"] = pd.to_datetime(
+            df["INTERVALEST"],
+            format="%Y-%m-%d %I:%M:%S %p",
+        ).dt.tz_localize(
             self.default_timezone,
         )
 
-        mix = {}
-        for fuel in raw_json["Fuel"]["Type"]:
-            amount = float(fuel["ACT"])
-            mix[fuel["CATEGORY"]] = amount
-
-        df = pd.DataFrame(mix, index=[time])
-        df.index.name = "Interval Start"
-        df = df.reset_index()
-        df = add_interval_end(df, 5)
-        return df
+        df_pivoted = df.pivot(index="INTERVALEST", columns="CATEGORY", values="ACT")
+        df_pivoted = df_pivoted.reset_index().rename(
+            columns={"INTERVALEST": "Interval Start"},
+        )
+        df_pivoted = add_interval_end(df_pivoted, 5)
+        df_pivoted.columns.name = None
+        for col in [
+            "Coal",
+            "Imports",
+            "Natural Gas",
+            "Nuclear",
+            "Other",
+            "Solar",
+            "Wind",
+        ]:
+            df_pivoted[col] = df_pivoted[col].astype("Int64")
+        return df_pivoted
 
     def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
         if date == "latest":
@@ -276,7 +292,7 @@ class MISO(ISOBase):
         return df
 
     def _get_load_data(self, verbose: bool = False) -> dict:
-        url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=gettotalload&returnType=json"  # noqa
+        url = "https://public-api.misoenergy.org/api/RealTimeTotalLoad"
         r = self._get_json(url, verbose=verbose)
         return r
 
@@ -601,9 +617,9 @@ class MISO(ISOBase):
                 Only 4 days of data available, with the most recent being yesterday.
         """
         if market == Markets.REAL_TIME_5_MIN:
-            latest_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=currentinterval&returnType=csv"  # noqa
-            today_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=rollingmarketday&returnType=csv"  # noqa
-            yesterday_url = "https://api.misoenergy.org/MISORTWDBIReporter/Reporter.asmx?messageType=previousmarketday&returnType=csv"  # noqa
+            latest_url = "https://public-api.misoenergy.org/api/MarketPricing/GetRealTimeFiveMinExPost/Current"
+            today_url = "https://public-api.misoenergy.org/api/MarketPricing/GetRealTimeFiveMinExPost/Rolling"
+            yesterday_url = "https://public-api.misoenergy.org/api/MarketPricing/GetRealTimeFiveMinExPost/Previous"
 
             if date == "latest":
                 url = latest_url
@@ -617,7 +633,10 @@ class MISO(ISOBase):
                 )
 
             logger.info(f"Downloading LMP data from {url}")
-            data = pd.read_csv(url)
+            response_json = self._get_json(url, verbose=verbose)
+
+            # Convert JSON format to DataFrame
+            data = pd.DataFrame(response_json["data"], columns=response_json["headers"])
 
             data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
                 self.default_timezone,
@@ -1645,35 +1664,43 @@ class MISO(ISOBase):
                 "Only latest MISO interchange data is available. Use 'latest' as date.",
             )
 
-        # The actuals are only available as JSON (the csv is empty). Data in this file
-        # is in UTC.
-        actual_url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getimporttotal5&returnType=json"
+        # The actuals are available with historical data in the Imports endpoint. Data
+        # in this file is in UTC, confirmed using https://publiccharts.misoenergy.org/charts/interchange
+        actual_url = "https://public-api.misoenergy.org/api/Interchange/GetNai/Imports"
 
-        # Data in this file is in the default timezone
-        scheduled_url = "https://api.misoenergy.org/MISORTWDDataBroker/DataBrokerServices.asmx?messageType=getNSI5&returnType=csv"
+        # Scheduled data with historical 5-minute data including all components. Data
+        # in this file is in EST, confirmed using https://publiccharts.misoenergy.org/charts/interchange
+        scheduled_url = (
+            "https://public-api.misoenergy.org/api/Interchange/GetNsi/FiveMinute"
+        )
 
         logger.info(
             f"Downloading interchange data from {scheduled_url} and {actual_url}",
         )
 
-        actual_data = pd.read_json(actual_url)
+        # Get actual data - new API returns array of historical values
+        actual_response = self._get_json(actual_url, verbose=verbose)
+        actual_data = pd.DataFrame(actual_response)
 
+        # Parse actual data timestamp (format: "2025-12-10 2:15:00 AM")
         actual_data["Time"] = pd.to_datetime(
             actual_data["Time"],
-            utc=True,
-            # Example: 2025-06-05 8:20:00 PM
             format="%Y-%m-%d %I:%M:%S %p",
+            utc=True,
         ).dt.tz_convert(self.default_timezone)
 
-        scheduled_data = pd.read_csv(
-            scheduled_url,
-            skiprows=2,
-        )
+        # Convert Value to numeric
+        actual_data["Value"] = pd.to_numeric(actual_data["Value"])
+
+        # Get scheduled data - new API returns array in "instance" key
+        scheduled_response = self._get_json(scheduled_url, verbose=verbose)
+        scheduled_data = pd.DataFrame(scheduled_response["instance"])
 
         scheduled_data["timestamp"] = pd.to_datetime(
             scheduled_data["timestamp"],
         ).dt.tz_localize(self.default_timezone)
 
+        # Merge actual and scheduled data
         data = scheduled_data.merge(
             actual_data,
             left_on="timestamp",
