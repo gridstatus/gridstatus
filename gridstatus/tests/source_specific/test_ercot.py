@@ -997,30 +997,19 @@ class TestErcot(BaseTestISO):
 
     """test get_as_reports"""
 
-    @pytest.mark.integration
     def test_get_as_reports(self):
-        four_days_ago = pd.Timestamp.now(
+        # This dataset stops on 2025-12-05 so we have to pin the date
+        date = pd.Timestamp(
+            "2025-12-05",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
-            days=4,
         )
 
-        five_days_ago = four_days_ago - pd.Timedelta(
-            days=1,
-        )
+        with api_vcr.use_cassette(
+            f"test_get_as_reports_{date}.yaml",
+        ):
+            df = self.iso.get_as_reports(start=date)
 
-        df = self.iso.get_as_reports(
-            start=five_days_ago,
-            end=four_days_ago
-            + pd.Timedelta(
-                days=1,
-            ),
-        )
-
-        assert (
-            df["Interval Start"].dt.date.unique()
-            == [five_days_ago.date(), four_days_ago.date()]
-        ).all()
+        assert (df["Interval Start"].dt.date.unique() == [date.date()]).all()
 
         bid_curve_columns = [
             "Bid Curve - RRSPFR",
@@ -1064,6 +1053,96 @@ class TestErcot(BaseTestISO):
             first_non_null_value = df[col].dropna().iloc[0]
             assert isinstance(first_non_null_value, list)
             assert all(isinstance(x, list) for x in first_non_null_value)
+
+    """get_as_reports_dam"""
+
+    def _check_as_reports_dam(self, df):
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Cleared"] == "float64"
+        assert df.dtypes["Self Arranged"] == "float64"
+        assert df.dtypes["Offer Curve"] == "object"
+
+        # Check that AS Type contains expected products
+        expected_products = {
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "ECRSS",
+            "ECRSM",
+            "NSPNM",
+            "RRSFFR",
+            "RRSPFR",
+            "RRSUFR",
+        }
+
+        actual_products = set(df["AS Type"])
+        assert expected_products == actual_products
+
+        # Check that offer curves are lists of [MW, Price] pairs
+        offer_curves = df["Offer Curve"].dropna()
+        if len(offer_curves) > 0:
+            first_curve = offer_curves.iloc[0]
+            assert isinstance(first_curve, list)
+            if first_curve:
+                assert all(isinstance(x, list) and len(x) == 2 for x in first_curve)
+
+    def test_get_as_reports_dam(self):
+        """Test get_as_reports_dam method - long format with AS Type column"""
+        start = self.local_start_of_today() - pd.Timedelta(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_reports_dam_{start}.yaml",
+        ):
+            df = self.iso.get_as_reports_dam(start=start)
+
+        self._check_as_reports_dam(df)
+
+        assert df["Interval Start"].dt.date.unique() == start.date()
+
+    """get_as_reports_sced"""
+
+    def _check_as_reports_sced(self, df):
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Offer Curve"] == "object"
+
+        # Check that AS Type contains expected products
+        expected_products = {
+            "REGUP",
+            "REGDN",
+            "NSPIN",
+            "ECRSS",
+            "ECRSM",
+            "NSPNM",
+            "RRSFFR",
+            "RRSPFR",
+            "RRSUFR",
+        }
+        actual_products = set(df["AS Type"])
+        assert expected_products == actual_products
+
+        # Check that offer curves are lists of [MW, Price] pairs
+        first_curve = df["Offer Curve"].iloc[0]
+        assert isinstance(first_curve, list)
+        if first_curve:
+            assert all(isinstance(x, list) and len(x) == 2 for x in first_curve)
+
+    def test_get_as_reports_sced(self):
+        """Test get_as_reports_sced method for SCED ancillary service offers"""
+        # SCED AS reports started on December 5, 2025
+        # Use a date after that with the 2-day delay
+        test_date = self.local_start_of_today() - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_as_reports_sced_{test_date}.yaml",
+        ):
+            df = self.iso.get_as_reports_sced(date=test_date)
+
+        self._check_as_reports_sced(df)
+
+        assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
 
     """get_reported_outages"""
 
