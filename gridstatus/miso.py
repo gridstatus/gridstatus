@@ -121,20 +121,18 @@ class MISO(ISOBase):
         return self._parse_fuel_mix(response_json)
 
     def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
-        time = pd.to_datetime(raw_json["Fuel"]["Type"][0]["INTERVALEST"]).tz_localize(
+        df = pd.json_normalize(raw_json["Fuel"]["Type"])
+        df["INTERVALEST"] = pd.to_datetime(df["INTERVALEST"]).dt.tz_localize(
             self.default_timezone,
         )
 
-        mix = {}
-        for fuel in raw_json["Fuel"]["Type"]:
-            amount = float(fuel["ACT"])
-            mix[fuel["CATEGORY"]] = amount
-
-        df = pd.DataFrame(mix, index=[time])
-        df.index.name = "Interval Start"
-        df = df.reset_index()
-        df = add_interval_end(df, 5)
-        return df
+        df_pivoted = df.pivot(index="INTERVALEST", columns="CATEGORY", values="ACT")
+        df_pivoted = df_pivoted.reset_index().rename(
+            columns={"INTERVALEST": "Interval Start"},
+        )
+        df_pivoted = add_interval_end(df_pivoted, 5)
+        df_pivoted.columns.name = None
+        return df_pivoted
 
     def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
         if date == "latest":
