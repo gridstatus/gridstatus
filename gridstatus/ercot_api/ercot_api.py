@@ -726,6 +726,7 @@ class ErcotAPI:
             .reset_index(drop=True)
         )
 
+    @support_date_range(frequency=None)
     def get_as_reports(self, date, end=None, verbose=False):
         """Get Ancillary Services Reports. Data contains 48 hours disclosures
 
@@ -737,8 +738,12 @@ class ErcotAPI:
         Returns:
             pandas.DataFrame: A DataFrame with ancillary services reports
         """
-        if date == "latest" or utils.is_today(date, tz=self.default_timezone):
-            raise ValueError("Cannot get AS reports for 'latest' or 'today'")
+        # This method is not supported starting with the file published on 2025-12-08
+        # (with data for 2025-12-06)
+        if date >= pd.Timestamp("2025-12-06", tz=self.default_timezone):
+            raise ValueError(
+                "This method is not supported starting with the file published on 2025-12-08 (with data for 2025-12-06) because the data significantly changed with the launch of ERCOT RTC+B. Please use get_reports_as_dam on or after this date.",
+            )
 
         offset = pd.DateOffset(days=2)
 

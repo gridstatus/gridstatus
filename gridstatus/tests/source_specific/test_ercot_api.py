@@ -497,16 +497,6 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_as_reports_today_or_latest_raises_error(self):
-        with pytest.raises(ValueError) as error:
-            self.iso.get_as_reports("today")
-            assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
-
-        with pytest.raises(ValueError) as error:
-            self.iso.get_as_reports("latest")
-            assert str(error.value) == "Cannot get AS reports for 'latest' or 'today'"
-
-    @pytest.mark.integration
     def test_get_as_reports_historical_date(self):
         historical_date = datetime.date(2022, 1, 1)
         df = self.iso.get_as_reports(historical_date, verbose=True)
@@ -536,9 +526,9 @@ class TestErcotAPI(TestHelperMixin):
 
     @api_vcr.use_cassette("test_get_as_reports_full_columns_21_days_ago.yaml")
     def test_get_as_reports_full_columns(self):
-        df = self.iso.get_as_reports(
-            self.local_start_of_today() - pd.DateOffset(days=21),
-        )
+        # This report ends on 2025-12-05 so we have to pin the date
+        date = pd.Timestamp("2025-12-05", tz=self.iso.default_timezone)
+        df = self.iso.get_as_reports(date)
 
         self._check_as_reports(df)
 

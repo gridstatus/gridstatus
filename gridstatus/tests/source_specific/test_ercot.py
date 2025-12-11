@@ -997,30 +997,19 @@ class TestErcot(BaseTestISO):
 
     """test get_as_reports"""
 
-    @pytest.mark.integration
     def test_get_as_reports(self):
-        four_days_ago = pd.Timestamp.now(
+        # This dataset stops on 2025-12-05 so we have to pin the date
+        date = pd.Timestamp(
+            "2025-12-05",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
-            days=4,
         )
 
-        five_days_ago = four_days_ago - pd.Timedelta(
-            days=1,
-        )
+        with api_vcr.use_cassette(
+            f"test_get_as_reports_{date}.yaml",
+        ):
+            df = self.iso.get_as_reports(start=date)
 
-        df = self.iso.get_as_reports(
-            start=five_days_ago,
-            end=four_days_ago
-            + pd.Timedelta(
-                days=1,
-            ),
-        )
-
-        assert (
-            df["Interval Start"].dt.date.unique()
-            == [five_days_ago.date(), four_days_ago.date()]
-        ).all()
+        assert (df["Interval Start"].dt.date.unique() == [date.date()]).all()
 
         bid_curve_columns = [
             "Bid Curve - RRSPFR",
