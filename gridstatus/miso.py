@@ -99,17 +99,10 @@ class MISO(ISOBase):
         Returns:
             pandas.DataFrame: DataFrame with columns "Time", "Load", "Fuel Mix"
         """
-        if (
-            date == "latest"
-            or date == "today"
-            or utils.is_today(
-                date,
-                tz=self.default_timezone,
-            )
-        ):
-            # https://public-api.misoenergy.org/api/FuelMix/Today is currently not
-            # returning any data.
+        if date == "latest":
             url = "https://public-api.misoenergy.org/api/FuelMix"
+        elif utils.is_today(date, tz=self.default_timezone):
+            url = "https://public-api.misoenergy.org/api/FuelMix/Today"
         elif utils.is_yesterday(date, tz=self.default_timezone):
             url = "https://public-api.misoenergy.org/api/FuelMix/Yesterday"
         else:
@@ -122,7 +115,10 @@ class MISO(ISOBase):
 
     def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
         df = pd.json_normalize(raw_json["Fuel"]["Type"])
-        df["INTERVALEST"] = pd.to_datetime(df["INTERVALEST"]).dt.tz_localize(
+        df["INTERVALEST"] = pd.to_datetime(
+            df["INTERVALEST"],
+            format="%Y-%m-%d %I:%M:%S %p",
+        ).dt.tz_localize(
             self.default_timezone,
         )
 
@@ -132,6 +128,16 @@ class MISO(ISOBase):
         )
         df_pivoted = add_interval_end(df_pivoted, 5)
         df_pivoted.columns.name = None
+        for col in [
+            "Coal",
+            "Imports",
+            "Natural Gas",
+            "Nuclear",
+            "Other",
+            "Solar",
+            "Wind",
+        ]:
+            df_pivoted[col] = df_pivoted[col].astype("Int64")
         return df_pivoted
 
     def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
