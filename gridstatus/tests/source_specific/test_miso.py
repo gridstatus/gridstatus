@@ -51,7 +51,7 @@ class TestMISO(BaseTestISO):
         pass
 
     def test_get_fuel_mix_today(self):
-        with pytest.raises(NotSupported):
+        with miso_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
             super().test_get_fuel_mix_today()
 
     def test_get_interconnection_queue(self):
