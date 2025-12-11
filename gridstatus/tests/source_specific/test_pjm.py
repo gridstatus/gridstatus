@@ -3096,9 +3096,9 @@ class TestPJM(BaseTestISO):
                 df["Termination Date"].isna() | (df["Termination Date"] > specific_date)
             ).all()
 
-    """get_weight_average_aggregation_definition"""
+    """get_weight_average_aggregation_definitions"""
 
-    def _check_weight_average_aggregation_definition(self, df):
+    def _check_weight_average_aggregation_definitions(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
             "Aggregate Node ID",
@@ -3117,12 +3117,12 @@ class TestPJM(BaseTestISO):
         assert df["Bus Node Factor"].dtype in [np.float64, np.int64]
 
     @pytest.mark.parametrize("as_of", ["now", None])
-    def test_get_weight_average_aggregation_definition_as_of(self, as_of):
+    def test_get_weight_average_aggregation_definitions_as_of(self, as_of):
         with pjm_vcr.use_cassette(
-            f"test_get_weight_average_aggregation_definition_as_of_{as_of}.yaml",
+            f"test_get_weight_average_aggregation_definitions_as_of_{as_of}.yaml",
         ):
-            df = self.iso.get_weight_average_aggregation_definition(as_of=as_of)
-            self._check_weight_average_aggregation_definition(df)
+            df = self.iso.get_weight_average_aggregation_definitions(as_of=as_of)
+            self._check_weight_average_aggregation_definitions(df)
             if as_of == "now":
                 # Should filter out terminated records
                 assert (
@@ -3133,13 +3133,15 @@ class TestPJM(BaseTestISO):
                     )
                 ).all()
 
-    def test_get_weight_average_aggregation_definition_with_specific_date(self):
+    def test_get_weight_average_aggregation_definitions_with_specific_date(self):
         specific_date = pd.Timestamp("2024-01-01", tz=self.iso.default_timezone)
         with pjm_vcr.use_cassette(
-            f"test_get_weight_average_aggregation_definition_specific_date_{specific_date.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_weight_average_aggregation_definitions_specific_date_{specific_date.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_weight_average_aggregation_definition(as_of=specific_date)
-            self._check_weight_average_aggregation_definition(df)
+            df = self.iso.get_weight_average_aggregation_definitions(
+                as_of=specific_date
+            )
+            self._check_weight_average_aggregation_definitions(df)
             # Should filter out records terminated before the specific date
             assert (
                 df["Termination Date"].isna() | (df["Termination Date"] > specific_date)

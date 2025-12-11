@@ -3408,7 +3408,7 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_weight_average_aggregation_definition(
+    def get_weight_average_aggregation_definitions(
         self,
         as_of: str | pd.Timestamp | None = None,
         verbose: bool = False,
@@ -3419,7 +3419,7 @@ class PJM(ISOBase):
         """
         as_of = utils._handle_date(as_of, tz=self.default_timezone)
         if as_of == "now":
-            return self.get_weight_average_aggregation_definition(
+            return self.get_weight_average_aggregation_definitions(
                 as_of=pd.Timestamp.now(tz=self.default_timezone),
                 verbose=verbose,
             )
