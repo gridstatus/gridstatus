@@ -1,5 +1,114 @@
 # Changelog
 
+## v0.34.0 - December 9, 2025
+
+### Additions (New Features/Datasets)
+
+#### ERCOT
+* ERCOT AS Reports DAM and SCED in [#749](https://github.com/gridstatus/gridstatus/pull/749)
+* ERCOT Hourly, Daily, and Weekly AS Demand Curves in [#743](https://github.com/gridstatus/gridstatus/pull/743)
+* ERCOT AS Deployment Factors Weekly RUC in [#744](https://github.com/gridstatus/gridstatus/pull/744)
+* ERCOT System Capacity AS Monitor in [#740](https://github.com/gridstatus/gridstatus/pull/740)
+* ERCOT Short Term System Adequacy Column Additions in [#734](https://github.com/gridstatus/gridstatus/pull/734)
+* ERCOT MCPC DAM in [#735](https://github.com/gridstatus/gridstatus/pull/735)
+* ERCOT Real Time Adders RTC+B Trial in [#720](https://github.com/gridstatus/gridstatus/pull/720)
+* ERCOT RTC+B Trial Datasets Part Two in [#709](https://github.com/gridstatus/gridstatus/pull/709)
+* ERCOT RTC+B Market Trials Part One in [#707](https://github.com/gridstatus/gridstatus/pull/707)
+
+#### MISO
+* MISO API Processing Helper Methods in [#727](https://github.com/gridstatus/gridstatus/pull/727)
+* MISO API Add Look Ahead Hourly and Outage Forecast in [#726](https://github.com/gridstatus/gridstatus/pull/726)
+* MISO API Actual Load Support Local Resource Zone in [#723](https://github.com/gridstatus/gridstatus/pull/723)
+* MISO Fuel Mix File Parsing Helper Method in [#729](https://github.com/gridstatus/gridstatus/pull/729)
+* Add pricing nodes in MISO API in [#733](https://github.com/gridstatus/gridstatus/pull/733)
+* Add actual load and medium term load forecast in MISO API in [#686](https://github.com/gridstatus/gridstatus/pull/686)
+
+#### IESO
+* IESO Intertie Limits in [#745](https://github.com/gridstatus/gridstatus/pull/745)
+
+#### ISONE
+* ISONE FCM Auctions in [#724](https://github.com/gridstatus/gridstatus/pull/724)
+* ISONE Constraints in [#710](https://github.com/gridstatus/gridstatus/pull/710)
+* ISO-NE Final Five-Minute Reserve Zone Requirements, Prices, and Designations in [#689](https://github.com/gridstatus/gridstatus/pull/689)
+* ISONE Ancillary Service Datasets in [#683](https://github.com/gridstatus/gridstatus/pull/683)
+
+#### PJM
+* PJM AS Market Results Historical Hourly in [#685](https://github.com/gridstatus/gridstatus/pull/685)
+* Additional PJM datasets in [#698](https://github.com/gridstatus/gridstatus/pull/698)
+
+#### SPP
+* SPP Day Ahead and Real Time Binding Constraints in [#706](https://github.com/gridstatus/gridstatus/pull/706)
+
+#### CAISO
+* CAISO branch shadow prices in [#697](https://github.com/gridstatus/gridstatus/pull/697)
+
+#### NYISO
+* NYISO get methods and tests in [#708](https://github.com/gridstatus/gridstatus/pull/708)
+
+#### EIA
+* Support Sikeston Board of Municipal Utilities for EIA Grid Monitor in [#713](https://github.com/gridstatus/gridstatus/pull/713)
+
+### Fixes
+
+#### ERCOT
+* Fix ERCOT RTC Datasets for Queries that Span Two Days in [#742](https://github.com/gridstatus/gridstatus/pull/742)
+* Change ERCOT Real Time Adders Report ID in [#738](https://github.com/gridstatus/gridstatus/pull/738)
+* Handle Renaming of DSTFlag to RepeatedHourFlag in [#736](https://github.com/gridstatus/gridstatus/pull/736)
+* Fix ERCOT Highest Price as Offer Selected for DST End 2025 in [#715](https://github.com/gridstatus/gridstatus/pull/715)
+* Fix ERCOT wind_actual_and forecast, solar_actual_and_forecast, catch ambiguous times in [#705](https://github.com/gridstatus/gridstatus/pull/705)
+* Fix ERCOT Energy Storage Resources and System Load Charging for DST End 2025 in [#703](https://github.com/gridstatus/gridstatus/pull/703)
+* ERCOT Capacity DST End Fixes in [#702](https://github.com/gridstatus/gridstatus/pull/702)
+* Fix ERCOT Available Seasonal Capacity Forecast for DST End 2025 in [#696](https://github.com/gridstatus/gridstatus/pull/696)
+* Fix ERCOT Temperature Forecast by Weather Zone for DST End 2025 in [#694](https://github.com/gridstatus/gridstatus/pull/694)
+
+#### IESO
+* Fix IESO Shadow Prices in [#721](https://github.com/gridstatus/gridstatus/pull/721)
+* IESO adequacy report last modified only in [#688](https://github.com/gridstatus/gridstatus/pull/688)
+
+#### SPP
+* Fix SPP Mid-term Load and Solar + Wind Forecast DST End 2025 in [#717](https://github.com/gridstatus/gridstatus/pull/717)
+* SPP Load and Solar and Wind Forecasts Short Term Fix for DST End 2025 in [#716](https://github.com/gridstatus/gridstatus/pull/716)
+* SPP Binding Constraint Column Formatting in [#719](https://github.com/gridstatus/gridstatus/pull/719)
+* SPP Short Term Load Forecast Add Option to Keep Null Forecast Rows in [#737](https://github.com/gridstatus/gridstatus/pull/737)
+
+#### NYISO
+* Fix NYISO Constraints in [#731](https://github.com/gridstatus/gridstatus/pull/731)
+* Fix NYISO LMP 15 Minute not on 15 minute intervals in [#691](https://github.com/gridstatus/gridstatus/pull/691)
+
+#### PJM
+* PJM Tie Flows 5 Min Fix for DST End 2025 in [#704](https://github.com/gridstatus/gridstatus/pull/704)
+* Fix PJM DST transitions in [#701](https://github.com/gridstatus/gridstatus/pull/701)
+
+#### ISONE
+* ISONE Capacity Forecast DST Fix in [#700](https://github.com/gridstatus/gridstatus/pull/700)
+
+#### CAISO
+* Fix CAISO curtailment DST in [#714](https://github.com/gridstatus/gridstatus/pull/714)
+
+#### AESO
+* AESO Solar and Wind Handle DST in [#695](https://github.com/gridstatus/gridstatus/pull/695)
+
+#### MISO
+* Update MISO Real Time URLs in [#751](https://github.com/gridstatus/gridstatus/pull/751)
+* Update MISO API Retry in [#750](https://github.com/gridstatus/gridstatus/pull/750)
+* Fix support date range decorators on miso pricing api in [#690](https://github.com/gridstatus/gridstatus/pull/690)
+* Fix miso lmp mapping instead of merge in [#728](https://github.com/gridstatus/gridstatus/pull/728)
+
+#### Other
+* Fix NERC ID type enforcement in [#712](https://github.com/gridstatus/gridstatus/pull/712)
+
+### General Updates/Codebase Improvements
+* Rename ercot_as_demand_curves in [#747](https://github.com/gridstatus/gridstatus/pull/747)
+* Stage RTC+B Changes in [#732](https://github.com/gridstatus/gridstatus/pull/732)
+* Migrate AESO Methods to V2 in [#693](https://github.com/gridstatus/gridstatus/pull/693)
+* Move Decorator Back to Private Methods in [#692](https://github.com/gridstatus/gridstatus/pull/692)
+* Remove Slack Link in [#718](https://github.com/gridstatus/gridstatus/pull/718)
+* Update README.md in [#711](https://github.com/gridstatus/gridstatus/pull/711)
+* Change download to parse in [#722](https://github.com/gridstatus/gridstatus/pull/722)
+* Update in [#739](https://github.com/gridstatus/gridstatus/pull/739)
+
+**Full Changelog**: https://github.com/gridstatus/gridstatus/compare/v0.33.0...v0.34.0
+
 ## v0.33.0 - October 9, 2025
 
 ### What's Changed
