@@ -953,34 +953,21 @@ class TestErcot(BaseTestISO):
         ]
 
     def test_get_highest_price_as_offer_selected_date_range(self):
-        four_days_ago = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(
-            days=4,
-        )
-
-        five_days_ago = four_days_ago - pd.Timedelta(
-            days=1,
-        )
+        # This dataset ends on 2025-12-05 so pin the date
+        date = pd.Timestamp("2025-12-05", tz=self.iso.default_timezone)
 
         with api_vcr.use_cassette(
-            f"test_get_highest_price_as_offer_selected_date_range_{five_days_ago}_{four_days_ago}.yaml",
+            f"test_get_highest_price_as_offer_selected_date_range_{date}.yaml",
         ):
             df = self.iso.get_highest_price_as_offer_selected(
-                start=five_days_ago,
-                end=four_days_ago
-                + pd.Timedelta(
-                    days=1,
-                ),
+                start=date,
             )
 
-        assert (
-            df["Interval Start"].dt.date.unique()
-            == [five_days_ago.date(), four_days_ago.date()]
-        ).all()
+        assert (df["Interval Start"].dt.date.unique() == [date.date()]).all()
 
         self._check_highest_price_as_offer_selected(df)
 
+    @pytest.mark.skip("This test no longer works because the file has rolled off.")
     def test_get_highest_price_as_offer_selected_dst_end(self):
         dst_end_date = "2025-11-02"
 
@@ -994,6 +981,95 @@ class TestErcot(BaseTestISO):
         assert "2025-11-02 01:00:00-06:00" in df["Interval Start"].astype(str).values
 
         self._check_highest_price_as_offer_selected(df)
+
+    """get_highest_price_as_offer_selected_dam"""
+
+    def _check_highest_price_as_offer_selected_dam(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "QSE",
+            "DME",
+            "Resource Name",
+            "AS Type",
+            "Block Indicator",
+            "Offered Price",
+            "Total Offered Quantity",
+            "Offered Quantities",
+        ]
+
+        for col in ["Interval Start", "Interval End"]:
+            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+
+        for col in [
+            "QSE",
+            "DME",
+            "Resource Name",
+            "AS Type",
+            "Block Indicator",
+            "Offered Quantities",
+        ]:
+            assert df.dtypes[col] == "object"
+
+        for col in ["Offered Price", "Total Offered Quantity"]:
+            assert df.dtypes[col] == "float64"
+
+    def test_get_highest_price_as_offer_selected_dam(self):
+        # Test the new DAM-specific method
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_highest_price_as_offer_selected_dam_{date}.yaml",
+        ):
+            df = self.iso.get_highest_price_as_offer_selected_dam(date)
+
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.DateOffset(days=1, hours=-1)
+        assert df["Interval Start"].nunique() == 24
+
+        self._check_highest_price_as_offer_selected_dam(df)
+
+    """get_highest_price_as_offer_selected_sced"""
+
+    def _check_highest_price_as_offer_selected_sced(self, df):
+        assert df.columns.tolist() == [
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Resource Name",
+            "AS Type",
+            "Offered Price",
+            "Total Offered Quantity",
+            "Offered Quantities",
+        ]
+
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+
+        for col in [
+            "QSE",
+            "DME",
+            "Resource Name",
+            "AS Type",
+            "Offered Quantities",
+        ]:
+            assert df.dtypes[col] == "object"
+
+        for col in ["Offered Price", "Total Offered Quantity"]:
+            assert df.dtypes[col] == "float64"
+
+    def test_get_highest_price_as_offer_selected_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_highest_price_as_offer_selected_sced_{date}.yaml",
+        ):
+            df = self.iso.get_highest_price_as_offer_selected_sced(date)
+
+        # This is a SCED dataset so data points are not on 5 minute intervals
+        assert df["SCED Timestamp"].nunique() >= 288
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
+        self._check_highest_price_as_offer_selected_sced(df)
 
     """test get_as_reports"""
 
