@@ -268,6 +268,14 @@ UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
 THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
 
+# 3-Day DAM Highest Price AS Offer Selected
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
+THREE_DAY_DAM_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
+
+# 3-Day SCED Highest Price AS Offer Selected
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-914-ex
+THREE_DAY_SCED_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 25812
+
 # 2-Day Ancillary Services Reports (DAM)
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-911-ER
 TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
@@ -3672,43 +3680,187 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self._handle_three_day_highest_price_as_offer_selected_file(doc, verbose)
+        df = self._handle_highest_price_as_offer_selected_file(
+            doc,
+            market="dam",
+            verbose=verbose,
+        )
 
-        return df
+        # Add Time and Market columns for backwards compatibility
+        df["Time"] = df["Interval Start"]
+        df["Market"] = "dam"
 
-    def _handle_three_day_highest_price_as_offer_selected_file(
+        # Reorder columns to match old format
+        return df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "QSE",
+                "DME",
+                "Resource Name",
+                "AS Type",
+                "Block Indicator",
+                "Offered Price",
+                "Total Offered Quantity",
+                "Offered Quantities",
+            ]
+        ]
+
+    @support_date_range("DAY_START")
+    def get_highest_price_as_offer_selected_dam(
         self,
-        doc: Document,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """Get the offer price and the name of the Entity submitting
+        the offer for the highest-priced Ancillary Service (AS) Offer
+        selected in the Day-Ahead Market (DAM).
+
+        Published with 3 day delay
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime, optional): end date for date range
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns:
+                - Interval Start
+                - Interval End
+                - QSE
+                - DME
+                - Resource Name
+                - AS Type
+                - Block Indicator
+                - Offered Price
+                - Total Offered Quantity
+                - Offered Quantities
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_DAM_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self._handle_highest_price_as_offer_selected_file(
+            doc,
+            market="dam",
+            verbose=verbose,
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "QSE",
+                    "DME",
+                    "Resource Name",
+                    "AS Type",
+                    "Block Indicator",
+                    "Offered Price",
+                    "Total Offered Quantity",
+                    "Offered Quantities",
+                ]
+            ]
+            .sort_values(["Interval Start", "AS Type", "Resource Name"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("DAY_START")
+    def get_highest_price_as_offer_selected_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the offer price and the name of the Entity submitting
+        the offer for the highest-priced Ancillary Service (AS) Offer
+        selected in the Real-Time Market (SCED).
+
+        Published with 3 day delay
+
+        Arguments:
+            date (str, datetime): date to get data for
+            end (str, datetime, optional): end date for date range
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns:
+                - SCED Timestamp
+                - QSE
+                - DME
+                - Resource Name
+                - AS Type
+                - Offered Price
+                - Total Offered Quantity
+                - Offered Quantities
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_SCED_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self._handle_highest_price_as_offer_selected_file(
+            doc,
+            market="sced",
+            verbose=verbose,
+        )
+
+        return (
+            df[
+                [
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Resource Name",
+                    "AS Type",
+                    "Offered Price",
+                    "Total Offered Quantity",
+                    "Offered Quantities",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "AS Type", "Resource Name"])
+            .reset_index(drop=True)
+        )
+
+    def _handle_highest_price_as_offer_selected_file(
+        self,
+        doc: Document,
+        market: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle the new 3-day highest price AS offer selected files
+        for both DAM and SCED markets.
+
+        The new files (post RTC+B) don't have a Market column,
+        so we add it manually based on the market parameter.
+        """
         df = self.read_doc(doc, verbose=verbose, parse=False)
-        is_dst_end = 25 in df["Hour Ending"]
+
+        # Determine format based on market parameter
+        is_sced_format = market.lower() == "sced"
 
         df = df.rename(
             columns={
-                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
+                # New data (post RTC+B)
+                "Resource Name with Highest-Priced AS Offer Selected in DAM": "Resource Name",  # noqa: E501
+                "Resource Name with Highest-Priced AS Offer Selected in SCED": "Resource Name",  # noqa: E501
+                # SCED has spaces around the dash
+                "Resource Name with Highest - Priced AS Offer Selected in SCED": "Resource Name",  # noqa: E501
                 # Older data
+                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
                 "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",  # noqa: E501
             },
         )
-
-        if not is_dst_end:
-            df = self.parse_doc(df)
-        else:
-            # Hours go up to 25. Assume hour 2 is CDT and hour 3 is CST
-            df["Interval Start"] = (
-                pd.to_datetime(df["Delivery Date"])
-                + pd.to_timedelta(df["Hour Ending"] - 1, unit="h")
-            ).dt.tz_localize(self.default_timezone, ambiguous=df["Hour Ending"] == 2)
-
-            df.loc[df["Hour Ending"] >= 3, "Interval Start"] = df.loc[
-                df["Hour Ending"] >= 3,
-                "Interval Start",
-            ] - pd.Timedelta(hours=1)
-
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-            # Needed for the groupby
-            df["Time"] = df["Interval Start"]
 
         def _handle_offers(df: pd.DataFrame) -> pd.Series:
             return pd.Series(
@@ -3719,25 +3871,63 @@ class Ercot(ISOBase):
                 },
             )
 
-        df = (
-            df.groupby(
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Market",
-                    "QSE",
-                    "DME",
-                    "Resource Name",
-                    "AS Type",
-                    "Block Indicator",
-                ],
-                dropna=False,  # Have to include missing because older data has missing
-                # values in some columns
+        if is_sced_format:
+            # SCED format: Parse SCED Timestamp directly
+            # SCED Timestamp format is like "12/07/2025 00:00:17"
+            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
+                self.default_timezone,
             )
-            .apply(_handle_offers, include_groups=False)
-            .reset_index()
-        )
+
+            # Group by SCED Timestamp and resource identifiers only
+            df = (
+                df.groupby(
+                    ["SCED Timestamp", "QSE", "DME", "Resource Name", "AS Type"],
+                    dropna=False,
+                )
+                .apply(_handle_offers, include_groups=False)
+                .reset_index()
+            )
+        else:
+            # DAM format: Parse Hour Ending and Delivery Date
+            is_dst_end = 25 in df["Hour Ending"].values
+
+            if not is_dst_end:
+                df = self.parse_doc(df)
+            else:
+                # Hours go up to 25. Assume hour 2 is CDT and hour 3 is CST
+                df["Interval Start"] = (
+                    pd.to_datetime(df["Delivery Date"])
+                    + pd.to_timedelta(df["Hour Ending"] - 1, unit="h")
+                ).dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=df["Hour Ending"] == 2,
+                )
+
+                df.loc[df["Hour Ending"] >= 3, "Interval Start"] = df.loc[
+                    df["Hour Ending"] >= 3,
+                    "Interval Start",
+                ] - pd.Timedelta(hours=1)
+
+                df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+
+            # Group by intervals and resource identifiers
+            df = (
+                df.groupby(
+                    [
+                        "Interval Start",
+                        "Interval End",
+                        "QSE",
+                        "DME",
+                        "Resource Name",
+                        "AS Type",
+                        "Block Indicator",
+                    ],
+                    dropna=False,  # Have to include missing because older data has missing
+                    # values in some columns
+                )
+                .apply(_handle_offers, include_groups=False)
+                .reset_index()
+            )
 
         return df
 
