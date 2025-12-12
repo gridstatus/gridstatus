@@ -5462,7 +5462,16 @@ class Ercot(ISOBase):
                 verbose=verbose,
             )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        # Add the publish time to deal with duplicates downstream
+        df = pd.concat(
+            [
+                self.read_doc(doc, parse=False, verbose=verbose).assign(
+                    **{"Publish Time": doc.publish_date},
+                )
+                for doc in docs
+            ],
+        )
+
         return self._handle_as_total_capability(df)
 
     def _handle_as_total_capability(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -5499,8 +5508,8 @@ class Ercot(ISOBase):
             df[col] = df[col].astype(float)
 
         return (
-            df[["SCED Timestamp"] + cap_cols]
-            .sort_values("SCED Timestamp")
+            df[["SCED Timestamp", "Publish Time"] + cap_cols]
+            .sort_values(["SCED Timestamp", "Publish Time"])
             .reset_index(drop=True)
         )
 
