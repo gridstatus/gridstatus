@@ -3034,7 +3034,10 @@ class Ercot(ISOBase):
         """
         # This method is not supported starting with the file published on 2025-12-08
         # (with data for 2025-12-06)
-        if date >= pd.Timestamp("2025-12-06", tz=self.default_timezone):
+        if date == "latest" or date >= pd.Timestamp(
+            "2025-12-06",
+            tz=self.default_timezone,
+        ):
             raise ValueError(
                 "This method is not supported starting with the file published on 2025-12-08 (with data for 2025-12-06) because the data significantly changed with the launch of ERCOT RTC+B. Please use get_reports_as_dam on or after this date.",
             )
@@ -3672,6 +3675,15 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrameq
         """
+        # This report ends on 2025-12-05
+        if date == "latest" or date >= pd.Timestamp(
+            "2025-12-06",
+            tz=self.default_timezone,
+        ):
+            raise ValueError(
+                "This method is not supported starting with the file published on 2025-12-06 (with data for 2025-12-06) because the data changed with the launch of ERCOT RTC+B. Please use get_highest_price_as_offer_selected_dam on or after this date.",
+            )
+
         report_date = date.normalize() + pd.DateOffset(days=3)
 
         doc = self._get_document(
