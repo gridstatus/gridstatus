@@ -2963,6 +2963,7 @@ class TestErcot(BaseTestISO):
     def _check_get_as_total_capability(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "SCED Timestamp",
+            "Publish Time",
             "Cap RegUp Total",
             "Cap RegDn Total",
             "Cap RRS Total",
@@ -2997,6 +2998,7 @@ class TestErcot(BaseTestISO):
 
         # Each file has 5 SCED intervals
         assert df["SCED Timestamp"].nunique() == 5
+        assert df["Publish Time"].nunique() == 1
 
     def test_get_as_total_capability_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3019,6 +3021,7 @@ class TestErcot(BaseTestISO):
         # and 4 previous). This means the number of unique SCED intervals in 2 hours is
         # (2 hours / 5 minutes/interval) + 4 extra intervals = 28 intervals
         assert df["SCED Timestamp"].nunique() == 28
+        assert df["Publish Time"].nunique() == 24
 
     """get_real_time_adders"""
 
