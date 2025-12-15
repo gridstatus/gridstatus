@@ -4172,10 +4172,7 @@ class IESO(ISOBase):
             csv_text = "\n".join(lines[1:])
             data = pd.read_csv(StringIO(csv_text))
         else:
-            # Subtract 1 day to the date to get the file because this is a day-ahead
-            # dataset
-            file_date = date - pd.DateOffset(days=1)
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}_{file_date.strftime('%Y%m%d')}.csv"
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}_{date.strftime('%Y%m%d')}.csv"
 
             data = pd.read_csv(url, skiprows=1)
             base_datetime = date.normalize()
