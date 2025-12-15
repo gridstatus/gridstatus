@@ -266,10 +266,6 @@ UNPLANNED_RESOURCE_OUTAGES_REPORT_RTID = 22912
 
 # 3-Day Highest Price AS Offer Selected
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
-THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
-
-# 3-Day DAM Highest Price AS Offer Selected
-# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-915-EX
 THREE_DAY_DAM_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID = 13018
 
 # 3-Day SCED Highest Price AS Offer Selected
@@ -3687,7 +3683,7 @@ class Ercot(ISOBase):
         report_date = date.normalize() + pd.DateOffset(days=3)
 
         doc = self._get_document(
-            report_type_id=THREE_DAY_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
+            report_type_id=THREE_DAY_DAM_HIGHEST_PRICE_AS_OFFER_SELECTED_RTID,
             date=report_date,
             verbose=verbose,
         )
@@ -3888,6 +3884,7 @@ class Ercot(ISOBase):
             # SCED Timestamp format is like "12/07/2025 00:00:17"
             df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
                 self.default_timezone,
+                ambiguous=self.ambiguous_based_on_dst_flag(df["SCED Timestamp"]),
             )
 
             # Group by SCED Timestamp and resource identifiers only
