@@ -3410,16 +3410,15 @@ class TestPJM(BaseTestISO):
             today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
             assert df["Interval Start"].max().date() >= today - pd.Timedelta(days=1)
 
-    @pytest.mark.slow
     def test_get_marginal_emission_rates_5_min_historical_date_range(
         self,
     ):
-        date = self.local_today() - pd.Timedelta(days=10)
+        date = self.local_start_of_today() - pd.Timedelta(days=10)
         end = date + pd.Timedelta(hours=1)
         with pjm_vcr.use_cassette(
             f"test_get_marginal_emission_rates_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_marginal_emission_rates_5_min(date, end)
             self._check_marginal_emission_rates_5_min(df)
-            assert df["Interval Start"].min().date() >= date.date()
-            assert df["Interval End"].max().date() <= end.date() + pd.Timedelta(days=1)
+            assert df["Interval Start"].min() >= date
+            assert df["Interval End"].max() <= end
