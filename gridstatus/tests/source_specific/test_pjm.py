@@ -3347,11 +3347,6 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_voltage_limits()
             self._check_voltage_limits(df)
 
-    def test_get_voltage_limits_historical_date_range(self):
-        with pjm_vcr.use_cassette("test_get_voltage_limits_historical.yaml"):
-            df = self.iso.get_voltage_limits()
-            self._check_voltage_limits(df)
-
     """get_pai_intervals_5_min"""
 
     def _check_pai_intervals_5_min(self, df):
