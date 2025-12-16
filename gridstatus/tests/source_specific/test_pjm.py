@@ -3304,3 +3304,121 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette("test_get_sync_reserve_events.yaml"):
             df = self.iso.get_sync_reserve_events()
             self._check_sync_reserve_events(df)
+
+    """get_voltage_limits"""
+
+    def _check_voltage_limits(self, df):
+        assert df.columns.tolist() == [
+            "Publish Time",
+            "Company",
+            "Voltage",
+            "Follow PJM",
+            "Station",
+            "Load Dump",
+            "Emergency Low",
+            "Normal Low",
+            "Normal High",
+            "Emergency High",
+            "Voltage Drop Warning Percent",
+            "Voltage Drop Limit Percent",
+        ]
+        assert not df.empty
+        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Publish Time"].dt.tz) == str(self.iso.default_timezone)
+        assert df["Company"].dtype == object
+        assert df["Voltage"].dtype == object
+        assert df["Follow PJM"].dtype == object
+        assert df["Station"].dtype == object
+        assert df["Load Dump"].dtype in [np.float64, np.int64]
+        assert df["Emergency Low"].dtype in [np.float64, np.int64]
+        assert df["Normal Low"].dtype in [np.float64, np.int64]
+        assert df["Normal High"].dtype in [np.float64, np.int64]
+        assert df["Emergency High"].dtype in [np.float64, np.int64]
+        assert df["Voltage Drop Warning Percent"].dtype in [np.float64, np.int64]
+        assert df["Voltage Drop Limit Percent"].dtype in [np.float64, np.int64]
+
+    def test_get_voltage_limits_latest(self):
+        with pjm_vcr.use_cassette("test_get_voltage_limits_latest.yaml"):
+            df = self.iso.get_voltage_limits()
+            self._check_voltage_limits(df)
+
+    """get_pai_intervals_5_min"""
+
+    def _check_pai_intervals_5_min(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Performance Assessment Interval",
+        ]
+        assert not df.empty
+        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval End"].dt.tz) == str(self.iso.default_timezone)
+        assert df["Performance Assessment Interval"].dtype == object
+
+    def test_get_pai_intervals_5_min_latest(self):
+        with pjm_vcr.use_cassette("test_get_pai_intervals_5_min_latest.yaml"):
+            df = self.iso.get_pai_intervals_5_min("latest")
+            self._check_pai_intervals_5_min(df)
+            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+            assert df["Interval Start"].max().date() >= today - pd.Timedelta(days=1)
+
+    def test_get_pai_intervals_5_min_historical_date_range(self):
+        date = self.local_today() - pd.Timedelta(days=10)
+        end = date + pd.Timedelta(days=2)
+        with pjm_vcr.use_cassette(
+            f"test_get_pai_intervals_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_pai_intervals_5_min(date, end)
+            self._check_pai_intervals_5_min(df)
+
+            assert df["Interval Start"].min().date() >= date
+            assert df["Interval End"].max().date() <= end + pd.Timedelta(days=1)
+
+    """get_marginal_emission_rates_5_min"""
+
+    def _check_marginal_emission_rates_5_min(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Pnode Name",
+            "Pnode ID",
+            "Marginal CO2 Rate",
+            "Marginal SO2 Rate",
+            "Marginal NOx Rate",
+        ]
+        assert not df.empty
+        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval End"].dt.tz) == str(self.iso.default_timezone)
+        assert df["Pnode Name"].dtype == object
+        assert df["Pnode ID"].dtype in [np.int64, np.float64]
+        assert df["Marginal CO2 Rate"].dtype in [np.float64, np.int64]
+        assert df["Marginal SO2 Rate"].dtype in [np.float64, np.int64]
+        assert df["Marginal NOx Rate"].dtype in [np.float64, np.int64]
+
+    def test_get_marginal_emission_rates_5_min_latest(self):
+        with pjm_vcr.use_cassette(
+            "test_get_marginal_emission_rates_5_min_latest.yaml",
+        ):
+            df = self.iso.get_marginal_emission_rates_5_min("latest")
+            self._check_marginal_emission_rates_5_min(df)
+            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+            assert df["Interval Start"].max().date() >= today - pd.Timedelta(days=1)
+
+    def test_get_marginal_emission_rates_5_min_historical_date_range(
+        self,
+    ):
+        date = self.local_start_of_today() - pd.Timedelta(days=10)
+        end = date + pd.Timedelta(hours=1)
+        with pjm_vcr.use_cassette(
+            f"test_get_marginal_emission_rates_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_marginal_emission_rates_5_min(date, end)
+            self._check_marginal_emission_rates_5_min(df)
+            assert df["Interval Start"].min() >= date
+            assert df["Interval End"].max() <= end

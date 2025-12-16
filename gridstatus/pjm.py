@@ -1,3 +1,4 @@
+import io
 import math
 import os
 import warnings
@@ -3739,8 +3740,223 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range(frequency=None)
+    def get_pai_intervals_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the 5-minute Performance Assessment Intervals (PAI) data from PJM.
 
-if __name__ == "__main__":
-    iso = PJM()
-    df = iso.get_generation_capacity_daily("latest")
-    print(df)
+        This dataset contains information on the status of Performance Assessment Intervals
+        (PAIs) across PJM and subzones, updated every 5 minutes. Performance during these
+        PAIs is used by PJM to determine potential penalties, or compensation, for capacity
+        obligations. This dataset has 3 potential responses in the Performance Assessment
+        Interval column: "No PAI", "PAI in Active Subzone", and "PAI in RTO and Active Subzone".
+
+        Source: https://dataminer2.pjm.com/feed/fivemin_pai_interval/definition
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with 5-minute PAI intervals data.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "fivemin_pai_interval",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc,datetime_beginning_ept,pai_description",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "pai_description": "Performance Assessment Interval",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Performance Assessment Interval",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_marginal_emission_rates_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the 5-minute marginal emission rates data from PJM.
+
+        PJM estimates marginal emissions every five minutes for load zones across the grid.
+        These estimates include CO₂, SO₂, and NOₓ, expressed in lbs/MWh. The calculation
+        reflects the physical costs of power flows, capturing the impact of congestion on
+        nodal emissions. When imports are marginal at a node, PJM assigns them zero emissions
+        because the fuel source is unknown.
+
+        Source: https://dataminer2.pjm.com/feed/fivemin_marginal_emissions/definition
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with 5-minute marginal emission rates data.
+        """
+        if date == "latest":
+            date = pd.Timestamp.now().replace(minute=0, second=0, microsecond=0)
+
+        df = self._get_pjm_json(
+            "fivemin_marginal_emissions",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc,datetime_beginning_ept,pnode_name,pnode_id,marginal_co2_rate,marginal_so2_rate,marginal_nox_rate",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "pnode_name": "Pnode Name",
+                "pnode_id": "Pnode ID",
+                "marginal_co2_rate": "Marginal CO2 Rate",
+                "marginal_so2_rate": "Marginal SO2 Rate",
+                "marginal_nox_rate": "Marginal NOx Rate",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Pnode Name",
+                "Pnode ID",
+                "Marginal CO2 Rate",
+                "Marginal SO2 Rate",
+                "Marginal NOx Rate",
+            ]
+        ]
+
+        return df.sort_values(["Interval Start", "Pnode Name"]).reset_index(drop=True)
+
+    # NOTE: This file can only be accessed once per 30 minutes from the same IP address.
+    # Otherwise the CSV will return a rate limit message inside the file.
+    def get_voltage_limits(
+        self,
+        verbose: bool = False,
+    ) -> str:
+        """
+        Downloads the raw voltage limits CSV file from EDART.
+
+        The URL returns a ZIP file containing the CSV. This method extracts and returns
+        the CSV content as a string.
+
+        Source: https://edart.pjm.com/reports/voltagelimits.csv
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            str: The CSV content as a string.
+
+        Raises:
+            NoDataFoundException: If the server returns a rate limit message.
+        """
+        url = "https://edart.pjm.com/reports/voltagelimits.csv"
+        logger.info(f"Requesting {url}...")
+
+        z = utils.get_zip_folder(url, verbose=verbose)
+
+        csv_filename = "voltagelimits.csv"
+        if csv_filename not in z.namelist():
+            raise RuntimeError(
+                f"Expected {csv_filename} in ZIP archive, found: {z.namelist()}",
+            )
+
+        csv_content = z.read(csv_filename).decode("utf-8")
+
+        if "throttle" in csv_content.lower():
+            rate_limit_message = csv_content.strip()
+            raise NoDataFoundException(rate_limit_message)
+
+        return self._parse_voltage_limits(csv_content)
+
+    def _parse_voltage_limits(
+        self,
+        csv_content: str,
+    ) -> pd.DataFrame:
+        lines = csv_content.split("\n")
+
+        timestamp_str = lines[0].strip().replace("TIMESTAMP:", "").strip()
+        publish_time = pd.to_datetime(timestamp_str).tz_localize(self.default_timezone)
+
+        header_row_idx = None
+        for i, line in enumerate(lines):
+            if line.strip().startswith("Company") and "Voltage" in line:
+                header_row_idx = i
+                break
+
+        if header_row_idx is None:
+            raise ValueError("Could not find header row starting with 'Company'")
+
+        csv_clean = "\n".join(lines[header_row_idx:])
+        df = pd.read_csv(io.StringIO(csv_clean))
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "Emergency Low(KV)": "Emergency Low",
+                "Normal Low(KV)": "Normal Low",
+                "Normal High(KV)": "Normal High",
+                "Emergency High(KV)": "Emergency High",
+                "Voltage Drop Warning(%)": "Voltage Drop Warning Percent",
+                "Voltage Drop Limit(%)": "Voltage Drop Limit Percent",
+            },
+        )
+
+        df["Publish Time"] = publish_time
+
+        df = df[
+            [
+                "Publish Time",
+                "Company",
+                "Voltage",
+                "Follow PJM",
+                "Station",
+                "Load Dump",
+                "Emergency Low",
+                "Normal Low",
+                "Normal High",
+                "Emergency High",
+                "Voltage Drop Warning Percent",
+                "Voltage Drop Limit Percent",
+            ]
+        ]
+
+        return df
