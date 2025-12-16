@@ -3323,13 +3323,8 @@ class TestPJM(BaseTestISO):
             "Voltage Drop Limit Percent",
         ]
         assert not df.empty
-        assert isinstance(
-            df["Publish Time"].dtype,
-            pd.DatetimeTZDtype,
-        ), "Publish Time is not a timezone-aware datetime column"
-        assert str(df["Publish Time"].dt.tz) == str(
-            self.iso.default_timezone,
-        ), "Publish Time timezone doesn't match the default timezone"
+        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Publish Time"].dt.tz) == str(self.iso.default_timezone)
         assert df["Company"].dtype == object
         assert df["Voltage"].dtype == object
         assert df["Follow PJM"].dtype == object
@@ -3357,20 +3352,10 @@ class TestPJM(BaseTestISO):
             "Performance Assessment Interval",
         ]
         assert not df.empty
-        assert isinstance(
-            df["Interval Start"].dtype,
-            pd.DatetimeTZDtype,
-        ), "Interval Start UTC is not a timezone-aware datetime column"
-        assert str(df["Interval Start"].dt.tz) == str(
-            self.iso.default_timezone,
-        ), "Interval Start UTC timezone doesn't match the default timezone"
-        assert isinstance(
-            df["Interval End"].dtype,
-            pd.DatetimeTZDtype,
-        ), "Interval End UTC is not a timezone-aware datetime column"
-        assert str(df["Interval End"].dt.tz) == str(
-            self.iso.default_timezone,
-        ), "Interval End UTC timezone doesn't match the default timezone"
+        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval End"].dt.tz) == str(self.iso.default_timezone)
         assert df["Performance Assessment Interval"].dtype == object
 
     def test_get_pai_intervals_5_min_latest(self):
