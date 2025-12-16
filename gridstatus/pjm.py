@@ -1,7 +1,6 @@
 import io
 import math
 import os
-import time
 import warnings
 from typing import BinaryIO
 
@@ -3865,18 +3864,17 @@ class PJM(ISOBase):
 
         return df.sort_values(["Interval Start", "Pnode Name"]).reset_index(drop=True)
 
+    # NOTE: This file can only be accessed once per 30 minutes from the same IP address.
+    # Otherwise the CSV will return a rate limit message inside the file.
     def get_voltage_limits(
         self,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> str:
         """
-        Retrieves PJM voltage limits data from EDART.
+        Downloads the raw voltage limits CSV file from EDART.
 
-        This dataset contains daily flow limits across transmission lines that provides
-        PJM default voltage values and voltage stability limits by voltage class.
-        Transmission owners can elect to deviate from PJM, designated by a "no" value
-        in the "follow_pjm" column. Additional voltage limits, including high, low,
-        and normal kV ratings are included.
+        The URL returns a ZIP file containing the CSV. This method extracts and returns
+        the CSV content as a string.
 
         Source: https://edart.pjm.com/reports/voltagelimits.csv
 
@@ -3884,31 +3882,34 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: A DataFrame with voltage limits data.
+            str: The CSV content as a string.
+
+        Raises:
+            NoDataFoundException: If the server returns a rate limit message.
         """
         url = "https://edart.pjm.com/reports/voltagelimits.csv"
         logger.info(f"Requesting {url}...")
 
-        max_attempts = 1 if self.retries is None else self.retries + 1
-        attempt = 0
-        while attempt < max_attempts:
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                break
-            except requests.RequestException as e:
-                attempt += 1
-                if attempt >= max_attempts:
-                    raise
-                wait_time = 2 ** (attempt - 1)
-                if verbose:
-                    logger.warning(
-                        f"Request failed with {e}. Retrying in {wait_time} seconds...",
-                    )
-                time.sleep(wait_time)
+        z = utils.get_zip_folder(url, verbose=verbose)
 
-        csv_content = response.text
+        csv_filename = "voltagelimits.csv"
+        if csv_filename not in z.namelist():
+            raise RuntimeError(
+                f"Expected {csv_filename} in ZIP archive, found: {z.namelist()}",
+            )
 
+        csv_content = z.read(csv_filename).decode("utf-8")
+
+        if "throttle" in csv_content.lower():
+            rate_limit_message = csv_content.strip()
+            raise NoDataFoundException(rate_limit_message)
+
+        return self._parse_voltage_limits(csv_content)
+
+    def _parse_voltage_limits(
+        self,
+        csv_content: str,
+    ) -> str:
         lines = csv_content.split("\n")
         publish_time_str = lines[0] if lines else None
 
@@ -3950,9 +3951,3 @@ class PJM(ISOBase):
             )
 
         return df
-
-
-if __name__ == "__main__":
-    iso = PJM()
-    df = iso.get_pai_intervals_5_min("latest")
-    print(df)
