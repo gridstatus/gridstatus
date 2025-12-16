@@ -3909,7 +3909,7 @@ class PJM(ISOBase):
     def _parse_voltage_limits(
         self,
         csv_content: str,
-    ) -> str:
+    ) -> pd.DataFrame:
         lines = csv_content.split("\n")
         publish_time_str = lines[0] if lines else None
 
@@ -3917,37 +3917,38 @@ class PJM(ISOBase):
 
         df = df.rename(
             columns={
-                "Company": "Company",
-                "Voltage": "Voltage",
-                "Follow PJM": "Follow PJM",
-                "Station": "Station",
-                "Load Dump": "Load Dump",
-                "Emergency Low(KV)": "Emergency Low (KV)",
-                "Normal High(KV)": "Normal High (KV)",
-                "Emergency High(KV)": "Emergency High (KV)",
-                "Voltage Drop Warning(%)": "Voltage Drop Warning (%)",
-                "Voltage Drop Limit(%)": "Voltage Drop Limit (%)",
+                "Emergency Low(KV)": "Emergency Low",
+                "Normal Low(KV)": "Normal Low",
+                "Normal High(KV)": "Normal High",
+                "Emergency High(KV)": "Emergency High",
+                "Voltage Drop Warning(%)": "Voltage Drop Warning Percent",
+                "Voltage Drop Limit(%)": "Voltage Drop Limit Percent",
             },
         )
 
-        if publish_time_str:
-            try:
-                publish_time = pd.to_datetime(
-                    publish_time_str.strip(),
-                    errors="coerce",
-                )
-                if pd.notna(publish_time):
-                    df["Publish Time"] = publish_time
-                else:
-                    df["Publish Time"] = pd.Timestamp.now(tz=self.default_timezone)
-            except Exception:
-                df["Publish Time"] = pd.Timestamp.now(tz=self.default_timezone)
-        else:
-            df["Publish Time"] = pd.Timestamp.now(tz=self.default_timezone)
+        publish_time = pd.to_datetime(publish_time_str.strip(), errors="coerce")
+        df["Publish Time"] = publish_time
 
         if not df["Publish Time"].dt.tz:
             df["Publish Time"] = pd.to_datetime(df["Publish Time"]).dt.tz_localize(
                 self.default_timezone,
             )
+
+        df = df[
+            [
+                "Publish Time",
+                "Company",
+                "Voltage",
+                "Follow PJM",
+                "Station",
+                "Load Dump",
+                "Emergency Low",
+                "Normal Low",
+                "Normal High",
+                "Emergency High",
+                "Voltage Drop Warning Percent",
+                "Voltage Drop Limit Percent",
+            ]
+        ]
 
         return df

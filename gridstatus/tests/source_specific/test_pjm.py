@@ -3308,32 +3308,44 @@ class TestPJM(BaseTestISO):
     """get_voltage_limits"""
 
     def _check_voltage_limits(self, df):
-        assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
+            "Publish Time",
             "Company",
             "Voltage",
             "Follow PJM",
             "Station",
             "Load Dump",
-            "Emergency Low (KV)",
-            "Normal High (KV)",
-            "Emergency High (KV)",
-            "Voltage Drop Warning (%)",
-            "Voltage Drop Limit (%)",
-            "Publish Time",
+            "Emergency Low",
+            "Normal Low",
+            "Normal High",
+            "Emergency High",
+            "Voltage Drop Warning Percent",
+            "Voltage Drop Limit Percent",
         ]
         assert not df.empty
+        assert isinstance(
+            df["Publish Time"].dtype,
+            pd.DatetimeTZDtype,
+        ), "Publish Time is not a timezone-aware datetime column"
+        assert str(df["Publish Time"].dt.tz) == str(
+            self.iso.default_timezone,
+        ), "Publish Time timezone doesn't match the default timezone"
         assert df["Company"].dtype == object
         assert df["Voltage"].dtype == object
         assert df["Follow PJM"].dtype == object
         assert df["Station"].dtype == object
-        assert df["Load Dump"].dtype == object
+        assert df["Load Dump"].dtype in [np.float64, np.int64]
+        assert df["Emergency Low"].dtype in [np.float64, np.int64]
+        assert df["Normal Low"].dtype in [np.float64, np.int64]
+        assert df["Normal High"].dtype in [np.float64, np.int64]
+        assert df["Emergency High"].dtype in [np.float64, np.int64]
+        assert df["Voltage Drop Warning Percent"].dtype in [np.float64, np.int64]
+        assert df["Voltage Drop Limit Percent"].dtype in [np.float64, np.int64]
 
     def test_get_voltage_limits_latest(self):
         with pjm_vcr.use_cassette("test_get_voltage_limits_latest.yaml"):
             df = self.iso.get_voltage_limits()
             self._check_voltage_limits(df)
-            assert df["Publish Time"].dtype == "datetime64[ns, US/Eastern]"
 
     def test_get_voltage_limits_historical_date_range(self):
         with pjm_vcr.use_cassette("test_get_voltage_limits_historical.yaml"):
