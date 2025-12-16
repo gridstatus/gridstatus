@@ -3826,7 +3826,7 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with 5-minute marginal emission rates data.
         """
         if date == "latest":
-            date = "today"
+            date = pd.Timestamp.now().replace(minute=0, second=0, microsecond=0)
 
         df = self._get_pjm_json(
             "fivemin_marginal_emissions",
