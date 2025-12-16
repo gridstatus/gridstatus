@@ -5132,12 +5132,24 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Ancillary Service Demand Curves"""
-        docs = self._get_documents(
-            report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
-            extension="csv",
-            date=date,
-            verbose=verbose,
-        )
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
+                extension="csv",
+                published_before=end,
+                published_after=date,
+                verbose=verbose,
+            )
 
         df = pd.concat(
             [
