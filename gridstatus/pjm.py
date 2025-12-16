@@ -3911,9 +3911,23 @@ class PJM(ISOBase):
         csv_content: str,
     ) -> pd.DataFrame:
         lines = csv_content.split("\n")
-        publish_time_str = lines[0] if lines else None
 
-        df = pd.read_csv(io.StringIO(csv_content), skiprows=1)
+        timestamp_str = lines[0].strip().replace("TIMESTAMP:", "").strip()
+        publish_time = pd.to_datetime(timestamp_str).tz_localize(self.default_timezone)
+
+        header_row_idx = None
+        for i, line in enumerate(lines):
+            if line.strip().startswith("Company") and "Voltage" in line:
+                header_row_idx = i
+                break
+
+        if header_row_idx is None:
+            raise ValueError("Could not find header row starting with 'Company'")
+
+        csv_clean = "\n".join(lines[header_row_idx:])
+        df = pd.read_csv(io.StringIO(csv_clean))
+
+        df.columns = df.columns.str.strip()
 
         df = df.rename(
             columns={
@@ -3926,13 +3940,7 @@ class PJM(ISOBase):
             },
         )
 
-        publish_time = pd.to_datetime(publish_time_str.strip(), errors="coerce")
         df["Publish Time"] = publish_time
-
-        if not df["Publish Time"].dt.tz:
-            df["Publish Time"] = pd.to_datetime(df["Publish Time"]).dt.tz_localize(
-                self.default_timezone,
-            )
 
         df = df[
             [
