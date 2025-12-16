@@ -3304,3 +3304,158 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette("test_get_sync_reserve_events.yaml"):
             df = self.iso.get_sync_reserve_events()
             self._check_sync_reserve_events(df)
+
+    """get_voltage_limits"""
+
+    def _check_voltage_limits(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Company",
+            "Voltage",
+            "Follow PJM",
+            "Station",
+            "Load Dump",
+            "Emergency Low (KV)",
+            "Normal High (KV)",
+            "Emergency High (KV)",
+            "Voltage Drop Warning (%)",
+            "Voltage Drop Limit (%)",
+            "Publish Time",
+        ]
+        assert not df.empty
+        assert df["Company"].dtype == object
+        assert df["Voltage"].dtype == object
+        assert df["Follow PJM"].dtype == object
+        assert df["Station"].dtype == object
+        assert df["Load Dump"].dtype == object
+
+    def test_get_voltage_limits_latest(self):
+        with pjm_vcr.use_cassette("test_get_voltage_limits_latest.yaml"):
+            df = self.iso.get_voltage_limits()
+            self._check_voltage_limits(df)
+            assert df["Publish Time"].dtype == "datetime64[ns, US/Eastern]"
+
+    def test_get_voltage_limits_historical_date_range(self):
+        with pjm_vcr.use_cassette("test_get_voltage_limits_historical.yaml"):
+            df = self.iso.get_voltage_limits()
+            self._check_voltage_limits(df)
+
+    """get_pai_intervals_5_min"""
+
+    def _check_pai_intervals_5_min(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start UTC",
+            "Interval End UTC",
+            "Performance Assessment Interval",
+        ]
+        assert not df.empty
+        assert isinstance(
+            df["Interval Start UTC"].dtype,
+            pd.DatetimeTZDtype,
+        ), "Interval Start UTC is not a timezone-aware datetime column"
+        assert str(df["Interval Start UTC"].dt.tz) == str(
+            self.iso.default_timezone,
+        ), "Interval Start UTC timezone doesn't match the default timezone"
+        assert isinstance(
+            df["Interval End UTC"].dtype,
+            pd.DatetimeTZDtype,
+        ), "Interval End UTC is not a timezone-aware datetime column"
+        assert str(df["Interval End UTC"].dt.tz) == str(
+            self.iso.default_timezone,
+        ), "Interval End UTC timezone doesn't match the default timezone"
+        assert df["Performance Assessment Interval"].dtype == object
+
+    def test_get_pai_intervals_5_min_latest(self):
+        with pjm_vcr.use_cassette("test_get_pai_intervals_5_min_latest.yaml"):
+            df = self.iso.get_pai_intervals_5_min("latest")
+            self._check_pai_intervals_5_min(df)
+            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+            assert df["Interval Start UTC"].max().date() >= today - pd.Timedelta(days=1)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_pai_intervals_5_min_historical_date_range(self, date, end):
+        with pjm_vcr.use_cassette(
+            f"test_get_pai_intervals_5_min_historical_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_pai_intervals_5_min(date, end)
+            self._check_pai_intervals_5_min(df)
+            expected_start_date = pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            ).date()
+            assert df["Interval Start UTC"].min().date() >= expected_start_date
+            assert (
+                df["Interval End UTC"].max().date()
+                <= pd.Timestamp(
+                    end,
+                    tz=self.iso.default_timezone,
+                ).date()
+            )
+
+    """get_marginal_emission_rates_5_min"""
+
+    def _check_marginal_emission_rates_5_min(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == [
+            "Interval Start UTC",
+            "Interval End UTC",
+            "Pnode Name",
+            "Pnode ID",
+            "Marginal CO2 Rate",
+            "Marginal SO2 Rate",
+            "Marginal NOx Rate",
+        ]
+        assert not df.empty
+        assert isinstance(
+            df["Interval Start UTC"].dtype,
+            pd.DatetimeTZDtype,
+        ), "Interval Start UTC is not a timezone-aware datetime column"
+        assert str(df["Interval Start UTC"].dt.tz) == str(
+            self.iso.default_timezone,
+        ), "Interval Start UTC timezone doesn't match the default timezone"
+        assert isinstance(
+            df["Interval End UTC"].dtype,
+            pd.DatetimeTZDtype,
+        ), "Interval End UTC is not a timezone-aware datetime column"
+        assert str(df["Interval End UTC"].dt.tz) == str(
+            self.iso.default_timezone,
+        ), "Interval End UTC timezone doesn't match the default timezone"
+        assert df["Pnode Name"].dtype == object
+        assert df["Pnode ID"].dtype in [np.int64, np.float64]
+        assert df["Marginal CO2 Rate"].dtype in [np.float64, np.int64]
+        assert df["Marginal SO2 Rate"].dtype in [np.float64, np.int64]
+        assert df["Marginal NOx Rate"].dtype in [np.float64, np.int64]
+
+    def test_get_marginal_emission_rates_5_min_latest(self):
+        with pjm_vcr.use_cassette(
+            "test_get_marginal_emission_rates_5_min_latest.yaml",
+        ):
+            df = self.iso.get_marginal_emission_rates_5_min("latest")
+            self._check_marginal_emission_rates_5_min(df)
+            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+            assert df["Interval Start UTC"].max().date() >= today - pd.Timedelta(days=1)
+
+    @pytest.mark.parametrize("date, end", test_dates)
+    def test_get_marginal_emission_rates_5_min_historical_date_range(
+        self,
+        date,
+        end,
+    ):
+        with pjm_vcr.use_cassette(
+            f"test_get_marginal_emission_rates_5_min_historical_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_marginal_emission_rates_5_min(date, end)
+            self._check_marginal_emission_rates_5_min(df)
+            expected_start_date = pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            ).date()
+            assert df["Interval Start UTC"].min().date() >= expected_start_date
+            assert (
+                df["Interval End UTC"].max().date()
+                <= pd.Timestamp(
+                    end,
+                    tz=self.iso.default_timezone,
+                ).date()
+            )

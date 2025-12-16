@@ -1,5 +1,7 @@
+import io
 import math
 import os
+import time
 import warnings
 from typing import BinaryIO
 
@@ -3739,8 +3741,218 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range(frequency=None)
+    def get_pai_intervals_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the 5-minute Performance Assessment Intervals (PAI) data from PJM.
+
+        This dataset contains information on the status of Performance Assessment Intervals
+        (PAIs) across PJM and subzones, updated every 5 minutes. Performance during these
+        PAIs is used by PJM to determine potential penalties, or compensation, for capacity
+        obligations. This dataset has 3 potential responses in the Performance Assessment
+        Interval column: "No PAI", "PAI in Active Subzone", and "PAI in RTO and Active Subzone".
+
+        Source: https://dataminer2.pjm.com/feed/fivemin_pai_interval/definition
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with 5-minute PAI intervals data.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "fivemin_pai_interval",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc,datetime_beginning_ept,pai_description",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "pai_description": "Performance Assessment Interval",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Performance Assessment Interval",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
+    @support_date_range(frequency=None)
+    def get_marginal_emission_rates_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves the 5-minute marginal emission rates data from PJM.
+
+        PJM estimates marginal emissions every five minutes for load zones across the grid.
+        These estimates include CO₂, SO₂, and NOₓ, expressed in lbs/MWh. The calculation
+        reflects the physical costs of power flows, capturing the impact of congestion on
+        nodal emissions. When imports are marginal at a node, PJM assigns them zero emissions
+        because the fuel source is unknown.
+
+        Source: https://dataminer2.pjm.com/feed/fivemin_marginal_emissions/definition
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data
+            end: (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one day past `date` if not specified.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with 5-minute marginal emission rates data.
+        """
+        if date == "latest":
+            date = "today"
+
+        df = self._get_pjm_json(
+            "fivemin_marginal_emissions",
+            start=date,
+            params={
+                "fields": "datetime_beginning_utc,datetime_beginning_ept,pnode_name,pnode_id,marginal_co2_rate,marginal_so2_rate,marginal_nox_rate",
+            },
+            end=end,
+            filter_timestamp_name="datetime_beginning",
+            interval_duration_min=5,
+            verbose=verbose,
+        )
+
+        df = df.rename(
+            columns={
+                "pnode_name": "Pnode Name",
+                "pnode_id": "Pnode ID",
+                "marginal_co2_rate": "Marginal CO2 Rate",
+                "marginal_so2_rate": "Marginal SO2 Rate",
+                "marginal_nox_rate": "Marginal NOx Rate",
+            },
+        )
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Pnode Name",
+                "Pnode ID",
+                "Marginal CO2 Rate",
+                "Marginal SO2 Rate",
+                "Marginal NOx Rate",
+            ]
+        ]
+
+        return df.sort_values(["Interval Start", "Pnode Name"]).reset_index(drop=True)
+
+    def get_voltage_limits(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Retrieves PJM voltage limits data from EDART.
+
+        This dataset contains daily flow limits across transmission lines that provides
+        PJM default voltage values and voltage stability limits by voltage class.
+        Transmission owners can elect to deviate from PJM, designated by a "no" value
+        in the "follow_pjm" column. Additional voltage limits, including high, low,
+        and normal kV ratings are included.
+
+        Source: https://edart.pjm.com/reports/voltagelimits.csv
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: A DataFrame with voltage limits data.
+        """
+        url = "https://edart.pjm.com/reports/voltagelimits.csv"
+        logger.info(f"Requesting {url}...")
+
+        max_attempts = 1 if self.retries is None else self.retries + 1
+        attempt = 0
+        while attempt < max_attempts:
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                break
+            except requests.RequestException as e:
+                attempt += 1
+                if attempt >= max_attempts:
+                    raise
+                wait_time = 2 ** (attempt - 1)
+                if verbose:
+                    logger.warning(
+                        f"Request failed with {e}. Retrying in {wait_time} seconds...",
+                    )
+                time.sleep(wait_time)
+
+        csv_content = response.text
+
+        lines = csv_content.split("\n")
+        publish_time_str = lines[0] if lines else None
+
+        df = pd.read_csv(io.StringIO(csv_content), skiprows=1)
+
+        df = df.rename(
+            columns={
+                "Company": "Company",
+                "Voltage": "Voltage",
+                "Follow PJM": "Follow PJM",
+                "Station": "Station",
+                "Load Dump": "Load Dump",
+                "Emergency Low(KV)": "Emergency Low (KV)",
+                "Normal High(KV)": "Normal High (KV)",
+                "Emergency High(KV)": "Emergency High (KV)",
+                "Voltage Drop Warning(%)": "Voltage Drop Warning (%)",
+                "Voltage Drop Limit(%)": "Voltage Drop Limit (%)",
+            },
+        )
+
+        if publish_time_str:
+            try:
+                publish_time = pd.to_datetime(
+                    publish_time_str.strip(),
+                    errors="coerce",
+                )
+                if pd.notna(publish_time):
+                    df["Publish Time"] = publish_time
+                else:
+                    df["Publish Time"] = pd.Timestamp.now(tz=self.default_timezone)
+            except Exception:
+                df["Publish Time"] = pd.Timestamp.now(tz=self.default_timezone)
+        else:
+            df["Publish Time"] = pd.Timestamp.now(tz=self.default_timezone)
+
+        if not df["Publish Time"].dt.tz:
+            df["Publish Time"] = pd.to_datetime(df["Publish Time"]).dt.tz_localize(
+                self.default_timezone,
+            )
+
+        return df
+
 
 if __name__ == "__main__":
     iso = PJM()
-    df = iso.get_generation_capacity_daily("latest")
+    df = iso.get_pai_intervals_5_min("latest")
     print(df)
