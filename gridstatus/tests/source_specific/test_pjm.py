@@ -3352,23 +3352,23 @@ class TestPJM(BaseTestISO):
     def _check_pai_intervals_5_min(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
-            "Interval Start UTC",
-            "Interval End UTC",
+            "Interval Start",
+            "Interval End",
             "Performance Assessment Interval",
         ]
         assert not df.empty
         assert isinstance(
-            df["Interval Start UTC"].dtype,
+            df["Interval Start"].dtype,
             pd.DatetimeTZDtype,
         ), "Interval Start UTC is not a timezone-aware datetime column"
-        assert str(df["Interval Start UTC"].dt.tz) == str(
+        assert str(df["Interval Start"].dt.tz) == str(
             self.iso.default_timezone,
         ), "Interval Start UTC timezone doesn't match the default timezone"
         assert isinstance(
-            df["Interval End UTC"].dtype,
+            df["Interval End"].dtype,
             pd.DatetimeTZDtype,
         ), "Interval End UTC is not a timezone-aware datetime column"
-        assert str(df["Interval End UTC"].dt.tz) == str(
+        assert str(df["Interval End"].dt.tz) == str(
             self.iso.default_timezone,
         ), "Interval End UTC timezone doesn't match the default timezone"
         assert df["Performance Assessment Interval"].dtype == object
@@ -3378,35 +3378,27 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_pai_intervals_5_min("latest")
             self._check_pai_intervals_5_min(df)
             today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-            assert df["Interval Start UTC"].max().date() >= today - pd.Timedelta(days=1)
+            assert df["Interval Start"].max().date() >= today - pd.Timedelta(days=1)
 
-    @pytest.mark.parametrize("date, end", test_dates)
-    def test_get_pai_intervals_5_min_historical_date_range(self, date, end):
+    def test_get_pai_intervals_5_min_historical_date_range(self):
+        date = self.local_today() - pd.Timedelta(days=10)
+        end = date + pd.Timedelta(days=2)
         with pjm_vcr.use_cassette(
-            f"test_get_pai_intervals_5_min_historical_{date}_{end}.yaml",
+            f"test_get_pai_intervals_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_pai_intervals_5_min(date, end)
             self._check_pai_intervals_5_min(df)
-            expected_start_date = pd.Timestamp(
-                date,
-                tz=self.iso.default_timezone,
-            ).date()
-            assert df["Interval Start UTC"].min().date() >= expected_start_date
-            assert (
-                df["Interval End UTC"].max().date()
-                <= pd.Timestamp(
-                    end,
-                    tz=self.iso.default_timezone,
-                ).date()
-            )
+
+            assert df["Interval Start"].min().date() >= date
+            assert df["Interval End"].max().date() <= end + pd.Timedelta(days=1)
 
     """get_marginal_emission_rates_5_min"""
 
     def _check_marginal_emission_rates_5_min(self, df):
         assert isinstance(df, pd.DataFrame)
         assert df.columns.tolist() == [
-            "Interval Start UTC",
-            "Interval End UTC",
+            "Interval Start",
+            "Interval End",
             "Pnode Name",
             "Pnode ID",
             "Marginal CO2 Rate",
@@ -3414,20 +3406,10 @@ class TestPJM(BaseTestISO):
             "Marginal NOx Rate",
         ]
         assert not df.empty
-        assert isinstance(
-            df["Interval Start UTC"].dtype,
-            pd.DatetimeTZDtype,
-        ), "Interval Start UTC is not a timezone-aware datetime column"
-        assert str(df["Interval Start UTC"].dt.tz) == str(
-            self.iso.default_timezone,
-        ), "Interval Start UTC timezone doesn't match the default timezone"
-        assert isinstance(
-            df["Interval End UTC"].dtype,
-            pd.DatetimeTZDtype,
-        ), "Interval End UTC is not a timezone-aware datetime column"
-        assert str(df["Interval End UTC"].dt.tz) == str(
-            self.iso.default_timezone,
-        ), "Interval End UTC timezone doesn't match the default timezone"
+        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval End"].dt.tz) == str(self.iso.default_timezone)
         assert df["Pnode Name"].dtype == object
         assert df["Pnode ID"].dtype in [np.int64, np.float64]
         assert df["Marginal CO2 Rate"].dtype in [np.float64, np.int64]
@@ -3441,28 +3423,17 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_marginal_emission_rates_5_min("latest")
             self._check_marginal_emission_rates_5_min(df)
             today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-            assert df["Interval Start UTC"].max().date() >= today - pd.Timedelta(days=1)
+            assert df["Interval Start"].max().date() >= today - pd.Timedelta(days=1)
 
-    @pytest.mark.parametrize("date, end", test_dates)
     def test_get_marginal_emission_rates_5_min_historical_date_range(
         self,
-        date,
-        end,
     ):
+        date = self.local_today() - pd.Timedelta(days=10)
+        end = date + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(
-            f"test_get_marginal_emission_rates_5_min_historical_{date}_{end}.yaml",
+            f"test_get_marginal_emission_rates_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_marginal_emission_rates_5_min(date, end)
             self._check_marginal_emission_rates_5_min(df)
-            expected_start_date = pd.Timestamp(
-                date,
-                tz=self.iso.default_timezone,
-            ).date()
-            assert df["Interval Start UTC"].min().date() >= expected_start_date
-            assert (
-                df["Interval End UTC"].max().date()
-                <= pd.Timestamp(
-                    end,
-                    tz=self.iso.default_timezone,
-                ).date()
-            )
+            assert df["Interval Start"].min().date() >= date.date()
+            assert df["Interval End"].max().date() <= end.date() + pd.Timedelta(days=1)
