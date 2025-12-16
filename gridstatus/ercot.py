@@ -3882,9 +3882,10 @@ class Ercot(ISOBase):
         if is_sced_format:
             # SCED format: Parse SCED Timestamp directly
             # SCED Timestamp format is like "12/07/2025 00:00:17"
+            # TODO: this dataset doesn't have a DSTFlag so we may have issues with
+            # DST transitions
             df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
                 self.default_timezone,
-                ambiguous=self.ambiguous_based_on_dst_flag(df["SCED Timestamp"]),
             )
 
             # Group by SCED Timestamp and resource identifiers only
@@ -3900,6 +3901,8 @@ class Ercot(ISOBase):
             # DAM format: Parse Hour Ending and Delivery Date
             is_dst_end = 25 in df["Hour Ending"].values
 
+            # TODO: we haven't been able to test this with an actual DST transition
+            # so we may have to update this logic
             if not is_dst_end:
                 df = self.parse_doc(df)
             else:
@@ -5132,12 +5135,24 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Ancillary Service Demand Curves"""
-        docs = self._get_documents(
-            report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
-            extension="csv",
-            date=date,
-            verbose=verbose,
-        )
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
+                extension="csv",
+                published_before=end,
+                published_after=date,
+                verbose=verbose,
+            )
 
         df = pd.concat(
             [
