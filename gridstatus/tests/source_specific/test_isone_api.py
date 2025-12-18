@@ -1420,6 +1420,7 @@ class TestISONEAPI(TestHelperMixin):
         assert isinstance(df, pd.DataFrame)
         assert len(df) > 0
         assert list(df.columns) == ISONE_FCM_RECONFIGURATION_COLUMNS
+        assert "ARA" in df.columns
         assert df["Location Type"].isin(["Capacity Zone", "External Interface"]).all()
         assert df["Location ID"].dtype in [np.int64, np.float64]
         assert df["Location Name"].dtype == "object"
@@ -1464,6 +1465,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_fcm_reconfiguration_annual(date="latest")
 
             self._check_fcm_reconfiguration(result)
+            assert result["ARA"].isin(["1", "2", "3"]).all()
 
     @pytest.mark.parametrize(
         "date",
@@ -1480,6 +1482,9 @@ class TestISONEAPI(TestHelperMixin):
             )
 
             self._check_fcm_reconfiguration(result)
+            assert result["ARA"].isin(["1", "2", "3"]).all()
+            unique_ara_values = result["ARA"].unique()
+            assert len(unique_ara_values) >= 1
             cp_start_year = date.year if date.month >= 6 else date.year - 1
             expected_cp_start = pd.Timestamp(
                 year=cp_start_year,

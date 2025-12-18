@@ -99,6 +99,7 @@ ISONE_RESERVE_ZONE_COLUMN_MAP = {
 ISONE_FCM_RECONFIGURATION_COLUMNS = [
     "Interval Start",
     "Interval End",
+    "ARA",
     "Location Type",
     "Location ID",
     "Location Name",
