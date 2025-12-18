@@ -1844,43 +1844,34 @@ class ISONEAPI:
         if target_cp:
             for ara_type in ["ARA1", "ARA2", "ARA3"]:
                 endpoint = f"{self.base_url}/fcmara/cp/{target_cp}/ara/{ara_type}"
-                try:
-                    response = self.make_api_call(endpoint, verbose=verbose)
-                    auctions = self._prepare_records(
-                        self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+
+                response = self.make_api_call(endpoint, verbose=verbose)
+                auctions = self._prepare_records(
+                    self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+                )
+
+                for wrapper in auctions:
+                    auction = wrapper.get("Auction", wrapper)
+                    period = auction.get("CommitmentPeriod", {})
+                    begin = period.get("BeginDate")
+                    end_date = period.get("EndDate")
+
+                    if begin and end_date:
+                        interval_start = pd.Timestamp(begin)
+                        interval_end = pd.Timestamp(end_date)
+                    else:
+                        description = auction.get("Description")
+                        interval_start = (
+                            pd.Timestamp(description)
+                            if description
+                            else pd.Timestamp(auction.get("ApprovalDate"))
+                        )
+                        interval_end = interval_start + pd.DateOffset(years=1)
+
+                    annotated_auctions.append(
+                        (auction, interval_start, interval_end),
                     )
 
-                    for wrapper in auctions:
-                        auction = wrapper.get("Auction", wrapper)
-                        period = auction.get("CommitmentPeriod", {})
-                        begin = period.get("BeginDate")
-                        end_date = period.get("EndDate")
-
-                        if begin and end_date:
-                            interval_start = pd.Timestamp(begin)
-                            interval_end = pd.Timestamp(end_date)
-                        else:
-                            description = auction.get("Description")
-                            interval_start = (
-                                pd.Timestamp(description)
-                                if description
-                                else pd.Timestamp(auction.get("ApprovalDate"))
-                            )
-                            interval_end = interval_start + pd.DateOffset(years=1)
-
-                        annotated_auctions.append(
-                            (auction, interval_start, interval_end),
-                        )
-
-                        if verbose:
-                            log.info(
-                                f"Found {ara_type} for CP {target_cp}",
-                            )
-                except Exception as e:
-                    if verbose:
-                        log.debug(
-                            f"Could not fetch {ara_type} for CP {target_cp}: {e}",
-                        )
         else:
             for wrapper in auctions:
                 auction = wrapper.get("Auction", wrapper)
