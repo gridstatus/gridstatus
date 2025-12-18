@@ -1842,9 +1842,11 @@ class ISONEAPI:
         annotated_auctions: list[tuple[dict, pd.Timestamp, pd.Timestamp]] = []
 
         if target_cp:
-            for ara_type in ["ARA1", "ARA2", "ARA3"]:
-                endpoint = f"{self.base_url}/fcmara/cp/{target_cp}/ara/{ara_type}"
+            cp_start_year = int(target_cp.split("-")[0])
+            use_historical_endpoint = cp_start_year <= 2020
 
+            if use_historical_endpoint:
+                endpoint = f"{self.base_url}/fcmara/cp/{target_cp}"
                 response = self.make_api_call(endpoint, verbose=verbose)
                 auctions = self._prepare_records(
                     self._safe_get(response, "FCMRAResults", "FCMRAResult"),
@@ -1871,6 +1873,36 @@ class ISONEAPI:
                     annotated_auctions.append(
                         (auction, interval_start, interval_end),
                     )
+            else:
+                for ara_type in ["ARA1", "ARA2", "ARA3"]:
+                    endpoint = f"{self.base_url}/fcmara/cp/{target_cp}/ara/{ara_type}"
+
+                    response = self.make_api_call(endpoint, verbose=verbose)
+                    auctions = self._prepare_records(
+                        self._safe_get(response, "FCMRAResults", "FCMRAResult"),
+                    )
+
+                    for wrapper in auctions:
+                        auction = wrapper.get("Auction", wrapper)
+                        period = auction.get("CommitmentPeriod", {})
+                        begin = period.get("BeginDate")
+                        end_date = period.get("EndDate")
+
+                        if begin and end_date:
+                            interval_start = pd.Timestamp(begin)
+                            interval_end = pd.Timestamp(end_date)
+                        else:
+                            description = auction.get("Description")
+                            interval_start = (
+                                pd.Timestamp(description)
+                                if description
+                                else pd.Timestamp(auction.get("ApprovalDate"))
+                            )
+                            interval_end = interval_start + pd.DateOffset(years=1)
+
+                        annotated_auctions.append(
+                            (auction, interval_start, interval_end),
+                        )
 
         else:
             for wrapper in auctions:
