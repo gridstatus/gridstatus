@@ -2028,6 +2028,9 @@ class ISONEAPI:
             if column in df.columns:
                 df[column] = pd.to_numeric(df[column], errors="coerce")
 
+        if "ARA" in df.columns:
+            df["ARA"] = pd.to_numeric(df["ARA"], errors="coerce").astype("Int64")
+
         df = df.reindex(columns=ISONE_FCM_RECONFIGURATION_COLUMNS)
         df = df.sort_values(
             ["Interval Start", "ARA", "Location ID"],
