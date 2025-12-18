@@ -3828,12 +3828,20 @@ class PJM(ISOBase):
         if date == "latest":
             date = pd.Timestamp.now().replace(minute=0, second=0, microsecond=0)
 
+        date_ts = utils._handle_date(date)
+        archive_date = _get_pjm_archive_date(Markets.REAL_TIME_5_MIN)
+        is_archived = date_ts < archive_date
+
+        params: dict[str, str] = {}
+        if not is_archived:
+            params["fields"] = (
+                "datetime_beginning_utc,datetime_beginning_ept,pnode_name,pnode_id,marginal_co2_rate,marginal_so2_rate,marginal_nox_rate"
+            )
+
         df = self._get_pjm_json(
             "fivemin_marginal_emissions",
             start=date,
-            params={
-                "fields": "datetime_beginning_utc,datetime_beginning_ept,pnode_name,pnode_id,marginal_co2_rate,marginal_so2_rate,marginal_nox_rate",
-            },
+            params=params,
             end=end,
             filter_timestamp_name="datetime_beginning",
             interval_duration_min=5,
