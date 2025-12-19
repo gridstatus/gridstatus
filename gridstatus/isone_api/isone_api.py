@@ -2029,12 +2029,22 @@ class ISONEAPI:
                 df[column] = pd.to_numeric(df[column], errors="coerce")
 
         if "ARA" in df.columns:
-            df["ARA"] = pd.to_numeric(df["ARA"], errors="coerce").astype("Int64")
+            if df["ARA"].notna().any() and (df["ARA"] != "").any():
+                df["ARA"] = pd.to_numeric(df["ARA"], errors="coerce").astype("Int64")
+            else:
+                df = df.drop(columns=["ARA"])
 
-        df = df.reindex(columns=ISONE_FCM_RECONFIGURATION_COLUMNS)
-        df = df.sort_values(
-            ["Interval Start", "ARA", "Location ID"],
-        ).reset_index(drop=True)
+        columns_to_use = (
+            ISONE_FCM_RECONFIGURATION_COLUMNS
+            if "ARA" in df.columns
+            else [col for col in ISONE_FCM_RECONFIGURATION_COLUMNS if col != "ARA"]
+        )
+        df = df.reindex(columns=columns_to_use)
+
+        sort_columns = ["Interval Start", "Location ID"]
+        if "ARA" in df.columns:
+            sort_columns.insert(1, "ARA")
+        df = df.sort_values(sort_columns).reset_index(drop=True)
 
         log.debug(
             f"Processed FCM reconfiguration auction data. "
