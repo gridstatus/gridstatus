@@ -1797,7 +1797,10 @@ class ISONEAPI:
             interval_end = interval_start + pd.DateOffset(months=1)
             annotated_auctions.append((auction, interval_start, interval_end))
 
-        return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
+        return self._parse_fcm_reconfiguration_dataframe(
+            annotated_auctions,
+            auction_type="monthly",
+        )
 
     @support_date_range(frequency="YEAR_START")
     def get_fcm_reconfiguration_annual(
@@ -1930,7 +1933,10 @@ class ISONEAPI:
 
                 annotated_auctions.append((auction, interval_start, interval_end))
 
-        return self._parse_fcm_reconfiguration_dataframe(annotated_auctions)
+        return self._parse_fcm_reconfiguration_dataframe(
+            annotated_auctions,
+            auction_type="annual",
+        )
 
     def _get_fcm_commitment_period_label(self, timestamp: pd.Timestamp) -> str:
         start_year = timestamp.year if timestamp.month >= 6 else timestamp.year - 1
@@ -1940,6 +1946,7 @@ class ISONEAPI:
     def _parse_fcm_reconfiguration_dataframe(
         self,
         auction_records: list[tuple[dict, pd.Timestamp, pd.Timestamp]],
+        auction_type: str = "monthly",
     ) -> pd.DataFrame:
         frames: list[pd.DataFrame] = []
 
@@ -1967,12 +1974,6 @@ class ISONEAPI:
         }
 
         for auction, interval_start, interval_end in auction_records:
-            auction_type = auction.get("Type", "")
-            ara_value = (
-                auction_type.replace("ARA", "")
-                if auction_type.startswith("ARA")
-                else ""
-            )
             zone_frame = pd.json_normalize(
                 auction,
                 record_path=["ClearedCapacityZones", "ClearedCapacityZone"],
@@ -1980,14 +1981,21 @@ class ISONEAPI:
             )
 
             zone_frame = zone_frame.rename(columns=zone_column_map)
-            zone_frame = zone_frame.assign(
-                **{
-                    "Interval Start": interval_start,
-                    "Interval End": interval_end,
-                    "Location Type": "Capacity Zone",
-                    "ARA": ara_value,
-                },
-            )
+            zone_assign_dict = {
+                "Interval Start": interval_start,
+                "Interval End": interval_end,
+                "Location Type": "Capacity Zone",
+            }
+            if auction_type == "annual":
+                auction_type_str = auction.get("Type", "")
+                ara_value = None
+                if auction_type_str.startswith("ARA"):
+                    try:
+                        ara_value = int(auction_type_str.replace("ARA", ""))
+                    except ValueError:
+                        pass
+                zone_assign_dict["ARA"] = ara_value
+            zone_frame = zone_frame.assign(**zone_assign_dict)
             frames.append(zone_frame)
 
             interface_frame = pd.json_normalize(
@@ -2002,15 +2010,22 @@ class ISONEAPI:
             )
 
             interface_frame = interface_frame.rename(columns=interface_column_map)
-            interface_frame = interface_frame.assign(
-                **{
-                    "Interval Start": interval_start,
-                    "Interval End": interval_end,
-                    "Location Type": "External Interface",
-                    "Capacity Zone Type": None,
-                    "ARA": ara_value,
-                },
-            )
+            interface_assign_dict = {
+                "Interval Start": interval_start,
+                "Interval End": interval_end,
+                "Location Type": "External Interface",
+                "Capacity Zone Type": None,
+            }
+            if auction_type == "annual":
+                auction_type_str = auction.get("Type", "")
+                ara_value = None
+                if auction_type_str.startswith("ARA"):
+                    try:
+                        ara_value = int(auction_type_str.replace("ARA", ""))
+                    except ValueError:
+                        pass
+                interface_assign_dict["ARA"] = ara_value
+            interface_frame = interface_frame.assign(**interface_assign_dict)
             frames.append(interface_frame)
 
         df = pd.concat(frames, ignore_index=True)
@@ -2028,13 +2043,20 @@ class ISONEAPI:
             if column in df.columns:
                 df[column] = pd.to_numeric(df[column], errors="coerce")
 
-        if "ARA" in df.columns:
-            df["ARA"] = pd.to_numeric(df["ARA"], errors="coerce").astype("Int64")
+        if auction_type == "annual":
+            df["ARA"] = df["ARA"].astype("Int64")
 
-        df = df.reindex(columns=ISONE_FCM_RECONFIGURATION_COLUMNS)
-        df = df.sort_values(
-            ["Interval Start", "ARA", "Location ID"],
-        ).reset_index(drop=True)
+        columns_to_use = (
+            ISONE_FCM_RECONFIGURATION_COLUMNS
+            if auction_type == "annual"
+            else [col for col in ISONE_FCM_RECONFIGURATION_COLUMNS if col != "ARA"]
+        )
+        df = df.reindex(columns=columns_to_use)
+
+        sort_columns = ["Interval Start", "Location ID"]
+        if auction_type == "annual":
+            sort_columns.insert(1, "ARA")
+        df = df.sort_values(sort_columns).reset_index(drop=True)
 
         log.debug(
             f"Processed FCM reconfiguration auction data. "
