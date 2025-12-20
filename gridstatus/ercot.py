@@ -3,7 +3,7 @@ import io
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import BinaryIO, Callable, List
+from typing import BinaryIO, Callable, List, Literal
 from zipfile import ZipFile
 
 import pandas as pd
@@ -4320,7 +4320,7 @@ class Ercot(ISOBase):
     def _get_document(
         self,
         report_type_id: int,
-        date: str | None = None,
+        date: Literal["latest"] | datetime.datetime | None = None,
         published_after: str | None = None,
         published_before: str | None = None,
         constructed_name_contains: str | None = None,
@@ -4360,7 +4360,7 @@ class Ercot(ISOBase):
     def _get_documents(
         self,
         report_type_id: int,
-        date: str | None = None,
+        date: Literal["latest"] | datetime.datetime | None = None,
         published_after: str | None = None,
         published_before: str | None = None,
         friendly_name_timestamp_after: str | None = None,
