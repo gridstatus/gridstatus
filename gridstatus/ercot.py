@@ -5126,8 +5126,10 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
-    # Published once per day for today and tomorrow in the same file
-    @support_date_range(frequency="DAY_START")
+    # Should be published once per day for today and tomorrow in the same file
+    # NOTE: occassionally ERCOT will publish multiple copies of the same data
+    # on the same day.
+    @support_date_range(frequency=None)
     def get_as_demand_curves_dam_and_sced(
         self,
         date: str | pd.Timestamp,
