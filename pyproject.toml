@@ -3,7 +3,7 @@ name = "gridstatus"
 version = "0.34.0"
 readme = "README.md"
 description = "API to access energy data"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.15"
 authors = [
     { name = "Max Kanter", email = "kmax12@gmail.com" },
     { name = "Will Koehrsen", email = "will@gridstatus.com"},
@@ -32,6 +32,7 @@ dependencies = [
     "urllib3 >= 2.2.2",
     "virtualenv >= 20.26.6",
     "frozendict>=2.4.6",
+    "rpds-py >= 0.30.0; python_version >= '3.14'",
 ]
 
 [dependency-groups]
