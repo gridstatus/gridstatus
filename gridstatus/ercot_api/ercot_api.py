@@ -1465,7 +1465,7 @@ class ErcotAPI:
         df_list = []
 
         # Get data once since both endpoints return the same zipfile
-        data_bytes = self.get_historical_data(
+        data_bytes_and_file_names = self.get_historical_data(
             endpoint=DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT,
             start_date=date,
             end_date=end,
@@ -1474,7 +1474,7 @@ class ErcotAPI:
         )
 
         # Process individual files from each zipfile
-        for bytes in data_bytes:
+        for bytes, _file_name in data_bytes_and_file_names:
             zip_file = ZipFile(bytes)
 
             # Process load resources
@@ -1527,7 +1527,7 @@ class ErcotAPI:
         df_list = []
 
         # Get data once since both endpoints return the same zipfile
-        data_bytes = self.get_historical_data(
+        data_bytes_and_file_names = self.get_historical_data(
             endpoint=SCED_60_DAY_SMNE_ENDPOINT,
             start_date=date,
             end_date=end,
@@ -1536,7 +1536,7 @@ class ErcotAPI:
         )
 
         # Process individual files from each zipfile
-        for bytes in data_bytes:
+        for bytes, _file_name in data_bytes_and_file_names:
             zip_file = ZipFile(bytes)
 
             # Process load resources
@@ -1650,7 +1650,7 @@ class ErcotAPI:
         bulk_download: bool = True,
         include_source_filename: bool = False,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
-    ) -> pd.DataFrame:
+    ) -> pd.DataFrame | tuple[bytes, str]:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
         postDatetimeFrom parameters. The retrieval process has two steps:
