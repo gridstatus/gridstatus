@@ -1465,7 +1465,7 @@ class ErcotAPI:
         df_list = []
 
         # Get data once since both endpoints return the same zipfile
-        data_bytes_and_file_names = self.get_historical_data(
+        data_bytes = self.get_historical_data(
             endpoint=DAM_60_DAY_LOAD_RESOURCES_AS_OFFERS_ENDPOINT,
             start_date=date,
             end_date=end,
@@ -1474,7 +1474,7 @@ class ErcotAPI:
         )
 
         # Process individual files from each zipfile
-        for bytes, _file_name in data_bytes_and_file_names:
+        for bytes in data_bytes:
             zip_file = ZipFile(bytes)
 
             # Process load resources
@@ -1527,7 +1527,7 @@ class ErcotAPI:
         df_list = []
 
         # Get data once since both endpoints return the same zipfile
-        data_bytes_and_file_names = self.get_historical_data(
+        data_bytes = self.get_historical_data(
             endpoint=SCED_60_DAY_SMNE_ENDPOINT,
             start_date=date,
             end_date=end,
@@ -1536,7 +1536,7 @@ class ErcotAPI:
         )
 
         # Process individual files from each zipfile
-        for bytes, _file_name in data_bytes_and_file_names:
+        for bytes in data_bytes:
             zip_file = ZipFile(bytes)
 
             # Process load resources
@@ -1650,7 +1650,7 @@ class ErcotAPI:
         bulk_download: bool = True,
         include_source_filename: bool = False,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
-    ) -> pd.DataFrame | tuple[bytes, str]:
+    ) -> pd.DataFrame | bytes:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
         postDatetimeFrom parameters. The retrieval process has two steps:
@@ -1680,7 +1680,8 @@ class ErcotAPI:
                 False.
 
         Returns:
-            [pandas.DataFrame]: a dataframe of historical data
+            [pandas.DataFrame]: a dataframe of historical data when read_as_csv is
+                True. Otherwise, returns the bytes.
         """
         emil_id = endpoint.split("/")[1]
         logger.debug(
@@ -1715,7 +1716,8 @@ class ErcotAPI:
             files = self._individually_download_documents(links=links, verbose=verbose)
 
         if not read_as_csv:
-            return files
+            # Only return the bytes (not the filenames)
+            return [f[0] for f in files]
 
         dfs = []
         for file_data, posted_datetime, link in zip(files, posted_datetimes, links):
