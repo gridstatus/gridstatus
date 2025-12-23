@@ -204,6 +204,7 @@ SCED_GEN_RESOURCE_COLUMNS = [
     "AS Responsibility for NonSpin",
     "AS Responsibility for ECRS",
     "SCED1 Offer Curve",
+    "SCED2 Offer Curve",
     "Start Up Cold Offer",
     "Start Up Hot Offer",
     "Start Up Inter Offer",
@@ -786,11 +787,19 @@ def process_sced_gen(df):
     ]
 
     sced1_offer_col = "SCED1 Offer Curve"
+    sced2_offer_col = "SCED2 Offer Curve"
 
     df[sced1_offer_col] = extract_curve(df, "SCED1 Curve")
+    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve")
     df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO")
 
-    all_cols = resource_cols + telemetry_cols + as_cols + [sced1_offer_col] + tpo_cols
+    all_cols = (
+        resource_cols
+        + telemetry_cols
+        + as_cols
+        + [sced1_offer_col, sced2_offer_col]
+        + tpo_cols
+    )
 
     for col in all_cols:
         if col not in df.columns:
