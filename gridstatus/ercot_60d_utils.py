@@ -427,13 +427,16 @@ def process_dam_gen(df):
 
     curve = "QSE submitted Curve"
 
-    df[curve] = extract_curve(df, "QSE submitted Curve")
+    # Extract curve and add to avoid DataFrame fragmentation
+    new_curve_cols = pd.DataFrame({curve: extract_curve(df, "QSE submitted Curve")})
+    df = pd.concat([df, new_curve_cols], axis=1)
 
     all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
 
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+    # Add missing columns all at once to avoid DataFrame fragmentation
+    missing_cols = {col: np.nan for col in all_cols if col not in df.columns}
+    if missing_cols:
+        df = pd.concat([df, pd.DataFrame(missing_cols, index=df.index)], axis=1)
 
     df = df[time_cols + all_cols]
 
@@ -472,9 +475,10 @@ def process_dam_load(df):
 
     all_cols = resource_cols + telemetry_cols + as_cols
 
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+    # Add missing columns all at once to avoid DataFrame fragmentation
+    missing_cols = {col: np.nan for col in all_cols if col not in df.columns}
+    if missing_cols:
+        df = pd.concat([df, pd.DataFrame(missing_cols, index=df.index)], axis=1)
 
     df = df[time_cols + all_cols]
 
@@ -789,9 +793,15 @@ def process_sced_gen(df):
     sced1_offer_col = "SCED1 Offer Curve"
     sced2_offer_col = "SCED2 Offer Curve"
 
-    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve")
-    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve")
-    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO")
+    # Extract curves and add them all at once to avoid DataFrame fragmentation
+    new_curve_cols = pd.DataFrame(
+        {
+            sced1_offer_col: extract_curve(df, "SCED1 Curve"),
+            sced2_offer_col: extract_curve(df, "SCED2 Curve"),
+            tpo_cols[-1]: extract_curve(df, "Submitted TPO"),
+        },
+    )
+    df = pd.concat([df, new_curve_cols], axis=1)
 
     all_cols = (
         resource_cols
@@ -801,9 +811,10 @@ def process_sced_gen(df):
         + tpo_cols
     )
 
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+    # Add missing columns all at once to avoid DataFrame fragmentation
+    missing_cols = {col: np.nan for col in all_cols if col not in df.columns}
+    if missing_cols:
+        df = pd.concat([df, pd.DataFrame(missing_cols, index=df.index)], axis=1)
 
     df = df[time_cols + all_cols]
 
@@ -857,12 +868,18 @@ def process_sced_load(df):
 
     bid_curve_col = "SCED Bid to Buy Curve"
 
-    df[bid_curve_col] = extract_curve(df, "SCED Bid to Buy Curve")
+    # Extract curve and add to avoid DataFrame fragmentation
+    new_curve_cols = pd.DataFrame(
+        {bid_curve_col: extract_curve(df, "SCED Bid to Buy Curve")},
+    )
+    df = pd.concat([df, new_curve_cols], axis=1)
 
     all_cols = resource_cols + telemetry_cols + as_cols + [bid_curve_col]
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+
+    # Add missing columns all at once to avoid DataFrame fragmentation
+    missing_cols = {col: np.nan for col in all_cols if col not in df.columns}
+    if missing_cols:
+        df = pd.concat([df, pd.DataFrame(missing_cols, index=df.index)], axis=1)
 
     df = df[time_cols + all_cols]
 
