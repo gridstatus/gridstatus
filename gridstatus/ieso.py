@@ -3555,11 +3555,17 @@ class IESO(ISOBase):
 
         data = pd.concat(data_list)
 
-        # Drop rows duplicated on every column except Publish Time
-        data = data.drop_duplicates(
-            subset=[c for c in data.columns if c != "Publish Time"],
-            keep="last",
-        ).reset_index(drop=True)
+        # IESO publishes the same limits in both the 0 to 2 days and 3 to 34 days files.
+        # These are the exact same so we only need one of them and we choose the most
+        # recently published.
+        data = (
+            data.sort_values("Publish Time")
+            .drop_duplicates(
+                subset=[c for c in data.columns if c != "Publish Time"],
+                keep="last",
+            )
+            .reset_index(drop=True)
+        )
 
         return data
 
