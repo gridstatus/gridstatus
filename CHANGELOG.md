@@ -1,12 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Additions (New Features/Datasets)
-
-#### ERCOT
-* Add `get_dam_as_prices_price_corrections()` and `get_rtm_as_prices_price_corrections()` methods for MCPC (Market Clearing Price for Capacity) price corrections
-
 ## v0.34.0 - December 9, 2025
 
 ### Additions (New Features/Datasets)

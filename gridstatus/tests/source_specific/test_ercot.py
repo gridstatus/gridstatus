@@ -1594,24 +1594,6 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_float_dtype(df["MCPC Original"])
         assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
 
-    @pytest.mark.skip(reason="No test data available yet")
-    @pytest.mark.integration
-    def test_get_rtm_as_prices_price_corrections(self):
-        """Test RTM AS Price Corrections (MCPC)."""
-        df = self.iso.get_rtm_as_prices_price_corrections()
-
-        cols = [
-            "Price Correction Time",
-            "Interval Start",
-            "Interval End",
-            "Ancillary Service Type",
-            "MCPC Original",
-            "MCPC Corrected",
-        ]
-
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-
     """get_system_wide_actuals"""
 
     @pytest.mark.integration

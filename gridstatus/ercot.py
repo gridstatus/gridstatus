@@ -4020,36 +4020,6 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_rtm_as_prices_price_corrections(
-        self,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """
-        Get RTM Ancillary Service (AS) Price Corrections (MCPC).
-
-        MCPC (Market Clearing Price for Capacity) corrections contain
-        ancillary service prices at the system level.
-
-        Returns:
-            pd.DataFrame: DataFrame with columns:
-                - Price Correction Time
-                - Interval Start
-                - Interval End
-                - Ancillary Service Type
-                - MCPC Original
-                - MCPC Corrected
-        """
-        docs = self._get_documents(
-            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
-            constructed_name_contains="RTM_MCPC",
-            extension="csv",
-            verbose=verbose,
-        )
-
-        df = self._handle_mcpc_price_corrections(docs, verbose=verbose)
-
-        return df
-
     def _handle_price_corrections(
         self,
         docs: list[Document],
