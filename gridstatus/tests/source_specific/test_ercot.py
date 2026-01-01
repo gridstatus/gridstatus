@@ -1568,7 +1568,6 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
-    @pytest.mark.skip(reason="No test data available yet")
     @pytest.mark.integration
     def test_get_dam_as_prices_price_corrections(self):
         """Test DAM AS Price Corrections (MCPC)."""
@@ -1586,7 +1585,6 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
-        # Verify data types
         assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
         assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
         assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])

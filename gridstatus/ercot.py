@@ -4067,24 +4067,9 @@ class Ercot(ISOBase):
 
         MCPC corrections have a different structure than SPP corrections:
         - They are for ancillary services at the system level (not settlement points)
-        - Columns: DeliveryDate, DeliveryHour, ASType, MCPCOriginal,
-          MCPCCorrected, PriceCorrectionTime, DSTFlag
+        - read_docs() already creates Interval Start/End columns
         """
         df = self.read_docs(docs, verbose=verbose)
-
-        # Convert DeliveryDate and DeliveryHour to interval timestamps
-        df["DeliveryDate"] = pd.to_datetime(df["DeliveryDate"])
-
-        # DeliveryHour is 1-24, convert to 0-23 for hour-beginning timestamps
-        df["Interval Start"] = df["DeliveryDate"] + pd.to_timedelta(
-            df["DeliveryHour"] - 1,
-            unit="h",
-        )
-        df["Interval Start"] = df["Interval Start"].dt.tz_localize(
-            self.default_timezone,
-        )
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
 
         # Rename columns to match gridstatus conventions
         df = df.rename(
