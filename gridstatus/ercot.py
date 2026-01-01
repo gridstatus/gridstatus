@@ -3990,7 +3990,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_dam_as_prices_price_corrections(
+    def get_dam_as_price_corrections(
         self,
         verbose: bool = False,
     ) -> pd.DataFrame:
