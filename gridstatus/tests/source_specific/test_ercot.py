@@ -1577,7 +1577,7 @@ class TestErcot(BaseTestISO):
             "Price Correction Time",
             "Interval Start",
             "Interval End",
-            "Ancillary Service Type",
+            "AS Type",
             "MCPC Original",
             "MCPC Corrected",
         ]
@@ -1588,7 +1588,7 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
         assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
         assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
-        assert pd.api.types.is_object_dtype(df["Ancillary Service Type"])
+        assert pd.api.types.is_object_dtype(df["AS Type"])
         assert pd.api.types.is_float_dtype(df["MCPC Original"])
         assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
 

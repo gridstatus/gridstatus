@@ -4005,7 +4005,7 @@ class Ercot(ISOBase):
                 - Price Correction Time
                 - Interval Start
                 - Interval End
-                - Ancillary Service Type
+                - AS Type
                 - MCPC Original
                 - MCPC Corrected
         """
@@ -4074,7 +4074,7 @@ class Ercot(ISOBase):
         # Rename columns to match gridstatus conventions
         df = df.rename(
             columns={
-                "ASType": "Ancillary Service Type",
+                "ASType": "AS Type",
                 "MCPCOriginal": "MCPC Original",
                 "MCPCCorrected": "MCPC Corrected",
                 "PriceCorrectionTime": "Price Correction Time",
@@ -4092,7 +4092,7 @@ class Ercot(ISOBase):
                 "Price Correction Time",
                 "Interval Start",
                 "Interval End",
-                "Ancillary Service Type",
+                "AS Type",
                 "MCPC Original",
                 "MCPC Corrected",
             ]
