@@ -4713,6 +4713,17 @@ class Ercot(ISOBase):
                     ambiguous=ambiguous,
                 ) - pd.Timedelta(hours=1)
             except pytz.AmbiguousTimeError as e:
+                # Handle datasets where HourEnding is like 01:00
+                if doc["HourEnding"].min() == "01:00":
+                    doc["HourEnding"] = (
+                        doc["HourEnding"]
+                        .astype(str)
+                        .str.split(
+                            ":",
+                        )
+                        .str[0]
+                        .astype(int)
+                    )
                 # Sometimes ERCOT handles DST end by putting 25 hours in HourEnding
                 # which makes IntervalStart where HourEnding >= 3 an hour later than
                 # they should be. We correct this by subtracting an hour.
