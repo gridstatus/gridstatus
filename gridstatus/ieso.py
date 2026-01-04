@@ -3642,7 +3642,7 @@ class IESO(ISOBase):
 
         return df
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="YEAR_START")
     def get_load_zonal_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -3656,28 +3656,10 @@ class IESO(ISOBase):
         if isinstance(date, str):
             date = pd.Timestamp(date, tz=self.default_timezone)
 
-        if end is None:
-            end = date + pd.DateOffset(days=1)
+        url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
+        return self._parse_load_zonal_data(url, date, end)
 
-        start_year = date.year
-        end_year = end.year
-        years_needed = set(range(start_year, end_year + 1))
-
-        all_dfs = []
-        for year in sorted(years_needed):
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{year}.csv"
-            df = self._parse_load_zonal_data(url, date, end)
-            all_dfs.append(df)
-
-        if not all_dfs:
-            return pd.DataFrame(columns=ZONAL_LOAD_COLUMNS)
-
-        combined_df = pd.concat(all_dfs, ignore_index=True)
-        combined_df = combined_df.sort_values(["Interval Start"]).reset_index(drop=True)
-
-        return combined_df
-
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="YEAR_START")
     def get_load_zonal_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -3691,26 +3673,8 @@ class IESO(ISOBase):
         if isinstance(date, str):
             date = pd.Timestamp(date, tz=self.default_timezone)
 
-        if end is None:
-            end = date + pd.DateOffset(days=1)
-
-        start_year = date.year
-        end_year = end.year
-        years_needed = set(range(start_year, end_year + 1))
-
-        all_dfs = []
-        for year in sorted(years_needed):
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{year}.csv"
-            df = self._parse_load_zonal_data(url, date, end)
-            all_dfs.append(df)
-
-        if not all_dfs:
-            return pd.DataFrame(columns=ZONAL_LOAD_COLUMNS)
-
-        combined_df = pd.concat(all_dfs, ignore_index=True)
-        combined_df = combined_df.sort_values(["Interval Start"]).reset_index(drop=True)
-
-        return combined_df
+        url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
+        return self._parse_load_zonal_data(url, date, end)
 
     def _parse_load_zonal_data(
         self,
