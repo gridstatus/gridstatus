@@ -3653,9 +3653,6 @@ class IESO(ISOBase):
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal.csv"
             return self._parse_load_zonal_data(url, date, end)
 
-        if isinstance(date, str):
-            date = pd.Timestamp(date, tz=self.default_timezone)
-
         url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
         return self._parse_load_zonal_data(url, date, end)
 
@@ -3669,9 +3666,6 @@ class IESO(ISOBase):
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
             return self._parse_load_zonal_data(url, date, end)
-
-        if isinstance(date, str):
-            date = pd.Timestamp(date, tz=self.default_timezone)
 
         url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
         return self._parse_load_zonal_data(url, date, end)
