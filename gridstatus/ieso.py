@@ -3651,10 +3651,31 @@ class IESO(ISOBase):
     ) -> pd.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal.csv"
-        else:
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
+            return self._parse_load_zonal_data(url, date, end)
 
-        return self._parse_load_zonal_data(url, date, end)
+        if isinstance(date, str):
+            date = pd.Timestamp(date, tz=self.default_timezone)
+
+        if end is None:
+            end = date + pd.DateOffset(days=1)
+
+        start_year = date.year
+        end_year = end.year
+        years_needed = set(range(start_year, end_year + 1))
+
+        all_dfs = []
+        for year in sorted(years_needed):
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{year}.csv"
+            df = self._parse_load_zonal_data(url, date, end)
+            all_dfs.append(df)
+
+        if not all_dfs:
+            return pd.DataFrame(columns=ZONAL_LOAD_COLUMNS)
+
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        combined_df = combined_df.sort_values(["Interval Start"]).reset_index(drop=True)
+
+        return combined_df
 
     @support_date_range(frequency=None)
     def get_load_zonal_hourly(
@@ -3665,9 +3686,31 @@ class IESO(ISOBase):
     ) -> pd.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
-        else:
-            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
-        return self._parse_load_zonal_data(url, date, end)
+            return self._parse_load_zonal_data(url, date, end)
+
+        if isinstance(date, str):
+            date = pd.Timestamp(date, tz=self.default_timezone)
+
+        if end is None:
+            end = date + pd.DateOffset(days=1)
+
+        start_year = date.year
+        end_year = end.year
+        years_needed = set(range(start_year, end_year + 1))
+
+        all_dfs = []
+        for year in sorted(years_needed):
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{year}.csv"
+            df = self._parse_load_zonal_data(url, date, end)
+            all_dfs.append(df)
+
+        if not all_dfs:
+            return pd.DataFrame(columns=ZONAL_LOAD_COLUMNS)
+
+        combined_df = pd.concat(all_dfs, ignore_index=True)
+        combined_df = combined_df.sort_values(["Interval Start"]).reset_index(drop=True)
+
+        return combined_df
 
     def _parse_load_zonal_data(
         self,
@@ -3678,17 +3721,27 @@ class IESO(ISOBase):
         df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
 
         if "Interval" in df.columns:
-            df["Interval Start"] = (
+            interval_start = (
                 df["Date"]
                 + pd.to_timedelta(df["Hour"] - 1, unit="h")
                 + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
             ).dt.tz_localize(self.default_timezone)
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+            df = df.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_start + pd.Timedelta(minutes=5),
+                },
+            )
         else:
-            df["Interval Start"] = (
+            interval_start = (
                 df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
             ).dt.tz_localize(self.default_timezone)
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            df = df.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_start + pd.Timedelta(hours=1),
+                },
+            )
             df.rename(columns={"Zone Total": "Zones Total"}, inplace=True)
         df.columns = df.columns.str.title()
         if date == "latest":
