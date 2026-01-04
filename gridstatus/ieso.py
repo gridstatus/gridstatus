@@ -3651,9 +3651,9 @@ class IESO(ISOBase):
     ) -> pd.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal.csv"
-            return self._parse_load_zonal_data(url, date, end)
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
 
-        url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal_{date.year}.csv"
         return self._parse_load_zonal_data(url, date, end)
 
     @support_date_range(frequency="YEAR_START")
@@ -3665,9 +3665,9 @@ class IESO(ISOBase):
     ) -> pd.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
-            return self._parse_load_zonal_data(url, date, end)
+        else:
+            url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
 
-        url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
         return self._parse_load_zonal_data(url, date, end)
 
     def _parse_load_zonal_data(
