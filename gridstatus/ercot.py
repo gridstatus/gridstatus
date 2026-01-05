@@ -3949,10 +3949,10 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get RTM Price Corrections
+        Get DAM Price Corrections
 
         Arguments:
-            rtm_type (str): 'DAM_SPP', 'DAM_MCPC', 'DAM_EBLMP'
+            dam_type (str): 'DAM_SPP', 'DAM_EBLMP'
 
         """
         docs = self._get_documents(
@@ -3990,6 +3990,36 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_dam_as_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get DAM Ancillary Service (AS) Price Corrections (MCPC).
+
+        MCPC (Market Clearing Price for Capacity) corrections contain
+        ancillary service prices at the system level.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - Interval Start
+                - Interval End
+                - AS Type
+                - MCPC Original
+                - MCPC Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=DAM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="DAM_MCPC",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_mcpc_price_corrections(docs, verbose=verbose)
+
+        return df
+
     def _handle_price_corrections(
         self,
         docs: list[Document],
@@ -4023,6 +4053,48 @@ class Ercot(ISOBase):
                 "Location Type",
                 "SPP Original",
                 "SPP Corrected",
+            ]
+        ]
+
+        return df
+
+    def _handle_mcpc_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle MCPC (Market Clearing Price for Capacity) price corrections.
+
+        MCPC corrections have a different structure than SPP corrections:
+        - They are for ancillary services at the system level (not settlement points)
+        - read_docs() already creates Interval Start/End columns
+        """
+        df = self.read_docs(docs, verbose=verbose)
+
+        # Rename columns to match gridstatus conventions
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "MCPCOriginal": "MCPC Original",
+                "MCPCCorrected": "MCPC Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        # Parse Price Correction Time
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        # Select and order final columns
+        df = df[
+            [
+                "Price Correction Time",
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "MCPC Original",
+                "MCPC Corrected",
             ]
         ]
 

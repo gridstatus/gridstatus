@@ -1568,6 +1568,30 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
+    @pytest.mark.integration
+    def test_get_dam_as_price_corrections(self):
+        """Test DAM AS Price Corrections (MCPC)."""
+        df = self.iso.get_dam_as_price_corrections()
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC Original",
+            "MCPC Corrected",
+        ]
+
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_object_dtype(df["AS Type"])
+        assert pd.api.types.is_float_dtype(df["MCPC Original"])
+        assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+
     """get_system_wide_actuals"""
 
     @pytest.mark.integration
