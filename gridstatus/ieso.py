@@ -3642,7 +3642,7 @@ class IESO(ISOBase):
 
         return df
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="YEAR_START")
     def get_load_zonal_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -3656,7 +3656,7 @@ class IESO(ISOBase):
 
         return self._parse_load_zonal_data(url, date, end)
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="YEAR_START")
     def get_load_zonal_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -3667,6 +3667,7 @@ class IESO(ISOBase):
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
         else:
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal_{date.year}.csv"
+
         return self._parse_load_zonal_data(url, date, end)
 
     def _parse_load_zonal_data(
@@ -3678,17 +3679,27 @@ class IESO(ISOBase):
         df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
 
         if "Interval" in df.columns:
-            df["Interval Start"] = (
+            interval_start = (
                 df["Date"]
                 + pd.to_timedelta(df["Hour"] - 1, unit="h")
                 + pd.to_timedelta((df["Interval"] - 1) * 5, unit="m")
             ).dt.tz_localize(self.default_timezone)
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+            df = df.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_start + pd.Timedelta(minutes=5),
+                },
+            )
         else:
-            df["Interval Start"] = (
+            interval_start = (
                 df["Date"] + pd.to_timedelta(df["Hour"] - 1, unit="h")
             ).dt.tz_localize(self.default_timezone)
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            df = df.assign(
+                **{
+                    "Interval Start": interval_start,
+                    "Interval End": interval_start + pd.Timedelta(hours=1),
+                },
+            )
             df.rename(columns={"Zone Total": "Zones Total"}, inplace=True)
         df.columns = df.columns.str.title()
         if date == "latest":
