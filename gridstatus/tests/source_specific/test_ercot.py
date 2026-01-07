@@ -1569,9 +1569,9 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
 
     @pytest.mark.integration
-    def test_get_dam_as_price_corrections(self):
+    def test_get_mcpc_dam_price_corrections(self):
         """Test DAM AS Price Corrections (MCPC)."""
-        df = self.iso.get_dam_as_price_corrections()
+        df = self.iso.get_mcpc_dam_price_corrections()
 
         cols = [
             "Price Correction Time",

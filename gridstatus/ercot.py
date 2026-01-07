@@ -3990,12 +3990,12 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_dam_as_price_corrections(
+    def get_mcpc_dam_price_corrections(
         self,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Get DAM Ancillary Service (AS) Price Corrections (MCPC).
+        Get Market Clearing Price for Capacity (MCPC) corrections for DAM.
 
         MCPC (Market Clearing Price for Capacity) corrections contain
         ancillary service prices at the system level.
