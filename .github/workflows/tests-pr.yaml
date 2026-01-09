@@ -58,45 +58,6 @@ jobs:
         run: uv sync
       - name: Install vcrpy
         run: uv pip install vcrpy
-      - name: Verify NYISO proxy configuration
-        if: matrix.iso == 'nyiso'
-        run: |
-          echo "=== NYISO Proxy Configuration ==="
-          if [ -n "$HTTPS_PROXY" ]; then
-            echo "✓ HTTPS_PROXY is set"
-
-            # Test proxy connectivity (stderr suppressed to avoid leaking credentials)
-            echo ""
-            echo "=== Testing proxy connectivity ==="
-            if curl -s --proxy "$HTTPS_PROXY" --max-time 10 -o /dev/null -w "%{http_code}" https://ipv4.webshare.io/ 2>/dev/null | grep -q "200"; then
-              echo "✓ Proxy connection successful"
-            else
-              echo "✗ Proxy connection failed - check WEBSHARE_PROXY_URL secret"
-            fi
-
-            # Test NYISO through proxy (stderr suppressed to avoid leaking credentials)
-            echo ""
-            echo "=== Testing NYISO access through proxy ==="
-            NYISO_URL="https://www.nyiso.com/documents/20142/48997190/ICAP-Market-Report-January-2025.xlsx"
-            HTTP_CODE=$(curl -s --proxy "$HTTPS_PROXY" --max-time 30 -o /tmp/test.xlsx -w "%{http_code}" -H "User-Agent: Mozilla/5.0" "$NYISO_URL" 2>/dev/null)
-            echo "  NYISO response code: $HTTP_CODE"
-            if [ "$HTTP_CODE" = "200" ]; then
-              FILE_TYPE=$(file /tmp/test.xlsx | cut -d: -f2)
-              echo "  File type:$FILE_TYPE"
-              if echo "$FILE_TYPE" | grep -q "Excel\|Zip"; then
-                echo "✓ NYISO returned valid Excel file"
-              else
-                echo "✗ NYISO returned non-Excel content"
-              fi
-            else
-              echo "✗ NYISO request failed (expected 200, got $HTTP_CODE)"
-            fi
-          else
-            echo "✗ HTTPS_PROXY is not set!"
-            echo "  Make sure WEBSHARE_PROXY_URL secret is configured"
-          fi
-          echo ""
-          echo "=================================="
       - name: Run ISO tests
         run: make test-${{ matrix.iso }}
 
