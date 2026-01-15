@@ -27,7 +27,6 @@ If you are trying to use our hosted API, you might want to check out the [`grids
 
 - Need Help? Post a [GitHub issue](https://github.com/gridstatus/gridstatus/issues)
 - Want to stay updated? Follow us on
-  - [Twitter](https://twitter.com/grid_status)
   - [LinkedIn](https://linkedin.com/company/grid-status)
   - [BlueSky](https://bsky.app/profile/gridstatus.io)
 - Read [our blog](https://blog.gridstatus.io/)

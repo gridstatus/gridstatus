@@ -16,8 +16,8 @@ Run from the project root:
 
 ```bash
 # List all endpoints
-uv run python gridstatus/ercot_api/ercot_api.py list
+uv run gridstatus/ercot_api/ercot_api.py list
 
 # Describe a specific endpoint
-uv run python gridstatus/ercot_api/ercot_api.py describe --endpoint /np6-346-cd/act_sys_load_by_fzn
+uv run gridstatus/ercot_api/ercot_api.py describe --endpoint /np6-346-cd/act_sys_load_by_fzn
 ```
