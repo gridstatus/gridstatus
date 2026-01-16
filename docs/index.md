@@ -8,11 +8,11 @@ kernelspec:
 ---
 
 
-# What is Grid Status?
+# What is the gridstatus library?
 
 
 <p align="center">
-    <img width=75% src="https://github.com/gridstatus/gridstatus/raw/c77f933e30bc24a33ef36496d5250da4605b214f/gridstatus-header.png" alt="gridstatus logo" />
+    <img width=75% src="https://github.com/gridstatus/gridstatus/raw/main/gridstatus-header.png" alt="gridstatus logo" />
 </p>
 
 <p align="center">
@@ -27,11 +27,13 @@ kernelspec:
     </a>
 </p>
 
-`gridstatus` is a standardized Python API to electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States.
+The `gridstatus` open-source library is a Python library maintained by [Grid Status](https://www.gridstatus.io/) that provides a consistent API for accessing raw electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States and Canada. It currently supports data from CAISO, SPP, ISONE, MISO, ERCOT, NYISO, PJM, IESO, AESO, and the EIA.
 
-Currently `gridstatus` supports CAISO, SPP, ISONE, MISO, Ercot, NYISO, and PJM.
+## GridStatus.io and Hosted API
 
-We'd love to answer any usage or data access questions! Please let us know by posting a GitHub issue.
+This library provides minimally-processed data. If you need production-ready data, consider using our [hosted API](https://www.gridstatus.io/api) or visit [GridStatus.io](https://www.gridstatus.io/) to see the data in a web interface.
+
+If you are trying to use our hosted API, you might want to check out the [`gridstatusio` library](https://github.com/gridstatus/gridstatusio).
 
 ## 5 Minute Overview
 
@@ -50,7 +52,7 @@ caiso = gridstatus.CAISO()
 
 ### Fuel Mix
 
-All ISOs have the same API to methods like `get_fuel_mix`, `get_load`, and `get_status`, etc. Here is how we can get the fuel mix
+ISOs share a common API with methods like `get_fuel_mix` and `get_load`. Here is how we can get the fuel mix
 
 ```{code-cell}
 caiso.get_fuel_mix("today")
@@ -75,7 +77,7 @@ nyiso.get_load_forecast("today")
 
 ### Historical Data
 
-When [supported](./availability.md), you can use the historical method calls to get data for a specific day in the past. For example,
+You can use the historical method calls to get data for a specific day in the past. For example,
 
 ```{code-cell}
 caiso.get_load("Jan 1, 2020")
@@ -109,7 +111,6 @@ The best part is these APIs work in the same way across all the supported ISOs!
 :caption: Getting Started
 
 installation
-availability
 lmp
 interconnection_queues
 ```

@@ -61,7 +61,7 @@ uv sync
 
 * Installing the dev dependencies enables a pre-commit hook that ensures linting has been run before committing
 
-The best way to ensure everything is installed correctly by running running the tests. They should all pass.
+The best way to ensure everything is installed correctly is by running the tests. They should all pass.
 
 ## Environment Variables
 
@@ -118,6 +118,6 @@ We may ask for additional changes or clarification before merging a pull request
 
 When you submit a PR, the following actions are automatically performed
 
-1. GitHub Actions runs tests the test in all support python versions
-2. GithHub Actions ensures the code is properly linted
+1. GitHub Actions runs the tests in all supported Python versions
+2. GitHub Actions ensures the code is properly linted
 3. Our documentation host, Read the Docs, will build a copy of the docs for your PR

@@ -27,8 +27,10 @@ Supported Independent System Operators (ISOs)
 .. autoapisummary::
 
     gridstatus.base.ISOBase
+    gridstatus.AESO
     gridstatus.CAISO
     gridstatus.Ercot
+    gridstatus.IESO
     gridstatus.ISONE
     gridstatus.MISO
     gridstatus.NYISO

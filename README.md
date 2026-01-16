@@ -15,19 +15,21 @@
     </a>
 </p>
 
-`gridstatus` is a Python library that provides a uniform API for accessing electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States and Canada. It currently supports data from CAISO, SPP, ISONE, MISO, ERCOT, NYISO, PJM, IESO, and the EIA.
+The `gridstatus` open source library is a Python library maintained by [Grid Status](https://www.gridstatus.io/) that provides a consistent API for accessing raw electricity supply, demand, and pricing data for the major Independent System Operators (ISOs) in the United States and Canada. It currently supports data from CAISO, SPP, ISONE, MISO, ERCOT, NYISO, PJM, IESO, AESO, and the EIA.
 
 ## GridStatus.io and Hosted API
-To preview some of the data this library provides access to, visit [GridStatus.io](https://www.gridstatus.io/).
 
-If you are trying to use our hosted API, you might want to check out the gridstatusio library [here](https://github.com/gridstatus/gridstatusio).
+This library provides minimally-processed data. If you need production-ready data, consider using our [hosted API](https://www.gridstatus.io/api) or visit [GridStatus.io](https://www.gridstatus.io/) to see the data in a web interface.
 
-To learn more about our hosted API visit: https://www.gridstatus.io/api.
+If you are trying to use our hosted API, you might want to check out the [`gridstatusio` library](https://github.com/gridstatus/gridstatusio).
 
 ## Community
 
 - Need Help? Post a [GitHub issue](https://github.com/gridstatus/gridstatus/issues)
-- Want to stay updated? Follow us on Twitter [@grid_status](https://twitter.com/grid_status)
+- Want to stay updated? Follow us on
+  - [LinkedIn](https://linkedin.com/company/grid-status)
+  - [BlueSky](https://bsky.app/profile/gridstatus.io)
+- Read [our blog](https://blog.gridstatus.io/)
 - Want to contribute? Read our [Contributing Guide](CONTRIBUTING.md)
 
 ## Installation
@@ -47,12 +49,10 @@ uv pip install --upgrade gridstatus
 ## Environment Variables
 
 - Some parsers require the use of environment variables
-  - The `EIA` class
-  - The `ErcotAPI` class
+- See [.env.template](.env.template) for the required environment variables
 - Environment variables can be set in the following ways
   - In a `.env` file in the root of the project
   - In the environment where the code is run
-- See [.env.template](.env.template) for the required environment variables and how to register for them
 
 
 ## Documentation and Examples
