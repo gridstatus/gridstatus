@@ -351,7 +351,7 @@ class CAISO(ISOBase):
 
         retry_num = 0
         while retry_num < max_retries:
-            r = requests.get(url)
+            r = requests.get(url, verify=False)
 
             if r.status_code == 200:
                 break
