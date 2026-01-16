@@ -1,4 +1,3 @@
-import urllib.error
 from enum import StrEnum
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
@@ -8,7 +7,6 @@ import requests
 import gridstatus
 from gridstatus import utils
 from gridstatus.base import (
-    GridStatus,
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
@@ -156,16 +154,6 @@ class NYISO(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        if date == "latest":
-            latest = self._latest_from_today(self.get_status)
-            return GridStatus(
-                time=latest["time"],
-                status=latest["status"],
-                reserves=None,
-                iso=self,
-                notes=latest["notes"],
-            )
-
         status_df = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -207,14 +195,6 @@ class NYISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         # note: this is simlar datastructure to pjm
-
-        if date == "latest":
-            return (
-                self.get_fuel_mix(date="today", verbose=verbose)
-                .tail(1)
-                .reset_index(drop=True)
-            )
-
         mix_df = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -244,7 +224,7 @@ class NYISO(ISOBase):
           each zone and total load
 
         Parameters:
-            date (str): Date to get load for. Can be "latest", "today", or
+            date (str): Date to get load for. Can be "today", or
               a date in the format YYYY-MM-DD
             end (str): End date for date range. Optional.
             verbose (bool): Whether to print verbose output. Optional.
@@ -253,9 +233,6 @@ class NYISO(ISOBase):
             pandas.DataFrame: Load data for NYISO and each zone
 
         """
-        if date == "latest":
-            return self.get_load(date="today", verbose=verbose)
-
         data = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -293,7 +270,7 @@ class NYISO(ISOBase):
 
         Parameters:
             date (str, pd.Timestamp, datetime.datetime): Date to get load for.
-              Can be "latest", "today", or a date
+              Can be "today", or a date
             end (str, pd.Timestamp, datetime.datetime): End date for date range.
                 Optional.
             verbose (bool): Whether to print verbose output. Optional.
@@ -302,9 +279,6 @@ class NYISO(ISOBase):
             pandas.DataFrame: BTM solar data for NYISO system and each zone
 
         """
-        if date == "latest":
-            return self.get_load(date="today", verbose=verbose)
-
         data = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -336,9 +310,6 @@ class NYISO(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        if date == "latest":
-            return self.get_load(date="today", verbose=verbose)
-
         data = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -495,13 +466,6 @@ class NYISO(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        # No latest file available
-        if date == "latest":
-            return self.get_lake_erie_circulation_real_time(
-                date="today",
-                verbose=verbose,
-            )
-
         data = self._download_nyiso_archive(
             date,
             end=end,
@@ -524,13 +488,6 @@ class NYISO(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        # No latest file available
-        if date == "latest":
-            return self.get_lake_erie_circulation_day_ahead(
-                date="today",
-                verbose=verbose,
-            )
-
         data = self._download_nyiso_archive(
             date,
             end=end,
@@ -1312,6 +1269,8 @@ class NYISO(ISOBase):
             year_code = 42146126
         elif date.year == 2025:
             year_code = 48997190
+        elif date.year == 2026:
+            year_code = 56195933
         else:
             raise ValueError(
                 "Year not currently supported. Please file an issue.",
@@ -1349,17 +1308,6 @@ class NYISO(ISOBase):
             date (pandas.Timestamp): date that will be used to pull latest capacity
                 report (will refer to month and year)
         """
-        if date == "latest":
-            try:
-                return self.get_as_prices_day_ahead_hourly(
-                    (
-                        pd.Timestamp.now(tz=self.default_timezone).normalize()
-                        + pd.DateOffset(days=1)
-                    ).strftime("%Y-%m-%d"),
-                )
-            except urllib.error.HTTPError:
-                return self.get_as_prices_day_ahead_hourly("today")
-
         df = self._download_nyiso_archive(
             date=date,
             verbose=verbose,
@@ -1381,9 +1329,6 @@ class NYISO(ISOBase):
             date (pandas.Timestamp): date that will be used to pull latest capacity
                 report (will refer to month and year)
         """
-        if date == "latest":
-            return self.get_as_prices_real_time_5_min("today")
-
         df = self._download_nyiso_archive(
             date=date,
             verbose=verbose,
@@ -1479,21 +1424,6 @@ class NYISO(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        if date == "latest":
-            try:
-                tomorrow = pd.Timestamp.now(
-                    tz=self.default_timezone,
-                ).normalize() + pd.DateOffset(days=1)
-                return self.get_limiting_constraints_day_ahead(
-                    date=tomorrow.strftime("%Y-%m-%d"),
-                    verbose=verbose,
-                )
-            except urllib.error.HTTPError:
-                return self.get_limiting_constraints_day_ahead(
-                    date="today",
-                    verbose=verbose,
-                )
-
         df = self._download_nyiso_archive(
             date,
             end=end,
