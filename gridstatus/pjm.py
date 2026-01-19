@@ -132,19 +132,17 @@ class PJM(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load at a previous date at 5 minute intervals
+        """Returns load at a previous date at 5 minute intervals.
 
-        Arguments:
-            date (datetime.date, str): date to get load for. must be in last 30 days
+        Args:
+            date: Date to get load for. Must be in last 30 days.
 
         Returns:
-            pd.DataFrame: Load data time series. Columns: Time, Load, and all areas
-
-            * Load columns represent PJM-wide load
-            * Returns data for the following areas: AE, AEP, APS, ATSI,
-            BC, COMED, DAYTON, DEOK, DOM, DPL, DUQ, EKPC, JC,
-            ME, PE, PEP, PJM MID ATLANTIC REGION, PJM RTO,
-            PJM SOUTHERN REGION, PJM WESTERN REGION, PL, PN, PS, RECO
+            Load data time series. Columns include Time, Load, and all areas.
+            Load columns represent PJM-wide load. Returns data for the following
+            areas: AE, AEP, APS, ATSI, BC, COMED, DAYTON, DEOK, DOM, DPL, DUQ,
+            EKPC, JC, ME, PE, PEP, PJM MID ATLANTIC REGION, PJM RTO,
+            PJM SOUTHERN REGION, PJM WESTERN REGION, PL, PN, PS, RECO.
         """
 
         if date == "latest":
@@ -431,43 +429,36 @@ class PJM(ISOBase):
         location_type: str | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns LMP at a previous date
+        """Returns LMP at a previous date.
 
-        Notes:
-            * If start date is prior to the PJM archive date, all data
-            must be downloaded before location filtering can be performed
-            due to limitations of PJM API. The archive date is
-            186 days (~6 months) before today for the 5 minute real time
-            market and 731 days (~2 years) before today for the Hourly
-            Real Time and Day Ahead Hourly markets. Node type filter can be
-            performed for Real Time Hourly and Day Ahead Hourly markets.
+        Note:
+            If start date is prior to the PJM archive date, all data must be
+            downloaded before location filtering can be performed due to
+            limitations of PJM API. The archive date is 186 days (~6 months)
+            before today for the 5 minute real time market and 731 days
+            (~2 years) before today for the Hourly Real Time and Day Ahead
+            Hourly markets. Node type filter can be performed for Real Time
+            Hourly and Day Ahead Hourly markets.
 
-            * If location_type is provided, it is filtered after data
-            is retrieved for Real Time 5 Minute market regardless of the
-            date. This is due to PJM api limitations
+            If location_type is provided, it is filtered after data is
+            retrieved for Real Time 5 Minute market regardless of the date.
+            This is due to PJM api limitations.
 
-            *  Return `Location Id`, `Location Name`, `Location Short Name`.
+            Returns ``Location Id``, ``Location Name``, ``Location Short Name``.
 
-        Arguments:
-            date (datetime.date, str): date to get LMPs for
-
-            end (datetime.date, str): end date to get LMPs for
-
-            market (str):  Supported Markets:
-                REAL_TIME_5_MIN, REAL_TIME_HOURLY, DAY_AHEAD_HOURLY
-
-            locations (list, optional):  list of pnodeid to get LMPs for.
-                Defaults to "hubs". Use get_pnode_ids() to get
-                a list of possible pnode ids. If "all", will
-                return data from all p nodes (warning there are
-                over 10,000 unique pnodes, so expect millions or billions of rows!)
-
-            location_type (str, optional):  If specified,
-                will only return data for nodes of this type.
-                Defaults to None. Possible location types are: 'ZONE',
-                'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
+        Args:
+            date: Date to get LMPs for.
+            end: End date to get LMPs for.
+            market: Supported Markets: REAL_TIME_5_MIN, REAL_TIME_HOURLY,
+                DAY_AHEAD_HOURLY.
+            locations: List of pnodeid to get LMPs for. Defaults to "hubs".
+                Use get_pnode_ids() to get a list of possible pnode ids.
+                If "all", will return data from all p nodes (warning: there
+                are over 10,000 unique pnodes, so expect millions of rows!).
+            location_type: If specified, will only return data for nodes of
+                this type. Defaults to None. Possible location types are:
+                'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
                 'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
-
         """
         if date == "latest":
             return self._latest_lmp_from_today(

@@ -44,20 +44,22 @@ class MISOAPI:
         max_retries: int = 3,
         exponential_base: int = 2,
     ) -> None:
-        """
-        Class for querying the MISO API. Currently supports only pricing data.
+        """Class for querying the MISO API. Currently supports only pricing data.
 
-        Arguments:
-        pricing_api_key (str): The API key for the pricing API. Can be a comma-separated
-            list of keys if you have multiple keys.
-        initial_sleep_seconds (int): The number of seconds to wait between each request.
-            Used to address rate limiting (429 responses).
-        max_retries (int): The maximum number of retries for failed requests.
-            Uses exponential backoff between retries. Used to address the common
-            503 errors from the MISO API.
-        exponential_base (int): The base for exponential backoff calculation.
-            Sleep time = exponential_base^(attempt+1) seconds. Default is 2,
-            which gives delays of 2, 4, 8 seconds for attempts 0, 1, 2.
+        Args:
+            pricing_api_key: The API key for the pricing API. Can be a
+                comma-separated list of keys if you have multiple keys.
+            load_generation_and_interchange_api_key: The API key for the load,
+                generation, and interchange API. Can be a comma-separated list
+                of keys if you have multiple keys.
+            initial_sleep_seconds: The number of seconds to wait between each
+                request. Used to address rate limiting (429 responses).
+            max_retries: The maximum number of retries for failed requests.
+                Uses exponential backoff between retries. Used to address the
+                common 503 errors from the MISO API.
+            exponential_base: The base for exponential backoff calculation.
+                Sleep time is exponential_base^(attempt+1) seconds. Default is 2,
+                which gives delays of 2, 4, 8 seconds for attempts 0, 1, 2.
         """
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
@@ -582,9 +584,13 @@ class MISOAPI:
         verbose: bool = False,
         generation_type: str = "physical",
     ) -> pd.DataFrame:
-        """
-        Shared logic for getting day-ahead cleared generation (physical or virtual) hourly.
-        generation_type: "physical" or "virtual"
+        """Get day-ahead cleared generation (physical or virtual) hourly.
+
+        Args:
+            date: The date to retrieve data for.
+            end: Optional end date for a date range.
+            verbose: Whether to log verbose output.
+            generation_type: Either "physical" or "virtual".
         """
         date_str = date.strftime("%Y-%m-%d")
 
@@ -706,9 +712,13 @@ class MISOAPI:
         verbose: bool = False,
         ecotype: str = "ecomax",
     ) -> pd.DataFrame:
-        """
-        Shared logic for getting day-ahead offered generation ecomax/ecomin hourly.
-        ecotype: "ecomax" or "ecomin"
+        """Get day-ahead offered generation ecomax/ecomin hourly.
+
+        Args:
+            date: The date to retrieve data for.
+            end: Optional end date for a date range.
+            verbose: Whether to log verbose output.
+            ecotype: Either "ecomax" or "ecomin".
         """
         date_str = date.strftime("%Y-%m-%d")
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/offered/{ecotype}"
@@ -1327,24 +1337,23 @@ class MISOAPI:
         publish_time: str | pd.Timestamp | None = None,
         time_resolution: str = HOURLY_RESOLUTION,
     ) -> pd.DataFrame:
-        """
-        publish_time: Optional publish_time to get forecast from.
-            It must be earlier than both:
-                - the current date (now)
-                - and the forecast date (the date for which you're requesting predictions).
+        """Get load forecast data.
 
-            If you don't specify this publish_time:
-                - When your requested date is before today, it defaults to date - 1 day
-                - When your requested date is today or in the future, it defaults to today - 1 day
+        Args:
+            date: The forecast date to retrieve.
+            end: Optional end date for a date range.
+            verbose: Whether to log verbose output.
+            publish_time: Optional publish_time to get forecast from. It must be
+                earlier than both the current date (now) and the forecast date.
+                If not specified, defaults to date - 1 day for historical dates,
+                or today - 1 day for today/future dates.
+            time_resolution: Time resolution for the forecast (default: hourly).
 
-            Example:
+        Returns:
+            DataFrame containing load forecast data.
 
-            - If today = 2025-10-14
-                - You request forecasts for 2025-10-10 → publish_time = 2025-10-09
-                - You request forecasts for 2025-10-14 (today) → publish_time = 2025-10-13
-                - You request forecasts for 2025-10-15 (future) → publish_time = 2025-10-13
-
-        Basically: it uses yesterday's forecast run unless you override it.
+        Note:
+            Basically, it uses yesterday's forecast run unless you override it.
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") + pd.Timedelta(
@@ -1732,7 +1741,7 @@ class MISOAPI:
         Only retries on 429 (Too Many Requests) and 5xx server errors.
         Other HTTP errors are raised immediately without retry.
 
-        Arguments:
+        Args:
             url: The URL to request.
             headers: The headers to include in the request.
             params: Optional query parameters.
@@ -2190,15 +2199,17 @@ class MISOAPI:
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """
-        Retrieve MISO pricing nodes for a specific date or date range.
-        MISO pricing nodes change quarterly on March 1st, June 1st, September 1st, and December 1st.
-        New pricing nodes become effective on these dates, some pricing nodes are retired/removed and some nodes change names/node ids.
-        Parameters:
-            date: The date for which to retrieve pricing nodes. If None, defaults to "latest".
-                  Can be a pd.Timestamp or "latest".
-            end: Optional end date for a date range. If provided, retrieves pricing nodes for all
-                 quarterly updates between date and end.
+        """Retrieve MISO pricing nodes for a specific date or date range.
+
+        MISO pricing nodes change quarterly on March 1st, June 1st, September 1st,
+        and December 1st. New pricing nodes become effective on these dates, some
+        pricing nodes are retired/removed and some nodes change names/node ids.
+
+        Args:
+            date: The date for which to retrieve pricing nodes. If None, defaults
+                to "latest". Can be a pd.Timestamp or "latest".
+            end: Optional end date for a date range. If provided, retrieves pricing
+                nodes for all quarterly updates between date and end.
             verbose: If True, prints additional information during data retrieval.
         """
         if date == "latest" or date is None:

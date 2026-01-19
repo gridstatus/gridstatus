@@ -456,25 +456,19 @@ class CAISO(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get fuel mix in 5 minute intervals for a provided day
+        """Get fuel mix in 5 minute intervals for a provided day.
 
-        Arguments:
-            date (str, pd.Timestamp): "latest", "today", or an object
-                that can be parsed as a datetime for the day to return data.
-
-            start (str, pd.Timestamp): start of date range to return.
-                alias for `date` parameter.
-                Only specify one of `date` or `start`.
-
-            end (str, pd.Timestamp): "today" or an object that can be parsed
-                as a datetime for the day to return data.
-                Only used if requesting a range of dates.
-
-            verbose (bool, optional): print verbose output. Defaults to False.
+        Args:
+            date: "latest", "today", or an object that can be parsed as a
+                datetime for the day to return data.
+            start: Start of date range to return. Alias for ``date`` parameter.
+                Only specify one of ``date`` or ``start``.
+            end: "today" or an object that can be parsed as a datetime for the
+                day to return data. Only used if requesting a range of dates.
+            verbose: Print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with columns - 'Time' and columns \
-                for each fuel type.
+            A DataFrame with columns for Time and each fuel type.
         """
         if date == "latest":
             mix = self.get_fuel_mix("today", verbose=verbose)
@@ -1013,13 +1007,14 @@ class CAISO(ISOBase):
         current_time: pd.Timestamp,
         publish_time_offset_from_day_start: pd.Timedelta | None = None,
     ) -> pd.DataFrame:
-        """
-        Labels forecasts with a publish time using the logic:
+        """Labels forecasts with a publish time.
 
-        - If tomorrow or further in the future, the publish time is
-            * Today's publish time if current time is after the publish time
-            * Yesterday's publish time if current time is before the publish time
-        - If today or earlier, the publish time is the previous day's publish time
+        The logic is:
+
+        - If tomorrow or further in the future, the publish time is today's
+          publish time (if current time is after it) or yesterday's publish time
+          (if current time is before it).
+        - If today or earlier, the publish time is the previous day's publish time.
 
         We assume the forecast was published the day before the forecasted day unless
         the forecast is in the future to avoid having publish times in the future.
@@ -1679,22 +1674,18 @@ class CAISO(ISOBase):
         date: str | pd.Timestamp,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Return curtailment data for a given date
+        """Return curtailment data for a given date.
 
-        Notes:
-            * Data available from June 30, 2016 to May 31, 2025. For current data,
-            please use `get_curtailment`.
+        Note:
+            Data available from June 30, 2016 to May 31, 2025. For current data,
+            please use ``get_curtailment``.
 
-        Arguments:
-            date (datetime.date, str): date to return data
-
-            end (datetime.date, str): last date of range to return data.
-                If None, returns only date. Defaults to None.
-
-            verbose: print out url being fetched. Defaults to False.
+        Args:
+            date: Date to return data.
+            verbose: Print out url being fetched. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame of curtailment data
+            A DataFrame of curtailment data.
         """
         date = date.normalize()
 
@@ -1894,16 +1885,16 @@ class CAISO(ISOBase):
             pandas.DataFrame: A DataFrame of curtailed non-operational generator report
 
         Notes:
-            column glossary:
-            http://www.caiso.com/market/Pages/OutageManagement/Curtailed
-            -OperationalGeneratorReportGlossary.aspx
+            Column glossary:
+            http://www.caiso.com/market/Pages/OutageManagement/Curtailed-OperationalGeneratorReportGlossary.aspx
 
-            if requesting multiple days, may want to run
-            following to remove outages that get reported across multiple days:
-            ```df.drop_duplicates(
-                subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"], keep="last")```
+            If requesting multiple days, you may want to run the following
+            to remove outages that get reported across multiple days::
 
-
+                df.drop_duplicates(
+                    subset=["OUTAGE MRID", "CURTAILMENT START DATE TIME"],
+                    keep="last",
+                )
         """
 
         # date must on or be after june 17, 2021
