@@ -119,6 +119,7 @@ nb_execution_mode = "cache"
 autoapi_type = "python"
 autoapi_dirs = ["../gridstatus"]
 autoapi_add_toctree_entry = False
+autoapi_keep_files = True  # Temporarily keep RST files for debugging
 autoapi_template_dir = "_autoapi_templates"
 autoapi_python_class_content = "both"
 autoapi_options = [
@@ -135,9 +136,6 @@ autodoc_inherit_docstrings = True
 suppress_warnings = [
     "mystnb.unknown_mime_type",
     "autoapi",
-    "toc.not_included",
-    # Suppress docstring formatting warnings from autoapi-generated RST
-    "docutils",
 ]
 html_js_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js",

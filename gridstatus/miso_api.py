@@ -584,9 +584,13 @@ class MISOAPI:
         verbose: bool = False,
         generation_type: str = "physical",
     ) -> pd.DataFrame:
-        """
-        Shared logic for getting day-ahead cleared generation (physical or virtual) hourly.
-        generation_type: "physical" or "virtual"
+        """Get day-ahead cleared generation (physical or virtual) hourly.
+
+        Args:
+            date: The date to retrieve data for.
+            end: Optional end date for a date range.
+            verbose: Whether to log verbose output.
+            generation_type: Either "physical" or "virtual".
         """
         date_str = date.strftime("%Y-%m-%d")
 
@@ -708,9 +712,13 @@ class MISOAPI:
         verbose: bool = False,
         ecotype: str = "ecomax",
     ) -> pd.DataFrame:
-        """
-        Shared logic for getting day-ahead offered generation ecomax/ecomin hourly.
-        ecotype: "ecomax" or "ecomin"
+        """Get day-ahead offered generation ecomax/ecomin hourly.
+
+        Args:
+            date: The date to retrieve data for.
+            end: Optional end date for a date range.
+            verbose: Whether to log verbose output.
+            ecotype: Either "ecomax" or "ecomin".
         """
         date_str = date.strftime("%Y-%m-%d")
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/offered/{ecotype}"
@@ -1329,24 +1337,23 @@ class MISOAPI:
         publish_time: str | pd.Timestamp | None = None,
         time_resolution: str = HOURLY_RESOLUTION,
     ) -> pd.DataFrame:
-        """
-        publish_time: Optional publish_time to get forecast from.
-            It must be earlier than both:
-                - the current date (now)
-                - and the forecast date (the date for which you're requesting predictions).
+        """Get load forecast data.
 
-            If you don't specify this publish_time:
-                - When your requested date is before today, it defaults to date - 1 day
-                - When your requested date is today or in the future, it defaults to today - 1 day
+        Args:
+            date: The forecast date to retrieve.
+            end: Optional end date for a date range.
+            verbose: Whether to log verbose output.
+            publish_time: Optional publish_time to get forecast from. It must be
+                earlier than both the current date (now) and the forecast date.
+                If not specified, defaults to date - 1 day for historical dates,
+                or today - 1 day for today/future dates.
+            time_resolution: Time resolution for the forecast (default: hourly).
 
-            Example:
+        Returns:
+            DataFrame containing load forecast data.
 
-            - If today = 2025-10-14
-                - You request forecasts for 2025-10-10 → publish_time = 2025-10-09
-                - You request forecasts for 2025-10-14 (today) → publish_time = 2025-10-13
-                - You request forecasts for 2025-10-15 (future) → publish_time = 2025-10-13
-
-        Basically: it uses yesterday's forecast run unless you override it.
+        Note:
+            Basically, it uses yesterday's forecast run unless you override it.
         """
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") + pd.Timedelta(
@@ -2192,15 +2199,17 @@ class MISOAPI:
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """
-        Retrieve MISO pricing nodes for a specific date or date range.
-        MISO pricing nodes change quarterly on March 1st, June 1st, September 1st, and December 1st.
-        New pricing nodes become effective on these dates, some pricing nodes are retired/removed and some nodes change names/node ids.
-        Parameters:
-            date: The date for which to retrieve pricing nodes. If None, defaults to "latest".
-                  Can be a pd.Timestamp or "latest".
-            end: Optional end date for a date range. If provided, retrieves pricing nodes for all
-                 quarterly updates between date and end.
+        """Retrieve MISO pricing nodes for a specific date or date range.
+
+        MISO pricing nodes change quarterly on March 1st, June 1st, September 1st,
+        and December 1st. New pricing nodes become effective on these dates, some
+        pricing nodes are retired/removed and some nodes change names/node ids.
+
+        Args:
+            date: The date for which to retrieve pricing nodes. If None, defaults
+                to "latest". Can be a pd.Timestamp or "latest".
+            end: Optional end date for a date range. If provided, retrieves pricing
+                nodes for all quarterly updates between date and end.
             verbose: If True, prints additional information during data retrieval.
         """
         if date == "latest" or date is None:

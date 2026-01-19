@@ -31,7 +31,7 @@ and are alternatives to the standard ISO classes above.
 .. autoapisummary::
 
     gridstatus.ercot_api.ercot_api.ErcotAPI
-    isone_api.ISONEAPI
+    gridstatus.isone_api.isone_api.ISONEAPI
     gridstatus.miso_api.MISOAPI
 
 Other Data Sources

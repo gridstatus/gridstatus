@@ -143,17 +143,17 @@ class AESO:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """
-        Get load forecast data.
+        """Get load forecast data.
 
         The AESO publishes load forecasts daily at 7am Mountain Time. The forecast covers
         the next 13 days. The publish time is determined as follows:
+
         - For historical data: 7am on the day of the interval if interval is after 7am,
           otherwise 7am the previous day
         - For future data: 7am today (if after 7am) or 7am yesterday (if before 7am)
 
         Returns:
-            DataFrame containing load forecast data with publish times
+            DataFrame containing load forecast data with publish times.
         """
         if date == "latest":
             current_time = pd.Timestamp.now(tz=self.default_timezone)
@@ -736,11 +736,11 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """
-        Get current unit status data for all assets in the AESO system.
+        """Get current unit status data for all assets in the AESO system.
 
         Returns:
             DataFrame containing unit status data with columns:
+
             - Time: Timestamp of the data
             - Asset: Asset identifier
             - Fuel Type: Type of fuel used
