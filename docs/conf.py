@@ -35,7 +35,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["autoapi", "_autoapi_templates", "_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_autoapi_templates", "_build", "Thumbs.db", ".DS_Store"]
 
 language = "en"
 
@@ -129,10 +129,15 @@ autoapi_options = [
     "special-members",
     "imported-members",
 ]
+# Exclude test files from API documentation
+autoapi_ignore = ["*/tests/*", "*/tests"]
 autodoc_inherit_docstrings = True
 suppress_warnings = [
     "mystnb.unknown_mime_type",
     "autoapi",
+    "toc.not_included",
+    # Suppress docstring formatting warnings from autoapi-generated RST
+    "docutils",
 ]
 html_js_files = [
     "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js",

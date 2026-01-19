@@ -44,20 +44,22 @@ class MISOAPI:
         max_retries: int = 3,
         exponential_base: int = 2,
     ) -> None:
-        """
-        Class for querying the MISO API. Currently supports only pricing data.
+        """Class for querying the MISO API. Currently supports only pricing data.
 
-        Arguments:
-        pricing_api_key (str): The API key for the pricing API. Can be a comma-separated
-            list of keys if you have multiple keys.
-        initial_sleep_seconds (int): The number of seconds to wait between each request.
-            Used to address rate limiting (429 responses).
-        max_retries (int): The maximum number of retries for failed requests.
-            Uses exponential backoff between retries. Used to address the common
-            503 errors from the MISO API.
-        exponential_base (int): The base for exponential backoff calculation.
-            Sleep time = exponential_base^(attempt+1) seconds. Default is 2,
-            which gives delays of 2, 4, 8 seconds for attempts 0, 1, 2.
+        Args:
+            pricing_api_key: The API key for the pricing API. Can be a
+                comma-separated list of keys if you have multiple keys.
+            load_generation_and_interchange_api_key: The API key for the load,
+                generation, and interchange API. Can be a comma-separated list
+                of keys if you have multiple keys.
+            initial_sleep_seconds: The number of seconds to wait between each
+                request. Used to address rate limiting (429 responses).
+            max_retries: The maximum number of retries for failed requests.
+                Uses exponential backoff between retries. Used to address the
+                common 503 errors from the MISO API.
+            exponential_base: The base for exponential backoff calculation.
+                Sleep time is exponential_base^(attempt+1) seconds. Default is 2,
+                which gives delays of 2, 4, 8 seconds for attempts 0, 1, 2.
         """
         self.pricing_api_key = pricing_api_key or os.getenv(
             "MISO_API_PRICING_SUBSCRIPTION_KEY",
@@ -1732,7 +1734,7 @@ class MISOAPI:
         Only retries on 429 (Too Many Requests) and 5xx server errors.
         Other HTTP errors are raised immediately without retry.
 
-        Arguments:
+        Args:
             url: The URL to request.
             headers: The headers to include in the request.
             params: Optional query parameters.
