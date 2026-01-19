@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "gridstatus"
-copyright = "2023, Max Kanter"
+copyright = "2026, Max Kanter"
 
 master_doc = "index"
 
