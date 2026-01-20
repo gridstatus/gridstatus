@@ -6,16 +6,16 @@ kernelspec:
 
 # Installation
 
-`gridstatus` supports python 3.11+. Install with pip
+`gridstatus` supports python 3.11+. Install with uv
 
 ```
-python -m pip install gridstatus
+uv pip install gridstatus
 ```
 
 Upgrade using the following command
 
 ```
-python -m pip install --upgrade gridstatus
+uv pip install --upgrade gridstatus
 ```
 
 Check current version like this

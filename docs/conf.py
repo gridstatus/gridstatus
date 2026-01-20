@@ -7,7 +7,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "gridstatus"
-copyright = "2023, Max Kanter"
+copyright = "2026, Max Kanter"
 
 master_doc = "index"
 
@@ -35,7 +35,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["autoapi", "_autoapi_templates", "_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_autoapi_templates", "_build", "Thumbs.db", ".DS_Store"]
 
 language = "en"
 
@@ -119,6 +119,7 @@ nb_execution_mode = "cache"
 autoapi_type = "python"
 autoapi_dirs = ["../gridstatus"]
 autoapi_add_toctree_entry = False
+autoapi_keep_files = False
 autoapi_template_dir = "_autoapi_templates"
 autoapi_python_class_content = "both"
 autoapi_options = [
@@ -129,6 +130,8 @@ autoapi_options = [
     "special-members",
     "imported-members",
 ]
+# Exclude test files from API documentation
+autoapi_ignore = ["*/tests/*", "*/tests"]
 autodoc_inherit_docstrings = True
 suppress_warnings = [
     "mystnb.unknown_mime_type",

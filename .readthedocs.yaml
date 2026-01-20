@@ -1,22 +1,20 @@
-# .readthedocs.yaml
 # Read the Docs configuration file
-# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details.
+# See https://docs.readthedocs.com/platform/stable/build-customization.html#install-dependencies-with-uv
 version: 2
 
 build:
-  os: "ubuntu-22.04"
+  os: "ubuntu-24.04"
   tools:
-    python: "3.10"
+    python: "3.13"
   jobs:
-    post_create_environment:
-      # Install uv
-      # https://docs.astral.sh/uv/getting-started/installation/
-      - pip install uv
-    post_install:
-      # Install dependencies with all dependencies
-      # VIRTUAL_ENV needs to be set manually for now.
-      # See https://github.com/readthedocs/readthedocs.org/pull/11152/
-      - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv sync
+    pre_create_environment:
+      - asdf plugin add uv
+      - asdf install uv latest
+      - asdf global uv latest
+    create_environment:
+      - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
+    install:
+      - UV_PROJECT_ENVIRONMENT="${READTHEDOCS_VIRTUALENV_PATH}" uv sync --frozen --group dev
 
 sphinx:
   configuration: docs/conf.py
