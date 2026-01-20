@@ -41,6 +41,10 @@ class TestNYISO(BaseTestISO):
 
     """get_fuel_mix"""
 
+    @pytest.mark.skip("Not Supported")
+    def test_get_fuel_mix_latest(self):
+        super().test_get_fuel_mix_latest()
+
     @pytest.mark.parametrize(
         "date,end",
         [
@@ -122,15 +126,15 @@ class TestNYISO(BaseTestISO):
 
     """get_load"""
 
-    @pytest.mark.parametrize(
-        "date",
-        ["today", "latest"],
-    )
-    def test_get_load_contains_zones(self, date):
+    @pytest.mark.skip("Not Supported")
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    def test_get_load_contains_zones(self):
         with nyiso_vcr.use_cassette(
-            f"test_get_load_contains_zones_{date}.yaml",
+            "test_get_load_contains_zones.yaml",
         ):
-            df = self.iso.get_load(date=date)
+            df = self.iso.get_load(date="today")
             nyiso_load_cols = [
                 "Time",
                 "Load",
@@ -490,6 +494,10 @@ class TestNYISO(BaseTestISO):
             assert df.shape[0] >= 0
 
     """get_status"""
+
+    @pytest.mark.skip("Not Supported")
+    def test_get_status_latest(self):
+        super().test_get_status_latest()
 
     @pytest.mark.parametrize(
         "date",
@@ -1042,13 +1050,6 @@ class TestNYISO(BaseTestISO):
 
     """get_as_prices_day_ahead_hourly"""
 
-    def test_get_as_prices_day_ahead_hourly_latest(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_as_prices_day_ahead_hourly_latest.yaml",
-        ):
-            df = self.iso.get_as_prices_day_ahead_hourly(date="latest")
-            self._check_as_prices(df, rt_or_dam="dam")
-
     @pytest.mark.parametrize(
         "start,end",
         [
@@ -1069,13 +1070,6 @@ class TestNYISO(BaseTestISO):
 
     """get_as_prices_real_time_5_min"""
 
-    def test_get_as_prices_real_time_5_min_latest(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_as_prices_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_as_prices_real_time_5_min(date="latest")
-            self._check_as_prices(df, rt_or_dam="rt")
-
     @pytest.mark.parametrize(
         "start,end",
         [
@@ -1088,6 +1082,8 @@ class TestNYISO(BaseTestISO):
         ):
             df = self.iso.get_as_prices_real_time_5_min(start=start, end=end)
             self._check_as_prices(df, rt_or_dam="rt", start=start, end=end)
+
+    """get_limiting_constraints_real_time"""
 
     def _check_limiting_constraints(
         self,
@@ -1134,13 +1130,6 @@ class TestNYISO(BaseTestISO):
         assert df["Interval End"].dt.date.max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
         )
-
-    def test_get_limiting_constraints_day_ahead_latest(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_limiting_constraints_day_ahead_latest.yaml",
-        ):
-            df = self.iso.get_limiting_constraints_day_ahead(date="latest")
-        self._check_limiting_constraints(df, expected_duration_minutes=60)
 
     @pytest.mark.parametrize(
         "start,end",
