@@ -54,6 +54,7 @@ from gridstatus.ercot_60d_utils import (
     process_sced_load,
 )
 from gridstatus.ercot_constants import (
+    LOAD_FORECAST_BY_MODEL_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
@@ -1188,6 +1189,74 @@ class Ercot(ISOBase):
             cols_to_move += self._weather_zone_column_name_order() + ["System Total"]
 
         df = utils.move_cols_to_front(df, cols_to_move)
+
+        return df
+
+    @support_date_range(frequency=None)
+    def get_load_forecast_by_model(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Seven-Day Load Forecast by Model and Weather Zone.
+
+        Forecasted hourly demand by Model and Weather Zone as reported by ERCOT.
+        Released every hour for the current day and the next 7.
+
+        Arguments:
+            date (str, datetime): date to get report for. Supports "latest" or a
+                date string.
+            end (str, datetime, optional): end date for date range. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with load forecast by model data
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
+        """
+
+        def handle_doc(doc: Document, verbose: bool = False) -> pd.DataFrame:
+            df = self.read_doc(doc, verbose=verbose)
+            df["Publish Time"] = doc.publish_date
+            return self._handle_load_forecast_by_model(df)
+
+        df = self._get_hourly_report(
+            start=date,
+            end=end,
+            report_type_id=ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE.value,
+            extension="csv",
+            handle_doc=handle_doc,
+            verbose=verbose,
+        )
+
+        return df[LOAD_FORECAST_BY_MODEL_COLUMNS].sort_values(
+            ["Interval Start", "Publish Time", "Model"],
+        )
+
+    def _handle_load_forecast_by_model(
+        self,
+        df: pd.DataFrame,
+        publish_time: pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        """Handle parsing of load forecast by model data.
+
+        Arguments:
+            df: DataFrame with raw load forecast by model data.
+        Returns:
+            DataFrame with renamed columns and optional Publish Time.
+        """
+        df = df.rename(
+            columns={
+                **self._weather_zone_column_name_mapping(),
+                "SystemTotal": "System Total",
+                "InUseFlag": "In Use Flag",
+            },
+        )
+
+        # Convert In Use Flag to boolean
+        df["In Use Flag"] = df["In Use Flag"] == "Y"
 
         return df
 

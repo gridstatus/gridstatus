@@ -23,6 +23,7 @@ from gridstatus.ercot import (
 )
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
 from gridstatus.ercot_constants import (
+    LOAD_FORECAST_BY_MODEL_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
@@ -118,6 +119,10 @@ HOURLY_SOLAR_POWER_PRODUCTION_ENDPOINT = "/np4-737-cd/spp_hrly_avrg_actl_fcast"
 HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
 )
+
+# Seven-Day Load Forecast by Model and Weather Zone
+# https://data.ercot.com/data-product-archive/NP3-565-CD
+LOAD_FORECAST_BY_MODEL_ENDPOINT = "/np3-565-cd/lf_by_model_weather_zone"
 
 
 # Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
@@ -614,6 +619,65 @@ class ErcotAPI:
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
         return data[columns]
+
+    @support_date_range(frequency=None)
+    def get_load_forecast_by_model(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Seven-Day Load Forecast by Model and Weather Zone.
+
+        Forecasted hourly demand by Model and Weather Zone as reported by ERCOT.
+        Released every hour for the current day and the next 7.
+
+        Arguments:
+            date: the date to fetch reports for.
+            end: the end date to fetch reports for. Defaults to None.
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            A DataFrame with load forecast by model data
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
+        """
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        data = self.get_historical_data(
+            endpoint=LOAD_FORECAST_BY_MODEL_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+        )
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        try:
+            publish_time = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+                self.default_timezone,
+            )
+        # The DSTFlag only applies to the Interval Start so we have to assume one way or the other in this situation.
+        except pytz.exceptions.AmbiguousTimeError:
+            publish_time = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+            )
+
+        data["Publish Time"] = publish_time
+        data = Ercot()._handle_load_forecast_by_model(data)
+
+        return (
+            utils.move_cols_to_front(
+                data,
+                ["Interval Start", "Interval End", "Publish Time", "Model"],
+            )
+            .drop(columns=["Time", "postDatetime"], errors="ignore")
+            .sort_values(["Interval Start", "Publish Time", "Model"])
+            .reset_index(drop=True)
+        )[LOAD_FORECAST_BY_MODEL_COLUMNS]
 
     def get_as_prices(
         self,

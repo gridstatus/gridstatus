@@ -22,6 +22,7 @@ from gridstatus.tests.source_specific.test_ercot import (
     TestErcot,
     check_60_day_dam_disclosure,
     check_60_day_sced_disclosure,
+    check_load_forecast_by_model,
 )
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -301,6 +302,28 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(
             date.date(),
         ) - pd.DateOffset(days=2)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=7)
+
+    """get_load_forecast_by_model"""
+
+    def _check_load_forecast_by_model(self, df):
+        check_load_forecast_by_model(df)
+
+    def test_get_load_forecast_by_model_date_range(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.Timedelta(hours=2)
+
+        with api_vcr.use_cassette("test_get_load_forecast_by_model_date_range.yaml"):
+            df = self.iso.get_load_forecast_by_model(date, end, verbose=True)
+
+        self._check_load_forecast_by_model(df)
+
+        # Two hours of data
+        assert df["Publish Time"].nunique() == 2
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
         assert df["Interval End"].max() >= self.local_start_of_day(
             date.date(),
         ) + pd.DateOffset(days=7)

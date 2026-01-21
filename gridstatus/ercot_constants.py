@@ -98,6 +98,23 @@ SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS = [
     "PVGRPP CenterEast",
 ]
 
+LOAD_FORECAST_BY_MODEL_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "Model",
+    "Coast",
+    "East",
+    "Far West",
+    "North",
+    "North Central",
+    "South Central",
+    "Southern",
+    "West",
+    "System Total",
+    "In Use Flag",
+]
+
 SYSTEM_AS_CAPACITY_MONITOR_COLUMNS = [
     "Time",
     "RRS Capability PFR Gen and ESR",
