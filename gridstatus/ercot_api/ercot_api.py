@@ -620,87 +620,55 @@ class ErcotAPI:
 
         return data[columns]
 
-    def get_load_forecast_by_model(self, date, end=None, verbose=False):
+    @support_date_range(frequency=None)
+    def get_load_forecast_by_model(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Get Seven-Day Load Forecast by Model and Weather Zone.
 
         Forecasted hourly demand by Model and Weather Zone as reported by ERCOT.
         Released every hour for the current day and the next 7.
 
         Arguments:
-            date (str): the date to fetch reports for.
-            end (str, optional): the end date to fetch reports for. Defaults to None.
-            verbose (bool, optional): print verbose output. Defaults to False.
+            date: the date to fetch reports for.
+            end: the end date to fetch reports for. Defaults to None.
+            verbose: print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with load forecast by model data
+            A DataFrame with load forecast by model data
 
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
         """
-        return self._get_load_forecast_by_model(
-            endpoint=LOAD_FORECAST_BY_MODEL_ENDPOINT,
-            date=date,
-            end=end,
-            columns=LOAD_FORECAST_BY_MODEL_COLUMNS,
-            verbose=verbose,
-        )
-
-    @support_date_range(frequency=None)
-    def _get_load_forecast_by_model(
-        self,
-        endpoint: str,
-        date,
-        end=None,
-        columns=None,
-        verbose=False,
-    ):
-        if date == "latest":
-            date = self._local_now() - pd.Timedelta(hours=1)
-            end = self._local_now()
-
         end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
 
-        # Only use the historical API because it allows us to filter on posted time
-        # (publish time)
         data = self.get_historical_data(
-            endpoint=endpoint,
+            endpoint=LOAD_FORECAST_BY_MODEL_ENDPOINT,
             start_date=date,
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
         )
 
-        return self._handle_load_forecast_by_model(
-            data,
-            columns=columns,
-            verbose=verbose,
-        )
-
-    def _handle_load_forecast_by_model(self, data, columns, verbose=False):
-        """Handle parsing of load forecast by model data from API."""
         data = Ercot().parse_doc(data, verbose=verbose)
 
-        # Rename columns to match our standard naming
-        data = data.rename(
-            columns={
-                **Ercot()._weather_zone_column_name_mapping(),
-                "SystemTotal": "System Total",
-                "InUseFlag": "In Use Flag",
-            },
-        )
-
         try:
-            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            publish_time = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
             )
         except pytz.exceptions.AmbiguousTimeError:
-            # For DST transitions, assume CDT (DST=True) for ambiguous times
-            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            publish_time = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
                 ambiguous=True,
             )
 
-        data = (
+        data["Publish Time"] = publish_time
+        data = Ercot()._handle_load_forecast_by_model(data)
+
+        return (
             utils.move_cols_to_front(
                 data,
                 ["Interval Start", "Interval End", "Publish Time", "Model"],
@@ -708,9 +676,7 @@ class ErcotAPI:
             .drop(columns=["Time", "postDatetime"], errors="ignore")
             .sort_values(["Interval Start", "Publish Time", "Model"])
             .reset_index(drop=True)
-        )
-
-        return data[columns]
+        )[LOAD_FORECAST_BY_MODEL_COLUMNS]
 
     def get_as_prices(
         self,

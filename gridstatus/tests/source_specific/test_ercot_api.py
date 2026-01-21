@@ -12,7 +12,6 @@ from gridstatus.ercot_api.ercot_api import (
     ErcotAPI,
 )
 from gridstatus.ercot_constants import (
-    LOAD_FORECAST_BY_MODEL_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
@@ -23,6 +22,7 @@ from gridstatus.tests.source_specific.test_ercot import (
     TestErcot,
     check_60_day_dam_disclosure,
     check_60_day_sced_disclosure,
+    check_load_forecast_by_model,
 )
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
@@ -309,10 +309,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_load_forecast_by_model"""
 
     def _check_load_forecast_by_model(self, df):
-        assert df.columns.tolist() == LOAD_FORECAST_BY_MODEL_COLUMNS
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
-        assert df["Model"].notna().all()
-        assert df["Model"].nunique() > 1
+        check_load_forecast_by_model(df)
 
     def test_get_load_forecast_by_model_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)

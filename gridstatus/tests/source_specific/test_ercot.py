@@ -483,13 +483,7 @@ class TestErcot(BaseTestISO):
     """get_load_forecast_by_model"""
 
     def _check_load_forecast_by_model(self, df):
-        assert df.columns.tolist() == LOAD_FORECAST_BY_MODEL_COLUMNS
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
-        assert df["Model"].notna().all()
-        # Model column should have multiple unique values
-        assert df["Model"].nunique() > 1
+        check_load_forecast_by_model(df)
 
     def test_get_load_forecast_by_model_date_range(self):
         start = self.local_today() - pd.Timedelta(days=3)
@@ -3309,6 +3303,31 @@ class TestErcot(BaseTestISO):
         assert df["ECRS Capability Gen"].iloc[0] == 600.0
         assert df["PRC"].iloc[0] == 5000.0
         assert df["ORDC Online"].iloc[0] == 3500.0
+
+
+def check_load_forecast_by_model(df: pd.DataFrame) -> None:
+    """Check load forecast by model DataFrame structure and types."""
+    assert df.columns.tolist() == LOAD_FORECAST_BY_MODEL_COLUMNS
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+    assert df["Model"].notna().all()
+    # Model column should have multiple unique values
+    assert df["Model"].nunique() > 1
+
+    # Verify exact dtypes for all columns
+    assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+    assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+    assert pd.api.types.is_datetime64_any_dtype(df["Publish Time"])
+    assert df["Model"].dtype == object
+    assert df["Coast"].dtype == float
+    assert df["East"].dtype == float
+    assert df["Far West"].dtype == float
+    assert df["North"].dtype == float
+    assert df["North Central"].dtype == float
+    assert df["South Central"].dtype == float
+    assert df["Southern"].dtype == float
+    assert df["West"].dtype == float
+    assert df["System Total"].dtype == float
+    assert df["In Use Flag"].dtype == bool
 
 
 def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:

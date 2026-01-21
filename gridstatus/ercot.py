@@ -1216,12 +1216,20 @@ class Ercot(ISOBase):
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP3-565-CD
         """
+
+        def handle_doc(doc: Document, verbose: bool = False) -> pd.DataFrame:
+            df = self.read_doc(doc, verbose=verbose)
+            return self._handle_load_forecast_by_model(
+                df,
+                publish_time=doc.publish_date,
+            )
+
         df = self._get_hourly_report(
             start=date,
             end=end,
             report_type_id=ERCOTSevenDayLoadForecastReport.BY_MODEL_AND_WEATHER_ZONE.value,
             extension="csv",
-            handle_doc=self._handle_load_forecast_by_model,
+            handle_doc=handle_doc,
             verbose=verbose,
         )
 
@@ -1231,15 +1239,21 @@ class Ercot(ISOBase):
 
     def _handle_load_forecast_by_model(
         self,
-        doc: Document,
-        verbose: bool = False,
+        df: pd.DataFrame,
+        publish_time: pd.Timestamp | None = None,
     ) -> pd.DataFrame:
-        """Handle parsing of load forecast by model data."""
-        df = self.read_doc(doc, verbose=verbose)
+        """Handle parsing of load forecast by model data.
 
-        df["Publish Time"] = doc.publish_date
+        Arguments:
+            df: DataFrame with raw load forecast by model data.
+            publish_time: Optional publish time to add to the DataFrame.
 
-        # Rename columns to match our standard naming
+        Returns:
+            DataFrame with renamed columns and optional Publish Time.
+        """
+        if publish_time is not None:
+            df["Publish Time"] = publish_time
+
         df = df.rename(
             columns={
                 **self._weather_zone_column_name_mapping(),
@@ -1247,6 +1261,9 @@ class Ercot(ISOBase):
                 "InUseFlag": "In Use Flag",
             },
         )
+
+        # Convert In Use Flag to boolean
+        df["In Use Flag"] = df["In Use Flag"] == "Y"
 
         return df
 
