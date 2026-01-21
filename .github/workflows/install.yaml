@@ -23,7 +23,7 @@ jobs:
 
       - name: Install package
         run: |
-          uv pip install dist/*.whl
+          uv pip install dist/*.whl --system
 
       - name: Test import and simple usage
         run: |
