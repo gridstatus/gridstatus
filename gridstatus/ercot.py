@@ -1219,10 +1219,8 @@ class Ercot(ISOBase):
 
         def handle_doc(doc: Document, verbose: bool = False) -> pd.DataFrame:
             df = self.read_doc(doc, verbose=verbose)
-            return self._handle_load_forecast_by_model(
-                df,
-                publish_time=doc.publish_date,
-            )
+            df["Publish Time"] = doc.publish_date
+            return self._handle_load_forecast_by_model(df)
 
         df = self._get_hourly_report(
             start=date,
@@ -1246,14 +1244,9 @@ class Ercot(ISOBase):
 
         Arguments:
             df: DataFrame with raw load forecast by model data.
-            publish_time: Optional publish time to add to the DataFrame.
-
         Returns:
             DataFrame with renamed columns and optional Publish Time.
         """
-        if publish_time is not None:
-            df["Publish Time"] = publish_time
-
         df = df.rename(
             columns={
                 **self._weather_zone_column_name_mapping(),

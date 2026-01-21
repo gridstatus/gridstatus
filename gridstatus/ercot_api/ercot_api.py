@@ -659,6 +659,7 @@ class ErcotAPI:
             publish_time = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
             )
+        # The DSTFlag only applies to the Interval Start so we have to assume one way or the other in this situation.
         except pytz.exceptions.AmbiguousTimeError:
             publish_time = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
                 self.default_timezone,
