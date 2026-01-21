@@ -43,6 +43,7 @@ from gridstatus.ercot_60d_utils import (
     SCED_SMNE_KEY,
 )
 from gridstatus.ercot_constants import (
+    LOAD_FORECAST_BY_MODEL_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
     SYSTEM_AS_CAPACITY_MONITOR_COLUMNS,
@@ -478,6 +479,31 @@ class TestErcot(BaseTestISO):
         )
 
         self._check_forecast(df, expected_columns=cols)
+
+    """get_load_forecast_by_model"""
+
+    def _check_load_forecast_by_model(self, df):
+        assert df.columns.tolist() == LOAD_FORECAST_BY_MODEL_COLUMNS
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert df["Model"].notna().all()
+        # Model column should have multiple unique values
+        assert df["Model"].nunique() > 1
+
+    def test_get_load_forecast_by_model_date_range(self):
+        start = self.local_today() - pd.Timedelta(days=3)
+        end = self.local_today() - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_load_forecast_by_model_date_range_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_load_forecast_by_model(start, end, verbose=True)
+
+        self._check_load_forecast_by_model(df)
+
+        # One day of data
+        assert df["Publish Time"].nunique() == 24
 
     """get_capacity_committed"""
 

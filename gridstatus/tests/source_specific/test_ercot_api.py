@@ -12,6 +12,7 @@ from gridstatus.ercot_api.ercot_api import (
     ErcotAPI,
 )
 from gridstatus.ercot_constants import (
+    LOAD_FORECAST_BY_MODEL_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
     SOLAR_ACTUAL_AND_FORECAST_COLUMNS,
     WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS,
@@ -301,6 +302,31 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_day(
             date.date(),
         ) - pd.DateOffset(days=2)
+        assert df["Interval End"].max() >= self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=7)
+
+    """get_load_forecast_by_model"""
+
+    def _check_load_forecast_by_model(self, df):
+        assert df.columns.tolist() == LOAD_FORECAST_BY_MODEL_COLUMNS
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert df["Model"].notna().all()
+        assert df["Model"].nunique() > 1
+
+    def test_get_load_forecast_by_model_date_range(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.Timedelta(hours=2)
+
+        with api_vcr.use_cassette("test_get_load_forecast_by_model_date_range.yaml"):
+            df = self.iso.get_load_forecast_by_model(date, end, verbose=True)
+
+        self._check_load_forecast_by_model(df)
+
+        # Two hours of data
+        assert df["Publish Time"].nunique() == 2
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
         assert df["Interval End"].max() >= self.local_start_of_day(
             date.date(),
         ) + pd.DateOffset(days=7)
