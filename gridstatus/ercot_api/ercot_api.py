@@ -46,6 +46,9 @@ class APITypeEnum(StrEnum):
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
 
+# Timeout for API requests in seconds
+REQUEST_TIMEOUT_SECONDS = 30
+
 # Number of historical links to fetch at once. The max is 1_000
 DEFAULT_HISTORICAL_SIZE = 1_000
 
@@ -253,7 +256,11 @@ class ErcotAPI:
             "client_id": self.client_id,
         }
 
-        response = requests.post(self.token_url, data=payload)
+        response = requests.post(
+            self.token_url,
+            data=payload,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
         response_data = response.json()
 
         if "id_token" in response_data:
@@ -301,12 +308,14 @@ class ErcotAPI:
                     url,
                     headers=self.headers(api=api),
                     json=api_params,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
                 )
             else:
                 response = requests.get(
                     url,
                     headers=self.headers(api=api),
                     params=api_params,
+                    timeout=REQUEST_TIMEOUT_SECONDS,
                 )
 
             retries += 1
