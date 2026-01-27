@@ -306,6 +306,7 @@ class ErcotAPI:
         # Connect timeouts raise immediately.
         retries = 0
         delay = self.initial_delay
+        reason = ""
         while retries <= self.max_retries:
             try:
                 if method == "POST":
@@ -322,50 +323,34 @@ class ErcotAPI:
                         params=api_params,
                         timeout=REQUEST_TIMEOUT,
                     )
-            except requests.exceptions.ReadTimeout:
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(
-                        f"Warn: Read timeout: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
-                        f"requesting url: {url} with params: {api_params}",
-                    )
-                    time.sleep(delay + random.uniform(0, delay * 0.1))
-                    delay *= 2
-                    continue
+
+                if response.status_code == status_codes.codes.OK:
+                    if parse_json:
+                        return response.json()
+                    else:
+                        return response.content
+                elif response.status_code == status_codes.codes.TOO_MANY_REQUESTS:
+                    reason = "Rate-limited"
                 else:
-                    raise
+                    response.raise_for_status()
+
+            except requests.exceptions.ReadTimeout:
+                reason = "Read timeout"
 
             retries += 1
-            if response.status_code == status_codes.codes.OK:
-                break
-            elif (
-                response.status_code == status_codes.codes.TOO_MANY_REQUESTS
-                and retries <= self.max_retries
-            ):
-                logger.warning(
-                    f"Warn: Rate-limited: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
-                    f"requesting url: {url} with params: {api_params}",
+            if retries > self.max_retries:
+                raise RuntimeError(
+                    f"Error: Failed after {self.max_retries} retries for"
+                    f" {url} with params {api_params}",
                 )
-                time.sleep(delay + random.uniform(0, delay * 0.1))
-                delay *= 2
-            else:
-                if retries > self.max_retries:
-                    error_message = (
-                        f"Error: Rate-limited still after {self.max_retries} retries. "
-                        f"Failed to get data from {url} with params: {api_params}"
-                    )
-                else:
-                    error_message = (
-                        f"Error: Failed to get data from {url} with params:"
-                        f" {api_params}"
-                    )
-                logger.error(error_message)
-                response.raise_for_status()
 
-        if parse_json:
-            return response.json()
-        else:
-            return response.content
+            logger.warning(
+                f"Warn: {reason}: waiting {delay} seconds before retry"
+                f" {retries}/{self.max_retries}"
+                f" requesting url: {url} with params: {api_params}",
+            )
+            time.sleep(delay + random.uniform(0, delay * 0.1))
+            delay *= 2
 
     def get_public_reports(self):
         # General information about the public reports
