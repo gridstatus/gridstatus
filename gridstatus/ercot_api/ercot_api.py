@@ -46,8 +46,10 @@ class APITypeEnum(StrEnum):
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
 
-# Timeout for API requests in seconds
-REQUEST_TIMEOUT_SECONDS = 30
+# Timeout for API requests in seconds (connect, read)
+CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 15
+REQUEST_TIMEOUT = (CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)
 
 # Number of historical links to fetch at once. The max is 1_000
 DEFAULT_HISTORICAL_SIZE = 1_000
@@ -259,7 +261,7 @@ class ErcotAPI:
         response = requests.post(
             self.token_url,
             data=payload,
-            timeout=REQUEST_TIMEOUT_SECONDS,
+            timeout=REQUEST_TIMEOUT,
         )
         response_data = response.json()
 
@@ -300,23 +302,38 @@ class ErcotAPI:
         )
 
         # make request with exponential backoff retry strategy
+        # Retries on rate limiting (HTTP 429) and read timeouts.
+        # Connect timeouts raise immediately.
         retries = 0
         delay = self.initial_delay
         while retries <= self.max_retries:
-            if method == "POST":
-                response = requests.post(
-                    url,
-                    headers=self.headers(api=api),
-                    json=api_params,
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                )
-            else:
-                response = requests.get(
-                    url,
-                    headers=self.headers(api=api),
-                    params=api_params,
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                )
+            try:
+                if method == "POST":
+                    response = requests.post(
+                        url,
+                        headers=self.headers(api=api),
+                        json=api_params,
+                        timeout=REQUEST_TIMEOUT,
+                    )
+                else:
+                    response = requests.get(
+                        url,
+                        headers=self.headers(api=api),
+                        params=api_params,
+                        timeout=REQUEST_TIMEOUT,
+                    )
+            except requests.exceptions.ReadTimeout:
+                retries += 1
+                if retries <= self.max_retries:
+                    logger.warning(
+                        f"Warn: Read timeout: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
+                        f"requesting url: {url} with params: {api_params}",
+                    )
+                    time.sleep(delay + random.uniform(0, delay * 0.1))
+                    delay *= 2
+                    continue
+                else:
+                    raise
 
             retries += 1
             if response.status_code == status_codes.codes.OK:
