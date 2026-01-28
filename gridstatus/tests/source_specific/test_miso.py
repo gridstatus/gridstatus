@@ -1116,3 +1116,75 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             with pytest.raises(NotSupported):
                 self.iso.get_interchange_5_min(date)
+
+    """get_multiday_operating_margin"""
+
+    def test_get_multiday_operating_margin(self):
+        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=1)
+        with miso_vcr.use_cassette("test_get_multiday_operating_margin.yaml"):
+            df = self.iso.get_multiday_operating_margin(date=date)
+
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+
+        # Check data types
+        assert df["Publish Date"].dtype == "datetime64[ns, EST]"
+        assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
+        assert df["Region"].dtype == object
+        assert df["Resource Committed"].dtype == np.float64
+        assert df["Additional Emergency Headroom"].dtype == np.float64
+        assert df["Resource Uncommitted"].dtype == np.float64
+        assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
+        assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
+        assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
+        assert df["Renewable Forecast"].dtype == np.float64
+        assert df["Wind Forecast"].dtype == np.float64
+        assert df["Solar Forecast"].dtype == np.float64
+        assert df["MISO Resources Available"].dtype == np.float64
+        assert df["NSI"].dtype == np.float64
+        assert df["Total Resources Available"].dtype == np.float64
+        assert df["Projected Load"].dtype == np.float64
+        assert df["Operating Reserve Requirement"].dtype == np.float64
+        assert df["Obligation"].dtype == np.float64
+        assert df["Resource Operating Margin"].dtype == np.float64
+
+        # Check region values
+        assert (df["Region"] == "MISO").all()
+
+        # Check data is sorted
+        assert df["Peak Hour"].is_monotonic_increasing
+
+    """get_multiday_operating_margin_regional"""
+
+    def test_get_multiday_operating_margin_regional(self):
+        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=1)
+        with miso_vcr.use_cassette("test_get_multiday_operating_margin_regional.yaml"):
+            df = self.iso.get_multiday_operating_margin_regional(date=date)
+
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+
+        # Check data types
+        assert df["Publish Date"].dtype == "datetime64[ns, EST]"
+        assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
+        assert df["Region"].dtype == object
+        assert df["Resource Committed"].dtype == np.float64
+        assert df["Additional Emergency Headroom"].dtype == np.float64
+        assert df["Resource Uncommitted"].dtype == np.float64
+        assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
+        assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
+        assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
+        assert df["Renewable Forecast"].dtype == np.float64
+        assert df["Wind Forecast"].dtype == np.float64
+        assert df["Solar Forecast"].dtype == np.float64
+        assert df["MISO Resources Available"].dtype == np.float64
+        assert df["Projected Load"].dtype == np.float64
+        assert df["Region Resources Above Load"].dtype == np.float64
+
+        # Check all 4 regions are present
+        expected_regions = {"NORTH", "CENTRAL", "NORTH+CENTRAL", "SOUTH"}
+        assert set(df["Region"].unique()) == expected_regions

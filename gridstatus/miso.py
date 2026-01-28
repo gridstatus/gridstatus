@@ -1748,3 +1748,303 @@ class MISO(ISOBase):
             .sort_values("Interval Start")
             .reset_index(drop=True)
         )
+
+    @support_date_range(frequency="DAY_START")
+    def get_multiday_operating_margin(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the multiday operating margin forecast.
+
+        This data comes from the Multiday Operating Margin Forecast (MOMF) report
+        published daily by MISO. The operating margin represents the difference
+        between available resources and system obligations.
+
+        Args:
+            date: The date to retrieve data for.
+            end: Optional end date for a date range.
+            verbose: If True, prints additional information during data retrieval.
+
+        Returns:
+            DataFrame with system-wide operating margin forecast data including
+            committed/uncommitted resources, renewable forecasts, load projections,
+            and operating margin calculations.
+        """
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+
+        logger.info(f"Downloading multiday operating margin data from {url}")
+
+        return self._get_multiday_operating_margin_data(
+            date,
+            region="MISO",
+            excel_file=url,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_multiday_operating_margin_regional(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the multiday operating margin forecast for all regions.
+
+        This data comes from the Multiday Operating Margin Forecast (MOMF) report
+        published daily by MISO. The operating margin represents the difference
+        between available resources and system obligations for each region.
+
+        Args:
+            date: The date to retrieve data for.
+            end: Optional end date for a date range.
+            verbose: If True, prints additional information during data retrieval.
+
+        Returns:
+            DataFrame with regional operating margin forecast data for all regions
+            (NORTH, CENTRAL, NORTH+CENTRAL, SOUTH) including committed/uncommitted
+            resources, renewable forecasts, load projections, and regional metrics.
+        """
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+
+        logger.info(f"Downloading multiday operating margin data from {url}")
+
+        regions = ["NORTH", "CENTRAL", "NORTH+CENTRAL", "SOUTH"]
+        dfs = []
+
+        for region in regions:
+            df = self._get_multiday_operating_margin_data(
+                date,
+                region=region,
+                excel_file=url,
+                verbose=verbose,
+            )
+            if len(df) > 0:
+                dfs.append(df)
+
+        if not dfs:
+            raise NoDataFoundException(
+                f"No data found for any region on {date}",
+            )
+
+        return pd.concat(dfs, ignore_index=True)
+
+    def _get_multiday_operating_margin_data(
+        self,
+        date: str | pd.Timestamp,
+        region: str = "MISO",
+        excel_file: str = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Internal helper to get multiday operating margin data.
+
+        Args:
+            date: The date to retrieve data for.
+            region: Region sheet to read from the Excel file.
+            excel_file: Path or URL to the Excel file. If None, constructs URL from date.
+            verbose: Whether to log verbose output.
+
+        Returns:
+            DataFrame with operating margin forecast data.
+        """
+        # Suppress openpyxl warnings about styles
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                module=re.escape("openpyxl.styles.stylesheet"),
+            )
+            # Read the actual data
+            data = pd.read_excel(
+                excel_file,
+                sheet_name=region,
+                skiprows=3,
+            )
+
+        # Find the date row - it's the first row with date strings in columns
+        date_row_idx = None
+        for idx in range(min(3, len(data))):
+            row = data.iloc[idx]
+            # Check if any column value looks like a date (contains "/" and "HE")
+            has_dates = any(
+                pd.notna(val) and isinstance(val, str) and "/" in val and "HE" in val
+                for val in row
+            )
+            if has_dates:
+                date_row_idx = idx
+                break
+
+        if date_row_idx is None:
+            raise NoDataFoundException(
+                f"Could not find date row in multiday operating margin data for {region}",
+            )
+
+        # Extract date columns
+        date_row = data.iloc[date_row_idx]
+        date_columns = []
+        for col in data.columns:
+            val = date_row[col]
+            if pd.notna(val) and isinstance(val, str) and "/" in val and "HE" in val:
+                date_columns.append((col, val))
+
+        # Define the metrics to extract from the Excel file
+        metric_mapping = {
+            "RESOURCE COMMITTED": "Resource Committed",
+            "RESOURCE UNCOMMITTED": "Resource Uncommitted",
+            "Uncommitted >16 hr": "Uncommitted Greater than 16 Hours",
+            "Uncommitted 12-16 hr": "Uncommitted 12 to 16 Hours",
+            "Uncommitted 8-12 hr": "Uncommitted 8 to 12 Hours",
+            "Uncommitted 4-8 hr": "Uncommitted 4 to 8 Hours",
+            "Uncommitted < 4 hr": "Uncommitted Less than 4 Hours",
+            "Renewable Forecast": "Renewable Forecast",
+            "Wind Forecast": "Wind Forecast",
+            "Solar Forecast": "Solar Forecast",
+            "MISO resources available": "MISO Resources Available",
+            "NSI (+ export, - import)": "NSI",
+            "Total Resources Available": "Total Resources Available",
+            "Projected Load": "Projected Load",
+            "Operating Reserve Requirement": "Operating Reserve Requirement",
+            "Obligation": "Obligation",
+            "Resource Operating Margin *": "Resource Operating Margin",
+            "N+C Resources above load": "Region Resources Above Load",
+            "Max Possible RDT (S to N) *": "Max Possible RDT",
+            "South Resources above load": "Region Resources Above Load",
+            "Max possible RDT (N to S) *": "Max Possible RDT",
+        }
+
+        # Extract the rows we need
+        result_data = []
+        for col, date_str in date_columns:
+            # Parse the date string (format: "M/D/YY HE HH")
+            parts = date_str.replace("**", "").strip().split()
+            date_part = parts[0]  # M/D/YY
+            hour_part = int(parts[2]) if len(parts) >= 3 else 1  # HE HH
+
+            # Parse the date and create peak hour timestamp
+            peak_hour = pd.to_datetime(date_part, format="%m/%d/%y") + pd.Timedelta(
+                hours=hour_part,
+            )
+            peak_hour = peak_hour.tz_localize(self.default_timezone)
+
+            # Extract metrics for this date column
+            row_data = {
+                "Publish Date": date.tz_convert(self.default_timezone),
+                "Peak Hour": peak_hour,  # The forecast is for the peak hour
+                "Region": region,
+            }
+
+            # Find each metric in the data
+            for orig_name, new_name in metric_mapping.items():
+                # Find the row with this metric name
+                metric_row = data[data.iloc[:, 0].astype(str).str.strip() == orig_name]
+                if not metric_row.empty:
+                    value = metric_row[col].iloc[0]
+                    if pd.notna(value):
+                        # Handle values with commas (e.g., "2,500")
+                        if isinstance(value, str):
+                            value = value.replace(",", "")
+                        row_data[new_name] = float(value)
+                    else:
+                        row_data[new_name] = None
+
+            # Handle "Additional Emergency Headroom" which appears 3 times
+            # We identify them by finding all rows and using their position
+            emergency_headroom_rows = data[
+                data.iloc[:, 0].astype(str).str.strip()
+                == "Additional Emergency Headroom"
+            ]
+            if len(emergency_headroom_rows) >= 1:
+                # First one: after RESOURCE COMMITTED
+                val = emergency_headroom_rows.iloc[0][col]
+                row_data["Additional Emergency Headroom"] = (
+                    float(val) if pd.notna(val) else None
+                )
+            if len(emergency_headroom_rows) >= 2:
+                # Second one: after RESOURCE UNCOMMITTED
+                # Note: The spec lists this as "Additional Emergency Headroom" 3 times
+                # We'll just use the first one as per the spec
+                pass
+            if len(emergency_headroom_rows) >= 3:
+                # Third one: after EMERGENCY RESOURCES
+                pass
+
+            result_data.append(row_data)
+
+        result_df = pd.DataFrame(result_data)
+
+        # Filter by date range if specified
+        if len(result_df) > 0:
+            result_df = result_df[result_df["Peak Hour"] >= date]
+
+            # Convert all numeric columns to float (handles None -> NaN conversion)
+            numeric_cols = [
+                col
+                for col in result_df.columns
+                if col not in ["Publish Date", "Peak Hour", "Region"]
+            ]
+            for col in numeric_cols:
+                if col in result_df.columns:
+                    result_df[col] = pd.to_numeric(result_df[col], errors="coerce")
+
+            # Add calculated columns for regional (if not already present)
+            if region != "MISO":
+                # Region Resources Above Load = MISO Resources Available - Projected Load
+                # (only calculate if not already in the data, e.g., NORTH+CENTRAL has this)
+                if "Region Resources Above Load" not in result_df.columns:
+                    if (
+                        "MISO Resources Available" in result_df.columns
+                        and "Projected Load" in result_df.columns
+                    ):
+                        result_df["Region Resources Above Load"] = (
+                            result_df["MISO Resources Available"]
+                            - result_df["Projected Load"]
+                        )
+
+                # Max Possible RDT - only add if not already present
+                if "Max Possible RDT" not in result_df.columns:
+                    result_df["Max Possible RDT"] = pd.Series(
+                        dtype="float64",
+                        index=result_df.index,
+                    )
+
+            # Reorder columns
+            base_order = [
+                "Publish Date",
+                "Peak Hour",
+                "Region",
+                "Resource Committed",
+                "Additional Emergency Headroom",
+                "Resource Uncommitted",
+                "Uncommitted Greater than 16 Hours",
+                "Uncommitted 12 to 16 Hours",
+                "Uncommitted 8 to 12 Hours",
+                "Uncommitted 4 to 8 Hours",
+                "Uncommitted Less than 4 Hours",
+                "Renewable Forecast",
+                "Wind Forecast",
+                "Solar Forecast",
+                "MISO Resources Available",
+                "NSI",
+                "Total Resources Available",
+                "Projected Load",
+            ]
+
+            if region == "MISO":
+                desired_order = base_order + [
+                    "Operating Reserve Requirement",
+                    "Obligation",
+                    "Resource Operating Margin",
+                ]
+            else:
+                desired_order = base_order + [
+                    "Region Resources Above Load",
+                    "Max Possible RDT",
+                ]
+
+            # Only include columns that exist
+            result_df = result_df[
+                [col for col in desired_order if col in result_df.columns]
+            ]
+
+        return result_df.sort_values(["Peak Hour"]).reset_index(drop=True)
