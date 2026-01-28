@@ -1202,8 +1202,11 @@ class TestMISO(BaseTestISO):
         assert df["Wind Forecast"].dtype == np.float64
         assert df["Solar Forecast"].dtype == np.float64
         assert df["MISO Resources Available"].dtype == np.float64
+        assert df["NSI"].dtype == np.float64
+        assert df["Total Resources Available"].dtype == np.float64
         assert df["Projected Load"].dtype == np.float64
         assert df["Region Resources Above Load"].dtype == np.float64
+        assert df["Max Possible RDT"].dtype == np.float64
 
         # Check all 4 regions are present
         expected_regions = {"NORTH", "CENTRAL", "NORTH+CENTRAL", "SOUTH"}

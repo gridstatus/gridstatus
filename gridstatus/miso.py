@@ -1989,6 +1989,18 @@ class MISO(ISOBase):
 
             # Add calculated columns for regional (if not already present)
             if region != "MISO":
+                # NSI and Total Resources Available only exist in some regional sheets
+                if "NSI" not in result_df.columns:
+                    result_df["NSI"] = pd.Series(
+                        dtype="float64",
+                        index=result_df.index,
+                    )
+                if "Total Resources Available" not in result_df.columns:
+                    result_df["Total Resources Available"] = pd.Series(
+                        dtype="float64",
+                        index=result_df.index,
+                    )
+
                 # Region Resources Above Load = MISO Resources Available - Projected Load
                 # (only calculate if not already in the data, e.g., NORTH+CENTRAL has this)
                 if "Region Resources Above Load" not in result_df.columns:
@@ -2009,35 +2021,50 @@ class MISO(ISOBase):
                     )
 
             # Reorder columns
-            base_order = [
-                "Publish Date",
-                "Peak Hour",
-                "Region",
-                "Resource Committed",
-                "Additional Emergency Headroom",
-                "Resource Uncommitted",
-                "Uncommitted Greater than 16 Hours",
-                "Uncommitted 12 to 16 Hours",
-                "Uncommitted 8 to 12 Hours",
-                "Uncommitted 4 to 8 Hours",
-                "Uncommitted Less than 4 Hours",
-                "Renewable Forecast",
-                "Wind Forecast",
-                "Solar Forecast",
-                "MISO Resources Available",
-                "NSI",
-                "Total Resources Available",
-                "Projected Load",
-            ]
-
             if region == "MISO":
-                desired_order = base_order + [
+                desired_order = [
+                    "Publish Date",
+                    "Peak Hour",
+                    "Region",
+                    "Resource Committed",
+                    "Additional Emergency Headroom",
+                    "Resource Uncommitted",
+                    "Uncommitted Greater than 16 Hours",
+                    "Uncommitted 12 to 16 Hours",
+                    "Uncommitted 8 to 12 Hours",
+                    "Uncommitted 4 to 8 Hours",
+                    "Uncommitted Less than 4 Hours",
+                    "Renewable Forecast",
+                    "Wind Forecast",
+                    "Solar Forecast",
+                    "MISO Resources Available",
+                    "NSI",
+                    "Total Resources Available",
+                    "Projected Load",
                     "Operating Reserve Requirement",
                     "Obligation",
                     "Resource Operating Margin",
                 ]
             else:
-                desired_order = base_order + [
+                desired_order = [
+                    "Publish Date",
+                    "Peak Hour",
+                    "Region",
+                    "Resource Committed",
+                    "Additional Emergency Headroom",
+                    "Resource Uncommitted",
+                    "Uncommitted Greater than 16 Hours",
+                    "Uncommitted 12 to 16 Hours",
+                    "Uncommitted 8 to 12 Hours",
+                    "Uncommitted 4 to 8 Hours",
+                    "Uncommitted Less than 4 Hours",
+                    "Renewable Forecast",
+                    "Wind Forecast",
+                    "Solar Forecast",
+                    "MISO Resources Available",
+                    "NSI",
+                    "Total Resources Available",
+                    "Projected Load",
                     "Region Resources Above Load",
                     "Max Possible RDT",
                 ]
