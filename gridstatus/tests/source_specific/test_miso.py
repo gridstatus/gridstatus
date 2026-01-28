@@ -1119,12 +1119,17 @@ class TestMISO(BaseTestISO):
 
     """get_multiday_operating_margin"""
 
-    def test_get_multiday_operating_margin(self):
-        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=1)
-        with miso_vcr.use_cassette("test_get_multiday_operating_margin.yaml"):
+    @pytest.mark.parametrize(
+        "days_ago",
+        [730, 2],  # ~2 years ago and ~2 days ago
+    )
+    def test_get_multiday_operating_margin(self, days_ago):
+        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=days_ago)
+        cassette_name = f"test_get_multiday_operating_margin_{days_ago}d.yaml"
+
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_multiday_operating_margin(date=date)
 
-        assert isinstance(df, pd.DataFrame)
         assert len(df) > 0
 
         # Check data types
@@ -1153,17 +1158,32 @@ class TestMISO(BaseTestISO):
         # Check region values
         assert (df["Region"] == "MISO").all()
 
+        # Check Publish Date matches input date
+        assert (df["Publish Date"] == date).all()
+
+        # Check Peak Hour is on or after the publish date
+        assert (df["Peak Hour"] >= date).all()
+
         # Check data is sorted
         assert df["Peak Hour"].is_monotonic_increasing
 
+        # Check reasonable value ranges
+        assert (df["Projected Load"] > 0).all()
+        assert (df["MISO Resources Available"] > 0).all()
+
     """get_multiday_operating_margin_regional"""
 
-    def test_get_multiday_operating_margin_regional(self):
-        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=1)
-        with miso_vcr.use_cassette("test_get_multiday_operating_margin_regional.yaml"):
+    @pytest.mark.parametrize(
+        "days_ago",
+        [730, 2],  # ~2 years ago and ~2 days ago
+    )
+    def test_get_multiday_operating_margin_regional(self, days_ago):
+        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=days_ago)
+        cassette_name = f"test_get_multiday_operating_margin_regional_{days_ago}d.yaml"
+
+        with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_multiday_operating_margin_regional(date=date)
 
-        assert isinstance(df, pd.DataFrame)
         assert len(df) > 0
 
         # Check data types
@@ -1188,3 +1208,18 @@ class TestMISO(BaseTestISO):
         # Check all 4 regions are present
         expected_regions = {"NORTH", "CENTRAL", "NORTH+CENTRAL", "SOUTH"}
         assert set(df["Region"].unique()) == expected_regions
+
+        # Check Publish Date matches input date
+        assert (df["Publish Date"] == date).all()
+
+        # Check Peak Hour is on or after the publish date
+        assert (df["Peak Hour"] >= date).all()
+
+        # Check each region has data
+        for region in expected_regions:
+            region_df = df[df["Region"] == region]
+            assert len(region_df) > 0
+
+        # Check reasonable value ranges
+        assert (df["Projected Load"] > 0).all()
+        assert (df["MISO Resources Available"] > 0).all()
