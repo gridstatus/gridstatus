@@ -46,6 +46,11 @@ class APITypeEnum(StrEnum):
 # How long a token lasts for before needing to be refreshed
 TOKEN_EXPIRATION_SECONDS = 3600
 
+# Timeout for API requests in seconds (connect, read)
+CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 15
+REQUEST_TIMEOUT = (CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)
+
 # Number of historical links to fetch at once. The max is 1_000
 DEFAULT_HISTORICAL_SIZE = 1_000
 
@@ -253,7 +258,11 @@ class ErcotAPI:
             "client_id": self.client_id,
         }
 
-        response = requests.post(self.token_url, data=payload)
+        response = requests.post(
+            self.token_url,
+            data=payload,
+            timeout=REQUEST_TIMEOUT,
+        )
         response_data = response.json()
 
         if "id_token" in response_data:
@@ -293,53 +302,55 @@ class ErcotAPI:
         )
 
         # make request with exponential backoff retry strategy
+        # Retries on rate limiting (HTTP 429) and read timeouts.
+        # Connect timeouts raise immediately.
         retries = 0
         delay = self.initial_delay
+        reason = ""
         while retries <= self.max_retries:
-            if method == "POST":
-                response = requests.post(
-                    url,
-                    headers=self.headers(api=api),
-                    json=api_params,
-                )
-            else:
-                response = requests.get(
-                    url,
-                    headers=self.headers(api=api),
-                    params=api_params,
-                )
-
-            retries += 1
-            if response.status_code == status_codes.codes.OK:
-                break
-            elif (
-                response.status_code == status_codes.codes.TOO_MANY_REQUESTS
-                and retries <= self.max_retries
-            ):
-                logger.warning(
-                    f"Warn: Rate-limited: waiting {delay} seconds before retry {retries}/{self.max_retries} "  # noqa
-                    f"requesting url: {url} with params: {api_params}",
-                )
-                time.sleep(delay + random.uniform(0, delay * 0.1))
-                delay *= 2
-            else:
-                if retries > self.max_retries:
-                    error_message = (
-                        f"Error: Rate-limited still after {self.max_retries} retries. "
-                        f"Failed to get data from {url} with params: {api_params}"
+            try:
+                if method == "POST":
+                    response = requests.post(
+                        url,
+                        headers=self.headers(api=api),
+                        json=api_params,
+                        timeout=REQUEST_TIMEOUT,
                     )
                 else:
-                    error_message = (
-                        f"Error: Failed to get data from {url} with params:"
-                        f" {api_params}"
+                    response = requests.get(
+                        url,
+                        headers=self.headers(api=api),
+                        params=api_params,
+                        timeout=REQUEST_TIMEOUT,
                     )
-                logger.error(error_message)
-                response.raise_for_status()
 
-        if parse_json:
-            return response.json()
-        else:
-            return response.content
+                if response.status_code == status_codes.codes.OK:
+                    if parse_json:
+                        return response.json()
+                    else:
+                        return response.content
+                elif response.status_code == status_codes.codes.TOO_MANY_REQUESTS:
+                    reason = "Rate-limited"
+                else:
+                    response.raise_for_status()
+
+            except requests.exceptions.ReadTimeout:
+                reason = "Read timeout"
+
+            retries += 1
+            if retries > self.max_retries:
+                raise RuntimeError(
+                    f"Error: Failed after {self.max_retries} retries for"
+                    f" {url} with params {api_params}",
+                )
+
+            logger.warning(
+                f"Warn: {reason}: waiting {delay} seconds before retry"
+                f" {retries}/{self.max_retries}"
+                f" requesting url: {url} with params: {api_params}",
+            )
+            time.sleep(delay + random.uniform(0, delay * 0.1))
+            delay *= 2
 
     def get_public_reports(self):
         # General information about the public reports
