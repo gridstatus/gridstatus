@@ -1776,10 +1776,25 @@ class MISO(ISOBase):
 
         logger.info(f"Downloading multiday operating margin data from {url}")
 
+        response = requests.get(url)
+        response.raise_for_status()
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                module=re.escape("openpyxl.styles.stylesheet"),
+            )
+            sheet_data = pd.read_excel(
+                io.BytesIO(response.content),
+                sheet_name="MISO",
+                skiprows=3,
+            )
+
         return self._get_multiday_operating_margin_data(
             date,
             region="MISO",
-            excel_file=url,
+            sheet_data=sheet_data,
             verbose=verbose,
         )
 
@@ -1810,6 +1825,22 @@ class MISO(ISOBase):
 
         logger.info(f"Downloading multiday operating margin data from {url}")
 
+        # Download and parse file once, reading all sheets
+        response = requests.get(url)
+        response.raise_for_status()
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                module=re.escape("openpyxl.styles.stylesheet"),
+            )
+            all_sheets = pd.read_excel(
+                io.BytesIO(response.content),
+                sheet_name=None,
+                skiprows=3,
+            )
+
         regions = ["NORTH", "CENTRAL", "NORTH+CENTRAL", "SOUTH"]
         dfs = []
 
@@ -1817,7 +1848,7 @@ class MISO(ISOBase):
             df = self._get_multiday_operating_margin_data(
                 date,
                 region=region,
-                excel_file=url,
+                sheet_data=all_sheets[region],
                 verbose=verbose,
             )
             if len(df) > 0:
@@ -1834,33 +1865,21 @@ class MISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         region: str = "MISO",
-        excel_file: str = None,
+        sheet_data: pd.DataFrame = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Internal helper to get multiday operating margin data.
+        """Internal helper to process multiday operating margin sheet data.
 
         Args:
             date: The date to retrieve data for.
-            region: Region sheet to read from the Excel file.
-            excel_file: Path or URL to the Excel file. If None, constructs URL from date.
+            region: Region name for labeling.
+            sheet_data: DataFrame containing the sheet data (already loaded).
             verbose: Whether to log verbose output.
 
         Returns:
             DataFrame with operating margin forecast data.
         """
-        # Suppress openpyxl warnings about styles
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                module=re.escape("openpyxl.styles.stylesheet"),
-            )
-            # Read the actual data
-            data = pd.read_excel(
-                excel_file,
-                sheet_name=region,
-                skiprows=3,
-            )
+        data = sheet_data
 
         # Find the date row - it's the first row with date strings in columns
         date_row_idx = None
@@ -1960,14 +1979,6 @@ class MISO(ISOBase):
                 row_data["Additional Emergency Headroom"] = (
                     float(val) if pd.notna(val) else None
                 )
-            if len(emergency_headroom_rows) >= 2:
-                # Second one: after RESOURCE UNCOMMITTED
-                # Note: The spec lists this as "Additional Emergency Headroom" 3 times
-                # We'll just use the first one as per the spec
-                pass
-            if len(emergency_headroom_rows) >= 3:
-                # Third one: after EMERGENCY RESOURCES
-                pass
 
             result_data.append(row_data)
 
