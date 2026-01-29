@@ -1116,3 +1116,117 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             with pytest.raises(NotSupported):
                 self.iso.get_interchange_5_min(date)
+
+    """get_multiday_operating_margin"""
+
+    @pytest.mark.parametrize(
+        "days_ago",
+        [730, 2],  # ~2 years ago and ~2 days ago
+    )
+    def test_get_multiday_operating_margin(self, days_ago):
+        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=days_ago)
+        cassette_name = f"test_get_multiday_operating_margin_{days_ago}d.yaml"
+
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_multiday_operating_margin(date=date)
+
+        assert len(df) > 0
+
+        # Check data types
+        assert df["Publish Date"].dtype == object
+        assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
+        assert df["Region"].dtype == object
+        assert df["Resource Committed"].dtype == np.float64
+        assert df["Committed Additional Emergency Headroom"].dtype == np.float64
+        assert df["Resource Uncommitted"].dtype == np.float64
+        assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
+        assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
+        assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
+        assert df["Uncommitted Additional Emergency Headroom"].dtype == np.float64
+        assert df["Emergency Resources Additional Headroom"].dtype == np.float64
+        assert df["Renewable Forecast"].dtype == np.float64
+        assert df["Wind Forecast"].dtype == np.float64
+        assert df["Solar Forecast"].dtype == np.float64
+        assert df["MISO Resources Available"].dtype == np.float64
+        assert df["NSI"].dtype == np.float64
+        assert df["Total Resources Available"].dtype == np.float64
+        assert df["Projected Load"].dtype == np.float64
+        assert df["Operating Reserve Requirement"].dtype == np.float64
+        assert df["Obligation"].dtype == np.float64
+        assert df["Resource Operating Margin"].dtype == np.float64
+
+        # Check region values
+        assert (df["Region"] == "MISO").all()  # MISO stays uppercase
+
+        # Check Publish Date matches input date
+        assert (df["Publish Date"] == date.date()).all()
+
+        # Check Peak Hour is on or after the publish date
+        assert (df["Peak Hour"] >= date).all()
+
+        # Check data is sorted
+        assert df["Peak Hour"].is_monotonic_increasing
+
+        # Check reasonable value ranges
+        assert (df["Projected Load"] > 0).all()
+        assert (df["MISO Resources Available"] > 0).all()
+
+    """get_multiday_operating_margin_regional"""
+
+    @pytest.mark.parametrize(
+        "days_ago",
+        [730, 2],  # ~2 years ago and ~2 days ago
+    )
+    def test_get_multiday_operating_margin_regional(self, days_ago):
+        date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=days_ago)
+        cassette_name = f"test_get_multiday_operating_margin_regional_{days_ago}d.yaml"
+
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_multiday_operating_margin_regional(date=date)
+
+        assert len(df) > 0
+
+        # Check data types
+        assert df["Publish Date"].dtype == object
+        assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
+        assert df["Region"].dtype == object
+        assert df["Resource Committed"].dtype == np.float64
+        assert df["Committed Additional Emergency Headroom"].dtype == np.float64
+        assert df["Resource Uncommitted"].dtype == np.float64
+        assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
+        assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
+        assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
+        assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
+        assert df["Uncommitted Additional Emergency Headroom"].dtype == np.float64
+        assert df["Emergency Resources Additional Headroom"].dtype == np.float64
+        assert df["Renewable Forecast"].dtype == np.float64
+        assert df["Wind Forecast"].dtype == np.float64
+        assert df["Solar Forecast"].dtype == np.float64
+        assert df["MISO Resources Available"].dtype == np.float64
+        assert df["NSI"].dtype == np.float64
+        assert df["Total Resources Available"].dtype == np.float64
+        assert df["Projected Load"].dtype == np.float64
+        assert df["Region Resources Above Load"].dtype == np.float64
+        assert df["Max Possible RDT"].dtype == np.float64
+
+        # Check all 4 regions are present
+        expected_regions = {"North", "Central", "North and Central", "South"}
+        assert set(df["Region"].unique()) == expected_regions
+
+        # Check Publish Date matches input date
+        assert (df["Publish Date"] == date.date()).all()
+
+        # Check Peak Hour is on or after the publish date
+        assert (df["Peak Hour"] >= date).all()
+
+        # Check each region has data
+        for region in expected_regions:
+            region_df = df[df["Region"] == region]
+            assert len(region_df) > 0
+
+        # Check reasonable value ranges
+        assert (df["Projected Load"] > 0).all()
+        assert (df["MISO Resources Available"] > 0).all()
