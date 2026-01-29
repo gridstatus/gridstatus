@@ -1881,6 +1881,16 @@ class MISO(ISOBase):
         """
         data = sheet_data
 
+        # Map sheet names to display names
+        region_display_names = {
+            "MISO": "MISO",
+            "NORTH": "North",
+            "CENTRAL": "Central",
+            "NORTH+CENTRAL": "North and Central",
+            "SOUTH": "South",
+        }
+        region_display = region_display_names.get(region, region)
+
         # Find the date row - it's the first row with date strings in columns.
         # The date row position varies by sheet (MISO has an extra blank row),
         # but it's always within the first 3 rows after skiprows=3.
@@ -1952,8 +1962,8 @@ class MISO(ISOBase):
             # Extract metrics for this date column
             row_data = {
                 "Publish Date": date.date(),
-                "Peak Hour": peak_hour,  # The forecast is for the peak hour
-                "Region": region,
+                "Peak Hour": peak_hour,
+                "Region": region_display,
             }
 
             # Find each metric in the data

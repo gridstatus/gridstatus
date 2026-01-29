@@ -1156,7 +1156,7 @@ class TestMISO(BaseTestISO):
         assert df["Resource Operating Margin"].dtype == np.float64
 
         # Check region values
-        assert (df["Region"] == "MISO").all()
+        assert (df["Region"] == "MISO").all()  # MISO stays uppercase
 
         # Check Publish Date matches input date
         assert (df["Publish Date"] == date.date()).all()
@@ -1209,7 +1209,7 @@ class TestMISO(BaseTestISO):
         assert df["Max Possible RDT"].dtype == np.float64
 
         # Check all 4 regions are present
-        expected_regions = {"NORTH", "CENTRAL", "NORTH+CENTRAL", "SOUTH"}
+        expected_regions = {"North", "Central", "North and Central", "South"}
         assert set(df["Region"].unique()) == expected_regions
 
         # Check Publish Date matches input date
