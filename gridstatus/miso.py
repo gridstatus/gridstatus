@@ -1881,9 +1881,12 @@ class MISO(ISOBase):
         """
         data = sheet_data
 
-        # Find the date row - it's the first row with date strings in columns
+        # Find the date row - it's the first row with date strings in columns.
+        # The date row position varies by sheet (MISO has an extra blank row),
+        # but it's always within the first 3 rows after skiprows=3.
         date_row_idx = None
-        for idx in range(min(3, len(data))):
+        max_rows_to_search = 3
+        for idx in range(min(max_rows_to_search, len(data))):
             row = data.iloc[idx]
             # Check if any column value looks like a date (contains "/" and "HE")
             has_dates = any(
