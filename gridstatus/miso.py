@@ -1980,16 +1980,27 @@ class MISO(ISOBase):
                     else:
                         row_data[new_name] = None
 
-            # Handle "Additional Emergency Headroom" which appears 3 times
-            # We identify them by finding all rows and using their position
+            # Handle "Additional Emergency Headroom" which appears 3 times:
+            # 1. After RESOURCE COMMITTED -> "Committed Additional Emergency Headroom"
+            # 2. After RESOURCE UNCOMMITTED -> "Uncommitted Additional Emergency Headroom"
+            # 3. After EMERGENCY RESOURCES -> "Emergency Resources Additional Headroom"
             emergency_headroom_rows = data[
                 data.iloc[:, 0].astype(str).str.strip()
                 == "Additional Emergency Headroom"
             ]
             if len(emergency_headroom_rows) >= 1:
-                # First one: after RESOURCE COMMITTED
                 val = emergency_headroom_rows.iloc[0][col]
-                row_data["Additional Emergency Headroom"] = (
+                row_data["Committed Additional Emergency Headroom"] = (
+                    float(val) if pd.notna(val) else None
+                )
+            if len(emergency_headroom_rows) >= 2:
+                val = emergency_headroom_rows.iloc[1][col]
+                row_data["Uncommitted Additional Emergency Headroom"] = (
+                    float(val) if pd.notna(val) else None
+                )
+            if len(emergency_headroom_rows) >= 3:
+                val = emergency_headroom_rows.iloc[2][col]
+                row_data["Emergency Resources Additional Headroom"] = (
                     float(val) if pd.notna(val) else None
                 )
 
@@ -2051,13 +2062,15 @@ class MISO(ISOBase):
                     "Peak Hour",
                     "Region",
                     "Resource Committed",
-                    "Additional Emergency Headroom",
+                    "Committed Additional Emergency Headroom",
                     "Resource Uncommitted",
                     "Uncommitted Greater than 16 Hours",
                     "Uncommitted 12 to 16 Hours",
                     "Uncommitted 8 to 12 Hours",
                     "Uncommitted 4 to 8 Hours",
                     "Uncommitted Less than 4 Hours",
+                    "Uncommitted Additional Emergency Headroom",
+                    "Emergency Resources Additional Headroom",
                     "Renewable Forecast",
                     "Wind Forecast",
                     "Solar Forecast",
@@ -2075,13 +2088,15 @@ class MISO(ISOBase):
                     "Peak Hour",
                     "Region",
                     "Resource Committed",
-                    "Additional Emergency Headroom",
+                    "Committed Additional Emergency Headroom",
                     "Resource Uncommitted",
                     "Uncommitted Greater than 16 Hours",
                     "Uncommitted 12 to 16 Hours",
                     "Uncommitted 8 to 12 Hours",
                     "Uncommitted 4 to 8 Hours",
                     "Uncommitted Less than 4 Hours",
+                    "Uncommitted Additional Emergency Headroom",
+                    "Emergency Resources Additional Headroom",
                     "Renewable Forecast",
                     "Wind Forecast",
                     "Solar Forecast",

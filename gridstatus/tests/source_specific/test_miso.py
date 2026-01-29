@@ -1137,13 +1137,15 @@ class TestMISO(BaseTestISO):
         assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
         assert df["Region"].dtype == object
         assert df["Resource Committed"].dtype == np.float64
-        assert df["Additional Emergency Headroom"].dtype == np.float64
+        assert df["Committed Additional Emergency Headroom"].dtype == np.float64
         assert df["Resource Uncommitted"].dtype == np.float64
         assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
         assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
         assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
         assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
         assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
+        assert df["Uncommitted Additional Emergency Headroom"].dtype == np.float64
+        assert df["Emergency Resources Additional Headroom"].dtype == np.float64
         assert df["Renewable Forecast"].dtype == np.float64
         assert df["Wind Forecast"].dtype == np.float64
         assert df["Solar Forecast"].dtype == np.float64
@@ -1191,13 +1193,15 @@ class TestMISO(BaseTestISO):
         assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
         assert df["Region"].dtype == object
         assert df["Resource Committed"].dtype == np.float64
-        assert df["Additional Emergency Headroom"].dtype == np.float64
+        assert df["Committed Additional Emergency Headroom"].dtype == np.float64
         assert df["Resource Uncommitted"].dtype == np.float64
         assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
         assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
         assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
         assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
         assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
+        assert df["Uncommitted Additional Emergency Headroom"].dtype == np.float64
+        assert df["Emergency Resources Additional Headroom"].dtype == np.float64
         assert df["Renewable Forecast"].dtype == np.float64
         assert df["Wind Forecast"].dtype == np.float64
         assert df["Solar Forecast"].dtype == np.float64
