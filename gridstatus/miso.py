@@ -1948,7 +1948,7 @@ class MISO(ISOBase):
 
             # Extract metrics for this date column
             row_data = {
-                "Publish Date": date.tz_convert(self.default_timezone),
+                "Publish Date": date.date(),
                 "Peak Hour": peak_hour,  # The forecast is for the peak hour
                 "Region": region,
             }

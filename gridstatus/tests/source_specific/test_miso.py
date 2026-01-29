@@ -1133,7 +1133,7 @@ class TestMISO(BaseTestISO):
         assert len(df) > 0
 
         # Check data types
-        assert df["Publish Date"].dtype == "datetime64[ns, EST]"
+        assert df["Publish Date"].dtype == object
         assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
         assert df["Region"].dtype == object
         assert df["Resource Committed"].dtype == np.float64
@@ -1159,7 +1159,7 @@ class TestMISO(BaseTestISO):
         assert (df["Region"] == "MISO").all()
 
         # Check Publish Date matches input date
-        assert (df["Publish Date"] == date).all()
+        assert (df["Publish Date"] == date.date()).all()
 
         # Check Peak Hour is on or after the publish date
         assert (df["Peak Hour"] >= date).all()
@@ -1187,7 +1187,7 @@ class TestMISO(BaseTestISO):
         assert len(df) > 0
 
         # Check data types
-        assert df["Publish Date"].dtype == "datetime64[ns, EST]"
+        assert df["Publish Date"].dtype == object
         assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
         assert df["Region"].dtype == object
         assert df["Resource Committed"].dtype == np.float64
@@ -1213,7 +1213,7 @@ class TestMISO(BaseTestISO):
         assert set(df["Region"].unique()) == expected_regions
 
         # Check Publish Date matches input date
-        assert (df["Publish Date"] == date).all()
+        assert (df["Publish Date"] == date.date()).all()
 
         # Check Peak Hour is on or after the publish date
         assert (df["Peak Hour"] >= date).all()
