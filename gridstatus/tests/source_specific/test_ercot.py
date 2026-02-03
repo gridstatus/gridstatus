@@ -824,7 +824,7 @@ class TestErcot(BaseTestISO):
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
         smne = df_dict[SCED_SMNE_KEY]
 
-        self._check_60_day_sced_disclosure(df_dict)
+        check_60_day_sced_disclosure(df_dict)
 
         assert load_resource["SCED Timestamp"].dt.date.unique().tolist() == [
             days_ago_66,

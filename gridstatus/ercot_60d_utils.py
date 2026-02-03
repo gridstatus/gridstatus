@@ -210,6 +210,19 @@ SCED_GEN_RESOURCE_COLUMNS = [
     "Start Up Inter Offer",
     "Min Gen Cost",
     "SCED TPO Offer Curve",
+    "Ramp Rate Up",
+    "Ramp Rate Down",
+    "AS Capability RegUp",
+    "AS Capability RegDown",
+    "AS Capability ECRS",
+    "AS Capability NonSpin",
+    "AS Awards NonSpin",
+    "AS Awards RRSFFR",
+    "AS Awards RRSPFR",
+    "AS Awards RRSUFR",
+    "AS Awards ECRS",
+    "AS Awards RegUp",
+    "AS Awards RegDown",
 ]
 
 SCED_LOAD_RESOURCE_COLUMNS = [
@@ -235,6 +248,22 @@ SCED_LOAD_RESOURCE_COLUMNS = [
     "AS Responsibility for RegDown",
     "AS Responsibility for ECRS",
     "SCED Bid to Buy Curve",
+    "Ramp Rate Up",
+    "Ramp Rate Down",
+    "AS Capability RegUp",
+    "AS Capability RegDown",
+    "AS Capability ECRS",
+    "AS Capability NonSpin",
+    "AS Awards NonSpin",
+    "AS Awards RRSFFR",
+    "AS Awards RRSPFR",
+    "AS Awards RRSUFR",
+    "AS Awards ECRS",
+    "AS Awards RegUp",
+    "AS Awards RegDown",
+    "Self Provided RRSFFR",
+    "Self Provided RRSUFR",
+    "Self Provided ECRS",
 ]
 
 SCED_SMNE_COLUMNS = [
@@ -767,6 +796,8 @@ def process_sced_gen(df):
         "LDL",
         "Base Point",
         "Telemetered Net Output ",
+        "Ramp Rate Up",
+        "Ramp Rate Down",
     ]
 
     as_cols = [
@@ -776,6 +807,17 @@ def process_sced_gen(df):
         "Ancillary Service RRSFFR",
         "Ancillary Service NSRS",
         "Ancillary Service ECRS",
+        "AS Capability REGUP",
+        "AS Capability REGDN",
+        "AS Capability ECRS",
+        "AS Capability NSPIN",
+        "AS Awards NSPIN",
+        "AS Awards RRSFFR",
+        "AS Awards RRSPFR",
+        "AS Awards RRSUFR",
+        "AS Awards ECRS",
+        "AS Awards REGUP",
+        "AS Awards REGDN",
     ]
 
     tpo_cols = [
@@ -819,10 +861,17 @@ def process_sced_gen(df):
             "Ancillary Service ECRS": "AS Responsibility for ECRS",
             # remove space
             "Telemetered Net Output ": "Telemetered Net Output",
+            # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
+            "AS Capability REGUP": "AS Capability RegUp",
+            "AS Capability REGDN": "AS Capability RegDown",
+            "AS Capability NSPIN": "AS Capability NonSpin",
+            "AS Awards REGUP": "AS Awards RegUp",
+            "AS Awards REGDN": "AS Awards RegDown",
+            "AS Awards NSPIN": "AS Awards NonSpin",
         },
     )
 
-    return df
+    return df[SCED_GEN_RESOURCE_COLUMNS]
 
 
 def process_sced_load(df):
@@ -844,6 +893,11 @@ def process_sced_load(df):
         "LASL",
         "LDL",
         "Base Point",
+        "Self Provided RRSFFR",
+        "Self Provided RRSUFR",
+        "Self Provided ECRS",
+        "Ramp Rate Up",
+        "Ramp Rate Down",
     ]
 
     as_cols = [
@@ -853,6 +907,17 @@ def process_sced_load(df):
         "AS Responsibility for RegUp",
         "AS Responsibility for RegDown",
         "AS Responsibility for ECRS",
+        "AS Awards NSPIN",
+        "AS Awards RRSFFR",
+        "AS Awards RRSPFR",
+        "AS Awards RRSUFR",
+        "AS Awards ECRS",
+        "AS Awards REGUP",
+        "AS Awards REGDN",
+        "AS Capability NSPIN",
+        "AS Capability ECRS",
+        "AS Capability REGUP",
+        "AS Capability REGDN",
     ]
 
     bid_curve_col = "SCED Bid to Buy Curve"
@@ -866,7 +931,19 @@ def process_sced_load(df):
 
     df = df[time_cols + all_cols]
 
-    return df
+    df = df.rename(
+        columns={
+            # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
+            "AS Capability REGUP": "AS Capability RegUp",
+            "AS Capability REGDN": "AS Capability RegDown",
+            "AS Capability NSPIN": "AS Capability NonSpin",
+            "AS Awards REGUP": "AS Awards RegUp",
+            "AS Awards REGDN": "AS Awards RegDown",
+            "AS Awards NSPIN": "AS Awards NonSpin",
+        },
+    )
+
+    return df[SCED_LOAD_RESOURCE_COLUMNS]
 
 
 # # backup for more node names
