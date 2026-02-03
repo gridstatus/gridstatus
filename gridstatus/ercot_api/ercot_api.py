@@ -1586,6 +1586,7 @@ class ErcotAPI:
                 - "sced_gen_resource"
                 - "sced_load_resource"
                 - "sced_smne"
+                - "sced_esr" (when available)
 
         NOTE: because data is delayed by 60 days, requesting data in the past 60 days
         will return no data.
