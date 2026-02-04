@@ -36,6 +36,7 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_KEY,
+    SCED_ESR_KEY,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_KEY,
     SCED_SMNE_KEY,
@@ -50,6 +51,7 @@ from gridstatus.ercot_60d_utils import (
     process_dam_ptp_obligation_bids,
     process_dam_ptp_obligation_option,
     process_dam_ptp_obligation_option_awards,
+    process_sced_esr,
     process_sced_gen,
     process_sced_load,
 )
@@ -2059,8 +2061,9 @@ class Ercot(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            dict: dictionary with keys "sced_load_resource", "sced_gen_resource", and
-                "sced_smne", mapping to pandas.DataFrame objects
+            dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
+                "sced_smne", and (when available) "sced_esr", mapping to
+                pandas.DataFrame objects
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -2068,7 +2071,7 @@ class Ercot(ISOBase):
         doc_info = self._get_document(
             report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
             date=report_date,
-            constructed_name_contains="60_Day_SCED_Disclosure.zip",
+            constructed_name_contains="60_Day_SCED_Disclosure",
             verbose=verbose,
         )
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
@@ -2087,10 +2090,13 @@ class Ercot(ISOBase):
         load_resource_file = None
         gen_resource_file = None
         smne_file = None
+        esr_file = None
         for file in z.namelist():
             cleaned_file = file.replace(" ", "_")
             if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
                 load_resource_file = file
+            elif "60d_ESR_Data_in_SCED" in cleaned_file:
+                esr_file = file
             elif "60d_SCED_Gen_Resource_Data" in cleaned_file:
                 gen_resource_file = file
             elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
@@ -2103,6 +2109,7 @@ class Ercot(ISOBase):
         load_resource = pd.read_csv(z.open(load_resource_file))
         gen_resource = pd.read_csv(z.open(gen_resource_file))
         smne = pd.read_csv(z.open(smne_file))
+        esr = pd.read_csv(z.open(esr_file)) if esr_file else None
 
         def handle_time(
             df: pd.DataFrame,
@@ -2177,6 +2184,12 @@ class Ercot(ISOBase):
         # likely will error on DST change
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
 
+        if esr is not None:
+            esr = esr.rename(
+                columns={"SCED Time Stamp": "SCED Timestamp"},
+            )
+            esr = handle_time(esr, time_col="SCED Timestamp")
+
         if process:
             logger.info("Processing 60 day SCED disclosure data")
             load_resource = process_sced_load(load_resource)
@@ -2186,12 +2199,19 @@ class Ercot(ISOBase):
                     "Resource Code": "Resource Name",
                 },
             )
+            if esr is not None:
+                esr = process_sced_esr(esr)
 
-        return {
+        result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
             SCED_GEN_RESOURCE_KEY: gen_resource,
             SCED_SMNE_KEY: smne,
         }
+
+        if esr is not None:
+            result[SCED_ESR_KEY] = esr
+
+        return result
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(

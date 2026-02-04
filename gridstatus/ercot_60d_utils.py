@@ -20,6 +20,7 @@ DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY = "dam_ptp_obligation_option_awards"
 
 SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
+SCED_ESR_KEY = "sced_esr"
 SCED_SMNE_KEY = "sced_smne"
 
 
@@ -273,6 +274,46 @@ SCED_SMNE_COLUMNS = [
     "Interval Number",
     "Resource Name",
     "Interval Value",
+]
+
+SCED_ESR_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "SCED Timestamp",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Resource Type",
+    "SCED1 Offer Curve",
+    "SCED2 Offer Curve",
+    "Output Schedule",
+    "HSL",
+    "HDL",
+    "LSL",
+    "LDL",
+    "Telemetered Resource Status",
+    "Base Point",
+    "Telemetered Net Output",
+    "Ramp Rate Up",
+    "Ramp Rate Down",
+    "AS Capability RegUp",
+    "AS Capability RegDown",
+    "AS Capability ECRS",
+    "AS Capability NonSpin",
+    "AS Awards NonSpin",
+    "AS Awards RRSFFR",
+    "AS Awards RRSPFR",
+    "AS Awards RRSUFR",
+    "AS Awards ECRS",
+    "AS Awards RegUp",
+    "AS Awards RegDown",
+    "Bid Type",
+    "Start Up Cold Offer",
+    "Start Up Hot Offer",
+    "Start Up Inter Offer",
+    "Min Gen Cost",
+    "SCED TPO Offer Curve",
+    "Proxy Extension",
 ]
 
 
@@ -944,6 +985,94 @@ def process_sced_load(df):
     )
 
     return df[SCED_LOAD_RESOURCE_COLUMNS]
+
+
+def process_sced_esr(df):
+    time_cols = [
+        "Interval Start",
+        "Interval End",
+        "SCED Timestamp",
+    ]
+
+    resource_cols = ["QSE", "DME", "Resource Name", "Resource Type"]
+
+    telemetry_cols = [
+        "Output Schedule",
+        "HSL",
+        "HDL",
+        "LSL",
+        "LDL",
+        "Telemetered Resource Status",
+        "Base Point",
+        "Telemetered Net Output",
+        "Ramp Rate Up",
+        "Ramp Rate Down",
+    ]
+
+    as_cols = [
+        "AS Capability REGUP",
+        "AS Capability REGDN",
+        "AS Capability ECRS",
+        "AS Capability NSPIN",
+        "AS Awards NSPIN",
+        "AS Awards RRSFFR",
+        "AS Awards RRSPFR",
+        "AS Awards RRSUFR",
+        "AS Awards ECRS",
+        "AS Awards REGUP",
+        "AS Awards REGDN",
+    ]
+
+    tpo_cols = [
+        "Start Up Cold Offer",
+        "Start Up Hot Offer",
+        "Start Up Inter Offer",
+        "Min Gen Cost",
+        "SCED TPO Offer Curve",
+    ]
+
+    other_cols = [
+        "Bid_Type",
+        "Proxy Extension",
+    ]
+
+    sced1_offer_col = "SCED1 Offer Curve"
+    sced2_offer_col = "SCED2 Offer Curve"
+
+    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve")
+    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve")
+    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO")
+
+    all_cols = (
+        resource_cols
+        + [sced1_offer_col, sced2_offer_col]
+        + telemetry_cols
+        + as_cols
+        + other_cols
+        + tpo_cols
+    )
+
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
+
+    df = df.rename(
+        columns={
+            # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
+            "AS Capability REGUP": "AS Capability RegUp",
+            "AS Capability REGDN": "AS Capability RegDown",
+            "AS Capability NSPIN": "AS Capability NonSpin",
+            "AS Awards REGUP": "AS Awards RegUp",
+            "AS Awards REGDN": "AS Awards RegDown",
+            "AS Awards NSPIN": "AS Awards NonSpin",
+            # Rename Bid_Type -> Bid Type
+            "Bid_Type": "Bid Type",
+        },
+    )
+
+    return df[SCED_ESR_COLUMNS]
 
 
 # # backup for more node names
