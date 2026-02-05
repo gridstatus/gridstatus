@@ -796,7 +796,13 @@ class TestErcot(BaseTestISO):
         assert gen_resource["SCED Timestamp"].dt.date.unique()[0] == days_ago_65
         assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
 
-        check_60_day_sced_disclosure(df_dict)
+        expected_interval = (
+            5 if pd.Timestamp(days_ago_65) >= pd.Timestamp("2025-12-05") else 15
+        )
+        check_60_day_sced_disclosure(
+            df_dict,
+            expected_sced_interval_minutes=expected_interval,
+        )
 
     def test_get_60_day_sced_disclosure_range(self):
         days_ago_65 = pd.Timestamp.now(
@@ -883,8 +889,15 @@ class TestErcot(BaseTestISO):
         assert esr["SCED2 Offer Curve"].apply(lambda x: isinstance(x, list)).any()
         assert esr["SCED TPO Offer Curve"].apply(lambda x: isinstance(x, list)).any()
 
+        # ESR data starts 2025-12-05 which uses 5-minute SCED intervals
+        esr_intervals = esr["Interval End"] - esr["Interval Start"]
+        assert (esr_intervals == pd.Timedelta(minutes=5)).all()
+
         # Also check the other datasets are still present
-        check_60_day_sced_disclosure(df_dict)
+        check_60_day_sced_disclosure(
+            df_dict,
+            expected_sced_interval_minutes=5,
+        )
 
     """get_60_day_dam_disclosure"""
 
@@ -3375,7 +3388,10 @@ def check_load_forecast_by_model(df: pd.DataFrame) -> None:
     assert df["In Use Flag"].dtype == bool
 
 
-def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
+def check_60_day_sced_disclosure(
+    df_dict: Dict[str, pd.DataFrame],
+    expected_sced_interval_minutes: int | None = None,
+) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
     gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
     smne = df_dict[SCED_SMNE_KEY]
@@ -3384,11 +3400,36 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
     assert smne.columns.tolist() == SCED_SMNE_COLUMNS
 
+    if expected_sced_interval_minutes is not None:
+        expected_sced_delta = pd.Timedelta(minutes=expected_sced_interval_minutes)
+        for label, df in [
+            ("load_resource", load_resource),
+            ("gen_resource", gen_resource),
+        ]:
+            intervals = df["Interval End"] - df["Interval Start"]
+            assert (intervals == expected_sced_delta).all(), (
+                f"{label} expected {expected_sced_interval_minutes}-min intervals, "
+                f"got {intervals.unique()}"
+            )
+
+        # SMNE always uses 15-minute intervals
+        smne_intervals = smne["Interval End"] - smne["Interval Start"]
+        assert (smne_intervals == pd.Timedelta(minutes=15)).all(), (
+            f"SMNE expected 15-min intervals, got {smne_intervals.unique()}"
+        )
+
     if SCED_ESR_KEY in df_dict:
         esr = df_dict[SCED_ESR_KEY]
         assert esr.columns.tolist() == SCED_ESR_COLUMNS
         assert len(esr) > 0
         assert esr["Resource Type"].unique().tolist() == ["ESR"]
+
+        if expected_sced_interval_minutes is not None:
+            esr_intervals = esr["Interval End"] - esr["Interval Start"]
+            assert (esr_intervals == expected_sced_delta).all(), (
+                f"ESR expected {expected_sced_interval_minutes}-min intervals, "
+                f"got {esr_intervals.unique()}"
+            )
 
 
 def check_60_day_dam_disclosure(df_dict):

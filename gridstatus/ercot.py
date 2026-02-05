@@ -2076,13 +2076,19 @@ class Ercot(ISOBase):
         )
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_sced_disclosure(z, process=process, verbose=verbose)
+        data = self._handle_60_day_sced_disclosure(
+            z,
+            date=date,
+            process=process,
+            verbose=verbose,
+        )
 
         return data
 
     def _handle_60_day_sced_disclosure(
         self,
         z: ZipFile,
+        date: pd.Timestamp = None,
         process: bool = False,
         verbose: bool = False,
     ) -> dict:
@@ -2111,12 +2117,25 @@ class Ercot(ISOBase):
         smne = pd.read_csv(z.open(smne_file))
         esr = pd.read_csv(z.open(esr_file)) if esr_file else None
 
+        # Starting 2025-12-05, SCED intervals changed from 15 to 5 minutes.
+        # SMNE data remains at 15-minute intervals.
+        FIVE_MINUTE_INTERVAL_START = pd.Timestamp("2025-12-05").date()
+        if date is not None:
+            date_normalized = pd.Timestamp(date).date()
+            sced_interval_minutes = (
+                5 if date_normalized >= FIVE_MINUTE_INTERVAL_START else 15
+            )
+        else:
+            sced_interval_minutes = 15
+
         def handle_time(
             df: pd.DataFrame,
             time_col: str,
             is_interval_end: bool = False,
+            interval_minutes: int = 15,
         ) -> pd.DataFrame:
             df[time_col] = pd.to_datetime(df[time_col])
+            round_freq = f"{interval_minutes}min"
 
             if "Repeated Hour Flag" in df.columns:
                 # Repeated Hour Flag is Y during the repeated hour
@@ -2128,7 +2147,7 @@ class Ercot(ISOBase):
                     ambiguous=df["Repeated Hour Flag"] == "N",
                 )
                 interval_start = df[time_col].dt.round(
-                    "15min",
+                    round_freq,
                     ambiguous=df["Repeated Hour Flag"] == "N",
                 )
 
@@ -2151,11 +2170,11 @@ class Ercot(ISOBase):
                 interval_start = (
                     df[time_col]
                     .dt.tz_convert("utc")
-                    .dt.round("15min")
+                    .dt.round(round_freq)
                     .dt.tz_convert(self.default_timezone)
                 )
 
-            interval_length = pd.Timedelta(minutes=15)
+            interval_length = pd.Timedelta(minutes=interval_minutes)
             if is_interval_end:
                 interval_end = interval_start
                 interval_start = interval_start - interval_length
@@ -2178,17 +2197,35 @@ class Ercot(ISOBase):
             columns={"SCED Time Stamp": "SCED Timestamp"},
         )
 
-        load_resource = handle_time(load_resource, time_col="SCED Timestamp")
-        gen_resource = handle_time(gen_resource, time_col="SCED Timestamp")
+        load_resource = handle_time(
+            load_resource,
+            time_col="SCED Timestamp",
+            interval_minutes=sced_interval_minutes,
+        )
+        gen_resource = handle_time(
+            gen_resource,
+            time_col="SCED Timestamp",
+            interval_minutes=sced_interval_minutes,
+        )
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
-        smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
+        # SMNE data always uses 15-minute intervals
+        smne = handle_time(
+            smne,
+            time_col="Interval Time",
+            is_interval_end=True,
+            interval_minutes=15,
+        )
 
         if esr is not None:
             esr = esr.rename(
                 columns={"SCED Time Stamp": "SCED Timestamp"},
             )
-            esr = handle_time(esr, time_col="SCED Timestamp")
+            esr = handle_time(
+                esr,
+                time_col="SCED Timestamp",
+                interval_minutes=sced_interval_minutes,
+            )
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
