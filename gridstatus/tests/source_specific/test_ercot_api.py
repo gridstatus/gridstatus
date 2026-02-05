@@ -3,9 +3,15 @@ import datetime
 import pandas as pd
 import pytest
 
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
-from gridstatus.ercot_60d_utils import DAM_RESOURCE_AS_OFFERS_COLUMNS
+from gridstatus.ercot_60d_utils import (
+    DAM_ESR_AS_OFFERS_COLUMNS,
+    DAM_ESR_AS_OFFERS_KEY,
+    DAM_ESR_COLUMNS,
+    DAM_ESR_KEY,
+    DAM_RESOURCE_AS_OFFERS_COLUMNS,
+)
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import (
     HISTORICAL_DAYS_THRESHOLD,
@@ -1344,6 +1350,49 @@ class TestErcotAPI(TestHelperMixin):
             )
 
             assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
+
+    @pytest.mark.integration
+    def test_get_60_day_dam_disclosure_esr(self):
+        # ESR data is available starting 2025-12-06
+        esr_start = pd.Timestamp("2025-12-06", tz="US/Central")
+        days_ago_65 = self.local_start_of_today() - pd.DateOffset(days=65)
+
+        # Use the later of 65 days ago or ESR start date
+        start_date = max(days_ago_65, esr_start)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_dam_disclosure_esr_{start_date.date()}",
+        ):
+            try:
+                df_dict = ErcotAPI().get_60_day_dam_disclosure(
+                    start_date,
+                )
+            except NoDataFoundException:
+                pytest.skip(
+                    f"No data found for date {start_date.date()} - "
+                    "ESR report may not be published yet",
+                )
+
+        assert DAM_ESR_KEY in df_dict
+        dam_esr = df_dict[DAM_ESR_KEY]
+        assert dam_esr.columns.tolist() == DAM_ESR_COLUMNS
+        assert len(dam_esr) > 0
+        assert dam_esr["Resource Type"].unique().tolist() == ["ESR"]
+        assert (
+            dam_esr["QSE submitted Curve"]
+            .apply(
+                lambda x: isinstance(x, list),
+            )
+            .any()
+        )
+
+        assert DAM_ESR_AS_OFFERS_KEY in df_dict
+        dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
+        assert dam_esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        assert len(dam_esr_as_offers) > 0
+
+        # Also check the other datasets are still present
+        check_60_day_dam_disclosure(df_dict)
 
     """get_60_day_sced_disclosure"""
 

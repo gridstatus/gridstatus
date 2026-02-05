@@ -28,6 +28,8 @@ from gridstatus.ercot_60d_utils import (
     DAM_ENERGY_BIDS_KEY,
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
     DAM_ENERGY_ONLY_OFFERS_KEY,
+    DAM_ESR_AS_OFFERS_KEY,
+    DAM_ESR_KEY,
     DAM_GEN_RESOURCE_AS_OFFERS_KEY,
     DAM_GEN_RESOURCE_KEY,
     DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
@@ -44,6 +46,8 @@ from gridstatus.ercot_60d_utils import (
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
     process_dam_energy_only_offers,
+    process_dam_esr,
+    process_dam_esr_as_offers,
     process_dam_gen,
     process_dam_load,
     process_dam_or_gen_load_as_offers,
@@ -2235,6 +2239,8 @@ class Ercot(ISOBase):
         - "dam_energy_bids"
         - "dam_ptp_obligation_option"
         - "dam_ptp_obligation_option_awards"
+        - "dam_esr" (when available, starting 2025-12-06)
+        - "dam_esr_as_offers" (when available, starting 2025-12-06)
 
         and values as pandas.DataFrame objects
 
@@ -2280,15 +2286,27 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
+        # ESR files are optional (only available starting 2025-12-06)
+        optional_files_prefix = {
+            DAM_ESR_KEY: "60d_DAM_ESR_Data-",
+            DAM_ESR_AS_OFFERS_KEY: "60d_DAM_ESR_ASOffers-",
+        }
+
         files = {}
 
-        # find files in zip folder
+        # find required files in zip folder
         for key, file in files_prefix.items():
             for f in z.namelist():
                 if file in f:
                     files[key] = f
 
         assert len(files) == len(files_prefix), "Missing files"
+
+        # find optional files in zip folder
+        for key, file in optional_files_prefix.items():
+            for f in z.namelist():
+                if file in f:
+                    files[key] = f
 
         data = {}
 
@@ -2313,6 +2331,8 @@ class Ercot(ISOBase):
                 DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
                 DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
+                DAM_ESR_KEY: process_dam_esr,
+                DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
             }
 
             for file_name, process_func in file_to_function.items():

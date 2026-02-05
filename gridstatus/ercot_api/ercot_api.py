@@ -1524,6 +1524,8 @@ class ErcotAPI:
                 - "dam_energy_bids"
                 - "dam_ptp_obligation_option"
                 - "dam_ptp_obligation_option_awards"
+                - "dam_esr" (when available, starting 2025-12-06)
+                - "dam_esr_as_offers" (when available, starting 2025-12-06)
 
         NOTE: because data is delayed by 60 days, requesting data in the past 60 days
         will return no data.
