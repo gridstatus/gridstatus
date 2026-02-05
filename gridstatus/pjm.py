@@ -1,6 +1,8 @@
 import io
 import math
 import os
+import random
+import time
 import warnings
 from typing import BinaryIO
 
@@ -22,6 +24,7 @@ from gridstatus.pjm_constants import (
     HUB_NODE_IDS,
     LOCATION_TYPES,
     PRICE_NODE_IDS,
+    REQUEST_TIMEOUT,
     ZONE_NODE_IDS,
 )
 
@@ -846,6 +849,51 @@ class PJM(ISOBase):
 
         return data.sort_values(["Interval Start", "Location Name"])
 
+    def _make_api_call(
+        self,
+        url: str,
+        method: str = "GET",
+        **kwargs,
+    ):
+        """Make an API call with timeout, exponential backoff, and retry logic.
+
+        Retries on read timeouts and rate limiting (HTTP 429).
+        Connect timeouts raise immediately since the server is likely unreachable.
+        """
+        retries = 0
+        delay = 1
+        reason = ""
+        while retries <= self.retries:
+            try:
+                logger.info(f"Requesting {url} with {kwargs}")
+                if method == "POST":
+                    response = requests.post(url, timeout=REQUEST_TIMEOUT, **kwargs)
+                else:
+                    response = requests.get(url, timeout=REQUEST_TIMEOUT, **kwargs)
+
+                if response.status_code == 429:
+                    reason = "Rate-limited"
+                else:
+                    response.raise_for_status()
+                    return response.json()
+
+            except requests.exceptions.ReadTimeout:
+                reason = "Read timeout"
+
+            retries += 1
+            if retries > self.retries:
+                raise RuntimeError(
+                    f"Error: Failed after {self.retries} retries for {url}",
+                )
+
+            logger.warning(
+                f"Warn: {reason}: waiting {delay} seconds before retry"
+                f" {retries}/{self.retries}"
+                f" requesting url: {url}",
+            )
+            time.sleep(delay + random.uniform(0, delay * 0.1))
+            delay *= 2
+
     def _get_pjm_json(
         self,
         endpoint: str,
@@ -889,10 +937,8 @@ class PJM(ISOBase):
             params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
 
         logger.info(f"Retrieving data from {endpoint} with params {params_to_log}")
-        r = self._get_json(
+        r = self._make_api_call(
             "https://api.pjm.com/api/v1/" + endpoint,
-            verbose=verbose,
-            retries=self.retries,
             params=final_params,
             headers={"Ocp-Apim-Subscription-Key": self.api_key},
         )
@@ -911,10 +957,8 @@ class PJM(ISOBase):
             to_add = [df]
             for page in tqdm.tqdm(range(1, num_pages), initial=1, total=num_pages):
                 next_url = [x for x in r["links"] if x["rel"] == "next"][0]["href"]
-                r = self._get_json(
+                r = self._make_api_call(
                     next_url,
-                    verbose=verbose,
-                    retries=self.retries,
                     headers={
                         "Ocp-Apim-Subscription-Key": self.api_key,
                     },
@@ -978,6 +1022,7 @@ class PJM(ISOBase):
                 "Origin": "https://www.pjm.com",
                 "Referer": "https://www.pjm.com/",
             },
+            timeout=REQUEST_TIMEOUT,
         )
         return utils.get_response_blob(response)
 

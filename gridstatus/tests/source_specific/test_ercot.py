@@ -35,6 +35,8 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_OPTION_COLUMNS,
     DAM_PTP_OBLIGATION_OPTION_KEY,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_ESR_COLUMNS,
+    SCED_ESR_KEY,
     SCED_GEN_RESOURCE_COLUMNS,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_COLUMNS,
@@ -824,7 +826,7 @@ class TestErcot(BaseTestISO):
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
         smne = df_dict[SCED_SMNE_KEY]
 
-        self._check_60_day_sced_disclosure(df_dict)
+        check_60_day_sced_disclosure(df_dict)
 
         assert load_resource["SCED Timestamp"].dt.date.unique().tolist() == [
             days_ago_66,
@@ -840,6 +842,49 @@ class TestErcot(BaseTestISO):
             days_ago_66,
             days_ago_65,
         ]
+
+    @pytest.mark.integration
+    def test_get_60_day_sced_disclosure_esr(self):
+        # ESR data is available starting 2025-12-05
+        esr_start = pd.Timestamp("2025-12-05").date()
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        # Use the later of 65 days ago or ESR start date
+        date = max(days_ago_65, esr_start)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_esr_{date}",
+        ):
+            try:
+                df_dict = self.iso.get_60_day_sced_disclosure(
+                    date=date,
+                    process=True,
+                )
+            except NoDataFoundException:
+                pytest.skip(
+                    f"No data found for date {date} - "
+                    "ESR report may not be published yet",
+                )
+
+        assert SCED_ESR_KEY in df_dict
+        esr = df_dict[SCED_ESR_KEY]
+
+        assert esr.columns.tolist() == SCED_ESR_COLUMNS
+        assert len(esr) > 0
+        assert esr["Resource Type"].unique().tolist() == ["ESR"]
+        assert esr["SCED Timestamp"].dt.date.unique()[0] == date
+
+        # Verify offer curves are parsed
+        assert esr["SCED1 Offer Curve"].apply(lambda x: isinstance(x, list)).any()
+        assert esr["SCED2 Offer Curve"].apply(lambda x: isinstance(x, list)).any()
+        assert esr["SCED TPO Offer Curve"].apply(lambda x: isinstance(x, list)).any()
+
+        # Also check the other datasets are still present
+        check_60_day_sced_disclosure(df_dict)
 
     """get_60_day_dam_disclosure"""
 
@@ -3338,6 +3383,12 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     assert load_resource.columns.tolist() == SCED_LOAD_RESOURCE_COLUMNS
     assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
     assert smne.columns.tolist() == SCED_SMNE_COLUMNS
+
+    if SCED_ESR_KEY in df_dict:
+        esr = df_dict[SCED_ESR_KEY]
+        assert esr.columns.tolist() == SCED_ESR_COLUMNS
+        assert len(esr) > 0
+        assert esr["Resource Type"].unique().tolist() == ["ESR"]
 
 
 def check_60_day_dam_disclosure(df_dict):

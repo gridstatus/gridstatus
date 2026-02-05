@@ -1,6 +1,11 @@
 # PJM requires retries because the API is flaky
 DEFAULT_RETRIES: int = 3
 
+# Timeout for API requests in seconds (connect, read)
+CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 15
+REQUEST_TIMEOUT = (CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)
+
 LOCATION_TYPES: tuple[str, ...] = (
     "ZONE",
     "LOAD",
