@@ -143,6 +143,8 @@ class PJM(ISOBase):
             PJM SOUTHERN REGION, PJM WESTERN REGION, PL, PN, PS, RECO.
         """
         # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
+        if date == "latest":
+            raise NotSupported(f"{self.name} does not support 'latest'")
 
         # todo can support a load area
         data = {
@@ -906,6 +908,9 @@ class PJM(ISOBase):
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
     ):
+        if start == "latest":
+            raise NotSupported(f"{self.name} does not support 'latest'")
+
         default_params = {
             "startRow": start_row,
             "rowCount": row_count,
@@ -1042,7 +1047,7 @@ class PJM(ISOBase):
             "Withdrawal Date": "Withdrawn Date",
             "Withdrawn Remarks": "Withdrawal Comment",
             "Status": "Status",
-            "Revised In Service Date": "Proposed Completion Date",
+            "Projected In Service Date": "Proposed Completion Date",
             "Actual In Service Date": "Actual Completion Date",
             "Fuel": "Generation Type",
             "MW Capacity": "Summer Capacity (MW)",

@@ -2391,7 +2391,10 @@ class TestPJM(BaseTestISO):
             assert df.columns.tolist() == self.expected_regulation_market_monthly_cols
 
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
-            assert df["Interval End"].max() <= self.local_start_of_day(past_end_date)
+            # Data is in 30-minute intervals, so last interval ends 30 min after midnight
+            assert df["Interval End"].max() <= self.local_start_of_day(
+                past_end_date,
+            ) + pd.Timedelta(minutes=30)
 
             numeric_cols = [
                 "Requirement",
