@@ -277,8 +277,6 @@ SCED_SMNE_COLUMNS = [
 ]
 
 SCED_ESR_COLUMNS = [
-    "Interval Start",
-    "Interval End",
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -989,8 +987,6 @@ def process_sced_load(df):
 
 def process_sced_esr(df):
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 

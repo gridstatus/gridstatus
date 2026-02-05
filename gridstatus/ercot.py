@@ -2188,7 +2188,12 @@ class Ercot(ISOBase):
             esr = esr.rename(
                 columns={"SCED Time Stamp": "SCED Timestamp"},
             )
-            esr = handle_time(esr, time_col="SCED Timestamp")
+            # Localize timestamp but don't add Interval Start/End
+            esr["SCED Timestamp"] = pd.to_datetime(esr["SCED Timestamp"])
+            esr["SCED Timestamp"] = esr["SCED Timestamp"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=esr["Repeated Hour Flag"] == "N",
+            )
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
