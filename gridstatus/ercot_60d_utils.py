@@ -476,16 +476,23 @@ def extract_curve(
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
 
-    def combine_mw_price(row):
-        return [
-            [mw, price]
-            for mw, price in zip(row[mw_cols], row[price_cols])
-            if pd.notnull(mw) and pd.notnull(price)
-        ]
+    # Vectorized extraction using numpy arrays
+    mw_arr = df[mw_cols].round(2).values
+    price_arr = df[price_cols].round(2).values
+    n_rows = len(df)
+    n_points = len(mw_cols)
 
-    # round price columns to 2 decimal places
-    df[price_cols] = df[price_cols].round(2)
-    return df.apply(combine_mw_price, axis=1)
+    # Build curves using vectorized operations
+    curves = []
+    for i in range(n_rows):
+        curve = [
+            [float(mw_arr[i, j]), float(price_arr[i, j])]
+            for j in range(n_points)
+            if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
+        ]
+        curves.append(curve if curve else None)
+
+    return pd.Series(curves, index=df.index)
 
 
 def process_dam_gen(df):
@@ -1146,15 +1153,34 @@ def process_sced_resource_as_offers(df):
     if block_count == 0:
         return df
 
-    # Use extract_curve with explicit column lists for each AS type
-    for as_suffix, curve_col in as_type_mapping.items():
-        mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
-        price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
-        # Filter to existing columns
-        price_cols = [c for c in price_cols if c in df.columns]
-        mw_cols = mw_cols[: len(price_cols)]
+    # Extract MW array once (shared across all AS types)
+    mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
+    mw_arr = df[mw_cols].round(2).values
+    n_rows = len(df)
 
-        df[curve_col] = extract_curve(df, mw_cols=mw_cols, price_cols=price_cols)
+    # Extract curves for each AS type using vectorized operations
+    for as_suffix, curve_col in as_type_mapping.items():
+        price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
+        price_cols = [c for c in price_cols if c in df.columns]
+
+        if not price_cols:
+            df[curve_col] = None
+            continue
+
+        price_arr = df[price_cols].round(2).values
+        n_points = len(price_cols)
+
+        # Vectorized curve building
+        curves = [
+            [
+                [float(mw_arr[i, j]), float(price_arr[i, j])]
+                for j in range(n_points)
+                if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
+            ]
+            or None
+            for i in range(n_rows)
+        ]
+        df[curve_col] = curves
 
     return df[SCED_RESOURCE_AS_OFFERS_COLUMNS]
 
