@@ -129,6 +129,7 @@ class MISO(ISOBase):
         df_pivoted = add_interval_end(df_pivoted, 5)
         df_pivoted.columns.name = None
         for col in [
+            "Battery Storage",
             "Coal",
             "Imports",
             "Natural Gas",
