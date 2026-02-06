@@ -2042,6 +2042,15 @@ class Ercot(ISOBase):
 
         return df
 
+    # Dates for which ESR data from the normal disclosure file is incorrect
+    # and should be replaced with data from the ESR supplemental correction file.
+    # The correction file was published on Feb 5, 2026.
+    # These are stored as date objects (not timestamps) for timezone-agnostic comparison.
+    ESR_CORRECTION_DATES = [
+        pd.Timestamp("2025-12-05").date(),
+        pd.Timestamp("2025-12-06").date(),
+    ]
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2076,7 +2085,23 @@ class Ercot(ISOBase):
         )
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_sced_disclosure(z, process=process, verbose=verbose)
+        # Check if this date needs ESR correction data
+        # Compare using date() for timezone-agnostic comparison
+        date_as_date = pd.Timestamp(date).date()
+        use_esr_correction = date_as_date in self.ESR_CORRECTION_DATES
+
+        data = self._handle_60_day_sced_disclosure(
+            z,
+            process=process,
+            verbose=verbose,
+            skip_esr=use_esr_correction,
+        )
+
+        # Fetch ESR from the supplemental correction file for affected dates
+        if use_esr_correction:
+            esr = self._get_esr_correction_data(date, process=process, verbose=verbose)
+            if esr is not None:
+                data[SCED_ESR_KEY] = esr
 
         return data
 
@@ -2085,6 +2110,7 @@ class Ercot(ISOBase):
         z: ZipFile,
         process: bool = False,
         verbose: bool = False,
+        skip_esr: bool = False,
     ) -> dict:
         # TODO: there are other files in the zip folder
         load_resource_file = None
@@ -2109,7 +2135,10 @@ class Ercot(ISOBase):
         load_resource = pd.read_csv(z.open(load_resource_file))
         gen_resource = pd.read_csv(z.open(gen_resource_file))
         smne = pd.read_csv(z.open(smne_file))
-        esr = pd.read_csv(z.open(esr_file)) if esr_file else None
+        # Skip ESR from the main disclosure file if we need correction data
+        esr = None
+        if not skip_esr and esr_file:
+            esr = pd.read_csv(z.open(esr_file))
 
         def handle_time(
             df: pd.DataFrame,
@@ -2213,6 +2242,81 @@ class Ercot(ISOBase):
             result[SCED_ESR_KEY] = esr
 
         return result
+
+    def _get_esr_correction_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Fetch ESR data from the supplemental correction file for specific dates.
+
+        The ESR supplemental correction file was published on Feb 5, 2026 and contains
+        corrected ESR data for Dec 5, 2025 and Dec 6, 2025 (which correspond to report
+        dates Feb 3 and Feb 4, 2026 respectively).
+
+        Arguments:
+            date: The data date (not report date) to fetch ESR correction data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+
+        Returns:
+            DataFrame with ESR correction data, or None if not found
+        """
+        # Fetch the ESR supplemental correction file
+        docs = self._get_documents(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            constructed_name_contains="60_Day_SCED_ESR_SUPPLEMENTAL_CORRECTION",
+            verbose=verbose,
+        )
+
+        if not docs:
+            logger.warning("ESR supplemental correction file not found")
+            return None
+
+        # Use the most recent correction file
+        doc = docs[0]
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+        # Find the correct file for the requested date
+        # Files are named like: 60d_ESR_Data_in_SCED-03-FEB-26_SUPPLEMENTAL_CORRECTION.csv
+        # where 03-FEB-26 is the report date (data date + 60 days)
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        expected_filename = (
+            f"60d_ESR_Data_in_SCED-{date_str}_SUPPLEMENTAL_CORRECTION.csv"
+        )
+
+        target_file = None
+        for file in z.namelist():
+            if file == expected_filename:
+                target_file = file
+                break
+
+        if target_file is None:
+            logger.warning(
+                f"Could not find ESR correction file for date {date} "
+                f"(report date {report_date})",
+            )
+            return None
+
+        if verbose:
+            logger.info(f"Reading ESR correction data from {target_file}")
+
+        esr = pd.read_csv(z.open(target_file))
+
+        # Localize the SCED Timestamp
+        esr = esr.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+        esr["SCED Timestamp"] = pd.to_datetime(esr["SCED Timestamp"])
+        esr["SCED Timestamp"] = esr["SCED Timestamp"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=esr["Repeated Hour Flag"] == "N",
+        )
+
+        if process:
+            esr = process_sced_esr(esr)
+
+        return esr
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(

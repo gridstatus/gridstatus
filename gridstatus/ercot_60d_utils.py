@@ -294,6 +294,9 @@ SCED_ESR_COLUMNS = [
     "AS Capability RegDown",
     "AS Capability ECRS",
     "AS Capability NonSpin",
+    "SOC",
+    "Min SOC",
+    "Max SOC",
     "AS Awards NonSpin",
     "AS Awards RRSFFR",
     "AS Awards RRSPFR",
@@ -426,23 +429,50 @@ def make_storage_resources(data):
     return storage_resources
 
 
-def extract_curve(df, curve_name, mw_suffix="-MW", price_suffix="-Price"):
-    mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
-    price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
+def extract_curve(
+    df,
+    curve_name=None,
+    mw_suffix="-MW",
+    price_suffix="-Price",
+    mw_cols=None,
+    price_cols=None,
+):
+    """Extract offer curve from dataframe columns.
+
+    Supports two modes:
+    1. Auto-detect columns by curve_name prefix (default):
+       Looks for columns like "{curve_name}-MW1", "{curve_name}-Price1"
+
+    2. Explicit column lists:
+       Pass mw_cols and price_cols directly for custom column patterns
+       e.g., mw_cols=["QUANTITY_MW1", "QUANTITY_MW2"],
+             price_cols=["PRICE1_URS", "PRICE2_URS"]
+    """
+    if mw_cols is None or price_cols is None:
+        # Auto-detect by prefix
+        mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
+        price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
 
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
 
-    def combine_mw_price(row):
-        return [
-            [mw, price]
-            for mw, price in zip(row[mw_cols], row[price_cols])
-            if pd.notnull(mw) and pd.notnull(price)
-        ]
+    # Vectorized extraction using numpy arrays
+    mw_arr = df[mw_cols].values
+    price_arr = df[price_cols].round(2).values
+    n_rows = len(df)
+    n_points = len(mw_cols)
 
-    # round price columns to 2 decimal places
-    df[price_cols] = df[price_cols].round(2)
-    return df.apply(combine_mw_price, axis=1)
+    # Build curves using vectorized operations
+    curves = []
+    for i in range(n_rows):
+        curve = [
+            [float(mw_arr[i, j]), float(price_arr[i, j])]
+            for j in range(n_points)
+            if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
+        ]
+        curves.append(curve if curve else None)
+
+    return pd.Series(curves, index=df.index)
 
 
 def process_dam_gen(df):
@@ -1011,6 +1041,13 @@ def process_sced_esr(df):
         "AS Awards REGDN",
     ]
 
+    # SOC columns added in Feb 2026 ESR data
+    soc_cols = [
+        "State of Charge",
+        "Minimum SOC",
+        "Maximum SOC",
+    ]
+
     tpo_cols = [
         "Start Up Cold Offer",
         "Start Up Hot Offer",
@@ -1036,6 +1073,7 @@ def process_sced_esr(df):
         + [sced1_offer_col, sced2_offer_col]
         + telemetry_cols
         + as_cols
+        + soc_cols
         + other_cols
         + tpo_cols
     )
@@ -1057,6 +1095,10 @@ def process_sced_esr(df):
             "AS Awards NSPIN": "AS Awards NonSpin",
             # Rename Bid_Type -> Bid Type
             "Bid_Type": "Bid Type",
+            # Rename SOC columns
+            "State of Charge": "SOC",
+            "Minimum SOC": "Min SOC",
+            "Maximum SOC": "Max SOC",
         },
     )
 
