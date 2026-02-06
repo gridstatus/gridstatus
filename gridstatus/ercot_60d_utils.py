@@ -218,8 +218,6 @@ DAM_ESR_COLUMNS = [
 DAM_ESR_AS_OFFERS_COLUMNS = DAM_RESOURCE_AS_OFFERS_COLUMNS
 
 SCED_GEN_RESOURCE_COLUMNS = [
-    "Interval Start",
-    "Interval End",
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -264,8 +262,6 @@ SCED_GEN_RESOURCE_COLUMNS = [
 ]
 
 SCED_LOAD_RESOURCE_COLUMNS = [
-    "Interval Start",
-    "Interval End",
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -314,8 +310,6 @@ SCED_SMNE_COLUMNS = [
 ]
 
 SCED_ESR_COLUMNS = [
-    "Interval Start",
-    "Interval End",
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -919,8 +913,6 @@ def process_dam_ptp_obligation_option_awards(df):
 
 def process_sced_gen(df):
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 
@@ -1017,8 +1009,6 @@ def process_sced_gen(df):
 
 def process_sced_load(df):
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 
@@ -1089,8 +1079,6 @@ def process_sced_load(df):
 
 def process_sced_esr(df):
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 

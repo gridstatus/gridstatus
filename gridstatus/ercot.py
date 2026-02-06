@@ -2175,24 +2175,25 @@ class Ercot(ISOBase):
 
             return df
 
-        load_resource = load_resource.rename(
-            columns={"SCED Time Stamp": "SCED Timestamp"},
-        )
-        gen_resource = gen_resource.rename(
-            columns={"SCED Time Stamp": "SCED Timestamp"},
-        )
+        def localize_sced_timestamp(df: pd.DataFrame) -> pd.DataFrame:
+            """Localize SCED Timestamp without adding Interval Start/End."""
+            df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=df["Repeated Hour Flag"] == "N",
+            )
+            return df
 
-        load_resource = handle_time(load_resource, time_col="SCED Timestamp")
-        gen_resource = handle_time(gen_resource, time_col="SCED Timestamp")
+        load_resource = localize_sced_timestamp(load_resource)
+        gen_resource = localize_sced_timestamp(gen_resource)
+
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
 
         if esr is not None:
-            esr = esr.rename(
-                columns={"SCED Time Stamp": "SCED Timestamp"},
-            )
-            esr = handle_time(esr, time_col="SCED Timestamp")
+            esr = localize_sced_timestamp(esr)
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")

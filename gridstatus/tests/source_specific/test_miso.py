@@ -55,6 +55,7 @@ class TestMISO(BaseTestISO):
             "Time",
             "Interval Start",
             "Interval End",
+            "Battery Storage",
             "Coal",
             "Imports",
             "Natural Gas",
