@@ -22,6 +22,8 @@ SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
 SCED_ESR_KEY = "sced_esr"
 SCED_SMNE_KEY = "sced_smne"
+SCED_EOC_UPDATES_KEY = "sced_eoc_updates"
+SCED_RESOURCE_AS_OFFERS_KEY = "sced_resource_as_offers"
 
 
 # Same for both generation and load
@@ -310,6 +312,27 @@ SCED_ESR_COLUMNS = [
     "Proxy Extension",
 ]
 
+SCED_EOC_UPDATES_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Resource Name",
+    "Reason",
+    "Count of Updates During Operating Hour",
+]
+
+SCED_RESOURCE_AS_OFFERS_COLUMNS = [
+    "SCED Timestamp",
+    "Repeated Hour Flag",
+    "Resource Name",
+    "URS Offer Curve",
+    "DRS Offer Curve",
+    "RRSPFR Offer Curve",
+    "RRSUFR Offer Curve",
+    "RRSFFR Offer Curve",
+    "NonSpin Offer Curve",
+    "ECRS Offer Curve",
+]
+
 
 def match_gen_load_names(list1, list2):
     """Match generator and load names"""
@@ -426,9 +449,29 @@ def make_storage_resources(data):
     return storage_resources
 
 
-def extract_curve(df, curve_name, mw_suffix="-MW", price_suffix="-Price"):
-    mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
-    price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
+def extract_curve(
+    df,
+    curve_name=None,
+    mw_suffix="-MW",
+    price_suffix="-Price",
+    mw_cols=None,
+    price_cols=None,
+):
+    """Extract offer curve from dataframe columns.
+
+    Supports two modes:
+    1. Auto-detect columns by curve_name prefix (default):
+       Looks for columns like "{curve_name}-MW1", "{curve_name}-Price1"
+
+    2. Explicit column lists:
+       Pass mw_cols and price_cols directly for custom column patterns
+       e.g., mw_cols=["QUANTITY_MW1", "QUANTITY_MW2"],
+             price_cols=["PRICE1_URS", "PRICE2_URS"]
+    """
+    if mw_cols is None or price_cols is None:
+        # Auto-detect by prefix
+        mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
+        price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
 
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
@@ -1061,6 +1104,59 @@ def process_sced_esr(df):
     )
 
     return df[SCED_ESR_COLUMNS]
+
+
+def process_sced_eoc_updates(df):
+    """Process SCED EOC Updates in Operating Hour data.
+
+    This data tracks the count of Energy Offer Curve (EOC) updates
+    made by resources during operating hours.
+
+    Expects df to already have Interval Start/End from parse_doc().
+    """
+    return df[SCED_EOC_UPDATES_COLUMNS]
+
+
+def process_sced_resource_as_offers(df):
+    """Process SCED Resource AS Offers data.
+
+    This data contains ancillary service offer curves at the SCED timestamp level.
+    Each row has price/quantity pairs for each AS type across 6 blocks.
+
+    Source columns: PRICEn_URS, PRICEn_DRS, PRICEn_RRSPF, PRICEn_RRSUF,
+                   PRICEn_RRSFF, PRICEn_NS, PRICEn_ECRS, QUANTITY_MWn (n=1-6)
+
+    Creates offer curves like [[mw, price], ...] for each AS type.
+    """
+    # Map source column suffixes to output curve names
+    as_type_mapping = {
+        "URS": "URS Offer Curve",
+        "DRS": "DRS Offer Curve",
+        "RRSPF": "RRSPFR Offer Curve",
+        "RRSUF": "RRSUFR Offer Curve",
+        "RRSFF": "RRSFFR Offer Curve",
+        "NS": "NonSpin Offer Curve",
+        "ECRS": "ECRS Offer Curve",
+    }
+
+    # Find the number of blocks by counting QUANTITY_MW columns
+    qty_cols = sorted([col for col in df.columns if col.startswith("QUANTITY_MW")])
+    block_count = len(qty_cols)
+
+    if block_count == 0:
+        return df
+
+    # Use extract_curve with explicit column lists for each AS type
+    for as_suffix, curve_col in as_type_mapping.items():
+        mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
+        price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
+        # Filter to existing columns
+        price_cols = [c for c in price_cols if c in df.columns]
+        mw_cols = mw_cols[: len(price_cols)]
+
+        df[curve_col] = extract_curve(df, mw_cols=mw_cols, price_cols=price_cols)
+
+    return df[SCED_RESOURCE_AS_OFFERS_COLUMNS]
 
 
 # # backup for more node names

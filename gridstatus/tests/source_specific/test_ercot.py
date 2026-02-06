@@ -35,12 +35,16 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_OPTION_COLUMNS,
     DAM_PTP_OBLIGATION_OPTION_KEY,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_EOC_UPDATES_COLUMNS,
+    SCED_EOC_UPDATES_KEY,
     SCED_ESR_COLUMNS,
     SCED_ESR_KEY,
     SCED_GEN_RESOURCE_COLUMNS,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_COLUMNS,
     SCED_LOAD_RESOURCE_KEY,
+    SCED_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_COLUMNS,
     SCED_SMNE_KEY,
 )
@@ -3389,6 +3393,19 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
         assert esr.columns.tolist() == SCED_ESR_COLUMNS
         assert len(esr) > 0
         assert esr["Resource Type"].unique().tolist() == ["ESR"]
+
+    # EOC Updates and Resource AS Offers available starting 2025-12-05
+    if SCED_EOC_UPDATES_KEY in df_dict:
+        eoc_updates = df_dict[SCED_EOC_UPDATES_KEY]
+        assert eoc_updates.columns.tolist() == SCED_EOC_UPDATES_COLUMNS
+        # Data may be empty for some dates
+        if len(eoc_updates) > 0:
+            assert pd.api.types.is_datetime64_any_dtype(eoc_updates["Interval Start"])
+            assert pd.api.types.is_datetime64_any_dtype(eoc_updates["Interval End"])
+
+    if SCED_RESOURCE_AS_OFFERS_KEY in df_dict:
+        resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
+        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
 def check_60_day_dam_disclosure(df_dict):
