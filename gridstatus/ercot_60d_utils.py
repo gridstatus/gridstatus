@@ -429,29 +429,9 @@ def make_storage_resources(data):
     return storage_resources
 
 
-def extract_curve(
-    df,
-    curve_name=None,
-    mw_suffix="-MW",
-    price_suffix="-Price",
-    mw_cols=None,
-    price_cols=None,
-):
-    """Extract offer curve from dataframe columns.
-
-    Supports two modes:
-    1. Auto-detect columns by curve_name prefix (default):
-       Looks for columns like "{curve_name}-MW1", "{curve_name}-Price1"
-
-    2. Explicit column lists:
-       Pass mw_cols and price_cols directly for custom column patterns
-       e.g., mw_cols=["QUANTITY_MW1", "QUANTITY_MW2"],
-             price_cols=["PRICE1_URS", "PRICE2_URS"]
-    """
-    if mw_cols is None or price_cols is None:
-        # Auto-detect by prefix
-        mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
-        price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
+def extract_curve(df, curve_name, mw_suffix="-MW", price_suffix="-Price"):
+    mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
+    price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
 
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
@@ -470,7 +450,7 @@ def extract_curve(
             for j in range(n_points)
             if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
         ]
-        curves.append(curve if curve else None)
+        curves.append(curve if curve else [])
 
     return pd.Series(curves, index=df.index)
 
