@@ -17,6 +17,8 @@ DAM_ENERGY_BID_AWARDS_KEY = "dam_energy_bid_awards"
 DAM_ENERGY_BIDS_KEY = "dam_energy_bids"
 DAM_PTP_OBLIGATION_OPTION_KEY = "dam_ptp_obligation_option"
 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY = "dam_ptp_obligation_option_awards"
+DAM_ESR_KEY = "dam_esr"
+DAM_ESR_AS_OFFERS_KEY = "dam_esr_as_offers"
 
 SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
@@ -179,6 +181,41 @@ DAM_PTP_OBLIGATION_OPTION_COLUMNS = [
 
 # All except Multi-Hour Block Indicator
 DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS = DAM_PTP_OBLIGATION_OPTION_COLUMNS[:-1]
+
+DAM_ESR_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Resource Type",
+    "Settlement Point Name",
+    "Resource Status",
+    "HSL",
+    "LSL",
+    "Start Up Hot",
+    "Start Up Inter",
+    "Start Up Cold",
+    "Min Gen Cost",
+    "Awarded Quantity",
+    "Energy Settlement Point Price",
+    "RegUp Awarded",
+    "RegUp MCPC",
+    "RegDown Awarded",
+    "RegDown MCPC",
+    "RRSPFR Awarded",
+    "RRSFFR Awarded",
+    "RRSUFR Awarded",
+    "RRS MCPC",
+    "ECRSSD Awarded",
+    "ECRS MCPC",
+    "NonSpin Awarded",
+    "NonSpin MCPC",
+    "QSE submitted Curve",
+]
+
+# Same columns as gen/load resource AS offers
+DAM_ESR_AS_OFFERS_COLUMNS = DAM_RESOURCE_AS_OFFERS_COLUMNS[:]
 
 SCED_GEN_RESOURCE_COLUMNS = [
     "SCED Timestamp",
@@ -561,6 +598,69 @@ def process_dam_load(df):
     )
 
     return df
+
+
+def process_dam_esr(df):
+    time_cols = [
+        "Interval Start",
+        "Interval End",
+    ]
+
+    resource_cols = [
+        "QSE",
+        "DME",
+        "Resource Name",
+        "Resource Type",
+        "Settlement Point Name",
+    ]
+
+    telemetry_cols = [
+        "Resource Status",
+        "HSL",
+        "LSL",
+        "Start Up Hot",
+        "Start Up Inter",
+        "Start Up Cold",
+        "Min Gen Cost",
+    ]
+
+    energy_award_cols = [
+        "Awarded Quantity",
+        "Energy Settlement Point Price",
+    ]
+
+    as_cols = [
+        "RegUp Awarded",
+        "RegUp MCPC",
+        "RegDown Awarded",
+        "RegDown MCPC",
+        "RRSPFR Awarded",
+        "RRSFFR Awarded",
+        "RRSUFR Awarded",
+        "RRS MCPC",
+        "ECRSSD Awarded",
+        "ECRS MCPC",
+        "NonSpin Awarded",
+        "NonSpin MCPC",
+    ]
+
+    curve = "QSE submitted Curve"
+
+    df[curve] = extract_curve(df, "QSE submitted Curve")
+
+    all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
+
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
+
+    return df
+
+
+def process_dam_esr_as_offers(df):
+    return process_as_offer_curves(df)
 
 
 def process_dam_or_gen_load_as_offers(df):
