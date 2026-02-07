@@ -36,7 +36,7 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_KEY,
-    SCED_EOC_UPDATES_KEY,
+    SCED_AS_OFFER_UPDATES_KEY,
     SCED_ESR_KEY,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_KEY,
@@ -53,7 +53,7 @@ from gridstatus.ercot_60d_utils import (
     process_dam_ptp_obligation_bids,
     process_dam_ptp_obligation_option,
     process_dam_ptp_obligation_option_awards,
-    process_sced_eoc_updates,
+    process_sced_as_offer_updates,
     process_sced_esr,
     process_sced_gen,
     process_sced_load,
@@ -2120,7 +2120,7 @@ class Ercot(ISOBase):
         gen_resource_file = None
         smne_file = None
         esr_file = None
-        eoc_updates_file = None
+        as_offer_updates_file = None
         resource_as_offers_file = None
         for file in z.namelist():
             cleaned_file = file.replace(" ", "_")
@@ -2132,8 +2132,8 @@ class Ercot(ISOBase):
                 gen_resource_file = file
             elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
                 smne_file = file
-            elif "60d_SCED_EOC_Updates_in_OpHour" in cleaned_file:
-                eoc_updates_file = file
+            elif "60d_SCED_AS_Offer_Updates_in_OpPeriod" in cleaned_file:
+                as_offer_updates_file = file
             elif "60d_SCED_Resource_AS_OFFERS" in cleaned_file:
                 resource_as_offers_file = file
 
@@ -2148,8 +2148,10 @@ class Ercot(ISOBase):
         esr = None
         if not skip_esr and esr_file:
             esr = pd.read_csv(z.open(esr_file))
-        eoc_updates = (
-            pd.read_csv(z.open(eoc_updates_file)) if eoc_updates_file else None
+        as_offer_updates = (
+            pd.read_csv(z.open(as_offer_updates_file))
+            if as_offer_updates_file
+            else None
         )
         resource_as_offers = (
             pd.read_csv(z.open(resource_as_offers_file))
@@ -2252,9 +2254,9 @@ class Ercot(ISOBase):
             )
             if esr is not None:
                 esr = process_sced_esr(esr)
-            if eoc_updates is not None:
-                eoc_updates = self.parse_doc(eoc_updates)
-                eoc_updates = process_sced_eoc_updates(eoc_updates)
+            if as_offer_updates is not None:
+                as_offer_updates = self.parse_doc(as_offer_updates)
+                as_offer_updates = process_sced_as_offer_updates(as_offer_updates)
             if resource_as_offers is not None:
                 resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
 
@@ -2267,8 +2269,8 @@ class Ercot(ISOBase):
         if esr is not None:
             result[SCED_ESR_KEY] = esr
 
-        if eoc_updates is not None:
-            result[SCED_EOC_UPDATES_KEY] = eoc_updates
+        if as_offer_updates is not None:
+            result[SCED_AS_OFFER_UPDATES_KEY] = as_offer_updates
 
         if resource_as_offers is not None:
             result[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers

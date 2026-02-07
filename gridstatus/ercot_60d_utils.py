@@ -22,7 +22,7 @@ SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
 SCED_ESR_KEY = "sced_esr"
 SCED_SMNE_KEY = "sced_smne"
-SCED_EOC_UPDATES_KEY = "sced_eoc_updates"
+SCED_AS_OFFER_UPDATES_KEY = "sced_as_offer_updates_in_op_period"
 SCED_RESOURCE_AS_OFFERS_KEY = "sced_resource_as_offers"
 
 
@@ -315,17 +315,16 @@ SCED_ESR_COLUMNS = [
     "Proxy Extension",
 ]
 
-SCED_EOC_UPDATES_COLUMNS = [
+SCED_AS_OFFER_UPDATES_COLUMNS = [
     "Interval Start",
     "Interval End",
     "Resource Name",
-    "Reason",
-    "Count of Updates During Operating Hour",
+    "AS Type",
+    "Count of Updates During Operating Period",
 ]
 
 SCED_RESOURCE_AS_OFFERS_COLUMNS = [
     "SCED Timestamp",
-    "Repeated Hour Flag",
     "Resource Name",
     "URS Offer Curve",
     "DRS Offer Curve",
@@ -1128,15 +1127,15 @@ def process_sced_esr(df):
     return df[SCED_ESR_COLUMNS]
 
 
-def process_sced_eoc_updates(df):
-    """Process SCED EOC Updates in Operating Hour data.
+def process_sced_as_offer_updates(df):
+    """Process SCED AS Offer Updates in Operating Period data.
 
-    This data tracks the count of Energy Offer Curve (EOC) updates
-    made by resources during operating hours.
+    This data tracks the count of Ancillary Service offer updates
+    made by resources during operating periods.
 
     Expects df to already have Interval Start/End from parse_doc().
     """
-    return df[SCED_EOC_UPDATES_COLUMNS]
+    return df[SCED_AS_OFFER_UPDATES_COLUMNS]
 
 
 def process_sced_resource_as_offers(df):
