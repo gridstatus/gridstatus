@@ -22,7 +22,7 @@ SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
 SCED_ESR_KEY = "sced_esr"
 SCED_SMNE_KEY = "sced_smne"
-SCED_AS_OFFER_UPDATES_KEY = "sced_as_offer_updates_in_op_period"
+SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY = "sced_as_offer_updates_in_op_hour"
 SCED_RESOURCE_AS_OFFERS_KEY = "sced_resource_as_offers"
 
 
@@ -315,7 +315,7 @@ SCED_ESR_COLUMNS = [
     "Proxy Extension",
 ]
 
-SCED_AS_OFFER_UPDATES_COLUMNS = [
+SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS = [
     "Interval Start",
     "Interval End",
     "Resource Name",
@@ -1127,15 +1127,15 @@ def process_sced_esr(df):
     return df[SCED_ESR_COLUMNS]
 
 
-def process_sced_as_offer_updates(df):
-    """Process SCED AS Offer Updates in Operating Period data.
+def process_sced_as_offer_updates_in_op_hour(df):
+    """Process SCED AS Offer Updates in Operating Hour data.
 
     This data tracks the count of Ancillary Service offer updates
-    made by resources during operating periods.
+    made by resources during operating hours.
 
     Expects df to already have Interval Start/End from parse_doc().
     """
-    return df[SCED_AS_OFFER_UPDATES_COLUMNS]
+    return df[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS]
 
 
 def process_sced_resource_as_offers(df):

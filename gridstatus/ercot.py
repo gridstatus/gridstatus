@@ -36,7 +36,7 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_KEY,
-    SCED_AS_OFFER_UPDATES_KEY,
+    SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY,
     SCED_ESR_KEY,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_KEY,
@@ -53,7 +53,7 @@ from gridstatus.ercot_60d_utils import (
     process_dam_ptp_obligation_bids,
     process_dam_ptp_obligation_option,
     process_dam_ptp_obligation_option_awards,
-    process_sced_as_offer_updates,
+    process_sced_as_offer_updates_in_op_hour,
     process_sced_esr,
     process_sced_gen,
     process_sced_load,
@@ -2256,7 +2256,9 @@ class Ercot(ISOBase):
                 esr = process_sced_esr(esr)
             if as_offer_updates is not None:
                 as_offer_updates = self.parse_doc(as_offer_updates)
-                as_offer_updates = process_sced_as_offer_updates(as_offer_updates)
+                as_offer_updates = process_sced_as_offer_updates_in_op_hour(
+                    as_offer_updates,
+                )
             if resource_as_offers is not None:
                 resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
 
@@ -2270,7 +2272,7 @@ class Ercot(ISOBase):
             result[SCED_ESR_KEY] = esr
 
         if as_offer_updates is not None:
-            result[SCED_AS_OFFER_UPDATES_KEY] = as_offer_updates
+            result[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY] = as_offer_updates
 
         if resource_as_offers is not None:
             result[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
