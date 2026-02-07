@@ -296,6 +296,9 @@ SCED_ESR_COLUMNS = [
     "AS Capability RegDown",
     "AS Capability ECRS",
     "AS Capability NonSpin",
+    "SOC",
+    "Min SOC",
+    "Max SOC",
     "AS Awards NonSpin",
     "AS Awards RRSFFR",
     "AS Awards RRSPFR",
@@ -1061,6 +1064,13 @@ def process_sced_esr(df):
         "AS Awards REGDN",
     ]
 
+    # SOC columns added in Feb 2026 ESR data
+    soc_cols = [
+        "State of Charge",
+        "Minimum SOC",
+        "Maximum SOC",
+    ]
+
     tpo_cols = [
         "Start Up Cold Offer",
         "Start Up Hot Offer",
@@ -1086,6 +1096,7 @@ def process_sced_esr(df):
         + [sced1_offer_col, sced2_offer_col]
         + telemetry_cols
         + as_cols
+        + soc_cols
         + other_cols
         + tpo_cols
     )
@@ -1107,6 +1118,10 @@ def process_sced_esr(df):
             "AS Awards NSPIN": "AS Awards NonSpin",
             # Rename Bid_Type -> Bid Type
             "Bid_Type": "Bid Type",
+            # Rename SOC columns
+            "State of Charge": "SOC",
+            "Minimum SOC": "Min SOC",
+            "Maximum SOC": "Max SOC",
         },
     )
 
