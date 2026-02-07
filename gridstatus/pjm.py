@@ -1071,7 +1071,7 @@ class PJM(ISOBase):
             "Withdrawal Date": "Withdrawn Date",
             "Withdrawn Remarks": "Withdrawal Comment",
             "Status": "Status",
-            "Revised In Service Date": "Proposed Completion Date",
+            "Projected In Service Date": "Proposed Completion Date",
             "Actual In Service Date": "Actual Completion Date",
             "Fuel": "Generation Type",
             "MW Capacity": "Summer Capacity (MW)",
