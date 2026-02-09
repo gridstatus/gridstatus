@@ -20,6 +20,10 @@ from gridstatus.ercot_60d_utils import (
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
     DAM_ENERGY_ONLY_OFFERS_COLUMNS,
     DAM_ENERGY_ONLY_OFFERS_KEY,
+    DAM_ESR_AS_OFFERS_COLUMNS,
+    DAM_ESR_AS_OFFERS_KEY,
+    DAM_ESR_COLUMNS,
+    DAM_ESR_KEY,
     DAM_GEN_RESOURCE_AS_OFFERS_KEY,
     DAM_GEN_RESOURCE_COLUMNS,
     DAM_GEN_RESOURCE_KEY,
@@ -902,6 +906,69 @@ class TestErcot(BaseTestISO):
 
         df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
 
+        check_60_day_dam_disclosure(df_dict)
+
+    @pytest.mark.integration
+    def test_get_60_day_dam_disclosure_esr(self):
+        # ESR data is available starting 2025-12-06
+        esr_start = pd.Timestamp("2025-12-06").date()
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        # Use the later of 65 days ago or ESR start date
+        date = max(days_ago_65, esr_start)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_dam_disclosure_esr_{date}",
+        ):
+            try:
+                df_dict = self.iso.get_60_day_dam_disclosure(
+                    date=date,
+                    process=True,
+                )
+            except NoDataFoundException:
+                pytest.skip(
+                    f"No data found for date {date} - "
+                    "ESR report may not be published yet",
+                )
+
+        assert DAM_ESR_KEY in df_dict
+        dam_esr = df_dict[DAM_ESR_KEY]
+
+        assert dam_esr.columns.tolist() == DAM_ESR_COLUMNS
+        assert len(dam_esr) > 0
+        assert dam_esr["Resource Type"].unique().tolist() == ["ESR"]
+
+        # Verify offer curves are parsed
+        assert (
+            dam_esr["QSE submitted Curve"]
+            .apply(
+                lambda x: isinstance(x, list),
+            )
+            .any()
+        )
+
+        assert DAM_ESR_AS_OFFERS_KEY in df_dict
+        dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
+
+        assert dam_esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        assert len(dam_esr_as_offers) > 0
+
+        # Verify no duplicates
+        assert not dam_esr_as_offers.duplicated(
+            subset=[
+                "Interval Start",
+                "Interval End",
+                "QSE",
+                "DME",
+                "Resource Name",
+            ],
+        ).any()
+
+        # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
 
     @pytest.mark.integration
