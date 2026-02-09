@@ -2120,6 +2120,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
         skip_esr: bool = False,
     ) -> dict:
+        # TODO: there are other files in the zip folder
         load_resource_file = None
         gen_resource_file = None
         smne_file = None
