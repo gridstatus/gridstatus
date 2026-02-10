@@ -38,9 +38,11 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_KEY,
+    SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY,
     SCED_ESR_KEY,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_KEY,
+    SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
@@ -55,9 +57,11 @@ from gridstatus.ercot_60d_utils import (
     process_dam_ptp_obligation_bids,
     process_dam_ptp_obligation_option,
     process_dam_ptp_obligation_option_awards,
+    process_sced_as_offer_updates_in_op_hour,
     process_sced_esr,
     process_sced_gen,
     process_sced_load,
+    process_sced_resource_as_offers,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -2075,8 +2079,8 @@ class Ercot(ISOBase):
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
-                "sced_smne", and (when available) "sced_esr", mapping to
-                pandas.DataFrame objects
+                "sced_smne", and (when available) "sced_esr", "sced_eoc_updates",
+                "sced_resource_as_offers", mapping to pandas.DataFrame objects
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -2121,6 +2125,8 @@ class Ercot(ISOBase):
         gen_resource_file = None
         smne_file = None
         esr_file = None
+        as_offer_updates_file = None
+        resource_as_offers_file = None
         for file in z.namelist():
             cleaned_file = file.replace(" ", "_")
             if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
@@ -2131,6 +2137,10 @@ class Ercot(ISOBase):
                 gen_resource_file = file
             elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
                 smne_file = file
+            elif "60d_SCED_AS_Offer_Updates_in_OpPeriod" in cleaned_file:
+                as_offer_updates_file = file
+            elif "60d_SCED_Resource_AS_OFFERS" in cleaned_file:
+                resource_as_offers_file = file
 
         assert load_resource_file, "Could not find load resource file"
         assert gen_resource_file, "Could not find gen resource file"
@@ -2143,6 +2153,16 @@ class Ercot(ISOBase):
         esr = None
         if not skip_esr and esr_file:
             esr = pd.read_csv(z.open(esr_file))
+        as_offer_updates = (
+            pd.read_csv(z.open(as_offer_updates_file))
+            if as_offer_updates_file
+            else None
+        )
+        resource_as_offers = (
+            pd.read_csv(z.open(resource_as_offers_file))
+            if resource_as_offers_file
+            else None
+        )
 
         def handle_time(
             df: pd.DataFrame,
@@ -2224,6 +2244,10 @@ class Ercot(ISOBase):
         if esr is not None:
             esr = localize_sced_timestamp(esr)
 
+        # Process Resource AS Offers - has SCED Timestamp like other SCED data
+        if resource_as_offers is not None:
+            resource_as_offers = localize_sced_timestamp(resource_as_offers)
+
         if process:
             logger.info("Processing 60 day SCED disclosure data")
             load_resource = process_sced_load(load_resource)
@@ -2235,6 +2259,13 @@ class Ercot(ISOBase):
             )
             if esr is not None:
                 esr = process_sced_esr(esr)
+            if as_offer_updates is not None:
+                as_offer_updates = self.parse_doc(as_offer_updates)
+                as_offer_updates = process_sced_as_offer_updates_in_op_hour(
+                    as_offer_updates,
+                )
+            if resource_as_offers is not None:
+                resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
 
         result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
@@ -2244,6 +2275,12 @@ class Ercot(ISOBase):
 
         if esr is not None:
             result[SCED_ESR_KEY] = esr
+
+        if as_offer_updates is not None:
+            result[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY] = as_offer_updates
+
+        if resource_as_offers is not None:
+            result[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
 
         return result
 
