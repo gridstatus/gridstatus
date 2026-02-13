@@ -363,6 +363,7 @@ SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS = [
 SCED_RESOURCE_AS_OFFERS_COLUMNS = [
     "SCED Timestamp",
     "Resource Name",
+    "Curve Type",
     "URS Offer Curve",
     "DRS Offer Curve",
     "RRSPFR Offer Curve",
@@ -1249,6 +1250,30 @@ def process_sced_resource_as_offers(df):
 
     Creates offer curves like [[mw, price], ...] for each AS type.
     """
+    # First create a curve_type column with the logic:
+    # regulation down : values only in _DRS columns and not in other columns
+    # offline: values in _NS and optionally _ECRS columns and not in other columns
+    # online : values in any column except for _DRS
+    price_cols = [c for c in df.columns if c.startswith("PRICE")]
+    drs_cols = [c for c in price_cols if c.endswith("_DRS")]
+    ns_cols = [c for c in price_cols if c.endswith("_NS")]
+    non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
+
+    has_drs = (df[drs_cols] != 0).any(axis=1)
+    has_non_drs = (df[non_drs_cols] != 0).any(axis=1)
+    has_ns = (df[ns_cols] != 0).any(axis=1)
+
+    non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
+    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols] != 0).any(axis=1)
+
+    df["Curve Type"] = "unknown"
+    df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
+    df.loc[has_non_drs & has_non_drs_ns_ecrs, "Curve Type"] = "Online"
+    df.loc[has_ns & ~has_drs & ~has_non_drs_ns_ecrs, "Curve Type"] = "Offline"
+
+    if any(df["Curve Type"] == "unknown"):
+        raise ValueError("Unknown curve type found")
+
     # Map source column suffixes to output curve names
     as_type_mapping = {
         "URS": "URS Offer Curve",
@@ -1267,12 +1292,10 @@ def process_sced_resource_as_offers(df):
     if block_count == 0:
         return df
 
-    # Extract MW array once (shared across all AS types)
+    # Extract MW column names (shared across all AS types)
     mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
-    mw_arr = df[mw_cols].round(2).values
-    n_rows = len(df)
 
-    # Extract curves for each AS type using vectorized operations
+    # Extract curves for each AS type using extract_curve utility
     for as_suffix, curve_col in as_type_mapping.items():
         price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
         price_cols = [c for c in price_cols if c in df.columns]
@@ -1281,20 +1304,11 @@ def process_sced_resource_as_offers(df):
             df[curve_col] = None
             continue
 
-        price_arr = df[price_cols].round(2).values
-        n_points = len(price_cols)
-
-        # Vectorized curve building
-        curves = [
-            [
-                [float(mw_arr[i, j]), float(price_arr[i, j])]
-                for j in range(n_points)
-                if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
-            ]
-            or None
-            for i in range(n_rows)
-        ]
-        df[curve_col] = curves
+        df[curve_col] = extract_curve(
+            df,
+            mw_cols=mw_cols[: len(price_cols)],
+            price_cols=price_cols,
+        )
 
     return df[SCED_RESOURCE_AS_OFFERS_COLUMNS]
 
