@@ -751,7 +751,7 @@ def process_as_offer_curves(df):
 
     # Check for which ancillary services are present in the file
     ancillary_services_in_file = [
-        col.split(" ")[1] for col in df.columns if col.startswith("PRICE1")
+        col.replace("PRICE1 ", "") for col in df.columns if col.startswith("PRICE1")
     ]
 
     present_ancillary_services = [
