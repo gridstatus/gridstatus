@@ -1252,7 +1252,7 @@ def process_sced_resource_as_offers(df):
     """
     # First create a curve_type column with the logic:
     # regulation down : values only in _DRS columns and not in other columns
-    # offline: values only in _NS columns and not in other columns
+    # offline: values in _NS and optionally _ECRS columns and not in other columns
     # online : values in any column except for _DRS
     price_cols = [c for c in df.columns if c.startswith("PRICE")]
     drs_cols = [c for c in price_cols if c.endswith("_DRS")]
@@ -1263,14 +1263,13 @@ def process_sced_resource_as_offers(df):
     has_non_drs = (df[non_drs_cols] != 0).any(axis=1)
     has_ns = (df[ns_cols] != 0).any(axis=1)
 
-    # Only _NS columns have values (no _DRS, no other non-DRS types)
-    ns_only_cols = [c for c in non_drs_cols if not c.endswith("_NS")]
-    has_non_drs_non_ns = (df[ns_only_cols] != 0).any(axis=1)
+    non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
+    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols] != 0).any(axis=1)
 
     df["Curve Type"] = "unknown"
     df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
-    df.loc[has_non_drs & has_non_drs_non_ns, "Curve Type"] = "Online"
-    df.loc[has_ns & ~has_drs & ~has_non_drs_non_ns, "Curve Type"] = "Offline"
+    df.loc[has_non_drs & has_non_drs_ns_ecrs, "Curve Type"] = "Online"
+    df.loc[has_ns & ~has_drs & ~has_non_drs_ns_ecrs, "Curve Type"] = "Offline"
 
     if any(df["Curve Type"] == "unknown"):
         raise ValueError("Unknown curve type found")
