@@ -12,6 +12,7 @@ from gridstatus.base import Markets
 P = ParamSpec("P")
 T = TypeVar("T")
 
+
 def _get_args_dict(
     fn: Callable[..., Any],
     args: tuple[Any, ...],
