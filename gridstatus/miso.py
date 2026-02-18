@@ -1595,7 +1595,12 @@ class MISO(ISOBase):
         logger.info(f"Downloading real-time binding constraints data from {url}")
 
         response_json = self._get_json(url, verbose=verbose)
+        return self._parse_binding_constraints_real_time_intraday(response_json)
 
+    def _parse_binding_constraints_real_time_intraday(
+        self,
+        response_json: dict,
+    ) -> pd.DataFrame:
         constraints = response_json.get("Constraint", [])
 
         if not constraints:
