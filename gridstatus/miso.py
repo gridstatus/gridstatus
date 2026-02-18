@@ -153,12 +153,14 @@ class MISO(ISOBase):
             df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
 
             df["Interval Start"] = df["Time"].apply(
-                lambda x, date=date: date
-                + pd.Timedelta(
-                    hours=int(
-                        x.split(":")[0],
-                    ),
-                    minutes=int(x.split(":")[1]),
+                lambda x, date=date: (
+                    date
+                    + pd.Timedelta(
+                        hours=int(
+                            x.split(":")[0],
+                        ),
+                        minutes=int(x.split(":")[1]),
+                    )
                 ),
             )
             df["Interval Start"] = df["Interval Start"].dt.tz_localize(
@@ -1562,6 +1564,81 @@ class MISO(ISOBase):
                 "Constraint Description",
             ]
         ]
+
+    @support_date_range(frequency=None)
+    def get_binding_constraints_real_time_intraday(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time binding constraints data from MISO's intraday API.
+
+        This provides active real-time constraint data updated every 5 minutes.
+        Only supports "latest" data.
+
+        Args:
+            date: Must be "latest".
+            end: Not used.
+            verbose: If True, prints additional information during data retrieval.
+
+        Returns:
+            DataFrame with real-time binding constraint data.
+        """
+        if date != "latest":
+            raise NotSupported(
+                "Only latest MISO real-time binding constraints data is available."
+                " Use 'latest' as date.",
+            )
+
+        url = "https://public-api.misoenergy.org/api/BindingConstraints/RealTime"
+        logger.info(f"Downloading real-time binding constraints data from {url}")
+
+        response_json = self._get_json(url, verbose=verbose)
+
+        constraints = response_json.get("Constraint", [])
+
+        if not constraints:
+            raise NoDataFoundException("No real-time binding constraints data found")
+
+        df = pd.DataFrame(constraints)
+
+        df["Interval Start"] = pd.to_datetime(df["Period"]).dt.tz_localize(
+            self.default_timezone,
+        )
+
+        df = df.rename(
+            columns={
+                "Name": "Constraint Name",
+                "Price": "Shadow Price",
+                "OVERRIDE": "Override",
+                "CURVETYPE": "Curve Type",
+            },
+        )
+
+        for col in ["Shadow Price", "Override", "BP1", "PC1", "BP2", "PC2"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = add_interval_end(df, 5)
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Shadow Price",
+                    "Override",
+                    "Curve Type",
+                    "BP1",
+                    "PC1",
+                    "BP2",
+                    "PC2",
+                ]
+            ]
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     def _get_constraint_header_dates_from_excel(
         self,
