@@ -1118,6 +1118,52 @@ class TestMISO(BaseTestISO):
             with pytest.raises(NotSupported):
                 self.iso.get_interchange_5_min(date)
 
+    """get_binding_constraints_real_time_intraday"""
+
+    def _check_binding_constraints_real_time_intraday(self, df):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Constraint Name",
+            "Shadow Price",
+            "Override",
+            "Curve Type",
+            "BP1",
+            "PC1",
+            "BP2",
+            "PC2",
+        ]
+
+        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
+            "5min",
+        )
+
+        assert df.dtypes["Constraint Name"] == "object"
+        assert df.dtypes["Shadow Price"] == "float64"
+        assert df.dtypes["Override"] == "float64"
+        assert df.dtypes["BP1"] == "float64"
+        assert df.dtypes["PC1"] == "float64"
+        assert df.dtypes["BP2"] == "float64"
+        assert df.dtypes["PC2"] == "float64"
+
+    def test_get_binding_constraints_real_time_intraday_latest(self):
+        with miso_vcr.use_cassette(
+            "test_get_binding_constraints_real_time_intraday_latest.yaml",
+        ):
+            df = self.iso.get_binding_constraints_real_time_intraday("latest")
+
+        self._check_binding_constraints_real_time_intraday(df)
+
+    @pytest.mark.parametrize("date", ["2025-01-01", "today"])
+    def test_get_binding_constraints_real_time_intraday_raises_error_if_not_latest(
+        self,
+        date,
+    ):
+        cassette_name = f"test_get_binding_constraints_real_time_intraday_raises_error_if_not_latest_{date}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NotSupported):
+                self.iso.get_binding_constraints_real_time_intraday(date)
+
     """get_multiday_operating_margin"""
 
     @pytest.mark.parametrize(
