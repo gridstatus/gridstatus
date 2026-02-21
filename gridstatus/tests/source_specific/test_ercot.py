@@ -971,6 +971,88 @@ class TestErcot(BaseTestISO):
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
 
+    def _check_nonspin_offer_curve(self, df, column_name, dataset_name):
+        """Verify a NONSPIN offer curve column has valid data."""
+        assert df[column_name].notna().any(), (
+            f"{column_name} should have non-null values in {dataset_name}"
+        )
+        curve = df[column_name].dropna().iloc[0]
+        assert isinstance(curve, list)
+        assert len(curve) > 0
+        assert len(curve[0]) == 2
+
+    def test_get_60_day_dam_disclosure_online_nonspin_offer_curves(self):
+        """Test that ONLINE NONSPIN offer curves are correctly parsed.
+
+        2025-12-12 data contains ONLINE NONSPIN price columns. Before the fix,
+        split(" ")[1] would extract "ONLINE" instead of "ONLINE NONSPIN",
+        causing the curves to be all NA. Checks all three AS offer datasets:
+        gen, load, and ESR.
+        """
+        date = pd.Timestamp("2025-12-12").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_online_nonspin_offer_curves.yaml",
+        ):
+            df_dict = self.iso.get_60_day_dam_disclosure(
+                date=date,
+                process=True,
+            )
+
+        col = "ONLINE NONSPIN Offer Curve"
+
+        gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            gen_as_offers,
+            col,
+            "dam_gen_resource_as_offers",
+        )
+
+        load_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
+        assert load_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            load_as_offers,
+            col,
+            "dam_load_resource_as_offers",
+        )
+
+        esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
+        assert esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            esr_as_offers,
+            col,
+            "dam_esr_as_offers",
+        )
+
+    def test_get_60_day_dam_disclosure_offline_nonspin_offer_curves(self):
+        """Test that OFFLINE NONSPIN offer curves are correctly parsed.
+
+        2025-12-12 data contains OFFLINE NONSPIN price columns. Before the fix,
+        split(" ")[1] would extract "OFFLINE" instead of "OFFLINE NONSPIN",
+        causing the curves to be all NA. Checks dam_gen_resource_as_offers
+        which has OFFLINE NONSPIN data.
+        """
+        date = pd.Timestamp("2025-12-12").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_offline_nonspin_offer_curves.yaml",
+        ):
+            df_dict = self.iso.get_60_day_dam_disclosure(
+                date=date,
+                process=True,
+            )
+
+        col = "OFFLINE NONSPIN Offer Curve"
+
+        gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            gen_as_offers,
+            col,
+            "dam_gen_resource_as_offers",
+        )
+
     @pytest.mark.integration
     def test_get_sara(self):
         columns = [
@@ -3539,68 +3621,3 @@ def check_60_day_dam_disclosure(df_dict):
     assert not dam_load_resource_as_offers.duplicated(
         subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
     ).any()
-
-
-def _check_nonspin_offer_curve(df, column_name, dataset_name):
-    """Verify a NONSPIN offer curve column has valid data."""
-    assert df[column_name].notna().any(), (
-        f"{column_name} should have non-null values in {dataset_name}"
-    )
-    curve = df[column_name].dropna().iloc[0]
-    assert isinstance(curve, list)
-    assert len(curve) > 0
-    assert len(curve[0]) == 2
-
-
-def test_60_day_dam_disclosure_online_nonspin_offer_curves():
-    """Test that ONLINE NONSPIN offer curves are correctly parsed from real data.
-
-    2025-12-12 data contains ONLINE NONSPIN price columns. Before the fix,
-    split(" ")[1] would extract "ONLINE" instead of "ONLINE NONSPIN", causing
-    the curves to be all NA. Checks all three AS offer datasets: gen, load,
-    and ESR.
-    """
-    iso = Ercot()
-    date = pd.Timestamp("2025-12-12").date()
-
-    with api_vcr.use_cassette(
-        "test_60_day_dam_disclosure_online_nonspin_offer_curves.yaml",
-    ):
-        df_dict = iso.get_60_day_dam_disclosure(date=date, process=True)
-
-    col = "ONLINE NONSPIN Offer Curve"
-
-    gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
-    assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
-    _check_nonspin_offer_curve(gen_as_offers, col, "dam_gen_resource_as_offers")
-
-    load_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
-    assert load_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
-    _check_nonspin_offer_curve(load_as_offers, col, "dam_load_resource_as_offers")
-
-    esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
-    assert esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
-    _check_nonspin_offer_curve(esr_as_offers, col, "dam_esr_as_offers")
-
-
-def test_60_day_dam_disclosure_offline_nonspin_offer_curves():
-    """Test that OFFLINE NONSPIN offer curves are correctly parsed from real data.
-
-    2025-12-12 data contains OFFLINE NONSPIN price columns. Before the fix,
-    split(" ")[1] would extract "OFFLINE" instead of "OFFLINE NONSPIN", causing
-    the curves to be all NA. Checks dam_gen_resource_as_offers which has
-    OFFLINE NONSPIN data.
-    """
-    iso = Ercot()
-    date = pd.Timestamp("2025-12-12").date()
-
-    with api_vcr.use_cassette(
-        "test_60_day_dam_disclosure_offline_nonspin_offer_curves.yaml",
-    ):
-        df_dict = iso.get_60_day_dam_disclosure(date=date, process=True)
-
-    col = "OFFLINE NONSPIN Offer Curve"
-
-    gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
-    assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
-    _check_nonspin_offer_curve(gen_as_offers, col, "dam_gen_resource_as_offers")
