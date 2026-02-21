@@ -749,7 +749,8 @@ def process_as_offer_curves(df):
         f"{service} Offer Curve" for service in all_ancillary_services
     ]
 
-    # Check for which ancillary services are present in the file
+    # Check for which ancillary services are present in the file. We must use replace
+    # to not miss ONLINE and OFFLINE NONSPIN
     ancillary_services_in_file = [
         col.replace("PRICE1 ", "") for col in df.columns if col.startswith("PRICE1")
     ]
