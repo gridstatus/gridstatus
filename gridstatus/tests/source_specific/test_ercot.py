@@ -971,6 +971,110 @@ class TestErcot(BaseTestISO):
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
 
+    """get_60_day datasets parameter tests"""
+
+    @pytest.mark.integration
+    def test_get_60_day_dam_disclosure_single_dataset(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        df_dict = self.iso.get_60_day_dam_disclosure(
+            date=days_ago_65,
+            process=True,
+            datasets=[DAM_GEN_RESOURCE_KEY],
+        )
+
+        assert list(df_dict.keys()) == [DAM_GEN_RESOURCE_KEY]
+        assert (
+            df_dict[DAM_GEN_RESOURCE_KEY].columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
+        )
+
+    @pytest.mark.integration
+    def test_get_60_day_dam_disclosure_multiple_datasets(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        requested = [DAM_GEN_RESOURCE_KEY, DAM_LOAD_RESOURCE_KEY]
+        df_dict = self.iso.get_60_day_dam_disclosure(
+            date=days_ago_65,
+            process=True,
+            datasets=requested,
+        )
+
+        assert set(df_dict.keys()) == set(requested)
+        assert (
+            df_dict[DAM_GEN_RESOURCE_KEY].columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
+        )
+        assert (
+            df_dict[DAM_LOAD_RESOURCE_KEY].columns.tolist() == DAM_LOAD_RESOURCE_COLUMNS
+        )
+
+    def test_get_60_day_dam_disclosure_invalid_dataset(self):
+        with pytest.raises(ValueError, match="Invalid DAM dataset"):
+            self.iso.get_60_day_dam_disclosure(
+                date=pd.Timestamp.now().date() - pd.Timedelta(days=65),
+                datasets=["invalid_dataset"],
+            )
+
+    def test_get_60_day_sced_disclosure_invalid_dataset(self):
+        with pytest.raises(ValueError, match="Invalid SCED dataset"):
+            self.iso.get_60_day_sced_disclosure(
+                date=pd.Timestamp.now().date() - pd.Timedelta(days=65),
+                datasets=["invalid_dataset"],
+            )
+
+    @pytest.mark.integration
+    def test_get_60_day_sced_disclosure_single_dataset(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_single_dataset_{days_ago_65}",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=days_ago_65,
+                process=True,
+                datasets=[SCED_GEN_RESOURCE_KEY],
+            )
+
+        assert list(df_dict.keys()) == [SCED_GEN_RESOURCE_KEY]
+        assert (
+            df_dict[SCED_GEN_RESOURCE_KEY].columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+        )
+
+    @pytest.mark.integration
+    def test_get_60_day_sced_disclosure_multiple_datasets(self):
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        requested = [SCED_GEN_RESOURCE_KEY, SCED_SMNE_KEY]
+        with api_vcr.use_cassette(
+            f"test_get_60_day_sced_disclosure_multiple_datasets_{days_ago_65}",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=days_ago_65,
+                process=True,
+                datasets=requested,
+            )
+
+        assert set(df_dict.keys()) == set(requested)
+        assert (
+            df_dict[SCED_GEN_RESOURCE_KEY].columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+        )
+        assert df_dict[SCED_SMNE_KEY].columns.tolist() == SCED_SMNE_COLUMNS
+
     @pytest.mark.integration
     def test_get_sara(self):
         columns = [

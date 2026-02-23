@@ -27,6 +27,59 @@ SCED_SMNE_KEY = "sced_smne"
 SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY = "sced_as_offer_updates_in_op_hour"
 SCED_RESOURCE_AS_OFFERS_KEY = "sced_resource_as_offers"
 
+VALID_DAM_DATASETS = frozenset(
+    {
+        DAM_GEN_RESOURCE_KEY,
+        DAM_LOAD_RESOURCE_KEY,
+        DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+        DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+        DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
+        DAM_ENERGY_ONLY_OFFERS_KEY,
+        DAM_PTP_OBLIGATION_BID_AWARDS_KEY,
+        DAM_PTP_OBLIGATION_BIDS_KEY,
+        DAM_ENERGY_BID_AWARDS_KEY,
+        DAM_ENERGY_BIDS_KEY,
+        DAM_PTP_OBLIGATION_OPTION_KEY,
+        DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
+        DAM_ESR_KEY,
+        DAM_ESR_AS_OFFERS_KEY,
+    },
+)
+
+VALID_SCED_DATASETS = frozenset(
+    {
+        SCED_LOAD_RESOURCE_KEY,
+        SCED_GEN_RESOURCE_KEY,
+        SCED_ESR_KEY,
+        SCED_SMNE_KEY,
+        SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY,
+        SCED_RESOURCE_AS_OFFERS_KEY,
+    },
+)
+
+CATEGORICAL_COLUMNS = [
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Resource Type",
+    "Settlement Point Name",
+    "Resource Status",
+    "Telemetered Resource Status",
+    "Multi-Hour Block Flag",
+    "AS Type",
+    "Curve Type",
+    "Bid Type",
+    "Block or Curve indicator",
+]
+
+
+def optimize_dtypes(df):
+    """Convert known repetitive string columns to categorical dtype."""
+    for col in CATEGORICAL_COLUMNS:
+        if col in df.columns and df[col].dtype == object:
+            df[col] = df[col].astype("category")
+    return df
+
 
 # Same for both generation and load
 DAM_RESOURCE_AS_OFFERS_COLUMNS = [

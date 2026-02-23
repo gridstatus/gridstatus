@@ -1499,6 +1499,7 @@ class ErcotAPI:
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
+        datasets: list[str] | None = None,
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day DAM disclosure reports from ERCOT.
@@ -1509,6 +1510,8 @@ class ErcotAPI:
                 Defaults to date + 1 day
             verbose (bool, optional): Whether to print progress messages. Defaults to
                 False
+            datasets (list[str], optional): list of dataset keys to load. When None
+                (default), all datasets are loaded.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
@@ -1559,6 +1562,7 @@ class ErcotAPI:
                 z=zip_file,
                 process=True,
                 verbose=verbose,
+                datasets=datasets,
             )
             df_list.append(processed_files)
 
@@ -1572,6 +1576,7 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
         process: bool = True,
+        datasets: list[str] | None = None,
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day SCED disclosure reports from ERCOT.
@@ -1582,6 +1587,8 @@ class ErcotAPI:
                 Defaults to date + 1 day
             verbose (bool, optional): Whether to print progress messages. Defaults to
                 False
+            datasets (list[str], optional): list of dataset keys to load. When None
+                (default), all datasets are loaded.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
@@ -1622,6 +1629,7 @@ class ErcotAPI:
                 z=zip_file,
                 process=process,
                 verbose=verbose,
+                datasets=datasets,
             )
             df_list.append(processed_files)
 

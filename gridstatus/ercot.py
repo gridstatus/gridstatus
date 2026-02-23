@@ -44,6 +44,9 @@ from gridstatus.ercot_60d_utils import (
     SCED_LOAD_RESOURCE_KEY,
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
+    VALID_DAM_DATASETS,
+    VALID_SCED_DATASETS,
+    optimize_dtypes,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -2066,6 +2069,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        datasets: list[str] | None = None,
     ) -> dict:
         """Get 60 day SCED Disclosure data
 
@@ -2076,12 +2080,22 @@ class Ercot(ISOBase):
             process (bool, optional): if True, will process the data into
                 standardized format. if False, will return raw data
             verbose (bool, optional): print verbose output. Defaults to False.
+            datasets (list[str], optional): list of dataset keys to load. When None
+                (default), all datasets are loaded. Valid keys are defined in
+                VALID_SCED_DATASETS.
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
                 "sced_smne", and (when available) "sced_esr", "sced_eoc_updates",
                 "sced_resource_as_offers", mapping to pandas.DataFrame objects
         """
+        if datasets is not None:
+            invalid = set(datasets) - VALID_SCED_DATASETS
+            if invalid:
+                raise ValueError(
+                    f"Invalid SCED dataset(s): {invalid}. "
+                    f"Valid datasets: {sorted(VALID_SCED_DATASETS)}",
+                )
 
         report_date = date + pd.DateOffset(days=60)
 
@@ -2103,10 +2117,11 @@ class Ercot(ISOBase):
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction,
+            datasets=datasets,
         )
 
         # Fetch ESR from the supplemental correction file for affected dates
-        if use_esr_correction:
+        if use_esr_correction and (datasets is None or SCED_ESR_KEY in datasets):
             esr = self._get_esr_correction_data(date, process=process, verbose=verbose)
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
@@ -2119,50 +2134,34 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        datasets: list[str] | None = None,
     ) -> dict:
         # TODO: there are other files in the zip folder
-        load_resource_file = None
-        gen_resource_file = None
-        smne_file = None
-        esr_file = None
-        as_offer_updates_file = None
-        resource_as_offers_file = None
+        def _want(key):
+            return datasets is None or key in datasets
+
+        # Map dataset keys to filename patterns
+        file_patterns = {
+            SCED_LOAD_RESOURCE_KEY: "60d_Load_Resource_Data_in_SCED",
+            SCED_GEN_RESOURCE_KEY: "60d_SCED_Gen_Resource_Data",
+            SCED_SMNE_KEY: "60d_SCED_SMNE_GEN_RES",
+            SCED_ESR_KEY: "60d_ESR_Data_in_SCED",
+            SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY: "60d_SCED_AS_Offer_Updates_in_OpPeriod",
+            SCED_RESOURCE_AS_OFFERS_KEY: "60d_SCED_Resource_AS_OFFERS",
+        }
+
+        # Find matching files in the zip
+        found_files = {}
         for file in z.namelist():
             cleaned_file = file.replace(" ", "_")
-            if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
-                load_resource_file = file
-            elif "60d_ESR_Data_in_SCED" in cleaned_file:
-                esr_file = file
-            elif "60d_SCED_Gen_Resource_Data" in cleaned_file:
-                gen_resource_file = file
-            elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
-                smne_file = file
-            elif "60d_SCED_AS_Offer_Updates_in_OpPeriod" in cleaned_file:
-                as_offer_updates_file = file
-            elif "60d_SCED_Resource_AS_OFFERS" in cleaned_file:
-                resource_as_offers_file = file
+            for key, pattern in file_patterns.items():
+                if pattern in cleaned_file and _want(key):
+                    found_files[key] = file
 
-        assert load_resource_file, "Could not find load resource file"
-        assert gen_resource_file, "Could not find gen resource file"
-        assert smne_file, "Could not find smne file"
-
-        load_resource = pd.read_csv(z.open(load_resource_file))
-        gen_resource = pd.read_csv(z.open(gen_resource_file))
-        smne = pd.read_csv(z.open(smne_file))
-        # Skip ESR from the main disclosure file if we need correction data
-        esr = None
-        if not skip_esr and esr_file:
-            esr = pd.read_csv(z.open(esr_file))
-        as_offer_updates = (
-            pd.read_csv(z.open(as_offer_updates_file))
-            if as_offer_updates_file
-            else None
-        )
-        resource_as_offers = (
-            pd.read_csv(z.open(resource_as_offers_file))
-            if resource_as_offers_file
-            else None
-        )
+        # Validate required files are present (when requested)
+        for key in [SCED_LOAD_RESOURCE_KEY, SCED_GEN_RESOURCE_KEY, SCED_SMNE_KEY]:
+            if _want(key):
+                assert key in found_files, f"Could not find file for {key}"
 
         def handle_time(
             df: pd.DataFrame,
@@ -2234,53 +2233,69 @@ class Ercot(ISOBase):
             )
             return df
 
-        load_resource = localize_sced_timestamp(load_resource)
-        gen_resource = localize_sced_timestamp(gen_resource)
+        result = {}
 
-        # no repeated hour flag like other ERCOT data
-        # likely will error on DST change
-        smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
+        # Process each dataset sequentially to limit peak memory
+        if SCED_LOAD_RESOURCE_KEY in found_files:
+            load_resource = pd.read_csv(z.open(found_files[SCED_LOAD_RESOURCE_KEY]))
+            load_resource = localize_sced_timestamp(load_resource)
+            if process:
+                load_resource = process_sced_load(load_resource)
+            result[SCED_LOAD_RESOURCE_KEY] = optimize_dtypes(load_resource)
 
-        if esr is not None:
+        if SCED_GEN_RESOURCE_KEY in found_files:
+            gen_resource = pd.read_csv(z.open(found_files[SCED_GEN_RESOURCE_KEY]))
+            gen_resource = localize_sced_timestamp(gen_resource)
+            if process:
+                gen_resource = process_sced_gen(gen_resource)
+            result[SCED_GEN_RESOURCE_KEY] = optimize_dtypes(gen_resource)
+
+        if SCED_SMNE_KEY in found_files:
+            smne = pd.read_csv(z.open(found_files[SCED_SMNE_KEY]))
+            # no repeated hour flag like other ERCOT data
+            # likely will error on DST change
+            smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
+            if process:
+                smne = smne.rename(
+                    columns={
+                        "Resource Code": "Resource Name",
+                    },
+                )
+            result[SCED_SMNE_KEY] = optimize_dtypes(smne)
+
+        # Skip ESR from the main disclosure file if we need correction data
+        if SCED_ESR_KEY in found_files and not skip_esr:
+            esr = pd.read_csv(z.open(found_files[SCED_ESR_KEY]))
             esr = localize_sced_timestamp(esr)
-
-        # Process Resource AS Offers - has SCED Timestamp like other SCED data
-        if resource_as_offers is not None:
-            resource_as_offers = localize_sced_timestamp(resource_as_offers)
-
-        if process:
-            logger.info("Processing 60 day SCED disclosure data")
-            load_resource = process_sced_load(load_resource)
-            gen_resource = process_sced_gen(gen_resource)
-            smne = smne.rename(
-                columns={
-                    "Resource Code": "Resource Name",
-                },
-            )
-            if esr is not None:
+            if process:
                 esr = process_sced_esr(esr)
-            if as_offer_updates is not None:
+            result[SCED_ESR_KEY] = optimize_dtypes(esr)
+
+        if SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY in found_files:
+            as_offer_updates = pd.read_csv(
+                z.open(found_files[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY]),
+            )
+            if process:
                 as_offer_updates = self.parse_doc(as_offer_updates)
                 as_offer_updates = process_sced_as_offer_updates_in_op_hour(
                     as_offer_updates,
                 )
-            if resource_as_offers is not None:
+            result[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY] = optimize_dtypes(
+                as_offer_updates,
+            )
+
+        # Process Resource AS Offers - has SCED Timestamp like other SCED data
+        if SCED_RESOURCE_AS_OFFERS_KEY in found_files:
+            resource_as_offers = pd.read_csv(
+                z.open(found_files[SCED_RESOURCE_AS_OFFERS_KEY]),
+            )
+            resource_as_offers = localize_sced_timestamp(resource_as_offers)
+            if process:
                 resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
+            result[SCED_RESOURCE_AS_OFFERS_KEY] = optimize_dtypes(resource_as_offers)
 
-        result = {
-            SCED_LOAD_RESOURCE_KEY: load_resource,
-            SCED_GEN_RESOURCE_KEY: gen_resource,
-            SCED_SMNE_KEY: smne,
-        }
-
-        if esr is not None:
-            result[SCED_ESR_KEY] = esr
-
-        if as_offer_updates is not None:
-            result[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY] = as_offer_updates
-
-        if resource_as_offers is not None:
-            result[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
+        # Release zip reference
+        del z
 
         return result
 
@@ -2366,6 +2381,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        datasets: list[str] | None = None,
     ) -> dict:
         """Get 60 day DAM Disclosure data. Returns a dict with keys
 
@@ -2388,7 +2404,19 @@ class Ercot(ISOBase):
 
         The date passed in should be the report date. Since reports are delayed by 60
         days, the passed date should not be fewer than 60 days in the past.
+
+        Arguments:
+            datasets (list[str], optional): list of dataset keys to load. When None
+                (default), all datasets are loaded. Valid keys are defined in
+                VALID_DAM_DATASETS.
         """
+        if datasets is not None:
+            invalid = set(datasets) - VALID_DAM_DATASETS
+            if invalid:
+                raise ValueError(
+                    f"Invalid DAM dataset(s): {invalid}. "
+                    f"Valid datasets: {sorted(VALID_DAM_DATASETS)}",
+                )
 
         report_date = date + pd.DateOffset(days=60)
 
@@ -2401,7 +2429,12 @@ class Ercot(ISOBase):
 
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
+        data = self._handle_60_day_dam_disclosure(
+            z,
+            process=process,
+            verbose=verbose,
+            datasets=datasets,
+        )
 
         return data
 
@@ -2411,22 +2444,22 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         files_prefix: dict = None,
+        datasets: list[str] | None = None,
     ) -> dict:
-        if not files_prefix:
-            files_prefix = {
-                DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
-                DAM_GEN_RESOURCE_AS_OFFERS_KEY: "60d_DAM_Generation_Resource_ASOffers-",
-                DAM_LOAD_RESOURCE_KEY: "60d_DAM_Load_Resource_Data-",
-                DAM_LOAD_RESOURCE_AS_OFFERS_KEY: "60d_DAM_Load_Resource_ASOffers-",
-                DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: "60d_DAM_EnergyOnlyOfferAwards-",
-                DAM_ENERGY_ONLY_OFFERS_KEY: "60d_DAM_EnergyOnlyOffers-",
-                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: "60d_DAM_PTPObligationBidAwards-",
-                DAM_PTP_OBLIGATION_BIDS_KEY: "60d_DAM_PTPObligationBids-",
-                DAM_ENERGY_BID_AWARDS_KEY: "60d_DAM_EnergyBidAwards-",
-                DAM_ENERGY_BIDS_KEY: "60d_DAM_EnergyBids-",
-                DAM_PTP_OBLIGATION_OPTION_KEY: "60d_DAM_PTP_Obligation_Option-",
-                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
-            }
+        all_files_prefix = {
+            DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
+            DAM_GEN_RESOURCE_AS_OFFERS_KEY: "60d_DAM_Generation_Resource_ASOffers-",
+            DAM_LOAD_RESOURCE_KEY: "60d_DAM_Load_Resource_Data-",
+            DAM_LOAD_RESOURCE_AS_OFFERS_KEY: "60d_DAM_Load_Resource_ASOffers-",
+            DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: "60d_DAM_EnergyOnlyOfferAwards-",
+            DAM_ENERGY_ONLY_OFFERS_KEY: "60d_DAM_EnergyOnlyOffers-",
+            DAM_PTP_OBLIGATION_BID_AWARDS_KEY: "60d_DAM_PTPObligationBidAwards-",
+            DAM_PTP_OBLIGATION_BIDS_KEY: "60d_DAM_PTPObligationBids-",
+            DAM_ENERGY_BID_AWARDS_KEY: "60d_DAM_EnergyBidAwards-",
+            DAM_ENERGY_BIDS_KEY: "60d_DAM_EnergyBids-",
+            DAM_PTP_OBLIGATION_OPTION_KEY: "60d_DAM_PTP_Obligation_Option-",
+            DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
+        }
 
         # ESR files are optional (only available starting 2025-12-06)
         optional_files_prefix = {
@@ -2434,52 +2467,69 @@ class Ercot(ISOBase):
             DAM_ESR_AS_OFFERS_KEY: "60d_DAM_ESR_ASOffers-",
         }
 
+        # Use files_prefix if explicitly provided (for backward compatibility),
+        # otherwise filter by datasets
+        if files_prefix:
+            required_prefix = files_prefix
+        elif datasets is not None:
+            required_prefix = {
+                k: v for k, v in all_files_prefix.items() if k in datasets
+            }
+            # Move requested optional datasets into the optional lookup
+            optional_files_prefix = {
+                k: v for k, v in optional_files_prefix.items() if k in datasets
+            }
+        else:
+            required_prefix = all_files_prefix
+
         files = {}
 
         # find required files in zip folder
-        for key, file in files_prefix.items():
+        for key, file in required_prefix.items():
             for f in z.namelist():
                 if file in f:
                     files[key] = f
 
-        assert len(files) == len(files_prefix), "Missing files"
+        assert len(files) == len(required_prefix), "Missing files"
 
         # find optional files in zip folder
-        for key, file in optional_files_prefix.items():
-            for f in z.namelist():
-                if file in f:
-                    files[key] = f
+        if datasets is None or any(k in datasets for k in optional_files_prefix):
+            for key, file in optional_files_prefix.items():
+                for f in z.namelist():
+                    if file in f:
+                        files[key] = f
 
+        file_to_function = {
+            DAM_GEN_RESOURCE_KEY: process_dam_gen,
+            DAM_LOAD_RESOURCE_KEY: process_dam_load,
+            DAM_GEN_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
+            DAM_LOAD_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
+            DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: process_dam_energy_only_offer_awards,
+            DAM_ENERGY_ONLY_OFFERS_KEY: process_dam_energy_only_offers,
+            DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,
+            DAM_PTP_OBLIGATION_BIDS_KEY: process_dam_ptp_obligation_bids,
+            DAM_ENERGY_BID_AWARDS_KEY: process_dam_energy_bid_awards,
+            DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
+            DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
+            DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
+            DAM_ESR_KEY: process_dam_esr,
+            DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
+        }
+
+        # Process each file sequentially to limit peak memory
         data = {}
-
         for key, file in files.items():
             doc = pd.read_csv(z.open(file))
             # weird that these files dont have this column like all other ERCOT files
             # add so we can parse
             doc["DSTFlag"] = "N"
-            data[key] = self.parse_doc(doc, verbose=verbose)
+            doc = self.parse_doc(doc, verbose=verbose)
+            if process and key in file_to_function:
+                doc = file_to_function[key](doc)
+            data[key] = optimize_dtypes(doc)
 
-        if process:
-            file_to_function = {
-                DAM_GEN_RESOURCE_KEY: process_dam_gen,
-                DAM_LOAD_RESOURCE_KEY: process_dam_load,
-                DAM_GEN_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
-                DAM_LOAD_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
-                DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: process_dam_energy_only_offer_awards,
-                DAM_ENERGY_ONLY_OFFERS_KEY: process_dam_energy_only_offers,
-                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,  # noqa
-                DAM_PTP_OBLIGATION_BIDS_KEY: process_dam_ptp_obligation_bids,
-                DAM_ENERGY_BID_AWARDS_KEY: process_dam_energy_bid_awards,
-                DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
-                DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
-                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
-                DAM_ESR_KEY: process_dam_esr,
-                DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
-            }
-
-            for file_name, process_func in file_to_function.items():
-                if file_name in data:
-                    data[file_name] = process_func(data[file_name])
+        # Release zip reference
+        del z
 
         return data
 
