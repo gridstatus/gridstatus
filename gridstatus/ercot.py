@@ -2059,6 +2059,14 @@ class Ercot(ISOBase):
         pd.Timestamp("2025-12-06").date(),
     ]
 
+    # Data dates for which ESR, Gen Resource, and Load Resource data from the
+    # normal disclosure file is incorrect and should be replaced with data from
+    # the supplemental correction files. Published on Feb 23, 2026.
+    # Data dates Dec 5, 2025 through Dec 20, 2025 correspond to report dates
+    # Feb 3, 2026 through Feb 18, 2026.
+    SCED_SUPPLEMENTAL_CORRECTION_START = pd.Timestamp("2025-12-05").date()
+    SCED_SUPPLEMENTAL_CORRECTION_END = pd.Timestamp("2025-12-20").date()
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2093,21 +2101,38 @@ class Ercot(ISOBase):
         )
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        # Check if this date needs ESR correction data
+        # Check if this date needs correction data
         # Compare using date() for timezone-agnostic comparison
         date_as_date = pd.Timestamp(date).date()
         use_esr_correction = date_as_date in self.ESR_CORRECTION_DATES
+        use_sced_supplemental = (
+            self.SCED_SUPPLEMENTAL_CORRECTION_START
+            <= date_as_date
+            <= self.SCED_SUPPLEMENTAL_CORRECTION_END
+        )
 
         data = self._handle_60_day_sced_disclosure(
             z,
             process=process,
             verbose=verbose,
-            skip_esr=use_esr_correction,
+            skip_esr=use_esr_correction or use_sced_supplemental,
         )
 
-        # Fetch ESR from the supplemental correction file for affected dates
-        if use_esr_correction:
-            esr = self._get_esr_correction_data(date, process=process, verbose=verbose)
+        if use_sced_supplemental:
+            # Fetch ESR, Gen Resource, and Load Resource from supplemental files
+            supplemental = self._get_sced_supplemental_data(
+                date,
+                process=process,
+                verbose=verbose,
+            )
+            data.update(supplemental)
+        elif use_esr_correction:
+            # Fetch ESR from the supplemental correction file for affected dates
+            esr = self._get_esr_correction_data(
+                date,
+                process=process,
+                verbose=verbose,
+            )
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
 
@@ -2358,6 +2383,107 @@ class Ercot(ISOBase):
             esr = process_sced_esr(esr)
 
         return esr
+
+    # Mapping of dataset key to (document name filter, file name prefix) for
+    # the Feb 3-18, 2026 supplemental correction files.
+    _SCED_SUPPLEMENTAL_DATASETS = [
+        (
+            SCED_ESR_KEY,
+            "60d_ESR_Data_in_SCED_02032026_thru_02182026_SUPPLEMENTAL",
+            "60d_ESR_Data_in_SCED",
+            process_sced_esr,
+        ),
+        (
+            SCED_GEN_RESOURCE_KEY,
+            "60d_Gen_Resource_Data_in_SCED_02032026_thru_02182026_SUPPLEMENTAL",
+            "60d_SCED_Gen_Resource_Data",
+            process_sced_gen,
+        ),
+        (
+            SCED_LOAD_RESOURCE_KEY,
+            "60d_Load_Resource_Data_in_SCED_02032026_thru_02182026_SUPPLEMENTAL",
+            "60d_Load_Resource_Data_in_SCED",
+            process_sced_load,
+        ),
+    ]
+
+    def _get_sced_supplemental_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> dict:
+        """Fetch ESR, Gen Resource, and Load Resource data from supplemental
+        correction files for data dates Dec 5-20, 2025.
+
+        ERCOT published incorrect data for these three datasets for data dates
+        Dec 5, 2025 through Dec 20, 2025 (report dates Feb 3-18, 2026).
+        The supplemental correction files were published on Feb 23, 2026.
+
+        Arguments:
+            date: The data date (not report date) to fetch supplemental data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+
+        Returns:
+            dict with keys for the corrected datasets
+        """
+        # Files in the supplemental zips are named with the report date
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        result = {}
+
+        for key, doc_name, file_prefix, process_fn in self._SCED_SUPPLEMENTAL_DATASETS:
+            docs = self._get_documents(
+                report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+                constructed_name_contains=doc_name,
+                verbose=verbose,
+            )
+
+            if not docs:
+                logger.warning(
+                    f"Supplemental correction file not found for {key}",
+                )
+                continue
+
+            doc = docs[0]
+            z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+            # Files are named like: {file_prefix}-{DD-MMM-YY}.csv
+            expected_filename = f"{file_prefix}-{date_str}.csv"
+
+            target_file = None
+            for file in z.namelist():
+                cleaned = file.replace(" ", "_")
+                if expected_filename in cleaned:
+                    target_file = file
+                    break
+
+            if target_file is None:
+                logger.warning(
+                    f"Could not find supplemental file {expected_filename} for {key}",
+                )
+                continue
+
+            if verbose:
+                logger.info(f"Reading supplemental data from {target_file}")
+
+            df = pd.read_csv(z.open(target_file))
+
+            # Localize SCED Timestamp
+            df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=df["Repeated Hour Flag"] == "N",
+            )
+
+            if process:
+                df = process_fn(df)
+
+            result[key] = df
+
+        return result
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(
