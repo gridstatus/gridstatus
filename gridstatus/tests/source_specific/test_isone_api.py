@@ -614,7 +614,8 @@ class TestISONEAPI(TestHelperMixin):
     @pytest.mark.parametrize(
         "date,end",
         [
-            ("2026-02-25", "2026-02-27"),
+            ("2025-11-01", "2025-11-03"),
+            ("2025-03-08", "2025-03-10"),
         ],
     )
     def test_get_zonal_load_estimated_5_min_date_range(
