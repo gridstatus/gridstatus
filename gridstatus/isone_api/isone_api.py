@@ -18,6 +18,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS,
     ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS,
     ISONE_FCM_RECONFIGURATION_COLUMNS,
+    ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
@@ -898,6 +899,74 @@ class ISONEAPI:
                 "Total Imports",
             ]
         ].sort_values(["Interval Start", "Location"])
+
+    @support_date_range("DAY_START")
+    def get_estimated_zonal_load_5_min(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute estimated zonal load data for all load zones.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the data
+                request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only used
+                if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute estimated zonal load data.
+        """
+        url = self._build_url("fiveminuteestimatedzonalload", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        records = self._prepare_records(
+            self._safe_get(
+                response,
+                "isone_web_services",
+                "five_min_estimated_zonal_loads",
+                "five_min_estimated_zonal_load",
+            ),
+        )
+
+        if not records:
+            raise NoDataFoundException(
+                f"No five-minute estimated zonal load data found for {date}",
+            )
+
+        df = pd.DataFrame(records)
+
+        df["Interval Start"] = pd.to_datetime(
+            df["interval_begin_date"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "load_zone_id": "Load Zone Id",
+                "load_zone_name": "Load Zone Name",
+                "estimated_load_mw": "Estimated Load MW",
+                "estimated_btm_pv_mw": "Estimated BTM PV MW",
+            },
+        )
+
+        df["Load Zone Id"] = pd.to_numeric(df["Load Zone Id"], errors="coerce")
+        df["Estimated Load MW"] = pd.to_numeric(
+            df["Estimated Load MW"],
+            errors="coerce",
+        )
+        df["Estimated BTM PV MW"] = pd.to_numeric(
+            df["Estimated BTM PV MW"],
+            errors="coerce",
+        )
+
+        return df[ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS].sort_values(
+            ["Interval Start", "Load Zone Id"],
+        )
 
     @support_date_range("HOUR_START")
     def get_lmp_real_time_5_min_prelim(
