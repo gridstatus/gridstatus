@@ -3443,8 +3443,12 @@ class TestPJM(BaseTestISO):
 
     def test_get_ftr_option_paths_monthly(self):
         with pjm_vcr.use_cassette("test_get_ftr_option_paths_monthly.yaml"):
-            df = self.iso.get_ftr_option_paths_monthly()
+            df = self.iso.get_ftr_option_paths_monthly(date="latest")
             self._check_ftr_option_paths_monthly(df)
+
+    def test_get_ftr_option_paths_monthly_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_ftr_option_paths_monthly(date="2024-01-01")
 
     """get_ftr_source_sink_monthly_prompt"""
 
@@ -3462,8 +3466,12 @@ class TestPJM(BaseTestISO):
 
     def test_get_ftr_source_sink_monthly_prompt(self):
         with pjm_vcr.use_cassette("test_get_ftr_source_sink_monthly_prompt.yaml"):
-            df = self.iso.get_ftr_source_sink_monthly_prompt()
+            df = self.iso.get_ftr_source_sink_monthly_prompt(date="latest")
             self._check_ftr_source_sink(df)
+
+    def test_get_ftr_source_sink_monthly_prompt_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_ftr_source_sink_monthly_prompt(date="2024-01-01")
 
     """get_ftr_source_sink_monthly_non_prompt"""
 
@@ -3471,5 +3479,9 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette(
             "test_get_ftr_source_sink_monthly_non_prompt.yaml",
         ):
-            df = self.iso.get_ftr_source_sink_monthly_non_prompt()
+            df = self.iso.get_ftr_source_sink_monthly_non_prompt(date="latest")
             self._check_ftr_source_sink(df)
+
+    def test_get_ftr_source_sink_monthly_non_prompt_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_ftr_source_sink_monthly_non_prompt(date="2024-01-01")

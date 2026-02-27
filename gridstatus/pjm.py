@@ -4012,23 +4012,33 @@ class PJM(ISOBase):
 
     def get_ftr_option_paths_monthly(
         self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Gets the monthly FTR option paths data from PJM.
 
         Contains valid source-sink pairs for FTR options in PJM monthly
-        auctions.
+        auctions. Only ``date="latest"`` is supported.
 
         Source:
         https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/option-paths.csv
 
         Arguments:
+            date (str): Only "latest" is supported. Defaults to "latest".
+            end: Not supported. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pd.DataFrame: DataFrame with columns: Publish Date, Source Node,
                 Source PNODE ID, Sink Node, Sink PNODE ID
         """
+        if date != "latest":
+            raise NotSupported(
+                f"{self.name} only supports date='latest' for"
+                " get_ftr_option_paths_monthly",
+            )
+
         url = self.FTR_OPTION_PATHS_MONTHLY_URL
         logger.info(f"Requesting {url}...")
 
@@ -4087,23 +4097,33 @@ class PJM(ISOBase):
 
     def get_ftr_source_sink_monthly_prompt(
         self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Gets the monthly FTR source/sink data for the prompt month from PJM.
 
         Contains valid source/sinks for obligations in the prompt month
-        FTR auction.
+        FTR auction. Only ``date="latest"`` is supported.
 
         Source:
         https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-prompt.csv
 
         Arguments:
+            date (str): Only "latest" is supported. Defaults to "latest".
+            end: Not supported. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
                 PNODE ID
         """
+        if date != "latest":
+            raise NotSupported(
+                f"{self.name} only supports date='latest' for"
+                " get_ftr_source_sink_monthly_prompt",
+            )
+
         url = self.FTR_SOURCE_SINK_MONTHLY_PROMPT_URL
         logger.info(f"Requesting {url}...")
 
@@ -4114,23 +4134,33 @@ class PJM(ISOBase):
 
     def get_ftr_source_sink_monthly_non_prompt(
         self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Gets the monthly FTR source/sink data for non-prompt months from PJM.
 
         Contains valid source/sinks for obligations in the non-prompt month
-        FTR auction.
+        FTR auction. Only ``date="latest"`` is supported.
 
         Source:
         https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv
 
         Arguments:
+            date (str): Only "latest" is supported. Defaults to "latest".
+            end: Not supported. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
                 PNODE ID
         """
+        if date != "latest":
+            raise NotSupported(
+                f"{self.name} only supports date='latest' for"
+                " get_ftr_source_sink_monthly_non_prompt",
+            )
+
         url = self.FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL
         logger.info(f"Requesting {url}...")
 
