@@ -3422,3 +3422,54 @@ class TestPJM(BaseTestISO):
             self._check_marginal_emission_rates_5_min(df)
             assert df["Interval Start"].min() >= date
             assert df["Interval End"].max() <= end
+
+    """get_ftr_option_paths_monthly"""
+
+    def _check_ftr_option_paths_monthly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.columns.tolist() == [
+            "Publish Date",
+            "Source Node",
+            "Source PNODE ID",
+            "Sink Node",
+            "Sink PNODE ID",
+        ]
+        assert df["Publish Date"].dtype == "datetime64[s]"
+        assert df["Source Node"].dtype == object
+        assert df["Source PNODE ID"].dtype == np.int64
+        assert df["Sink Node"].dtype == object
+        assert df["Sink PNODE ID"].dtype == np.int64
+
+    def test_get_ftr_option_paths_monthly(self):
+        with pjm_vcr.use_cassette("test_get_ftr_option_paths_monthly.yaml"):
+            df = self.iso.get_ftr_option_paths_monthly()
+            self._check_ftr_option_paths_monthly(df)
+
+    """get_ftr_source_sink_monthly_prompt"""
+
+    def _check_ftr_source_sink(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.columns.tolist() == [
+            "Publish Date",
+            "Obligation Name",
+            "PNODE ID",
+        ]
+        assert df["Publish Date"].dtype == "datetime64[s]"
+        assert df["Obligation Name"].dtype == object
+        assert df["PNODE ID"].dtype == np.int64
+
+    def test_get_ftr_source_sink_monthly_prompt(self):
+        with pjm_vcr.use_cassette("test_get_ftr_source_sink_monthly_prompt.yaml"):
+            df = self.iso.get_ftr_source_sink_monthly_prompt()
+            self._check_ftr_source_sink(df)
+
+    """get_ftr_source_sink_monthly_non_prompt"""
+
+    def test_get_ftr_source_sink_monthly_non_prompt(self):
+        with pjm_vcr.use_cassette(
+            "test_get_ftr_source_sink_monthly_non_prompt.yaml",
+        ):
+            df = self.iso.get_ftr_source_sink_monthly_non_prompt()
+            self._check_ftr_source_sink(df)

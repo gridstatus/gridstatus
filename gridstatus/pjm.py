@@ -4004,3 +4004,172 @@ class PJM(ISOBase):
         ]
 
         return df
+
+    FTR_OPTION_PATHS_MONTHLY_URL = (
+        "https://www.pjm.com/pjmfiles/pub/"
+        "account/auction-user-info/downloads/option-paths.csv"
+    )
+
+    def get_ftr_option_paths_monthly(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly FTR option paths data from PJM.
+
+        Contains valid source-sink pairs for FTR options in PJM monthly
+        auctions.
+
+        Source:
+        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/option-paths.csv
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns: Publish Date, Source Node,
+                Source PNODE ID, Sink Node, Sink PNODE ID
+        """
+        url = self.FTR_OPTION_PATHS_MONTHLY_URL
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        response.raise_for_status()
+
+        return self._parse_ftr_option_paths_monthly(response.text)
+
+    def _parse_ftr_option_paths_monthly(
+        self,
+        csv_content: str,
+    ) -> pd.DataFrame:
+        lines = csv_content.split("\n")
+
+        # First line: "Date Posted - YYYYMMDD,,,"
+        first_line = lines[0].strip()
+        date_str = first_line.split(" - ")[1].split(",")[0]
+        publish_date = pd.Timestamp(date_str)
+
+        # Read CSV starting from row 2 (header row)
+        csv_data = "\n".join(lines[1:])
+        df = pd.read_csv(io.StringIO(csv_data))
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "Source PnodeID  (Information purposes only)": "Source PNODE ID",
+                "Sink PnodeID  (Information purposes only)": "Sink PNODE ID",
+            },
+        )
+
+        df["Publish Date"] = publish_date
+
+        df = df[
+            [
+                "Publish Date",
+                "Source Node",
+                "Source PNODE ID",
+                "Sink Node",
+                "Sink PNODE ID",
+            ]
+        ]
+
+        return df
+
+    FTR_SOURCE_SINK_MONTHLY_PROMPT_URL = (
+        "https://www.pjm.com/pjmfiles/pub/"
+        "account/auction-user-info/downloads/ftr-source-sink-prompt.csv"
+    )
+
+    FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL = (
+        "https://www.pjm.com/pjmfiles/pub/"
+        "account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv"
+    )
+
+    def get_ftr_source_sink_monthly_prompt(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly FTR source/sink data for the prompt month from PJM.
+
+        Contains valid source/sinks for obligations in the prompt month
+        FTR auction.
+
+        Source:
+        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-prompt.csv
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
+                PNODE ID
+        """
+        url = self.FTR_SOURCE_SINK_MONTHLY_PROMPT_URL
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        response.raise_for_status()
+
+        return self._parse_ftr_source_sink(response.text)
+
+    def get_ftr_source_sink_monthly_non_prompt(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly FTR source/sink data for non-prompt months from PJM.
+
+        Contains valid source/sinks for obligations in the non-prompt month
+        FTR auction.
+
+        Source:
+        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv
+
+        Arguments:
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
+                PNODE ID
+        """
+        url = self.FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        response.raise_for_status()
+
+        return self._parse_ftr_source_sink(response.text)
+
+    def _parse_ftr_source_sink(
+        self,
+        csv_content: str,
+    ) -> pd.DataFrame:
+        lines = csv_content.split("\n")
+
+        # First line: "Date Posted - YYYYMMDD,"
+        first_line = lines[0].strip()
+        date_str = first_line.split(" - ")[1].split(",")[0]
+        publish_date = pd.Timestamp(date_str)
+
+        # Read CSV starting from row 2 (header row)
+        csv_data = "\n".join(lines[1:])
+        df = pd.read_csv(io.StringIO(csv_data))
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "PnodeID  (Information purposes only)": "PNODE ID",
+            },
+        )
+
+        df["Publish Date"] = publish_date
+
+        df = df[
+            [
+                "Publish Date",
+                "Obligation Name",
+                "PNODE ID",
+            ]
+        ]
+
+        return df
