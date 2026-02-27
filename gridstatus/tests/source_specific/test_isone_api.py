@@ -592,39 +592,39 @@ class TestISONEAPI(TestHelperMixin):
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
 
-    """get_estimated_zonal_load_5_min"""
+    """get_zonal_load_estimated_5_min"""
 
-    def _check_estimated_zonal_load_5_min(self, df: pd.DataFrame) -> None:
+    def _check_zonal_load_estimated_5_min(self, df: pd.DataFrame) -> None:
         assert list(df.columns) == ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS
-        assert df["Load Zone Id"].dtype in [np.int64, np.float64]
+        assert df["Load Zone ID"].dtype in [np.int64, np.float64]
         assert df["Estimated Load"].dtype == np.float64
         assert df["Estimated BTM Solar"].dtype == np.float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
-    def test_get_estimated_zonal_load_5_min_latest(self):
+    def test_get_zonal_load_estimated_5_min_latest(self):
         with api_vcr.use_cassette(
-            "test_get_estimated_zonal_load_5_min_latest.yaml",
+            "test_get_zonal_load_estimated_5_min_latest.yaml",
         ):
-            result = self.iso.get_estimated_zonal_load_5_min(date="latest")
+            result = self.iso.get_zonal_load_estimated_5_min(date="latest")
 
-        self._check_estimated_zonal_load_5_min(result)
+        self._check_zonal_load_estimated_5_min(result)
 
     @pytest.mark.parametrize(
         "date,end",
         DST_CHANGE_TEST_DATES,
     )
-    def test_get_estimated_zonal_load_5_min_date_range(
+    def test_get_zonal_load_estimated_5_min_date_range(
         self,
         date: str,
         end: str,
     ):
-        cassette_name = f"test_get_estimated_zonal_load_5_min_{date}_{end}.yaml"
+        cassette_name = f"test_get_zonal_load_estimated_5_min_{date}_{end}.yaml"
         with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_estimated_zonal_load_5_min(date=date, end=end)
+            result = self.iso.get_zonal_load_estimated_5_min(date=date, end=end)
 
-        self._check_estimated_zonal_load_5_min(result)
+        self._check_zonal_load_estimated_5_min(result)
 
         assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
             self.iso.default_timezone,
