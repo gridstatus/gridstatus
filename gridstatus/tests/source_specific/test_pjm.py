@@ -3435,7 +3435,8 @@ class TestPJM(BaseTestISO):
             "Sink Node",
             "Sink PNODE ID",
         ]
-        assert df["Publish Date"].dtype == "datetime64[s]"
+        assert df["Publish Date"].dtype == object
+        assert pd.Timestamp(df["Publish Date"].iloc[0])
         assert df["Source Node"].dtype == object
         assert df["Source PNODE ID"].dtype == np.int64
         assert df["Sink Node"].dtype == object
@@ -3460,7 +3461,7 @@ class TestPJM(BaseTestISO):
             "Obligation Name",
             "PNODE ID",
         ]
-        assert df["Publish Date"].dtype == "datetime64[s]"
+        assert df["Publish Date"].dtype == object
         assert df["Obligation Name"].dtype == object
         assert df["PNODE ID"].dtype == np.int64
 

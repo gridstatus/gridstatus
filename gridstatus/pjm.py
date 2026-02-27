@@ -4056,7 +4056,7 @@ class PJM(ISOBase):
         # First line: "Date Posted - YYYYMMDD,,,"
         first_line = lines[0].strip()
         date_str = first_line.split(" - ")[1].split(",")[0]
-        publish_date = pd.Timestamp(date_str)
+        publish_date = pd.Timestamp(date_str).date().isoformat()
 
         # Read CSV starting from row 2 (header row)
         csv_data = "\n".join(lines[1:])
@@ -4178,7 +4178,7 @@ class PJM(ISOBase):
         # First line: "Date Posted - YYYYMMDD,"
         first_line = lines[0].strip()
         date_str = first_line.split(" - ")[1].split(",")[0]
-        publish_date = pd.Timestamp(date_str)
+        publish_date = pd.Timestamp(date_str).date().isoformat()
 
         # Read CSV starting from row 2 (header row)
         csv_data = "\n".join(lines[1:])
