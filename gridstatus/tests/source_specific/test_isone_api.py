@@ -597,8 +597,8 @@ class TestISONEAPI(TestHelperMixin):
     def _check_estimated_zonal_load_5_min(self, df: pd.DataFrame) -> None:
         assert list(df.columns) == ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS
         assert df["Load Zone Id"].dtype in [np.int64, np.float64]
-        assert df["Estimated Load MW"].dtype == np.float64
-        assert df["Estimated BTM PV MW"].dtype == np.float64
+        assert df["Estimated Load"].dtype == np.float64
+        assert df["Estimated BTM Solar"].dtype == np.float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()

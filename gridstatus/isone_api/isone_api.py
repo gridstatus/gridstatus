@@ -901,7 +901,7 @@ class ISONEAPI:
         ].sort_values(["Interval Start", "Location"])
 
     @support_date_range("DAY_START")
-    def get_estimated_zonal_load_5_min(
+    def get_zonal_load_estimated_5_min(
         self,
         date: str | pd.Timestamp | Literal["latest"],
         end: str | pd.Timestamp | None = None,
@@ -947,25 +947,25 @@ class ISONEAPI:
 
         df = df.rename(
             columns={
-                "load_zone_id": "Load Zone Id",
+                "load_zone_id": "Load Zone ID",
                 "load_zone_name": "Load Zone Name",
-                "estimated_load_mw": "Estimated Load MW",
-                "estimated_btm_pv_mw": "Estimated BTM PV MW",
+                "estimated_load_mw": "Estimated Load",
+                "estimated_btm_pv_mw": "Estimated BTM Solar",
             },
         )
 
-        df["Load Zone Id"] = pd.to_numeric(df["Load Zone Id"], errors="coerce")
-        df["Estimated Load MW"] = pd.to_numeric(
-            df["Estimated Load MW"],
+        df["Load Zone ID"] = pd.to_numeric(df["Load Zone ID"], errors="coerce")
+        df["Estimated Load"] = pd.to_numeric(
+            df["Estimated Load"],
             errors="coerce",
         )
-        df["Estimated BTM PV MW"] = pd.to_numeric(
-            df["Estimated BTM PV MW"],
+        df["Estimated BTM Solar"] = pd.to_numeric(
+            df["Estimated BTM Solar"],
             errors="coerce",
         )
 
         return df[ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS].sort_values(
-            ["Interval Start", "Load Zone Id"],
+            ["Interval Start", "Load Zone ID"],
         )
 
     @support_date_range("HOUR_START")

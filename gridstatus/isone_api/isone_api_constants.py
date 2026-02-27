@@ -99,10 +99,10 @@ ISONE_RESERVE_ZONE_COLUMN_MAP = {
 ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS = [
     "Interval Start",
     "Interval End",
-    "Load Zone Id",
+    "Load Zone ID",
     "Load Zone Name",
-    "Estimated Load MW",
-    "Estimated BTM PV MW",
+    "Estimated Load",
+    "Estimated BTM Solar",
 ]
 
 ISONE_FCM_RECONFIGURATION_COLUMNS = [
