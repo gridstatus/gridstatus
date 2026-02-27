@@ -3462,6 +3462,7 @@ class TestPJM(BaseTestISO):
             "PNODE ID",
         ]
         assert df["Publish Date"].dtype == object
+        assert pd.Timestamp(df["Publish Date"].iloc[0])
         assert df["Obligation Name"].dtype == object
         assert df["PNODE ID"].dtype == np.int64
 
