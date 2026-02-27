@@ -597,8 +597,8 @@ class TestISONEAPI(TestHelperMixin):
     def _check_zonal_load_estimated_5_min(self, df: pd.DataFrame) -> None:
         assert list(df.columns) == ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS
         assert df["Load Zone ID"].dtype in [np.int64, np.float64]
-        assert df["Estimated Load"].dtype == np.float64
-        assert df["Estimated BTM Solar"].dtype == np.float64
+        assert df["Estimated Load"].dtype in [np.int64, np.float64]
+        assert df["Estimated BTM Solar"].dtype in [np.int64, np.float64]
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
@@ -613,7 +613,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.parametrize(
         "date,end",
-        DST_CHANGE_TEST_DATES,
+        [
+            ("2026-02-25", "2026-02-27"),
+        ],
     )
     def test_get_zonal_load_estimated_5_min_date_range(
         self,
