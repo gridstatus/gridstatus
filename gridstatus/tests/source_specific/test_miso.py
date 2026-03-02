@@ -1146,6 +1146,8 @@ class TestMISO(BaseTestISO):
         assert df.dtypes["BP2"] == "float64"
         assert df.dtypes["PC2"] == "float64"
 
+        assert (df["Constraint Name"] != "None").all()
+
     def test_get_binding_constraints_real_time_intraday_latest(self):
         with miso_vcr.use_cassette(
             "test_get_binding_constraints_real_time_intraday_latest.yaml",

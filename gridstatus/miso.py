@@ -1608,6 +1608,10 @@ class MISO(ISOBase):
 
         df = pd.DataFrame(constraints)
 
+        # MISO publishes empty binding constraints when there are no active constraints
+        if (df["Name"] == "None").all():
+            raise NoDataFoundException("No real-time binding constraints data found")
+
         df["Interval Start"] = pd.to_datetime(df["Period"]).dt.tz_localize(
             self.default_timezone,
         )
