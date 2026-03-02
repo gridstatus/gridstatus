@@ -927,6 +927,38 @@ class TestErcot(BaseTestISO):
         smne = df_dict[SCED_SMNE_KEY]
         assert len(smne) > 0
 
+    @pytest.mark.integration
+    def test_get_60_day_sced_disclosure_telemetered_net_output(self):
+        """Test that Telemetered Net Output contains real data, not NaN.
+
+        On 2025-12-28 the raw data column is named 'Telemetered Net Output'
+        (no trailing space), unlike earlier dates which had a trailing space.
+        Without stripping whitespace from column names, the processing code
+        fails to match the column and fills it with NaN.
+        """
+        date = pd.Timestamp("2025-12-28").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_sced_disclosure_telemetered_net_output",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=date,
+                process=True,
+            )
+
+        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+
+        assert len(gen_resource) > 0
+        assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+
+        # The critical assertion: Telemetered Net Output must contain real
+        # data, not all NaN. On main, the column name mismatch causes
+        # this to be filled with NaN for dates where the raw data has no
+        # trailing space.
+        assert gen_resource["Telemetered Net Output"].notna().any(), (
+            "Telemetered Net Output is all NaN - column name mismatch"
+        )
+
     """get_60_day_dam_disclosure"""
 
     @pytest.mark.integration
