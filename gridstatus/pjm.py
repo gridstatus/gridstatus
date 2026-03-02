@@ -4004,3 +4004,202 @@ class PJM(ISOBase):
         ]
 
         return df
+
+    FTR_OPTION_PATHS_MONTHLY_URL = (
+        "https://www.pjm.com/pjmfiles/pub/"
+        "account/auction-user-info/downloads/option-paths.csv"
+    )
+
+    def get_ftr_option_paths_monthly(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly FTR option paths data from PJM.
+
+        Contains valid source-sink pairs for FTR options in PJM monthly
+        auctions. Only ``date="latest"`` is supported.
+
+        Source:
+        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/option-paths.csv
+
+        Arguments:
+            date (str): Only "latest" is supported. Defaults to "latest".
+            end: Not supported. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns: Publish Date, Source Node,
+                Source PNODE ID, Sink Node, Sink PNODE ID
+        """
+        if date != "latest":
+            raise NotSupported(
+                f"{self.name} only supports date='latest' for"
+                " get_ftr_option_paths_monthly",
+            )
+
+        url = self.FTR_OPTION_PATHS_MONTHLY_URL
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        response.raise_for_status()
+
+        return self._parse_ftr_option_paths_monthly(response.text)
+
+    def _parse_ftr_option_paths_monthly(
+        self,
+        csv_content: str,
+    ) -> pd.DataFrame:
+        lines = csv_content.split("\n")
+
+        # First line: "Date Posted - YYYYMMDD,,,"
+        first_line = lines[0].strip()
+        date_str = first_line.split(" - ")[1].split(",")[0]
+        publish_date = pd.Timestamp(date_str).date().isoformat()
+
+        # Read CSV starting from row 2 (header row)
+        csv_data = "\n".join(lines[1:])
+        df = pd.read_csv(io.StringIO(csv_data))
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "Source PnodeID  (Information purposes only)": "Source PNODE ID",
+                "Sink PnodeID  (Information purposes only)": "Sink PNODE ID",
+            },
+        )
+
+        df["Publish Date"] = publish_date
+
+        df = df[
+            [
+                "Publish Date",
+                "Source Node",
+                "Source PNODE ID",
+                "Sink Node",
+                "Sink PNODE ID",
+            ]
+        ]
+
+        return df
+
+    FTR_SOURCE_SINK_MONTHLY_PROMPT_URL = (
+        "https://www.pjm.com/pjmfiles/pub/"
+        "account/auction-user-info/downloads/ftr-source-sink-prompt.csv"
+    )
+
+    FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL = (
+        "https://www.pjm.com/pjmfiles/pub/"
+        "account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv"
+    )
+
+    def get_ftr_source_sink_monthly_prompt(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly FTR source/sink data for the prompt month from PJM.
+
+        Contains valid source/sinks for obligations in the prompt month
+        FTR auction. Only ``date="latest"`` is supported.
+
+        Source:
+        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-prompt.csv
+
+        Arguments:
+            date (str): Only "latest" is supported. Defaults to "latest".
+            end: Not supported. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
+                PNODE ID
+        """
+        if date != "latest":
+            raise NotSupported(
+                f"{self.name} only supports date='latest' for"
+                " get_ftr_source_sink_monthly_prompt",
+            )
+
+        url = self.FTR_SOURCE_SINK_MONTHLY_PROMPT_URL
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        response.raise_for_status()
+
+        return self._parse_ftr_source_sink(response.text)
+
+    def get_ftr_source_sink_monthly_non_prompt(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly FTR source/sink data for non-prompt months from PJM.
+
+        Contains valid source/sinks for obligations in the non-prompt month
+        FTR auction. Only ``date="latest"`` is supported.
+
+        Source:
+        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv
+
+        Arguments:
+            date (str): Only "latest" is supported. Defaults to "latest".
+            end: Not supported. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
+                PNODE ID
+        """
+        if date != "latest":
+            raise NotSupported(
+                f"{self.name} only supports date='latest' for"
+                " get_ftr_source_sink_monthly_non_prompt",
+            )
+
+        url = self.FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        response.raise_for_status()
+
+        return self._parse_ftr_source_sink(response.text)
+
+    def _parse_ftr_source_sink(
+        self,
+        csv_content: str,
+    ) -> pd.DataFrame:
+        lines = csv_content.split("\n")
+
+        # First line: "Date Posted - YYYYMMDD,"
+        first_line = lines[0].strip()
+        date_str = first_line.split(" - ")[1].split(",")[0]
+        publish_date = pd.Timestamp(date_str).date().isoformat()
+
+        # Read CSV starting from row 2 (header row)
+        csv_data = "\n".join(lines[1:])
+        df = pd.read_csv(io.StringIO(csv_data))
+
+        df.columns = df.columns.str.strip()
+
+        df = df.rename(
+            columns={
+                "PnodeID  (Information purposes only)": "PNODE ID",
+            },
+        )
+
+        df["Publish Date"] = publish_date
+
+        df = df[
+            [
+                "Publish Date",
+                "Obligation Name",
+                "PNODE ID",
+            ]
+        ]
+
+        return df
