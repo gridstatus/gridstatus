@@ -894,6 +894,71 @@ class TestErcot(BaseTestISO):
         # Also check the other datasets are still present
         check_60_day_sced_disclosure(df_dict)
 
+    def test_get_60_day_sced_disclosure_supplemental_correction(self):
+        # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
+        # supplemental correction for ESR, Gen Resource, and Load Resource
+        date = pd.Timestamp("2025-12-10").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_sced_disclosure_supplemental_correction",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=date,
+                process=True,
+            )
+
+        check_60_day_sced_disclosure(df_dict)
+
+        # All three corrected datasets should be present
+        assert SCED_ESR_KEY in df_dict
+        assert SCED_GEN_RESOURCE_KEY in df_dict
+        assert SCED_LOAD_RESOURCE_KEY in df_dict
+
+        # Verify data is for the correct date
+        esr = df_dict[SCED_ESR_KEY]
+        gen = df_dict[SCED_GEN_RESOURCE_KEY]
+        load = df_dict[SCED_LOAD_RESOURCE_KEY]
+
+        assert esr["SCED Timestamp"].dt.date.unique()[0] == date
+        assert gen["SCED Timestamp"].dt.date.unique()[0] == date
+        assert load["SCED Timestamp"].dt.date.unique()[0] == date
+
+        # SMNE should still come from the normal disclosure
+        smne = df_dict[SCED_SMNE_KEY]
+        assert len(smne) > 0
+
+    @pytest.mark.integration
+    def test_get_60_day_sced_disclosure_telemetered_net_output(self):
+        """Test that Telemetered Net Output contains real data, not NaN.
+
+        On 2025-12-28 the raw data column is named 'Telemetered Net Output'
+        (no trailing space), unlike earlier dates which had a trailing space.
+        Without stripping whitespace from column names, the processing code
+        fails to match the column and fills it with NaN.
+        """
+        date = pd.Timestamp("2025-12-28").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_sced_disclosure_telemetered_net_output",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=date,
+                process=True,
+            )
+
+        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+
+        assert len(gen_resource) > 0
+        assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+
+        # The critical assertion: Telemetered Net Output must contain real
+        # data, not all NaN. On main, the column name mismatch causes
+        # this to be filled with NaN for dates where the raw data has no
+        # trailing space.
+        assert gen_resource["Telemetered Net Output"].notna().any(), (
+            "Telemetered Net Output is all NaN - column name mismatch"
+        )
+
     """get_60_day_dam_disclosure"""
 
     @pytest.mark.integration
@@ -970,6 +1035,88 @@ class TestErcot(BaseTestISO):
 
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
+
+    def _check_nonspin_offer_curve(self, df, column_name, dataset_name):
+        """Verify a NONSPIN offer curve column has valid data."""
+        assert df[column_name].notna().any(), (
+            f"{column_name} should have non-null values in {dataset_name}"
+        )
+        curve = df[column_name].dropna().iloc[0]
+        assert isinstance(curve, list)
+        assert len(curve) > 0
+        assert len(curve[0]) == 2
+
+    def test_get_60_day_dam_disclosure_online_nonspin_offer_curves(self):
+        """Test that ONLINE NONSPIN offer curves are correctly parsed.
+
+        2025-12-12 data contains ONLINE NONSPIN price columns. Before the fix,
+        split(" ")[1] would extract "ONLINE" instead of "ONLINE NONSPIN",
+        causing the curves to be all NA. Checks all three AS offer datasets:
+        gen, load, and ESR.
+        """
+        date = pd.Timestamp("2025-12-12").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_online_nonspin_offer_curves.yaml",
+        ):
+            df_dict = self.iso.get_60_day_dam_disclosure(
+                date=date,
+                process=True,
+            )
+
+        col = "ONLINE NONSPIN Offer Curve"
+
+        gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            gen_as_offers,
+            col,
+            "dam_gen_resource_as_offers",
+        )
+
+        load_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
+        assert load_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            load_as_offers,
+            col,
+            "dam_load_resource_as_offers",
+        )
+
+        esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
+        assert esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            esr_as_offers,
+            col,
+            "dam_esr_as_offers",
+        )
+
+    def test_get_60_day_dam_disclosure_offline_nonspin_offer_curves(self):
+        """Test that OFFLINE NONSPIN offer curves are correctly parsed.
+
+        2025-12-12 data contains OFFLINE NONSPIN price columns. Before the fix,
+        split(" ")[1] would extract "OFFLINE" instead of "OFFLINE NONSPIN",
+        causing the curves to be all NA. Checks dam_gen_resource_as_offers
+        which has OFFLINE NONSPIN data.
+        """
+        date = pd.Timestamp("2025-12-12").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_offline_nonspin_offer_curves.yaml",
+        ):
+            df_dict = self.iso.get_60_day_dam_disclosure(
+                date=date,
+                process=True,
+            )
+
+        col = "OFFLINE NONSPIN Offer Curve"
+
+        gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            gen_as_offers,
+            col,
+            "dam_gen_resource_as_offers",
+        )
 
     @pytest.mark.integration
     def test_get_sara(self):

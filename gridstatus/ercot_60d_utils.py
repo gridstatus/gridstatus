@@ -756,9 +756,10 @@ def process_as_offer_curves(df):
         f"{service} Offer Curve" for service in all_ancillary_services
     ]
 
-    # Check for which ancillary services are present in the file
+    # Check for which ancillary services are present in the file. We must use replace
+    # to not miss ONLINE and OFFLINE NONSPIN
     ancillary_services_in_file = [
-        col.split(" ")[1] for col in df.columns if col.startswith("PRICE1")
+        col.replace("PRICE1 ", "") for col in df.columns if col.startswith("PRICE1")
     ]
 
     present_ancillary_services = [
@@ -972,6 +973,8 @@ def process_dam_ptp_obligation_option_awards(df):
 
 
 def process_sced_gen(df):
+    # Strip whitespace from column names
+    df.columns = df.columns.str.strip()
     time_cols = [
         "SCED Timestamp",
     ]
@@ -988,7 +991,7 @@ def process_sced_gen(df):
         "LASL",
         "LDL",
         "Base Point",
-        "Telemetered Net Output ",
+        "Telemetered Net Output",
         "Ramp Rate Up",
         "Ramp Rate Down",
     ]
@@ -1054,8 +1057,6 @@ def process_sced_gen(df):
             "Ancillary Service REGUP": "AS Responsibility for RegUp",
             "Ancillary Service REGDN": "AS Responsibility for RegDown",
             "Ancillary Service ECRS": "AS Responsibility for ECRS",
-            # remove space
-            "Telemetered Net Output ": "Telemetered Net Output",
             # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
             "AS Capability REGUP": "AS Capability RegUp",
             "AS Capability REGDN": "AS Capability RegDown",
