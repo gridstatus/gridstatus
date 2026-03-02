@@ -1378,6 +1378,16 @@ class Ercot(ISOBase):
         ).dt.tz_convert(self.default_timezone)
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
+        # For DST start in March 2026, ERCOT published a row with the same start and
+        # end time which is incorrect (during DST start, there should be a gap of one
+        # hour). We drop this interval
+        data = data[
+            ~(
+                (data["deliveryDateHrBegin"] == "2026-03-08 03:00:00")
+                & (data["deliveryDateHrEnd"] == "2026-03-08 03:00:00")
+            )
+        ]
+
         data.loc[
             :,
             "Publish Time",
