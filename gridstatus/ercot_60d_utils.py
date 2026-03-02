@@ -973,6 +973,8 @@ def process_dam_ptp_obligation_option_awards(df):
 
 
 def process_sced_gen(df):
+    # Strip whitespace from column names
+    df.columns = df.columns.str.strip()
     time_cols = [
         "SCED Timestamp",
     ]
@@ -989,7 +991,7 @@ def process_sced_gen(df):
         "LASL",
         "LDL",
         "Base Point",
-        "Telemetered Net Output ",
+        "Telemetered Net Output",
         "Ramp Rate Up",
         "Ramp Rate Down",
     ]
@@ -1055,8 +1057,6 @@ def process_sced_gen(df):
             "Ancillary Service REGUP": "AS Responsibility for RegUp",
             "Ancillary Service REGDN": "AS Responsibility for RegDown",
             "Ancillary Service ECRS": "AS Responsibility for ECRS",
-            # remove space
-            "Telemetered Net Output ": "Telemetered Net Output",
             # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
             "AS Capability REGUP": "AS Capability RegUp",
             "AS Capability REGDN": "AS Capability RegDown",
