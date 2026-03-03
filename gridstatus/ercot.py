@@ -2070,6 +2070,99 @@ class Ercot(ISOBase):
     SCED_SUPPLEMENTAL_CORRECTION_START = pd.Timestamp("2025-12-05").date()
     SCED_SUPPLEMENTAL_CORRECTION_END = pd.Timestamp("2025-12-20").date()
 
+    def download_60_day_sced_disclosure(
+        self,
+        date,
+        verbose: bool = False,
+    ) -> ZipFile:
+        """Download the 60-day SCED Disclosure zip file without extracting data.
+
+        Use this with :meth:`load_60_day_sced_disclosure` to download once and
+        load datasets separately, reducing peak memory usage.
+
+        Arguments:
+            date (datetime.date, str): the data date (report date is date + 60 days)
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            ZipFile: the downloaded zip file object
+        """
+        report_date = pd.Timestamp(date) + pd.DateOffset(days=60)
+
+        doc_info = self._get_document(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            date=report_date,
+            constructed_name_contains="60_Day_SCED_Disclosure",
+            verbose=verbose,
+        )
+        return utils.get_zip_folder(doc_info.url, verbose=verbose)
+
+    def load_60_day_sced_disclosure(
+        self,
+        zip_file: ZipFile,
+        date,
+        process: bool = False,
+        verbose: bool = False,
+        datasets: list[str] | None = None,
+    ) -> dict:
+        """Load datasets from a previously downloaded 60-day SCED Disclosure zip.
+
+        Arguments:
+            zip_file (ZipFile): zip file from :meth:`download_60_day_sced_disclosure`
+            date (datetime.date, str): the data date (needed for correction logic)
+            process (bool, optional): if True, will process the data into
+                standardized format. if False, will return raw data
+            verbose (bool, optional): print verbose output. Defaults to False.
+            datasets (list[str], optional): list of dataset keys to load. When None
+                (default), all datasets are loaded. Valid keys are defined in
+                VALID_SCED_DATASETS.
+
+        Returns:
+            dict: dictionary with keys mapping to pandas.DataFrame objects
+        """
+        if datasets is not None:
+            invalid = set(datasets) - VALID_SCED_DATASETS
+            if invalid:
+                raise ValueError(
+                    f"Invalid SCED dataset(s): {invalid}. "
+                    f"Valid datasets: {sorted(VALID_SCED_DATASETS)}",
+                )
+
+        # Check if this date needs correction data
+        date_as_date = pd.Timestamp(date).date()
+        use_esr_correction = date_as_date in self.ESR_CORRECTION_DATES
+        use_sced_supplemental = (
+            self.SCED_SUPPLEMENTAL_CORRECTION_START
+            <= date_as_date
+            <= self.SCED_SUPPLEMENTAL_CORRECTION_END
+        )
+
+        data = self._handle_60_day_sced_disclosure(
+            zip_file,
+            process=process,
+            verbose=verbose,
+            skip_esr=use_esr_correction or use_sced_supplemental,
+            datasets=datasets,
+        )
+
+        if use_sced_supplemental:
+            supplemental = self._get_sced_supplemental_data(
+                date,
+                process=process,
+                verbose=verbose,
+            )
+            data.update(supplemental)
+        elif use_esr_correction and (datasets is None or SCED_ESR_KEY in datasets):
+            esr = self._get_esr_correction_data(
+                date,
+                process=process,
+                verbose=verbose,
+            )
+            if esr is not None:
+                data[SCED_ESR_KEY] = esr
+
+        return data
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2097,61 +2190,14 @@ class Ercot(ISOBase):
                 "sced_smne", and (when available) "sced_esr", "sced_eoc_updates",
                 "sced_resource_as_offers", mapping to pandas.DataFrame objects
         """
-        if datasets is not None:
-            invalid = set(datasets) - VALID_SCED_DATASETS
-            if invalid:
-                raise ValueError(
-                    f"Invalid SCED dataset(s): {invalid}. "
-                    f"Valid datasets: {sorted(VALID_SCED_DATASETS)}",
-                )
-
-        report_date = date + pd.DateOffset(days=60)
-
-        doc_info = self._get_document(
-            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
-            date=report_date,
-            constructed_name_contains="60_Day_SCED_Disclosure",
-            verbose=verbose,
-        )
-        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
-
-        # Check if this date needs correction data
-        # Compare using date() for timezone-agnostic comparison
-        date_as_date = pd.Timestamp(date).date()
-        use_esr_correction = date_as_date in self.ESR_CORRECTION_DATES
-        use_sced_supplemental = (
-            self.SCED_SUPPLEMENTAL_CORRECTION_START
-            <= date_as_date
-            <= self.SCED_SUPPLEMENTAL_CORRECTION_END
-        )
-
-        data = self._handle_60_day_sced_disclosure(
-            z,
+        z = self.download_60_day_sced_disclosure(date=date, verbose=verbose)
+        return self.load_60_day_sced_disclosure(
+            zip_file=z,
+            date=date,
             process=process,
             verbose=verbose,
-            skip_esr=use_esr_correction or use_sced_supplemental,
             datasets=datasets,
         )
-
-        if use_sced_supplemental:
-            # Fetch ESR, Gen Resource, and Load Resource from supplemental files
-            supplemental = self._get_sced_supplemental_data(
-                date,
-                process=process,
-                verbose=verbose,
-            )
-            data.update(supplemental)
-        elif use_esr_correction and (datasets is None or SCED_ESR_KEY in datasets):
-            # Fetch ESR from the supplemental correction file for affected dates
-            esr = self._get_esr_correction_data(
-                date,
-                process=process,
-                verbose=verbose,
-            )
-            if esr is not None:
-                data[SCED_ESR_KEY] = esr
-
-        return data
 
     def _handle_60_day_sced_disclosure(
         self,
@@ -2500,6 +2546,71 @@ class Ercot(ISOBase):
 
         return result
 
+    def download_60_day_dam_disclosure(
+        self,
+        date,
+        verbose: bool = False,
+    ) -> ZipFile:
+        """Download the 60-day DAM Disclosure zip file without extracting data.
+
+        Use this with :meth:`load_60_day_dam_disclosure` to download once and
+        load datasets separately, reducing peak memory usage.
+
+        Arguments:
+            date (datetime.date, str): the data date (report date is date + 60 days)
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            ZipFile: the downloaded zip file object
+        """
+        report_date = pd.Timestamp(date) + pd.DateOffset(days=60)
+
+        doc_info = self._get_document(
+            report_type_id=SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID,
+            date=report_date,
+            constructed_name_contains="60_Day_DAM_Disclosure.zip",
+            verbose=verbose,
+        )
+        return utils.get_zip_folder(doc_info.url, verbose=verbose)
+
+    def load_60_day_dam_disclosure(
+        self,
+        zip_file: ZipFile,
+        date=None,
+        process: bool = False,
+        verbose: bool = False,
+        datasets: list[str] | None = None,
+    ) -> dict:
+        """Load datasets from a previously downloaded 60-day DAM Disclosure zip.
+
+        Arguments:
+            zip_file (ZipFile): zip file from :meth:`download_60_day_dam_disclosure`
+            date: unused, included for API consistency with SCED load method
+            process (bool, optional): if True, will process the data into
+                standardized format. if False, will return raw data
+            verbose (bool, optional): print verbose output. Defaults to False.
+            datasets (list[str], optional): list of dataset keys to load. When None
+                (default), all datasets are loaded. Valid keys are defined in
+                VALID_DAM_DATASETS.
+
+        Returns:
+            dict: dictionary with keys mapping to pandas.DataFrame objects
+        """
+        if datasets is not None:
+            invalid = set(datasets) - VALID_DAM_DATASETS
+            if invalid:
+                raise ValueError(
+                    f"Invalid DAM dataset(s): {invalid}. "
+                    f"Valid datasets: {sorted(VALID_DAM_DATASETS)}",
+                )
+
+        return self._handle_60_day_dam_disclosure(
+            zip_file,
+            process=process,
+            verbose=verbose,
+            datasets=datasets,
+        )
+
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(
         self,
@@ -2536,33 +2647,14 @@ class Ercot(ISOBase):
                 (default), all datasets are loaded. Valid keys are defined in
                 VALID_DAM_DATASETS.
         """
-        if datasets is not None:
-            invalid = set(datasets) - VALID_DAM_DATASETS
-            if invalid:
-                raise ValueError(
-                    f"Invalid DAM dataset(s): {invalid}. "
-                    f"Valid datasets: {sorted(VALID_DAM_DATASETS)}",
-                )
-
-        report_date = date + pd.DateOffset(days=60)
-
-        doc_info = self._get_document(
-            report_type_id=SIXTY_DAY_DAM_DISCLOSURE_REPORTS_RTID,
-            date=report_date,
-            constructed_name_contains="60_Day_DAM_Disclosure.zip",
-            verbose=verbose,
-        )
-
-        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
-
-        data = self._handle_60_day_dam_disclosure(
-            z,
+        z = self.download_60_day_dam_disclosure(date=date, verbose=verbose)
+        return self.load_60_day_dam_disclosure(
+            zip_file=z,
+            date=date,
             process=process,
             verbose=verbose,
             datasets=datasets,
         )
-
-        return data
 
     def _handle_60_day_dam_disclosure(
         self,

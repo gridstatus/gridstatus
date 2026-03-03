@@ -1140,6 +1140,151 @@ class TestErcot(BaseTestISO):
         )
         assert df_dict[SCED_SMNE_KEY].columns.tolist() == SCED_SMNE_COLUMNS
 
+    def test_download_and_load_60_day_sced_disclosure(self):
+        """Test downloading zip once and loading datasets from it."""
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        with api_vcr.use_cassette(
+            f"test_download_and_load_60_day_sced_disclosure_{days_ago_65}",
+        ):
+            z = self.iso.download_60_day_sced_disclosure(date=days_ago_65)
+
+        data = self.iso.load_60_day_sced_disclosure(
+            zip_file=z,
+            date=days_ago_65,
+            process=True,
+        )
+
+        check_60_day_sced_disclosure(data)
+
+    def test_load_60_day_sced_disclosure_subset(self):
+        """Test loading a subset of datasets from a pre-downloaded zip."""
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        with api_vcr.use_cassette(
+            f"test_load_60_day_sced_disclosure_subset_{days_ago_65}",
+        ):
+            z = self.iso.download_60_day_sced_disclosure(date=days_ago_65)
+
+        # Load only gen_resource
+        data1 = self.iso.load_60_day_sced_disclosure(
+            zip_file=z,
+            date=days_ago_65,
+            process=True,
+            datasets=[SCED_GEN_RESOURCE_KEY],
+        )
+        assert list(data1.keys()) == [SCED_GEN_RESOURCE_KEY]
+        assert (
+            data1[SCED_GEN_RESOURCE_KEY].columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+        )
+
+        # Load only smne from the same zip
+        data2 = self.iso.load_60_day_sced_disclosure(
+            zip_file=z,
+            date=days_ago_65,
+            process=True,
+            datasets=[SCED_SMNE_KEY],
+        )
+        assert list(data2.keys()) == [SCED_SMNE_KEY]
+        assert data2[SCED_SMNE_KEY].columns.tolist() == SCED_SMNE_COLUMNS
+
+    def test_load_60_day_sced_disclosure_invalid_dataset(self):
+        """Test that invalid dataset raises ValueError."""
+        import io
+        from zipfile import ZipFile
+
+        # Create a dummy zip for validation test
+        buf = io.BytesIO()
+        with ZipFile(buf, "w") as zf:
+            zf.writestr("dummy.txt", "dummy")
+        buf.seek(0)
+        z = ZipFile(buf)
+
+        with pytest.raises(ValueError, match="Invalid SCED dataset"):
+            self.iso.load_60_day_sced_disclosure(
+                zip_file=z,
+                date=pd.Timestamp.now().date() - pd.Timedelta(days=65),
+                datasets=["invalid_dataset"],
+            )
+
+    def test_download_and_load_60_day_dam_disclosure(self):
+        """Test downloading zip once and loading datasets from it."""
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        with api_vcr.use_cassette(
+            f"test_download_and_load_60_day_dam_disclosure_{days_ago_65}",
+        ):
+            z = self.iso.download_60_day_dam_disclosure(date=days_ago_65)
+
+        data = self.iso.load_60_day_dam_disclosure(
+            zip_file=z,
+            process=True,
+        )
+
+        check_60_day_dam_disclosure(data)
+
+    def test_load_60_day_dam_disclosure_subset(self):
+        """Test loading a subset of datasets from a pre-downloaded zip."""
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        with api_vcr.use_cassette(
+            f"test_load_60_day_dam_disclosure_subset_{days_ago_65}",
+        ):
+            z = self.iso.download_60_day_dam_disclosure(date=days_ago_65)
+
+        # Load only gen_resource
+        data1 = self.iso.load_60_day_dam_disclosure(
+            zip_file=z,
+            process=True,
+            datasets=[DAM_GEN_RESOURCE_KEY],
+        )
+        assert list(data1.keys()) == [DAM_GEN_RESOURCE_KEY]
+        assert data1[DAM_GEN_RESOURCE_KEY].columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
+
+        # Load only load_resource from the same zip
+        data2 = self.iso.load_60_day_dam_disclosure(
+            zip_file=z,
+            process=True,
+            datasets=[DAM_LOAD_RESOURCE_KEY],
+        )
+        assert list(data2.keys()) == [DAM_LOAD_RESOURCE_KEY]
+        assert (
+            data2[DAM_LOAD_RESOURCE_KEY].columns.tolist() == DAM_LOAD_RESOURCE_COLUMNS
+        )
+
+    def test_load_60_day_dam_disclosure_invalid_dataset(self):
+        """Test that invalid dataset raises ValueError."""
+        import io
+        from zipfile import ZipFile
+
+        buf = io.BytesIO()
+        with ZipFile(buf, "w") as zf:
+            zf.writestr("dummy.txt", "dummy")
+        buf.seek(0)
+        z = ZipFile(buf)
+
+        with pytest.raises(ValueError, match="Invalid DAM dataset"):
+            self.iso.load_60_day_dam_disclosure(
+                zip_file=z,
+                datasets=["invalid_dataset"],
+            )
+
     def _check_nonspin_offer_curve(self, df, column_name, dataset_name):
         """Verify a NONSPIN offer curve column has valid data."""
         assert df[column_name].notna().any(), (
