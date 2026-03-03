@@ -1572,6 +1572,7 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
         process: bool = True,
+        output_format: str = "list",
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day SCED disclosure reports from ERCOT.
@@ -1622,6 +1623,7 @@ class ErcotAPI:
                 z=zip_file,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             df_list.append(processed_files)
 

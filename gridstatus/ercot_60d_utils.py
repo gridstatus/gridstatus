@@ -496,6 +496,26 @@ def make_storage_resources(data):
     return storage_resources
 
 
+def extract_curve_as_pg_string(df, mw_cols, price_cols):
+    """Like extract_curve() but returns PG array strings directly.
+
+    Returns pd.Series of strings like '{{100.0,25.5},{200.0,60.0}}'
+    instead of Python list-of-lists. ~15x less memory.
+    """
+    mw_arr = df[mw_cols].round(2).values      # (N, blocks) float64
+    price_arr = df[price_cols].round(2).values
+    valid = ~(np.isnan(mw_arr) | np.isnan(price_arr))
+
+    result = np.empty(len(df), dtype=object)
+    for i in range(len(df)):
+        pairs = []
+        for j in range(len(mw_cols)):
+            if valid[i, j]:
+                pairs.append(f"{{{mw_arr[i,j]},{price_arr[i,j]}}}")
+        result[i] = "{" + ",".join(pairs) + "}" if pairs else None
+    return pd.Series(result, index=df.index)
+
+
 def extract_curve(
     df,
     curve_name=None,
@@ -1254,7 +1274,7 @@ def process_sced_as_offer_updates_in_op_hour(df):
     return df[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS]
 
 
-def process_sced_resource_as_offers(df):
+def process_sced_resource_as_offers(df, output_format="list"):
     """Process SCED Resource AS Offers data.
 
     This data contains ancillary service offer curves at the SCED timestamp level.
@@ -1264,6 +1284,12 @@ def process_sced_resource_as_offers(df):
                    PRICEn_RRSFF, PRICEn_NS, PRICEn_ECRS, QUANTITY_MWn (n=1-6)
 
     Creates offer curves like [[mw, price], ...] for each AS type.
+
+    Args:
+        df: DataFrame with raw SCED resource AS offers data.
+        output_format: "list" (default) returns Python list-of-lists per cell.
+            "pg_array" returns PG array strings like '{{mw,price},{mw,price}}'
+            directly, using ~15x less memory.
     """
     # First create a curve_type column with the logic:
     # regulation down : values only in _DRS columns and not in other columns
@@ -1310,20 +1336,31 @@ def process_sced_resource_as_offers(df):
     # Extract MW column names (shared across all AS types)
     mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
 
-    # Extract curves for each AS type using extract_curve utility
-    for as_suffix, curve_col in as_type_mapping.items():
-        price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
-        price_cols = [c for c in price_cols if c in df.columns]
+    use_pg = output_format == "pg_array"
+    extract_fn = extract_curve_as_pg_string if use_pg else extract_curve
 
-        if not price_cols:
+    # Extract curves for each AS type
+    for as_suffix, curve_col in as_type_mapping.items():
+        as_price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
+        as_price_cols = [c for c in as_price_cols if c in df.columns]
+
+        if not as_price_cols:
             df[curve_col] = None
             continue
 
-        df[curve_col] = extract_curve(
+        df[curve_col] = extract_fn(
             df,
-            mw_cols=mw_cols[: len(price_cols)],
-            price_cols=price_cols,
+            mw_cols=mw_cols[: len(as_price_cols)],
+            price_cols=as_price_cols,
         )
+
+        # Free source price columns immediately to reduce peak memory
+        if use_pg:
+            df.drop(columns=as_price_cols, inplace=True, errors="ignore")
+
+    # Drop shared MW columns after all extractions
+    if use_pg:
+        df.drop(columns=mw_cols, inplace=True, errors="ignore")
 
     return df[SCED_RESOURCE_AS_OFFERS_COLUMNS]
 

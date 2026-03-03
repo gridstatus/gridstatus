@@ -2084,6 +2084,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: str = "list",
     ) -> dict:
         """Get 60 day SCED Disclosure data
 
@@ -2126,6 +2127,7 @@ class Ercot(ISOBase):
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction or use_sced_supplemental,
+            output_format=output_format,
         )
 
         if use_sced_supplemental:
@@ -2154,6 +2156,7 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        output_format: str = "list",
     ) -> dict:
         # TODO: there are other files in the zip folder
         load_resource_file = None
@@ -2300,7 +2303,10 @@ class Ercot(ISOBase):
                     as_offer_updates,
                 )
             if resource_as_offers is not None:
-                resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
+                resource_as_offers = process_sced_resource_as_offers(
+                    resource_as_offers,
+                    output_format=output_format,
+                )
 
         result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
