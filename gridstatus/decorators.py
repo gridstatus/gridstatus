@@ -1,13 +1,16 @@
 import functools
 import os
 import pprint
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, ParamSpec, TypeVar, cast
 
 import pandas as pd
 import tqdm
 
 from gridstatus import utils
 from gridstatus.base import Markets
+
+P = ParamSpec("P")
+T = TypeVar("T")
 
 
 def _get_args_dict(
@@ -101,10 +104,13 @@ class support_date_range:
         self.update_dates = update_dates
         self.return_raw = return_raw
 
-    def __call__(self, f: Callable[..., Any]) -> Callable[..., Any]:
+    def __call__(self, f: Callable[P, T]) -> Callable[P, T]:
+        # Use a loosely-typed reference for internal dynamic argument manipulation
+        inner_f: Callable[..., Any] = f
+
         @functools.wraps(f)
         def wrapped_f(*args: Any, **kwargs: Any) -> Any:
-            args_dict = _get_args_dict(f, args, kwargs)
+            args_dict = _get_args_dict(inner_f, args, kwargs)
 
             # delete end if None to avoid attribute error
             if "end" in args_dict and not args_dict["end"]:
@@ -145,7 +151,7 @@ class support_date_range:
                 del args_dict["start"]
 
             if args_dict["date"] == "latest":
-                return f(*args, **kwargs)
+                return inner_f(*args, **kwargs)
 
             default_timezone = args_dict["self"].default_timezone
 
@@ -164,7 +170,7 @@ class support_date_range:
 
             # no date range handling required
             if "end" not in args_dict:
-                df = f(**args_dict)
+                df = inner_f(**args_dict)
                 _handle_save_to(df, save_to, args_dict, f)
                 return df
 
@@ -266,7 +272,7 @@ class support_date_range:
                         args_dict["end"] = end_date
 
                     try:
-                        df = f(**args_dict)
+                        df = inner_f(**args_dict)
                     except Exception as e:
                         if error == "raise":
                             raise e
@@ -313,7 +319,7 @@ class support_date_range:
 
             return df
 
-        return wrapped_f
+        return cast(Callable[P, T], wrapped_f)
 
 
 def _handle_save_to(

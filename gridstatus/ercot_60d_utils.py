@@ -17,11 +17,15 @@ DAM_ENERGY_BID_AWARDS_KEY = "dam_energy_bid_awards"
 DAM_ENERGY_BIDS_KEY = "dam_energy_bids"
 DAM_PTP_OBLIGATION_OPTION_KEY = "dam_ptp_obligation_option"
 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY = "dam_ptp_obligation_option_awards"
+DAM_ESR_KEY = "dam_esr"
+DAM_ESR_AS_OFFERS_KEY = "dam_esr_as_offers"
 
 SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
 SCED_ESR_KEY = "sced_esr"
 SCED_SMNE_KEY = "sced_smne"
+SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY = "sced_as_offer_updates_in_op_hour"
+SCED_RESOURCE_AS_OFFERS_KEY = "sced_resource_as_offers"
 
 
 # Same for both generation and load
@@ -180,9 +184,42 @@ DAM_PTP_OBLIGATION_OPTION_COLUMNS = [
 # All except Multi-Hour Block Indicator
 DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS = DAM_PTP_OBLIGATION_OPTION_COLUMNS[:-1]
 
-SCED_GEN_RESOURCE_COLUMNS = [
+DAM_ESR_COLUMNS = [
     "Interval Start",
     "Interval End",
+    "QSE",
+    "DME",
+    "Resource Name",
+    "Resource Type",
+    "Settlement Point Name",
+    "Resource Status",
+    "HSL",
+    "LSL",
+    "Start Up Hot",
+    "Start Up Inter",
+    "Start Up Cold",
+    "Min Gen Cost",
+    "Awarded Quantity",
+    "Energy Settlement Point Price",
+    "RegUp Awarded",
+    "RegUp MCPC",
+    "RegDown Awarded",
+    "RegDown MCPC",
+    "RRSPFR Awarded",
+    "RRSFFR Awarded",
+    "RRSUFR Awarded",
+    "RRS MCPC",
+    "ECRSSD Awarded",
+    "ECRS MCPC",
+    "NonSpin Awarded",
+    "NonSpin MCPC",
+    "QSE submitted Curve",
+]
+
+# Same columns as gen/load resource AS offers
+DAM_ESR_AS_OFFERS_COLUMNS = DAM_RESOURCE_AS_OFFERS_COLUMNS[:]
+
+SCED_GEN_RESOURCE_COLUMNS = [
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -217,6 +254,8 @@ SCED_GEN_RESOURCE_COLUMNS = [
     "AS Capability RegDown",
     "AS Capability ECRS",
     "AS Capability NonSpin",
+    "AS Capability RRSPF",
+    "AS Capability RRSFF",
     "AS Awards NonSpin",
     "AS Awards RRSFFR",
     "AS Awards RRSPFR",
@@ -227,8 +266,6 @@ SCED_GEN_RESOURCE_COLUMNS = [
 ]
 
 SCED_LOAD_RESOURCE_COLUMNS = [
-    "Interval Start",
-    "Interval End",
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -255,6 +292,9 @@ SCED_LOAD_RESOURCE_COLUMNS = [
     "AS Capability RegDown",
     "AS Capability ECRS",
     "AS Capability NonSpin",
+    "AS Capability RRSPF",
+    "AS Capability RRSFF",
+    "AS Capability RRSUF",
     "AS Awards NonSpin",
     "AS Awards RRSFFR",
     "AS Awards RRSPFR",
@@ -277,8 +317,6 @@ SCED_SMNE_COLUMNS = [
 ]
 
 SCED_ESR_COLUMNS = [
-    "Interval Start",
-    "Interval End",
     "SCED Timestamp",
     "QSE",
     "DME",
@@ -300,6 +338,11 @@ SCED_ESR_COLUMNS = [
     "AS Capability RegDown",
     "AS Capability ECRS",
     "AS Capability NonSpin",
+    "AS Capability RRSPF",
+    "AS Capability RRSFF",
+    "SOC",
+    "Min SOC",
+    "Max SOC",
     "AS Awards NonSpin",
     "AS Awards RRSFFR",
     "AS Awards RRSPFR",
@@ -314,6 +357,27 @@ SCED_ESR_COLUMNS = [
     "Min Gen Cost",
     "SCED TPO Offer Curve",
     "Proxy Extension",
+]
+
+SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Resource Name",
+    "AS Type",
+    "Count of Updates During Operating Period",
+]
+
+SCED_RESOURCE_AS_OFFERS_COLUMNS = [
+    "SCED Timestamp",
+    "Resource Name",
+    "Curve Type",
+    "URS Offer Curve",
+    "DRS Offer Curve",
+    "RRSPFR Offer Curve",
+    "RRSUFR Offer Curve",
+    "RRSFFR Offer Curve",
+    "NonSpin Offer Curve",
+    "ECRS Offer Curve",
 ]
 
 
@@ -432,23 +496,50 @@ def make_storage_resources(data):
     return storage_resources
 
 
-def extract_curve(df, curve_name, mw_suffix="-MW", price_suffix="-Price"):
-    mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
-    price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
+def extract_curve(
+    df,
+    curve_name=None,
+    mw_suffix="-MW",
+    price_suffix="-Price",
+    mw_cols=None,
+    price_cols=None,
+):
+    """Extract offer curve from dataframe columns.
+
+    Supports two modes:
+    1. Auto-detect columns by curve_name prefix (default):
+       Looks for columns like "{curve_name}-MW1", "{curve_name}-Price1"
+
+    2. Explicit column lists:
+       Pass mw_cols and price_cols directly for custom column patterns
+       e.g., mw_cols=["QUANTITY_MW1", "QUANTITY_MW2"],
+             price_cols=["PRICE1_URS", "PRICE2_URS"]
+    """
+    if mw_cols is None or price_cols is None:
+        # Auto-detect by prefix
+        mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
+        price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
 
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
 
-    def combine_mw_price(row):
-        return [
-            [mw, price]
-            for mw, price in zip(row[mw_cols], row[price_cols])
-            if pd.notnull(mw) and pd.notnull(price)
-        ]
+    # Vectorized extraction using numpy arrays
+    mw_arr = df[mw_cols].round(2).values
+    price_arr = df[price_cols].round(2).values
+    n_rows = len(df)
+    n_points = len(mw_cols)
 
-    # round price columns to 2 decimal places
-    df[price_cols] = df[price_cols].round(2)
-    return df.apply(combine_mw_price, axis=1)
+    # Build curves using vectorized operations
+    curves = []
+    for i in range(n_rows):
+        curve = [
+            [float(mw_arr[i, j]), float(price_arr[i, j])]
+            for j in range(n_points)
+            if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
+        ]
+        curves.append(curve if curve else [])
+
+    return pd.Series(curves, index=df.index)
 
 
 def process_dam_gen(df):
@@ -559,6 +650,69 @@ def process_dam_load(df):
     return df
 
 
+def process_dam_esr(df):
+    time_cols = [
+        "Interval Start",
+        "Interval End",
+    ]
+
+    resource_cols = [
+        "QSE",
+        "DME",
+        "Resource Name",
+        "Resource Type",
+        "Settlement Point Name",
+    ]
+
+    telemetry_cols = [
+        "Resource Status",
+        "HSL",
+        "LSL",
+        "Start Up Hot",
+        "Start Up Inter",
+        "Start Up Cold",
+        "Min Gen Cost",
+    ]
+
+    energy_award_cols = [
+        "Awarded Quantity",
+        "Energy Settlement Point Price",
+    ]
+
+    as_cols = [
+        "RegUp Awarded",
+        "RegUp MCPC",
+        "RegDown Awarded",
+        "RegDown MCPC",
+        "RRSPFR Awarded",
+        "RRSFFR Awarded",
+        "RRSUFR Awarded",
+        "RRS MCPC",
+        "ECRSSD Awarded",
+        "ECRS MCPC",
+        "NonSpin Awarded",
+        "NonSpin MCPC",
+    ]
+
+    curve = "QSE submitted Curve"
+
+    df[curve] = extract_curve(df, "QSE submitted Curve")
+
+    all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
+
+    for col in all_cols:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[time_cols + all_cols]
+
+    return df
+
+
+def process_dam_esr_as_offers(df):
+    return process_as_offer_curves(df)
+
+
 def process_dam_or_gen_load_as_offers(df):
     if "QSE" not in df.columns:
         # after Interval End
@@ -602,9 +756,10 @@ def process_as_offer_curves(df):
         f"{service} Offer Curve" for service in all_ancillary_services
     ]
 
-    # Check for which ancillary services are present in the file
+    # Check for which ancillary services are present in the file. We must use replace
+    # to not miss ONLINE and OFFLINE NONSPIN
     ancillary_services_in_file = [
-        col.split(" ")[1] for col in df.columns if col.startswith("PRICE1")
+        col.replace("PRICE1 ", "") for col in df.columns if col.startswith("PRICE1")
     ]
 
     present_ancillary_services = [
@@ -818,9 +973,9 @@ def process_dam_ptp_obligation_option_awards(df):
 
 
 def process_sced_gen(df):
+    # Strip whitespace from column names
+    df.columns = df.columns.str.strip()
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 
@@ -836,7 +991,7 @@ def process_sced_gen(df):
         "LASL",
         "LDL",
         "Base Point",
-        "Telemetered Net Output ",
+        "Telemetered Net Output",
         "Ramp Rate Up",
         "Ramp Rate Down",
     ]
@@ -852,6 +1007,8 @@ def process_sced_gen(df):
         "AS Capability REGDN",
         "AS Capability ECRS",
         "AS Capability NSPIN",
+        "AS Capability RRSPF",
+        "AS Capability RRSFF",
         "AS Awards NSPIN",
         "AS Awards RRSFFR",
         "AS Awards RRSPFR",
@@ -900,8 +1057,6 @@ def process_sced_gen(df):
             "Ancillary Service REGUP": "AS Responsibility for RegUp",
             "Ancillary Service REGDN": "AS Responsibility for RegDown",
             "Ancillary Service ECRS": "AS Responsibility for ECRS",
-            # remove space
-            "Telemetered Net Output ": "Telemetered Net Output",
             # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
             "AS Capability REGUP": "AS Capability RegUp",
             "AS Capability REGDN": "AS Capability RegDown",
@@ -917,8 +1072,6 @@ def process_sced_gen(df):
 
 def process_sced_load(df):
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 
@@ -959,6 +1112,9 @@ def process_sced_load(df):
         "AS Capability ECRS",
         "AS Capability REGUP",
         "AS Capability REGDN",
+        "AS Capability RRSPF",
+        "AS Capability RRSFF",
+        "AS Capability RRSUF",
     ]
 
     bid_curve_col = "SCED Bid to Buy Curve"
@@ -989,8 +1145,6 @@ def process_sced_load(df):
 
 def process_sced_esr(df):
     time_cols = [
-        "Interval Start",
-        "Interval End",
         "SCED Timestamp",
     ]
 
@@ -1014,6 +1168,8 @@ def process_sced_esr(df):
         "AS Capability REGDN",
         "AS Capability ECRS",
         "AS Capability NSPIN",
+        "AS Capability RRSPF",
+        "AS Capability RRSFF",
         "AS Awards NSPIN",
         "AS Awards RRSFFR",
         "AS Awards RRSPFR",
@@ -1021,6 +1177,13 @@ def process_sced_esr(df):
         "AS Awards ECRS",
         "AS Awards REGUP",
         "AS Awards REGDN",
+    ]
+
+    # SOC columns added in Feb 2026 ESR data
+    soc_cols = [
+        "State of Charge",
+        "Minimum SOC",
+        "Maximum SOC",
     ]
 
     tpo_cols = [
@@ -1048,6 +1211,7 @@ def process_sced_esr(df):
         + [sced1_offer_col, sced2_offer_col]
         + telemetry_cols
         + as_cols
+        + soc_cols
         + other_cols
         + tpo_cols
     )
@@ -1069,10 +1233,99 @@ def process_sced_esr(df):
             "AS Awards NSPIN": "AS Awards NonSpin",
             # Rename Bid_Type -> Bid Type
             "Bid_Type": "Bid Type",
+            # Rename SOC columns
+            "State of Charge": "SOC",
+            "Minimum SOC": "Min SOC",
+            "Maximum SOC": "Max SOC",
         },
     )
 
     return df[SCED_ESR_COLUMNS]
+
+
+def process_sced_as_offer_updates_in_op_hour(df):
+    """Process SCED AS Offer Updates in Operating Hour data.
+
+    This data tracks the count of Ancillary Service offer updates
+    made by resources during operating hours.
+
+    Expects df to already have Interval Start/End from parse_doc().
+    """
+    return df[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS]
+
+
+def process_sced_resource_as_offers(df):
+    """Process SCED Resource AS Offers data.
+
+    This data contains ancillary service offer curves at the SCED timestamp level.
+    Each row has price/quantity pairs for each AS type across 6 blocks.
+
+    Source columns: PRICEn_URS, PRICEn_DRS, PRICEn_RRSPF, PRICEn_RRSUF,
+                   PRICEn_RRSFF, PRICEn_NS, PRICEn_ECRS, QUANTITY_MWn (n=1-6)
+
+    Creates offer curves like [[mw, price], ...] for each AS type.
+    """
+    # First create a curve_type column with the logic:
+    # regulation down : values only in _DRS columns and not in other columns
+    # offline: values in _NS and optionally _ECRS columns and not in other columns
+    # online : values in any column except for _DRS
+    price_cols = [c for c in df.columns if c.startswith("PRICE")]
+    drs_cols = [c for c in price_cols if c.endswith("_DRS")]
+    ns_cols = [c for c in price_cols if c.endswith("_NS")]
+    non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
+
+    has_drs = (df[drs_cols] != 0).any(axis=1)
+    has_non_drs = (df[non_drs_cols] != 0).any(axis=1)
+    has_ns = (df[ns_cols] != 0).any(axis=1)
+
+    non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
+    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols] != 0).any(axis=1)
+
+    df["Curve Type"] = "unknown"
+    df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
+    df.loc[has_non_drs & has_non_drs_ns_ecrs, "Curve Type"] = "Online"
+    df.loc[has_ns & ~has_drs & ~has_non_drs_ns_ecrs, "Curve Type"] = "Offline"
+
+    if any(df["Curve Type"] == "unknown"):
+        raise ValueError("Unknown curve type found")
+
+    # Map source column suffixes to output curve names
+    as_type_mapping = {
+        "URS": "URS Offer Curve",
+        "DRS": "DRS Offer Curve",
+        "RRSPF": "RRSPFR Offer Curve",
+        "RRSUF": "RRSUFR Offer Curve",
+        "RRSFF": "RRSFFR Offer Curve",
+        "NS": "NonSpin Offer Curve",
+        "ECRS": "ECRS Offer Curve",
+    }
+
+    # Find the number of blocks by counting QUANTITY_MW columns
+    qty_cols = sorted([col for col in df.columns if col.startswith("QUANTITY_MW")])
+    block_count = len(qty_cols)
+
+    if block_count == 0:
+        return df
+
+    # Extract MW column names (shared across all AS types)
+    mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
+
+    # Extract curves for each AS type using extract_curve utility
+    for as_suffix, curve_col in as_type_mapping.items():
+        price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
+        price_cols = [c for c in price_cols if c in df.columns]
+
+        if not price_cols:
+            df[curve_col] = None
+            continue
+
+        df[curve_col] = extract_curve(
+            df,
+            mw_cols=mw_cols[: len(price_cols)],
+            price_cols=price_cols,
+        )
+
+    return df[SCED_RESOURCE_AS_OFFERS_COLUMNS]
 
 
 # # backup for more node names

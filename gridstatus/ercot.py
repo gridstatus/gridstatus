@@ -28,6 +28,8 @@ from gridstatus.ercot_60d_utils import (
     DAM_ENERGY_BIDS_KEY,
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
     DAM_ENERGY_ONLY_OFFERS_KEY,
+    DAM_ESR_AS_OFFERS_KEY,
+    DAM_ESR_KEY,
     DAM_GEN_RESOURCE_AS_OFFERS_KEY,
     DAM_GEN_RESOURCE_KEY,
     DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
@@ -36,14 +38,18 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_BIDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY,
     DAM_PTP_OBLIGATION_OPTION_KEY,
+    SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY,
     SCED_ESR_KEY,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_KEY,
+    SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
     process_dam_energy_only_offers,
+    process_dam_esr,
+    process_dam_esr_as_offers,
     process_dam_gen,
     process_dam_load,
     process_dam_or_gen_load_as_offers,
@@ -51,9 +57,11 @@ from gridstatus.ercot_60d_utils import (
     process_dam_ptp_obligation_bids,
     process_dam_ptp_obligation_option,
     process_dam_ptp_obligation_option_awards,
+    process_sced_as_offer_updates_in_op_hour,
     process_sced_esr,
     process_sced_gen,
     process_sced_load,
+    process_sced_resource_as_offers,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -1370,6 +1378,16 @@ class Ercot(ISOBase):
         ).dt.tz_convert(self.default_timezone)
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
+        # For DST start in March 2026, ERCOT published a row with the same start and
+        # end time which is incorrect (during DST start, there should be a gap of one
+        # hour). We drop this interval
+        data = data[
+            ~(
+                (data["deliveryDateHrBegin"] == "2026-03-08 03:00:00")
+                & (data["deliveryDateHrEnd"] == "2026-03-08 03:00:00")
+            )
+        ]
+
         data.loc[
             :,
             "Publish Time",
@@ -2042,6 +2060,23 @@ class Ercot(ISOBase):
 
         return df
 
+    # Dates for which ESR data from the normal disclosure file is incorrect
+    # and should be replaced with data from the ESR supplemental correction file.
+    # The correction file was published on Feb 5, 2026.
+    # These are stored as date objects (not timestamps) for timezone-agnostic comparison.
+    ESR_CORRECTION_DATES = [
+        pd.Timestamp("2025-12-05").date(),
+        pd.Timestamp("2025-12-06").date(),
+    ]
+
+    # Data dates for which ESR, Gen Resource, and Load Resource data from the
+    # normal disclosure file is incorrect and should be replaced with data from
+    # the supplemental correction files. Published on Feb 23, 2026.
+    # Data dates Dec 5, 2025 through Dec 20, 2025 correspond to report dates
+    # Feb 3, 2026 through Feb 18, 2026.
+    SCED_SUPPLEMENTAL_CORRECTION_START = pd.Timestamp("2025-12-05").date()
+    SCED_SUPPLEMENTAL_CORRECTION_END = pd.Timestamp("2025-12-20").date()
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2062,8 +2097,8 @@ class Ercot(ISOBase):
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
-                "sced_smne", and (when available) "sced_esr", mapping to
-                pandas.DataFrame objects
+                "sced_smne", and (when available) "sced_esr", "sced_eoc_updates",
+                "sced_resource_as_offers", mapping to pandas.DataFrame objects
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -2076,7 +2111,40 @@ class Ercot(ISOBase):
         )
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_sced_disclosure(z, process=process, verbose=verbose)
+        # Check if this date needs correction data
+        # Compare using date() for timezone-agnostic comparison
+        date_as_date = pd.Timestamp(date).date()
+        use_esr_correction = date_as_date in self.ESR_CORRECTION_DATES
+        use_sced_supplemental = (
+            self.SCED_SUPPLEMENTAL_CORRECTION_START
+            <= date_as_date
+            <= self.SCED_SUPPLEMENTAL_CORRECTION_END
+        )
+
+        data = self._handle_60_day_sced_disclosure(
+            z,
+            process=process,
+            verbose=verbose,
+            skip_esr=use_esr_correction or use_sced_supplemental,
+        )
+
+        if use_sced_supplemental:
+            # Fetch ESR, Gen Resource, and Load Resource from supplemental files
+            supplemental = self._get_sced_supplemental_data(
+                date,
+                process=process,
+                verbose=verbose,
+            )
+            data.update(supplemental)
+        elif use_esr_correction:
+            # Fetch ESR from the supplemental correction file for affected dates
+            esr = self._get_esr_correction_data(
+                date,
+                process=process,
+                verbose=verbose,
+            )
+            if esr is not None:
+                data[SCED_ESR_KEY] = esr
 
         return data
 
@@ -2085,12 +2153,15 @@ class Ercot(ISOBase):
         z: ZipFile,
         process: bool = False,
         verbose: bool = False,
+        skip_esr: bool = False,
     ) -> dict:
         # TODO: there are other files in the zip folder
         load_resource_file = None
         gen_resource_file = None
         smne_file = None
         esr_file = None
+        as_offer_updates_file = None
+        resource_as_offers_file = None
         for file in z.namelist():
             cleaned_file = file.replace(" ", "_")
             if "60d_Load_Resource_Data_in_SCED" in cleaned_file:
@@ -2101,6 +2172,10 @@ class Ercot(ISOBase):
                 gen_resource_file = file
             elif "60d_SCED_SMNE_GEN_RES" in cleaned_file:
                 smne_file = file
+            elif "60d_SCED_AS_Offer_Updates_in_OpPeriod" in cleaned_file:
+                as_offer_updates_file = file
+            elif "60d_SCED_Resource_AS_OFFERS" in cleaned_file:
+                resource_as_offers_file = file
 
         assert load_resource_file, "Could not find load resource file"
         assert gen_resource_file, "Could not find gen resource file"
@@ -2109,7 +2184,20 @@ class Ercot(ISOBase):
         load_resource = pd.read_csv(z.open(load_resource_file))
         gen_resource = pd.read_csv(z.open(gen_resource_file))
         smne = pd.read_csv(z.open(smne_file))
-        esr = pd.read_csv(z.open(esr_file)) if esr_file else None
+        # Skip ESR from the main disclosure file if we need correction data
+        esr = None
+        if not skip_esr and esr_file:
+            esr = pd.read_csv(z.open(esr_file))
+        as_offer_updates = (
+            pd.read_csv(z.open(as_offer_updates_file))
+            if as_offer_updates_file
+            else None
+        )
+        resource_as_offers = (
+            pd.read_csv(z.open(resource_as_offers_file))
+            if resource_as_offers_file
+            else None
+        )
 
         def handle_time(
             df: pd.DataFrame,
@@ -2171,24 +2259,29 @@ class Ercot(ISOBase):
 
             return df
 
-        load_resource = load_resource.rename(
-            columns={"SCED Time Stamp": "SCED Timestamp"},
-        )
-        gen_resource = gen_resource.rename(
-            columns={"SCED Time Stamp": "SCED Timestamp"},
-        )
+        def localize_sced_timestamp(df: pd.DataFrame) -> pd.DataFrame:
+            """Localize SCED Timestamp without adding Interval Start/End."""
+            df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=df["Repeated Hour Flag"] == "N",
+            )
+            return df
 
-        load_resource = handle_time(load_resource, time_col="SCED Timestamp")
-        gen_resource = handle_time(gen_resource, time_col="SCED Timestamp")
+        load_resource = localize_sced_timestamp(load_resource)
+        gen_resource = localize_sced_timestamp(gen_resource)
+
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
         smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
 
         if esr is not None:
-            esr = esr.rename(
-                columns={"SCED Time Stamp": "SCED Timestamp"},
-            )
-            esr = handle_time(esr, time_col="SCED Timestamp")
+            esr = localize_sced_timestamp(esr)
+
+        # Process Resource AS Offers - has SCED Timestamp like other SCED data
+        if resource_as_offers is not None:
+            resource_as_offers = localize_sced_timestamp(resource_as_offers)
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
@@ -2201,6 +2294,13 @@ class Ercot(ISOBase):
             )
             if esr is not None:
                 esr = process_sced_esr(esr)
+            if as_offer_updates is not None:
+                as_offer_updates = self.parse_doc(as_offer_updates)
+                as_offer_updates = process_sced_as_offer_updates_in_op_hour(
+                    as_offer_updates,
+                )
+            if resource_as_offers is not None:
+                resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
 
         result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
@@ -2210,6 +2310,188 @@ class Ercot(ISOBase):
 
         if esr is not None:
             result[SCED_ESR_KEY] = esr
+
+        if as_offer_updates is not None:
+            result[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY] = as_offer_updates
+
+        if resource_as_offers is not None:
+            result[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
+
+        return result
+
+    def _get_esr_correction_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Fetch ESR data from the supplemental correction file for specific dates.
+
+        The ESR supplemental correction file was published on Feb 5, 2026 and contains
+        corrected ESR data for Dec 5, 2025 and Dec 6, 2025 (which correspond to report
+        dates Feb 3 and Feb 4, 2026 respectively).
+
+        Arguments:
+            date: The data date (not report date) to fetch ESR correction data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+
+        Returns:
+            DataFrame with ESR correction data, or None if not found
+        """
+        # Fetch the ESR supplemental correction file
+        docs = self._get_documents(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            constructed_name_contains="60_Day_SCED_ESR_SUPPLEMENTAL_CORRECTION",
+            verbose=verbose,
+        )
+
+        if not docs:
+            logger.warning("ESR supplemental correction file not found")
+            return None
+
+        # Use the most recent correction file
+        doc = docs[0]
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+        # Find the correct file for the requested date
+        # Files are named like: 60d_ESR_Data_in_SCED-03-FEB-26_SUPPLEMENTAL_CORRECTION.csv
+        # where 03-FEB-26 is the report date (data date + 60 days)
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        expected_filename = (
+            f"60d_ESR_Data_in_SCED-{date_str}_SUPPLEMENTAL_CORRECTION.csv"
+        )
+
+        target_file = None
+        for file in z.namelist():
+            if file == expected_filename:
+                target_file = file
+                break
+
+        if target_file is None:
+            logger.warning(
+                f"Could not find ESR correction file for date {date} "
+                f"(report date {report_date})",
+            )
+            return None
+
+        if verbose:
+            logger.info(f"Reading ESR correction data from {target_file}")
+
+        esr = pd.read_csv(z.open(target_file))
+
+        # Localize the SCED Timestamp
+        esr = esr.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+        esr["SCED Timestamp"] = pd.to_datetime(esr["SCED Timestamp"])
+        esr["SCED Timestamp"] = esr["SCED Timestamp"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=esr["Repeated Hour Flag"] == "N",
+        )
+
+        if process:
+            esr = process_sced_esr(esr)
+
+        return esr
+
+    # Mapping of dataset key to (document name filter, file name prefix) for
+    # the Feb 3-18, 2026 supplemental correction files.
+    _SCED_SUPPLEMENTAL_DATASETS = [
+        (
+            SCED_ESR_KEY,
+            "60d_ESR_Data_in_SCED_02032026_thru_02182026_SUPPLEMENTAL",
+            "60d_ESR_Data_in_SCED",
+            process_sced_esr,
+        ),
+        (
+            SCED_GEN_RESOURCE_KEY,
+            "60d_Gen_Resource_Data_in_SCED_02032026_thru_02182026_SUPPLEMENTAL",
+            "60d_SCED_Gen_Resource_Data",
+            process_sced_gen,
+        ),
+        (
+            SCED_LOAD_RESOURCE_KEY,
+            "60d_Load_Resource_Data_in_SCED_02032026_thru_02182026_SUPPLEMENTAL",
+            "60d_Load_Resource_Data_in_SCED",
+            process_sced_load,
+        ),
+    ]
+
+    def _get_sced_supplemental_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+    ) -> dict:
+        """Fetch ESR, Gen Resource, and Load Resource data from supplemental
+        correction files for data dates Dec 5-20, 2025.
+
+        ERCOT published incorrect data for these three datasets for data dates
+        Dec 5, 2025 through Dec 20, 2025 (report dates Feb 3-18, 2026).
+        The supplemental correction files were published on Feb 23, 2026.
+
+        Arguments:
+            date: The data date (not report date) to fetch supplemental data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+
+        Returns:
+            dict with keys for the corrected datasets
+        """
+        # Files in the supplemental zips are named with the report date
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        result = {}
+
+        for key, doc_name, file_prefix, process_fn in self._SCED_SUPPLEMENTAL_DATASETS:
+            docs = self._get_documents(
+                report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+                constructed_name_contains=doc_name,
+                verbose=verbose,
+            )
+
+            if not docs:
+                logger.warning(
+                    f"Supplemental correction file not found for {key}",
+                )
+                continue
+
+            doc = docs[0]
+            z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+            # Files are named like: {file_prefix}-{DD-MMM-YY}.csv
+            expected_filename = f"{file_prefix}-{date_str}.csv"
+
+            target_file = None
+            for file in z.namelist():
+                cleaned = file.replace(" ", "_")
+                if expected_filename in cleaned:
+                    target_file = file
+                    break
+
+            if target_file is None:
+                logger.warning(
+                    f"Could not find supplemental file {expected_filename} for {key}",
+                )
+                continue
+
+            if verbose:
+                logger.info(f"Reading supplemental data from {target_file}")
+
+            df = pd.read_csv(z.open(target_file))
+
+            # Localize SCED Timestamp
+            df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=df["Repeated Hour Flag"] == "N",
+            )
+
+            if process:
+                df = process_fn(df)
+
+            result[key] = df
 
         return result
 
@@ -2235,6 +2517,8 @@ class Ercot(ISOBase):
         - "dam_energy_bids"
         - "dam_ptp_obligation_option"
         - "dam_ptp_obligation_option_awards"
+        - "dam_esr" (when available, starting 2025-12-06)
+        - "dam_esr_as_offers" (when available, starting 2025-12-06)
 
         and values as pandas.DataFrame objects
 
@@ -2280,15 +2564,27 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
+        # ESR files are optional (only available starting 2025-12-06)
+        optional_files_prefix = {
+            DAM_ESR_KEY: "60d_DAM_ESR_Data-",
+            DAM_ESR_AS_OFFERS_KEY: "60d_DAM_ESR_ASOffers-",
+        }
+
         files = {}
 
-        # find files in zip folder
+        # find required files in zip folder
         for key, file in files_prefix.items():
             for f in z.namelist():
                 if file in f:
                     files[key] = f
 
         assert len(files) == len(files_prefix), "Missing files"
+
+        # find optional files in zip folder
+        for key, file in optional_files_prefix.items():
+            for f in z.namelist():
+                if file in f:
+                    files[key] = f
 
         data = {}
 
@@ -2313,6 +2609,8 @@ class Ercot(ISOBase):
                 DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
                 DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
+                DAM_ESR_KEY: process_dam_esr,
+                DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
             }
 
             for file_name, process_func in file_to_function.items():

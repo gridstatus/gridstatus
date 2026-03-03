@@ -20,6 +20,10 @@ from gridstatus.ercot_60d_utils import (
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
     DAM_ENERGY_ONLY_OFFERS_COLUMNS,
     DAM_ENERGY_ONLY_OFFERS_KEY,
+    DAM_ESR_AS_OFFERS_COLUMNS,
+    DAM_ESR_AS_OFFERS_KEY,
+    DAM_ESR_COLUMNS,
+    DAM_ESR_KEY,
     DAM_GEN_RESOURCE_AS_OFFERS_KEY,
     DAM_GEN_RESOURCE_COLUMNS,
     DAM_GEN_RESOURCE_KEY,
@@ -35,12 +39,16 @@ from gridstatus.ercot_60d_utils import (
     DAM_PTP_OBLIGATION_OPTION_COLUMNS,
     DAM_PTP_OBLIGATION_OPTION_KEY,
     DAM_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS,
+    SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY,
     SCED_ESR_COLUMNS,
     SCED_ESR_KEY,
     SCED_GEN_RESOURCE_COLUMNS,
     SCED_GEN_RESOURCE_KEY,
     SCED_LOAD_RESOURCE_COLUMNS,
     SCED_LOAD_RESOURCE_KEY,
+    SCED_RESOURCE_AS_OFFERS_COLUMNS,
+    SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_COLUMNS,
     SCED_SMNE_KEY,
 )
@@ -886,6 +894,71 @@ class TestErcot(BaseTestISO):
         # Also check the other datasets are still present
         check_60_day_sced_disclosure(df_dict)
 
+    def test_get_60_day_sced_disclosure_supplemental_correction(self):
+        # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
+        # supplemental correction for ESR, Gen Resource, and Load Resource
+        date = pd.Timestamp("2025-12-10").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_sced_disclosure_supplemental_correction",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=date,
+                process=True,
+            )
+
+        check_60_day_sced_disclosure(df_dict)
+
+        # All three corrected datasets should be present
+        assert SCED_ESR_KEY in df_dict
+        assert SCED_GEN_RESOURCE_KEY in df_dict
+        assert SCED_LOAD_RESOURCE_KEY in df_dict
+
+        # Verify data is for the correct date
+        esr = df_dict[SCED_ESR_KEY]
+        gen = df_dict[SCED_GEN_RESOURCE_KEY]
+        load = df_dict[SCED_LOAD_RESOURCE_KEY]
+
+        assert esr["SCED Timestamp"].dt.date.unique()[0] == date
+        assert gen["SCED Timestamp"].dt.date.unique()[0] == date
+        assert load["SCED Timestamp"].dt.date.unique()[0] == date
+
+        # SMNE should still come from the normal disclosure
+        smne = df_dict[SCED_SMNE_KEY]
+        assert len(smne) > 0
+
+    @pytest.mark.integration
+    def test_get_60_day_sced_disclosure_telemetered_net_output(self):
+        """Test that Telemetered Net Output contains real data, not NaN.
+
+        On 2025-12-28 the raw data column is named 'Telemetered Net Output'
+        (no trailing space), unlike earlier dates which had a trailing space.
+        Without stripping whitespace from column names, the processing code
+        fails to match the column and fills it with NaN.
+        """
+        date = pd.Timestamp("2025-12-28").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_sced_disclosure_telemetered_net_output",
+        ):
+            df_dict = self.iso.get_60_day_sced_disclosure(
+                date=date,
+                process=True,
+            )
+
+        gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
+
+        assert len(gen_resource) > 0
+        assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+
+        # The critical assertion: Telemetered Net Output must contain real
+        # data, not all NaN. On main, the column name mismatch causes
+        # this to be filled with NaN for dates where the raw data has no
+        # trailing space.
+        assert gen_resource["Telemetered Net Output"].notna().any(), (
+            "Telemetered Net Output is all NaN - column name mismatch"
+        )
+
     """get_60_day_dam_disclosure"""
 
     @pytest.mark.integration
@@ -899,6 +972,151 @@ class TestErcot(BaseTestISO):
         df_dict = self.iso.get_60_day_dam_disclosure(date=days_ago_65, process=True)
 
         check_60_day_dam_disclosure(df_dict)
+
+    @pytest.mark.integration
+    def test_get_60_day_dam_disclosure_esr(self):
+        # ESR data is available starting 2025-12-06
+        esr_start = pd.Timestamp("2025-12-06").date()
+        days_ago_65 = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).date() - pd.Timedelta(
+            days=65,
+        )
+
+        # Use the later of 65 days ago or ESR start date
+        date = max(days_ago_65, esr_start)
+
+        with api_vcr.use_cassette(
+            f"test_get_60_day_dam_disclosure_esr_{date}",
+        ):
+            try:
+                df_dict = self.iso.get_60_day_dam_disclosure(
+                    date=date,
+                    process=True,
+                )
+            except NoDataFoundException:
+                pytest.skip(
+                    f"No data found for date {date} - "
+                    "ESR report may not be published yet",
+                )
+
+        assert DAM_ESR_KEY in df_dict
+        dam_esr = df_dict[DAM_ESR_KEY]
+
+        assert dam_esr.columns.tolist() == DAM_ESR_COLUMNS
+        assert len(dam_esr) > 0
+        assert dam_esr["Resource Type"].unique().tolist() == ["ESR"]
+
+        # Verify offer curves are parsed
+        assert (
+            dam_esr["QSE submitted Curve"]
+            .apply(
+                lambda x: isinstance(x, list),
+            )
+            .any()
+        )
+
+        assert DAM_ESR_AS_OFFERS_KEY in df_dict
+        dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
+
+        assert dam_esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        assert len(dam_esr_as_offers) > 0
+
+        # Verify no duplicates
+        assert not dam_esr_as_offers.duplicated(
+            subset=[
+                "Interval Start",
+                "Interval End",
+                "QSE",
+                "DME",
+                "Resource Name",
+            ],
+        ).any()
+
+        # Also check the other datasets are still present
+        check_60_day_dam_disclosure(df_dict)
+
+    def _check_nonspin_offer_curve(self, df, column_name, dataset_name):
+        """Verify a NONSPIN offer curve column has valid data."""
+        assert df[column_name].notna().any(), (
+            f"{column_name} should have non-null values in {dataset_name}"
+        )
+        curve = df[column_name].dropna().iloc[0]
+        assert isinstance(curve, list)
+        assert len(curve) > 0
+        assert len(curve[0]) == 2
+
+    def test_get_60_day_dam_disclosure_online_nonspin_offer_curves(self):
+        """Test that ONLINE NONSPIN offer curves are correctly parsed.
+
+        2025-12-12 data contains ONLINE NONSPIN price columns. Before the fix,
+        split(" ")[1] would extract "ONLINE" instead of "ONLINE NONSPIN",
+        causing the curves to be all NA. Checks all three AS offer datasets:
+        gen, load, and ESR.
+        """
+        date = pd.Timestamp("2025-12-12").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_online_nonspin_offer_curves.yaml",
+        ):
+            df_dict = self.iso.get_60_day_dam_disclosure(
+                date=date,
+                process=True,
+            )
+
+        col = "ONLINE NONSPIN Offer Curve"
+
+        gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            gen_as_offers,
+            col,
+            "dam_gen_resource_as_offers",
+        )
+
+        load_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
+        assert load_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            load_as_offers,
+            col,
+            "dam_load_resource_as_offers",
+        )
+
+        esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
+        assert esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            esr_as_offers,
+            col,
+            "dam_esr_as_offers",
+        )
+
+    def test_get_60_day_dam_disclosure_offline_nonspin_offer_curves(self):
+        """Test that OFFLINE NONSPIN offer curves are correctly parsed.
+
+        2025-12-12 data contains OFFLINE NONSPIN price columns. Before the fix,
+        split(" ")[1] would extract "OFFLINE" instead of "OFFLINE NONSPIN",
+        causing the curves to be all NA. Checks dam_gen_resource_as_offers
+        which has OFFLINE NONSPIN data.
+        """
+        date = pd.Timestamp("2025-12-12").date()
+
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_offline_nonspin_offer_curves.yaml",
+        ):
+            df_dict = self.iso.get_60_day_dam_disclosure(
+                date=date,
+                process=True,
+            )
+
+        col = "OFFLINE NONSPIN Offer Curve"
+
+        gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
+        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        self._check_nonspin_offer_curve(
+            gen_as_offers,
+            col,
+            "dam_gen_resource_as_offers",
+        )
 
     @pytest.mark.integration
     def test_get_sara(self):
@@ -3389,6 +3607,26 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
         assert esr.columns.tolist() == SCED_ESR_COLUMNS
         assert len(esr) > 0
         assert esr["Resource Type"].unique().tolist() == ["ESR"]
+
+    # AS Offer Updates and Resource AS Offers available starting 2025-12-05
+    if SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY in df_dict:
+        as_offer_updates = df_dict[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY]
+        assert (
+            as_offer_updates.columns.tolist()
+            == SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS
+        )
+        # Data may be empty for some dates
+        if len(as_offer_updates) > 0:
+            assert pd.api.types.is_datetime64_any_dtype(
+                as_offer_updates["Interval Start"],
+            )
+            assert pd.api.types.is_datetime64_any_dtype(
+                as_offer_updates["Interval End"],
+            )
+
+    if SCED_RESOURCE_AS_OFFERS_KEY in df_dict:
+        resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
+        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
 def check_60_day_dam_disclosure(df_dict):
