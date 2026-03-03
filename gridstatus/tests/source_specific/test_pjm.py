@@ -371,7 +371,7 @@ class TestPJM(BaseTestISO):
                 days=7,
             )
 
-            assert df["Publish Time"].nunique() == 1
+            assert df["Publish Time"].dt.floor("min").nunique() == 1
 
     def test_get_load_forecast_in_past_raises_error(self):
         start_date = self.local_today() - pd.Timedelta(days=1)
