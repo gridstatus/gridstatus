@@ -1,7 +1,22 @@
+from enum import StrEnum
+
 import numpy as np
 import pandas as pd
 
 from gridstatus.gs_logging import setup_gs_logger
+
+
+class CurveOutputFormat(StrEnum):
+    """Output format for extracted offer curves.
+
+    LIST: Returns Python list-of-lists per cell (default).
+    PG_ARRAY: Returns PostgreSQL array strings like '{{mw,price},{mw,price}}'
+        directly, using ~15x less memory.
+    """
+
+    LIST = "list"
+    PG_ARRAY = "pg_array"
+
 
 logger = setup_gs_logger()
 
@@ -381,6 +396,19 @@ SCED_RESOURCE_AS_OFFERS_COLUMNS = [
 ]
 
 
+def _categorize_strings(df):
+    """Convert object columns to category dtype, skipping curve columns.
+
+    Curve columns (ending in 'Curve') and 'Block Indicators' contain lists or
+    high-cardinality strings that don't benefit from categorical encoding.
+    """
+    for col in df.select_dtypes(include=["object"]).columns:
+        if col.endswith("Curve") or col == "Block Indicators":
+            continue
+        df[col] = df[col].astype("category")
+    return df
+
+
 def match_gen_load_names(list1, list2):
     """Match generator and load names"""
     list1.sort()
@@ -502,7 +530,7 @@ def extract_curve_as_pg_string(df, mw_cols, price_cols):
     Returns pd.Series of strings like '{{100.0,25.5},{200.0,60.0}}'
     instead of Python list-of-lists. ~15x less memory.
     """
-    mw_arr = df[mw_cols].round(2).values      # (N, blocks) float64
+    mw_arr = df[mw_cols].round(2).values  # (N, blocks) float64
     price_arr = df[price_cols].round(2).values
     valid = ~(np.isnan(mw_arr) | np.isnan(price_arr))
 
@@ -511,7 +539,7 @@ def extract_curve_as_pg_string(df, mw_cols, price_cols):
         pairs = []
         for j in range(len(mw_cols)):
             if valid[i, j]:
-                pairs.append(f"{{{mw_arr[i,j]},{price_arr[i,j]}}}")
+                pairs.append(f"{{{mw_arr[i, j]},{price_arr[i, j]}}}")
         result[i] = "{" + ",".join(pairs) + "}" if pairs else None
     return pd.Series(result, index=df.index)
 
@@ -523,6 +551,7 @@ def extract_curve(
     price_suffix="-Price",
     mw_cols=None,
     price_cols=None,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
 ):
     """Extract offer curve from dataframe columns.
 
@@ -534,6 +563,17 @@ def extract_curve(
        Pass mw_cols and price_cols directly for custom column patterns
        e.g., mw_cols=["QUANTITY_MW1", "QUANTITY_MW2"],
              price_cols=["PRICE1_URS", "PRICE2_URS"]
+
+    Args:
+        df: DataFrame with curve data columns.
+        curve_name: Prefix for auto-detecting MW/Price columns.
+        mw_suffix: Suffix for MW columns in auto-detect mode.
+        price_suffix: Suffix for price columns in auto-detect mode.
+        mw_cols: Explicit list of MW column names.
+        price_cols: Explicit list of price column names.
+        output_format: CurveOutputFormat.LIST (default) returns Python list-of-lists
+            per cell. CurveOutputFormat.PG_ARRAY returns PG array strings like
+            '{{mw,price},{mw,price}}' directly, using ~15x less memory.
     """
     if mw_cols is None or price_cols is None:
         # Auto-detect by prefix
@@ -542,6 +582,9 @@ def extract_curve(
 
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
+
+    if output_format == CurveOutputFormat.PG_ARRAY:
+        return extract_curve_as_pg_string(df, mw_cols, price_cols)
 
     # Vectorized extraction using numpy arrays
     mw_arr = df[mw_cols].round(2).values
@@ -562,7 +605,10 @@ def extract_curve(
     return pd.Series(curves, index=df.index)
 
 
-def process_dam_gen(df):
+def process_dam_gen(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     time_cols = [
         "Interval Start",
         "Interval End",
@@ -608,7 +654,7 @@ def process_dam_gen(df):
 
     curve = "QSE submitted Curve"
 
-    df[curve] = extract_curve(df, "QSE submitted Curve")
+    df[curve] = extract_curve(df, "QSE submitted Curve", output_format=output_format)
 
     all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
 
@@ -618,6 +664,7 @@ def process_dam_gen(df):
 
     df = df[time_cols + all_cols]
 
+    df = _categorize_strings(df)
     return df
 
 
@@ -667,10 +714,14 @@ def process_dam_load(df):
         },
     )
 
+    df = _categorize_strings(df)
     return df
 
 
-def process_dam_esr(df):
+def process_dam_esr(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     time_cols = [
         "Interval Start",
         "Interval End",
@@ -716,7 +767,7 @@ def process_dam_esr(df):
 
     curve = "QSE submitted Curve"
 
-    df[curve] = extract_curve(df, "QSE submitted Curve")
+    df[curve] = extract_curve(df, "QSE submitted Curve", output_format=output_format)
 
     all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
 
@@ -726,6 +777,7 @@ def process_dam_esr(df):
 
     df = df[time_cols + all_cols]
 
+    df = _categorize_strings(df)
     return df
 
 
@@ -895,6 +947,7 @@ def process_as_offer_curves(df):
         + as_offer_curve_column_names
     ]
 
+    df = _categorize_strings(df)
     return df
 
 
@@ -903,12 +956,17 @@ def process_dam_energy_only_offer_awards(df):
         columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
     )
 
-    return df[DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS].sort_values(
+    df = df[DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS].sort_values(
         ["Interval Start", "Settlement Point Name"],
     )
+    df = _categorize_strings(df)
+    return df
 
 
-def process_dam_energy_only_offers(df):
+def process_dam_energy_only_offers(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     df = df.rename(
         columns={
             "Settlement Point": "Settlement Point Name",
@@ -924,25 +982,32 @@ def process_dam_energy_only_offers(df):
         curve_name,
         mw_suffix=" MW",
         price_suffix=" Price",
+        output_format=output_format,
     )
 
-    return df[DAM_ENERGY_ONLY_OFFERS_COLUMNS].sort_values(
+    df = df[DAM_ENERGY_ONLY_OFFERS_COLUMNS].sort_values(
         ["Interval Start", "Settlement Point Name"],
     )
+    df = _categorize_strings(df)
+    return df
 
 
 def process_dam_ptp_obligation_bid_awards(df):
     df = df.rename(columns={"QSE Name": "QSE"})
 
-    return df[DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS].sort_values(
+    df = df[DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS].sort_values(
         ["Interval Start", "QSE"],
     )
+    df = _categorize_strings(df)
+    return df
 
 
 def process_dam_ptp_obligation_bids(df):
     df = df.rename(columns={"QSE Name": "QSE"})
 
-    return df[DAM_PTP_OBLIGATION_BIDS_COLUMNS].sort_values(["Interval Start", "QSE"])
+    df = df[DAM_PTP_OBLIGATION_BIDS_COLUMNS].sort_values(["Interval Start", "QSE"])
+    df = _categorize_strings(df)
+    return df
 
 
 def process_dam_energy_bid_awards(df):
@@ -950,12 +1015,17 @@ def process_dam_energy_bid_awards(df):
         columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
     )
 
-    return df[DAM_ENERGY_BID_AWARDS_COLUMNS].sort_values(
+    df = df[DAM_ENERGY_BID_AWARDS_COLUMNS].sort_values(
         ["Interval Start", "Settlement Point Name"],
     )
+    df = _categorize_strings(df)
+    return df
 
 
-def process_dam_energy_bids(df):
+def process_dam_energy_bids(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     df = df.rename(
         columns={
             "Settlement Point": "Settlement Point Name",
@@ -971,28 +1041,38 @@ def process_dam_energy_bids(df):
         curve_name,
         mw_suffix=" MW",
         price_suffix=" Price",
+        output_format=output_format,
     )
 
-    return df[DAM_ENERGY_BIDS_COLUMNS].sort_values(
+    df = df[DAM_ENERGY_BIDS_COLUMNS].sort_values(
         ["Interval Start", "Settlement Point Name"],
     )
+    df = _categorize_strings(df)
+    return df
 
 
 def process_dam_ptp_obligation_option(df):
     df = df.rename(columns={"QSE Name": "QSE"})
 
-    return df[DAM_PTP_OBLIGATION_OPTION_COLUMNS].sort_values(["Interval Start", "QSE"])
+    df = df[DAM_PTP_OBLIGATION_OPTION_COLUMNS].sort_values(["Interval Start", "QSE"])
+    df = _categorize_strings(df)
+    return df
 
 
 def process_dam_ptp_obligation_option_awards(df):
     df = df.rename(columns={"QSE Name": "QSE"})
 
-    return df[DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS].sort_values(
+    df = df[DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS].sort_values(
         ["Interval Start", "QSE"],
     )
+    df = _categorize_strings(df)
+    return df
 
 
-def process_sced_gen(df):
+def process_sced_gen(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     # Strip whitespace from column names
     df.columns = df.columns.str.strip()
     time_cols = [
@@ -1049,9 +1129,9 @@ def process_sced_gen(df):
     sced1_offer_col = "SCED1 Offer Curve"
     sced2_offer_col = "SCED2 Offer Curve"
 
-    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve")
-    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve")
-    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO")
+    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve", output_format=output_format)
+    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve", output_format=output_format)
+    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO", output_format=output_format)
 
     all_cols = (
         resource_cols
@@ -1087,10 +1167,14 @@ def process_sced_gen(df):
         },
     )
 
-    return df[SCED_GEN_RESOURCE_COLUMNS]
+    df = _categorize_strings(df[SCED_GEN_RESOURCE_COLUMNS])
+    return df
 
 
-def process_sced_load(df):
+def process_sced_load(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     time_cols = [
         "SCED Timestamp",
     ]
@@ -1139,7 +1223,11 @@ def process_sced_load(df):
 
     bid_curve_col = "SCED Bid to Buy Curve"
 
-    df[bid_curve_col] = extract_curve(df, "SCED Bid to Buy Curve")
+    df[bid_curve_col] = extract_curve(
+        df,
+        "SCED Bid to Buy Curve",
+        output_format=output_format,
+    )
 
     all_cols = resource_cols + telemetry_cols + as_cols + [bid_curve_col]
     for col in all_cols:
@@ -1160,10 +1248,14 @@ def process_sced_load(df):
         },
     )
 
-    return df[SCED_LOAD_RESOURCE_COLUMNS]
+    df = _categorize_strings(df[SCED_LOAD_RESOURCE_COLUMNS])
+    return df
 
 
-def process_sced_esr(df):
+def process_sced_esr(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     time_cols = [
         "SCED Timestamp",
     ]
@@ -1222,9 +1314,9 @@ def process_sced_esr(df):
     sced1_offer_col = "SCED1 Offer Curve"
     sced2_offer_col = "SCED2 Offer Curve"
 
-    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve")
-    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve")
-    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO")
+    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve", output_format=output_format)
+    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve", output_format=output_format)
+    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO", output_format=output_format)
 
     all_cols = (
         resource_cols
@@ -1260,7 +1352,8 @@ def process_sced_esr(df):
         },
     )
 
-    return df[SCED_ESR_COLUMNS]
+    df = _categorize_strings(df[SCED_ESR_COLUMNS])
+    return df
 
 
 def process_sced_as_offer_updates_in_op_hour(df):
@@ -1271,10 +1364,14 @@ def process_sced_as_offer_updates_in_op_hour(df):
 
     Expects df to already have Interval Start/End from parse_doc().
     """
-    return df[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS]
+    df = _categorize_strings(df[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS])
+    return df
 
 
-def process_sced_resource_as_offers(df, output_format="list"):
+def process_sced_resource_as_offers(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     """Process SCED Resource AS Offers data.
 
     This data contains ancillary service offer curves at the SCED timestamp level.
@@ -1336,7 +1433,7 @@ def process_sced_resource_as_offers(df, output_format="list"):
     # Extract MW column names (shared across all AS types)
     mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
 
-    use_pg = output_format == "pg_array"
+    use_pg = output_format == CurveOutputFormat.PG_ARRAY
     extract_fn = extract_curve_as_pg_string if use_pg else extract_curve
 
     # Extract curves for each AS type
@@ -1362,7 +1459,8 @@ def process_sced_resource_as_offers(df, output_format="list"):
     if use_pg:
         df.drop(columns=mw_cols, inplace=True, errors="ignore")
 
-    return df[SCED_RESOURCE_AS_OFFERS_COLUMNS]
+    df = _categorize_strings(df[SCED_RESOURCE_AS_OFFERS_COLUMNS])
+    return df
 
 
 # # backup for more node names

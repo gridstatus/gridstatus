@@ -21,6 +21,7 @@ from gridstatus.ercot import (
     ELECTRICAL_BUS_LOCATION_TYPE,
     Ercot,
 )
+from gridstatus.ercot_60d_utils import CurveOutputFormat
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -1499,6 +1500,7 @@ class ErcotAPI:
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day DAM disclosure reports from ERCOT.
@@ -1509,6 +1511,9 @@ class ErcotAPI:
                 Defaults to date + 1 day
             verbose (bool, optional): Whether to print progress messages. Defaults to
                 False
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY returns
+                PG array strings, using ~15x less memory.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
@@ -1559,6 +1564,7 @@ class ErcotAPI:
                 z=zip_file,
                 process=True,
                 verbose=verbose,
+                output_format=output_format,
             )
             df_list.append(processed_files)
 
@@ -1572,7 +1578,7 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
         process: bool = True,
-        output_format: str = "list",
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day SCED disclosure reports from ERCOT.
@@ -1583,6 +1589,9 @@ class ErcotAPI:
                 Defaults to date + 1 day
             verbose (bool, optional): Whether to print progress messages. Defaults to
                 False
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY returns
+                PG array strings, using ~15x less memory.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
