@@ -3731,7 +3731,7 @@ class TestExtractCurveFormats:
         pg_result = extract_curve(
             df,
             curve_name="TestCurve",
-            output_format=CurveOutputFormat.PG_ARRAY,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
 
         assert len(list_result) == len(pg_result)
@@ -3754,7 +3754,7 @@ class TestExtractCurveFormats:
             df,
             mw_cols=mw_cols,
             price_cols=price_cols,
-            output_format=CurveOutputFormat.PG_ARRAY,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
 
         assert len(list_result) == len(pg_result)
@@ -3781,7 +3781,7 @@ class TestExtractCurveFormats:
         pg_result = extract_curve(
             df_nan,
             curve_name="C",
-            output_format=CurveOutputFormat.PG_ARRAY,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
 
         # All-NaN row should produce empty list / None
@@ -3808,7 +3808,7 @@ class TestExtractCurveFormats:
         pg_result = extract_curve(
             df_partial,
             curve_name="C",
-            output_format=CurveOutputFormat.PG_ARRAY,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
         assert _list_to_pg_string(list_result.iloc[0]) == pg_result.iloc[0]
 
@@ -3822,7 +3822,7 @@ class TestExtractCurveFormats:
         pg_result = extract_curve(
             df_single,
             curve_name="C",
-            output_format=CurveOutputFormat.PG_ARRAY,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
         for i in range(len(list_result)):
             assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
@@ -3830,9 +3830,9 @@ class TestExtractCurveFormats:
     def test_curve_output_format_string_compat(self):
         """Test that raw string args still work with CurveOutputFormat comparisons."""
         assert CurveOutputFormat.LIST == "list"
-        assert CurveOutputFormat.PG_ARRAY == "pg_array"
+        assert CurveOutputFormat.PG_ARRAY_AS_STRING == "pg_array_as_string"
         assert "list" == CurveOutputFormat.LIST
-        assert "pg_array" == CurveOutputFormat.PG_ARRAY
+        assert "pg_array_as_string" == CurveOutputFormat.PG_ARRAY_AS_STRING
 
 
 class TestCategorizeStrings:

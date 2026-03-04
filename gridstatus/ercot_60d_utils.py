@@ -10,12 +10,12 @@ class CurveOutputFormat(StrEnum):
     """Output format for extracted offer curves.
 
     LIST: Returns Python list-of-lists per cell (default).
-    PG_ARRAY: Returns PostgreSQL array strings like '{{mw,price},{mw,price}}'
+    PG_ARRAY_AS_STRING: Returns PostgreSQL array strings like '{{mw,price},{mw,price}}'
         directly, using ~15x less memory.
     """
 
     LIST = "list"
-    PG_ARRAY = "pg_array"
+    PG_ARRAY_AS_STRING = "pg_array_as_string"
 
 
 logger = setup_gs_logger()
@@ -572,7 +572,7 @@ def extract_curve(
         mw_cols: Explicit list of MW column names.
         price_cols: Explicit list of price column names.
         output_format: CurveOutputFormat.LIST (default) returns Python list-of-lists
-            per cell. CurveOutputFormat.PG_ARRAY returns PG array strings like
+            per cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns PG array strings like
             '{{mw,price},{mw,price}}' directly, using ~15x less memory.
     """
     if mw_cols is None or price_cols is None:
@@ -583,7 +583,7 @@ def extract_curve(
     if len(mw_cols) == 0 or len(price_cols) == 0:
         return np.nan
 
-    if output_format == CurveOutputFormat.PG_ARRAY:
+    if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING:
         return extract_curve_as_pg_string(df, mw_cols, price_cols)
 
     # Vectorized extraction using numpy arrays
@@ -1385,7 +1385,7 @@ def process_sced_resource_as_offers(
     Args:
         df: DataFrame with raw SCED resource AS offers data.
         output_format: "list" (default) returns Python list-of-lists per cell.
-            "pg_array" returns PG array strings like '{{mw,price},{mw,price}}'
+            "pg_array_as_string" returns PG array strings like '{{mw,price},{mw,price}}'
             directly, using ~15x less memory.
     """
     # First create a curve_type column with the logic:
@@ -1433,7 +1433,7 @@ def process_sced_resource_as_offers(
     # Extract MW column names (shared across all AS types)
     mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
 
-    use_pg = output_format == CurveOutputFormat.PG_ARRAY
+    use_pg = output_format == CurveOutputFormat.PG_ARRAY_AS_STRING
     extract_fn = extract_curve_as_pg_string if use_pg else extract_curve
 
     # Extract curves for each AS type

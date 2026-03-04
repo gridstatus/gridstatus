@@ -2097,7 +2097,7 @@ class Ercot(ISOBase):
                 standardized format. if False, will return raw data
             verbose (bool, optional): print verbose output. Defaults to False.
             output_format: CurveOutputFormat.LIST (default) returns Python
-                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY returns
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
                 PG array strings, using ~15x less memory.
 
         Returns:
@@ -2556,7 +2556,7 @@ class Ercot(ISOBase):
 
         Args:
             output_format: CurveOutputFormat.LIST (default) returns Python
-                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY returns
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
                 PG array strings, using ~15x less memory.
         """
 
