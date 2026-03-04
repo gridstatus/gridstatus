@@ -3071,7 +3071,7 @@ class TestPJM(BaseTestISO):
         ).all()
 
     def test_get_inc_and_dec_bids_day_ahead_hourly_historical_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=10)
+        past_date = self.local_today() - pd.Timedelta(days=200)
         past_end_date = past_date + pd.Timedelta(days=2)
         with pjm_vcr.use_cassette(
             f"test_get_inc_and_dec_bids_day_ahead_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
