@@ -3567,6 +3567,92 @@ class TestErcot(BaseTestISO):
         assert df["PRC"].iloc[0] == 5000.0
         assert df["ORDC Online"].iloc[0] == 3500.0
 
+    """get_settlement_points_list"""
+
+    settlement_points_list_cols = [
+        "Publish Date",
+        "Electrical Bus",
+        "Node Name",
+        "PSSE Bus Name",
+        "Voltage Level",
+        "Substation",
+        "Settlement Load Zone",
+        "Resource Node",
+        "Hub Bus Name",
+        "Hub",
+        "PSSE Bus Number",
+    ]
+
+    def test_get_settlement_points_list(self):
+        with api_vcr.use_cassette("test_get_settlement_points_list.yaml"):
+            df = self.iso.get_settlement_points_list()
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.settlement_points_list_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_ccp_resource_names"""
+
+    ccp_resource_names_cols = [
+        "Publish Date",
+        "CCP Name",
+        "Logical Resource Node Name",
+    ]
+
+    def test_get_ccp_resource_names(self):
+        with api_vcr.use_cassette("test_get_ccp_resource_names.yaml"):
+            df = self.iso.get_ccp_resource_names()
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.ccp_resource_names_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_noie_mapping"""
+
+    noie_mapping_cols = [
+        "Publish Date",
+        "Physical Load",
+        "NOIE",
+        "Voltage",
+        "Substation",
+        "Electrical Bus",
+    ]
+
+    def test_get_noie_mapping(self):
+        with api_vcr.use_cassette("test_get_noie_mapping.yaml"):
+            df = self.iso.get_noie_mapping()
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.noie_mapping_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_resource_node_to_unit"""
+
+    resource_node_to_unit_cols = [
+        "Publish Date",
+        "Resource Node",
+        "Unit Substation",
+        "Unit Name",
+    ]
+
+    def test_get_resource_node_to_unit(self):
+        with api_vcr.use_cassette("test_get_resource_node_to_unit.yaml"):
+            df = self.iso.get_resource_node_to_unit()
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.resource_node_to_unit_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_hub_name_and_dc_ties"""
+
+    hub_name_and_dc_ties_cols = [
+        "Publish Date",
+        "Name",
+    ]
+
+    def test_get_hub_name_and_dc_ties(self):
+        with api_vcr.use_cassette("test_get_hub_name_and_dc_ties.yaml"):
+            df = self.iso.get_hub_name_and_dc_ties()
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.hub_name_and_dc_ties_cols
+        assert df["Publish Date"].notna().all()
+
 
 def check_load_forecast_by_model(df: pd.DataFrame) -> None:
     """Check load forecast by model DataFrame structure and types."""

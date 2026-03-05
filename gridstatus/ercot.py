@@ -4990,26 +4990,143 @@ class Ercot(ISOBase):
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
-        """Get DataFrame whose columns can help us filter out values"""
-
+    def _get_settlement_points_mapping_zip(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> tuple[ZipFile, pd.Timestamp]:
         doc_info = self._get_document(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+            date=date,
             extension=None,
             verbose=verbose,
         )
-        doc_url = doc_info.url
 
-        logger.info(f"Fetching {doc_url}")
+        logger.info(f"Fetching {doc_info.url}")
 
-        r = requests.get(doc_url)
+        r = requests.get(doc_info.url)
         z = ZipFile(io.BytesIO(r.content))
+        return z, doc_info.publish_date
+
+    def _read_csv_from_zip(
+        self,
+        z: ZipFile,
+        filename_contains: str,
+    ) -> pd.DataFrame:
         names = z.namelist()
-        settlement_points_file = [
-            name for name in names if "Settlement_Points" in name
-        ][0]
-        df = pd.read_csv(z.open(settlement_points_file))
-        return df
+        matching = [name for name in names if filename_contains in name]
+        if not matching:
+            raise ValueError(
+                f"No file matching '{filename_contains}' found in zip. "
+                f"Available files: {names}",
+            )
+        return pd.read_csv(z.open(matching[0]))
+
+    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
+        """Get DataFrame whose columns can help us filter out values"""
+        z, _ = self._get_settlement_points_mapping_zip(verbose=verbose)
+        return self._read_csv_from_zip(z, "Settlement_Points")
+
+    def get_settlement_points_list(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
+        df = self._read_csv_from_zip(z, "Settlement_Points")
+
+        column_mapping = {
+            "ELECTRICAL_BUS": "Electrical Bus",
+            "NODE_NAME": "Node Name",
+            "PSSE_BUS_NAME": "PSSE Bus Name",
+            "VOLTAGE_LEVEL": "Voltage Level",
+            "SUBSTATION": "Substation",
+            "SETTLEMENT_LOAD_ZONE": "Settlement Load Zone",
+            "RESOURCE_NODE": "Resource Node",
+            "HUB_BUS_NAME": "Hub Bus Name",
+            "HUB": "Hub",
+            "PSSE_BUS_NUMBER": "PSSE Bus Number",
+        }
+
+        df = df.rename(columns=column_mapping)
+        df["Publish Date"] = publish_date.normalize()
+        cols = ["Publish Date"] + list(column_mapping.values())
+        return df[cols]
+
+    def get_ccp_resource_names(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
+        df = self._read_csv_from_zip(z, "CCP_Resource_Names")
+
+        column_mapping = {
+            "CCP_NAME": "CCP Name",
+            "LOGICALREOURCENODENAME": "Logical Resource Node Name",
+        }
+
+        df = df.rename(columns=column_mapping)
+        df["Publish Date"] = publish_date.normalize()
+        cols = ["Publish Date"] + list(column_mapping.values())
+        return df[cols]
+
+    def get_noie_mapping(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
+        df = self._read_csv_from_zip(z, "NOIE_Mapping")
+
+        column_mapping = {
+            "PHYSICAL_LOAD": "Physical Load",
+            "NOIE": "NOIE",
+            "VOLTAGE_NAME": "Voltage",
+            "SUBSTATION": "Substation",
+            "ELECTRICAL_BUS": "Electrical Bus",
+        }
+
+        df = df.rename(columns=column_mapping)
+        df["Publish Date"] = publish_date.normalize()
+        cols = ["Publish Date"] + list(column_mapping.values())
+        return df[cols]
+
+    def get_resource_node_to_unit(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
+        df = self._read_csv_from_zip(z, "Resource_Node_to_Unit")
+
+        column_mapping = {
+            "RESOURCE_NODE": "Resource Node",
+            "UNIT_SUBSTATION": "Unit Substation",
+            "UNIT_NAME": "Unit Name",
+        }
+
+        df = df.rename(columns=column_mapping)
+        df["Publish Date"] = publish_date.normalize()
+        cols = ["Publish Date"] + list(column_mapping.values())
+        return df[cols]
+
+    def get_hub_name_and_dc_ties(
+        self,
+        date: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
+        df = self._read_csv_from_zip(z, "Hub_Name_AND_DC_Ties")
+
+        column_mapping = {
+            "NAME": "Name",
+        }
+
+        df = df.rename(columns=column_mapping)
+        df["Publish Date"] = publish_date.normalize()
+        cols = ["Publish Date"] + list(column_mapping.values())
+        return df[cols]
 
     def read_doc(
         self,
