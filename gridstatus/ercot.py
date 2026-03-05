@@ -1494,62 +1494,51 @@ class Ercot(ISOBase):
         response = requests.get(doc_info.url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
-        """
-        Get interconnection queue for ERCOT
+    _fuel_type_map = {
+        "BIO": "Biomass",
+        "COA": "Coal",
+        "GAS": "Gas",
+        "GEO": "Geothermal",
+        "HYD": "Hydrogen",
+        "NUC": "Nuclear",
+        "OIL": "Fuel Oil",
+        "OTH": "Other",
+        "PET": "Petcoke",
+        "SOL": "Solar",
+        "WAT": "Water",
+        "WIN": "Wind",
+    }
 
-        Monthly historical data available here:
-            http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
-        """  # noqa
-        raw_data = self.get_raw_interconnection_queue(verbose)
-        # TODO other sheets for small projects, inactive, and cancelled project
-        # TODO see if this data matches up with summaries in excel file
-        # TODO historical data available as well
+    _technology_type_map = {
+        "BA": "Battery Energy Storage",
+        "CC": "Combined-Cycle",
+        "CE": "Compressed Air Energy Storage",
+        "CP": "Concentrated Solar Power",
+        "EN": "Energy Storage",
+        "FC": "Fuel Cell",
+        "GT": "Combustion (gas) Turbine, but not part of a Combined-Cycle",
+        "HY": "Hydroelectric Turbine",
+        "IC": "Internal Combustion Engine, eg. Reciprocating",
+        "OT": "Other",
+        "PV": "Photovoltaic Solar",
+        "ST": "Steam Turbine other than Combined-Cycle",
+        "WT": "Wind Turbine",
+    }
 
-        # skip rows and handle header
+    def _parse_large_gen(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Project Details - Large Gen' sheet."""
         queue = pd.read_excel(
-            raw_data,
+            excel_file,
             sheet_name="Project Details - Large Gen",
             skiprows=30,
         ).iloc[4:]
 
         queue["State"] = "Texas"
         queue["Queue Date"] = queue["Screening Study Started"]
+        queue["Size Category"] = "Large"
 
-        fuel_type_map = {
-            "BIO": "Biomass",
-            "COA": "Coal",
-            "GAS": "Gas",
-            "GEO": "Geothermal",
-            "HYD": "Hydrogen",
-            "NUC": "Nuclear",
-            "OIL": "Fuel Oil",
-            "OTH": "Other",
-            "PET": "Petcoke",
-            "SOL": "Solar",
-            "WAT": "Water",
-            "WIN": "Wind",
-        }
-
-        technology_type_map = {
-            "BA": "Battery Energy Storage",
-            "CC": "Combined-Cycle",
-            "CE": "Compressed Air Energy Storage",
-            "CP": "Concentrated Solar Power",
-            "EN": "Energy Storage",
-            "FC": "Fuel Cell",
-            "GT": "Combustion (gas) Turbine, but not part of a Combined-Cycle",
-            "HY": "Hydroelectric Turbine",
-            "IC": "Internal Combustion Engine, eg. Reciprocating",
-            "OT": "Other",
-            "PV": "Photovoltaic Solar",
-            "ST": "Steam Turbine other than Combined-Cycle",
-            "WT": "Wind Turbine",
-        }
-
-        queue["Fuel"] = queue["Fuel"].map(fuel_type_map)
-        queue["Technology"] = queue["Technology"].map(technology_type_map)
-
+        queue["Fuel"] = queue["Fuel"].map(self._fuel_type_map)
+        queue["Technology"] = queue["Technology"].map(self._technology_type_map)
         queue["Generation Type"] = queue["Fuel"] + " - " + queue["Technology"]
 
         queue["Status"] = (
@@ -1564,6 +1553,177 @@ class Ercot(ISOBase):
         )
 
         queue["Actual Completion Date"] = queue["Approved for Synchronization"]
+
+        return queue
+
+    def _parse_small_gen(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Project Details - Small Gen' sheet."""
+        queue = pd.read_excel(
+            excel_file,
+            sheet_name="Project Details - Small Gen",
+            skiprows=14,
+        )
+        # Drop sub-header rows and empty rows
+        queue = queue.dropna(subset=["INR"])
+
+        queue["State"] = "Texas"
+        queue["Queue Date"] = queue["Model Ready Date"]
+        queue["Size Category"] = "Small"
+
+        queue["Fuel"] = queue["Fuel"].map(self._fuel_type_map)
+        queue["Technology"] = queue["Technology"].map(self._technology_type_map)
+        queue["Generation Type"] = queue["Fuel"] + " - " + queue["Technology"]
+
+        queue["Status"] = (
+            queue["IA Signed"]
+            .isna()
+            .map(
+                {
+                    True: InterconnectionQueueStatus.ACTIVE.value,
+                    False: InterconnectionQueueStatus.COMPLETED.value,
+                },
+            )
+        )
+
+        queue["Actual Completion Date"] = queue["Approved for Synchronization"]
+
+        # Add columns that don't exist in Small Gen but do in Large Gen
+        for col in [
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+        ]:
+            if col not in queue.columns:
+                queue[col] = None
+
+        return queue
+
+    def _parse_inactive_projects(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Inactive Projects' sheet."""
+        df = pd.read_excel(
+            excel_file,
+            sheet_name="Inactive Projects",
+            skiprows=7,
+        )
+        # Drop footer notes by requiring non-null Size Category (data rows)
+        df = df.dropna(subset=["INR", "Size Category"])
+
+        df = df.rename(columns={"MW **": "Capacity (MW)", "Fuel": "Fuel Raw"})
+        df["State"] = "Texas"
+        df["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
+        df["Withdrawn Date"] = df["Inactive Date"]
+        df["Withdrawal Comment"] = "Inactive"
+        df["Generation Type"] = df["Fuel Raw"]
+        df["Queue Date"] = None
+        df["Actual Completion Date"] = None
+
+        # Add columns not present in inactive sheet
+        for col in [
+            "Interconnecting Entity",
+            "POI Location",
+            "CDR Reporting Zone",
+            "Projected COD",
+            "Technology",
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "IA Signed",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+            "Approved for Energization",
+            "Approved for Synchronization",
+            "Comment",
+            "Fuel",
+        ]:
+            if col not in df.columns:
+                df[col] = None
+
+        return df
+
+    def _parse_cancelled_projects(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Cancellation Update' sheet."""
+        df = pd.read_excel(
+            excel_file,
+            sheet_name="Cancellation Update",
+            skiprows=7,
+        )
+        # Drop footer notes by requiring non-null Size Category (data rows)
+        df = df.dropna(subset=["INR", "Size Category"])
+
+        df = df.rename(columns={"MW **": "Capacity (MW)", "Fuel": "Fuel Raw"})
+        df["State"] = "Texas"
+        df["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
+        df["Withdrawn Date"] = df["Cancel Date"]
+        df["Withdrawal Comment"] = "Cancelled"
+        df["Generation Type"] = df["Fuel Raw"]
+        df["Queue Date"] = None
+        df["Actual Completion Date"] = None
+
+        # Add columns not present in cancellation sheet
+        for col in [
+            "Interconnecting Entity",
+            "POI Location",
+            "CDR Reporting Zone",
+            "Projected COD",
+            "Technology",
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "IA Signed",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+            "Approved for Energization",
+            "Approved for Synchronization",
+            "Comment",
+            "Fuel",
+        ]:
+            if col not in df.columns:
+                df[col] = None
+
+        return df
+
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
+        """
+        Get interconnection queue for ERCOT
+
+        Includes large generation, small generation, inactive, and cancelled
+        projects from the GIS Report.
+
+        Monthly historical data available here:
+            http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
+        """  # noqa
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        excel_file = pd.ExcelFile(raw_data)
+
+        large_gen = self._parse_large_gen(excel_file)
+        small_gen = self._parse_small_gen(excel_file)
+        inactive = self._parse_inactive_projects(excel_file)
+        cancelled = self._parse_cancelled_projects(excel_file)
+
+        queue = pd.concat(
+            [large_gen, small_gen, inactive, cancelled],
+            ignore_index=True,
+        )
 
         rename = {
             "INR": "Queue ID",
@@ -1580,9 +1740,8 @@ class Ercot(ISOBase):
             "Status": "Status",
         }
 
-        # todo: there are a few columns being parsed
-        # as "unamed" that aren't being included but should
         extra_columns = [
+            "Size Category",
             "Fuel",
             "Technology",
             "GIM Study Phase",
@@ -1598,22 +1757,23 @@ class Ercot(ISOBase):
             "Meets Planning",
             "Meets All Planning",
             "CDR Reporting Zone",
-            # "Construction Start", # all null
-            # "Construction End", # all null
             "Approved for Energization",
             "Approved for Synchronization",
             "Comment",
         ]
 
         missing = [
-            # todo the actual complettion date can be calculated by
-            # looking at status and other date columns
             "Withdrawal Comment",
             "Transmission Owner",
             "Summer Capacity (MW)",
             "Winter Capacity (MW)",
             "Withdrawn Date",
         ]
+
+        # Remove from missing any columns that already exist (e.g. from
+        # inactive/cancelled sheets which provide Withdrawn Date and
+        # Withdrawal Comment)
+        missing = [m for m in missing if m not in queue.columns]
 
         queue = utils.format_interconnection_df(
             queue=queue,
