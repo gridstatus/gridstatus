@@ -402,6 +402,7 @@ def _categorize_strings(df):
     Curve columns (ending in 'Curve') and 'Block Indicators' contain structured
     data (lists or serialized arrays) that should not be categorized.
     """
+    df = df.copy()
     for col in df.select_dtypes(include=["object"]).columns:
         if col.endswith("Curve") or col == "Block Indicators":
             continue
