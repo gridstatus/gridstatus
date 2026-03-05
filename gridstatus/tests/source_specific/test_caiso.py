@@ -5,6 +5,7 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
+from gridstatus.caiso.caiso import _aggregate_groups
 from gridstatus.caiso.caiso_constants import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -1309,6 +1310,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1334,6 +1336,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1358,6 +1361,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1383,6 +1387,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1410,6 +1415,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1435,6 +1441,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1465,6 +1472,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1491,6 +1499,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Group",
             ]
+            assert df["Group"].apply(isinstance, args=(list,)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1844,3 +1853,89 @@ class TestCAISO(BaseTestISO):
         assert old_start in str(exc_info.value)
         assert old_end in str(exc_info.value)
         assert "Day Ahead Hourly" in str(exc_info.value)
+
+
+class TestAggregateGroups:
+    def test_multiple_groups_collapsed_to_array(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"] * 3,
+                "Location": ["LOC_A"] * 3,
+                "Price": [10.0] * 3,
+                "Group": ["G1", "G2", "G3"],
+            },
+        )
+        non_group_cols = ["Interval Start", "Location", "Price"]
+        result = _aggregate_groups(df, non_group_cols)
+        assert len(result) == 1
+        assert result["Group"].iloc[0] == ["G1", "G2", "G3"]
+
+    def test_groups_are_sorted(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"] * 3,
+                "Location": ["LOC_A"] * 3,
+                "Price": [10.0] * 3,
+                "Group": ["G3", "G1", "G2"],
+            },
+        )
+        non_group_cols = ["Interval Start", "Location", "Price"]
+        result = _aggregate_groups(df, non_group_cols)
+        assert result["Group"].iloc[0] == ["G1", "G2", "G3"]
+
+    def test_duplicate_groups_are_deduplicated(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"] * 3,
+                "Location": ["LOC_A"] * 3,
+                "Price": [10.0] * 3,
+                "Group": ["G1", "G1", "G2"],
+            },
+        )
+        non_group_cols = ["Interval Start", "Location", "Price"]
+        result = _aggregate_groups(df, non_group_cols)
+        assert len(result) == 1
+        assert result["Group"].iloc[0] == ["G1", "G2"]
+
+    def test_single_group_becomes_single_element_list(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"],
+                "Location": ["LOC_A"],
+                "Price": [10.0],
+                "Group": ["G1"],
+            },
+        )
+        non_group_cols = ["Interval Start", "Location", "Price"]
+        result = _aggregate_groups(df, non_group_cols)
+        assert len(result) == 1
+        assert result["Group"].iloc[0] == ["G1"]
+
+    def test_empty_dataframe(self):
+        df = pd.DataFrame(columns=["Interval Start", "Location", "Price", "Group"])
+        non_group_cols = ["Interval Start", "Location", "Price"]
+        result = _aggregate_groups(df, non_group_cols)
+        assert len(result) == 0
+        assert result.columns.tolist() == [
+            "Interval Start",
+            "Location",
+            "Price",
+            "Group",
+        ]
+
+    def test_different_locations_stay_separate(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"] * 4,
+                "Location": ["LOC_A", "LOC_A", "LOC_B", "LOC_B"],
+                "Price": [10.0] * 4,
+                "Group": ["G1", "G2", "G3", "G4"],
+            },
+        )
+        non_group_cols = ["Interval Start", "Location", "Price"]
+        result = _aggregate_groups(df, non_group_cols)
+        assert len(result) == 2
+        loc_a = result[result["Location"] == "LOC_A"]["Group"].iloc[0]
+        loc_b = result[result["Location"] == "LOC_B"]["Group"].iloc[0]
+        assert loc_a == ["G1", "G2"]
+        assert loc_b == ["G3", "G4"]

@@ -33,6 +33,28 @@ from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 
+def _aggregate_groups(df, non_group_cols):
+    """Aggregate Group column into a sorted array of unique values.
+
+    Groups rows by non_group_cols and collects all unique Group values
+    into a sorted list for each combination.
+
+    Args:
+        df: DataFrame with a "Group" column and all columns in non_group_cols.
+        non_group_cols: List of column names to group by.
+
+    Returns:
+        DataFrame with Group column as sorted lists of unique values.
+    """
+    all_cols = non_group_cols + ["Group"]
+    if df.empty:
+        return pd.DataFrame(columns=all_cols)
+    df = df.groupby(non_group_cols, as_index=False).agg(
+        {"Group": lambda x: sorted(x.unique().tolist())},
+    )
+    return df[all_cols]
+
+
 def _determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
     locations = args.get("locations", "")
@@ -2470,18 +2492,16 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Nomogram ID XML",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Group",
-            ]
+        non_group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
         ]
+        return _aggregate_groups(df, non_group_cols)
 
     def get_nomogram_branch_shadow_prices_hasp_hourly(
         self,
@@ -2525,18 +2545,16 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Nomogram ID XML",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Group",
-            ]
+        non_group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
         ]
+        return _aggregate_groups(df, non_group_cols)
 
     def get_nomogram_branch_shadow_price_forecast_15_min(
         self,
@@ -2580,18 +2598,16 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Nomogram ID XML",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Group",
-            ]
+        non_group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
         ]
+        return _aggregate_groups(df, non_group_cols)
 
     def get_interval_nomogram_branch_shadow_prices_real_time_5_min(
         self,
@@ -2633,17 +2649,15 @@ class CAISO(ISOBase):
             },
         )
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Group",
-            ]
+        non_group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
         ]
+        return _aggregate_groups(df, non_group_cols)
 
     def get_intertie_constraint_shadow_prices_real_time_5_min(
         self,
