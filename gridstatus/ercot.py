@@ -5027,7 +5027,7 @@ class Ercot(ISOBase):
         z, _ = self._get_settlement_points_mapping_zip(verbose=verbose)
         return self._read_csv_from_zip(z, "Settlement_Points")
 
-    def get_settlement_points_list(
+    def get_settlement_points_electrical_bus_mapping(
         self,
         date: str | None = None,
         verbose: bool = False,
@@ -5111,7 +5111,7 @@ class Ercot(ISOBase):
         cols = ["Publish Date"] + list(column_mapping.values())
         return df[cols]
 
-    def get_hub_name_and_dc_ties(
+    def get_hub_name_dc_ties(
         self,
         date: str | None = None,
         verbose: bool = False,

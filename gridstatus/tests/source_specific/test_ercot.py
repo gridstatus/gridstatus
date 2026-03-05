@@ -3567,9 +3567,9 @@ class TestErcot(BaseTestISO):
         assert df["PRC"].iloc[0] == 5000.0
         assert df["ORDC Online"].iloc[0] == 3500.0
 
-    """get_settlement_points_list"""
+    """get_settlement_points_electrical_bus_mapping"""
 
-    settlement_points_list_cols = [
+    settlement_points_electrical_bus_mapping_cols = [
         "Publish Date",
         "Electrical Bus",
         "Node Name",
@@ -3583,11 +3583,13 @@ class TestErcot(BaseTestISO):
         "PSSE Bus Number",
     ]
 
-    def test_get_settlement_points_list(self):
-        with api_vcr.use_cassette("test_get_settlement_points_list.yaml"):
-            df = self.iso.get_settlement_points_list()
+    def test_get_settlement_points_electrical_bus_mapping(self):
+        with api_vcr.use_cassette(
+            "test_get_settlement_points_electrical_bus_mapping.yaml",
+        ):
+            df = self.iso.get_settlement_points_electrical_bus_mapping()
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.settlement_points_list_cols
+        assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
         assert df["Publish Date"].notna().all()
 
     """get_ccp_resource_names"""
@@ -3639,18 +3641,18 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == self.resource_node_to_unit_cols
         assert df["Publish Date"].notna().all()
 
-    """get_hub_name_and_dc_ties"""
+    """get_hub_name_dc_ties"""
 
-    hub_name_and_dc_ties_cols = [
+    hub_name_dc_ties_cols = [
         "Publish Date",
         "Name",
     ]
 
-    def test_get_hub_name_and_dc_ties(self):
-        with api_vcr.use_cassette("test_get_hub_name_and_dc_ties.yaml"):
-            df = self.iso.get_hub_name_and_dc_ties()
+    def test_get_hub_name_dc_ties(self):
+        with api_vcr.use_cassette("test_get_hub_name_dc_ties.yaml"):
+            df = self.iso.get_hub_name_dc_ties()
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.hub_name_and_dc_ties_cols
+        assert df.columns.tolist() == self.hub_name_dc_ties_cols
         assert df["Publish Date"].notna().all()
 
 
