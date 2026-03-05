@@ -55,6 +55,7 @@ from gridstatus.ercot_60d_utils import (
     CurveOutputFormat,
     _categorize_strings,
     extract_curve,
+    process_as_offer_curves,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -3826,6 +3827,61 @@ class TestExtractCurveFormats:
         )
         for i in range(len(list_result)):
             assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def _make_as_offer_curves_df(self):
+        """Create synthetic input for process_as_offer_curves."""
+        n_blocks = 3
+        services = ["RRSPFR", "REGUP"]
+        rows = []
+        for resource in ["RES_A", "RES_B"]:
+            row = {
+                "Interval Start": pd.Timestamp("2025-01-01 00:00"),
+                "Interval End": pd.Timestamp("2025-01-01 01:00"),
+                "Resource Name": resource,
+                "QSE": "QSE1",
+                "DME": "DME1",
+                "Multi-Hour Block Flag": "N",
+            }
+            for i in range(1, n_blocks + 1):
+                row[f"BLOCK INDICATOR{i}"] = "ON"
+                row[f"QUANTITY MW{i}"] = 100.0 * i
+                for svc in services:
+                    row[f"PRICE{i} {svc}"] = 10.0 * i + (0.5 if svc == "REGUP" else 0)
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def test_process_as_offer_curves_list_vs_pg_array(self):
+        """Curves from list format match pg_array_as_string when converted."""
+        df = self._make_as_offer_curves_df()
+        list_result = process_as_offer_curves(
+            df.copy(),
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = process_as_offer_curves(
+            df.copy(),
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert list(list_result.columns) == list(pg_result.columns)
+        assert len(list_result) == len(pg_result)
+
+        # Non-curve columns should match
+        non_curve_cols = [
+            c for c in list_result.columns if not c.endswith("Offer Curve")
+        ]
+        for col in non_curve_cols:
+            assert list(list_result[col]) == list(pg_result[col])
+
+        # Curve columns: convert list to pg string and compare
+        curve_cols = [c for c in list_result.columns if c.endswith("Offer Curve")]
+        for col in curve_cols:
+            for i in range(len(list_result)):
+                list_val = list_result[col].iloc[i]
+                pg_val = pg_result[col].iloc[i]
+                if list_val is pd.NA:
+                    assert pg_val is pd.NA
+                else:
+                    assert _list_to_pg_string(list_val) == pg_val
 
     def test_curve_output_format_string_compat(self):
         """Test that raw string args still work with CurveOutputFormat comparisons."""

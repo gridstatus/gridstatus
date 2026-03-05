@@ -781,11 +781,17 @@ def process_dam_esr(
     return df
 
 
-def process_dam_esr_as_offers(df):
-    return process_as_offer_curves(df)
+def process_dam_esr_as_offers(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
+    return process_as_offer_curves(df, output_format=output_format)
 
 
-def process_dam_or_gen_load_as_offers(df):
+def process_dam_or_gen_load_as_offers(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     if "QSE" not in df.columns:
         # after Interval End
         index = df.columns.tolist().index("Interval End") + 1
@@ -803,10 +809,13 @@ def process_dam_or_gen_load_as_offers(df):
         },
     )
 
-    return process_as_offer_curves(df)
+    return process_as_offer_curves(df, output_format=output_format)
 
 
-def process_as_offer_curves(df):
+def process_as_offer_curves(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
     block_columns = [col for col in df.columns if col.startswith("BLOCK INDICATOR")]
     block_count = len(block_columns)
 
@@ -917,14 +926,19 @@ def process_as_offer_curves(df):
             if subset.empty:
                 curve = None
             else:
-                # Convert the column values to a list of lists like
-                # [[price1, quantity1], [price2, quantity2], ...]
                 subset_values = subset.replace({np.nan: 0}).values[0]
 
-                curve = []
-                for i in range(0, len(subset_values), 2):
-                    # Iterate through 2 columns at a time to get the price and quantity
-                    curve.append(subset_values[i : i + 2].tolist())
+                if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING:
+                    pairs = []
+                    for i in range(0, len(subset_values), 2):
+                        pairs.append(
+                            f"{{{subset_values[i]},{subset_values[i + 1]}}}",
+                        )
+                    curve = "{" + ",".join(pairs) + "}"
+                else:
+                    curve = []
+                    for i in range(0, len(subset_values), 2):
+                        curve.append(subset_values[i : i + 2].tolist())
 
             curve_name = f"{present_ancillary_services[index]} Offer Curve"
             group_data[curve_name] = curve

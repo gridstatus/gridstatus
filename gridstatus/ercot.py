@@ -2668,6 +2668,9 @@ class Ercot(ISOBase):
                 DAM_ESR_KEY,
                 DAM_ENERGY_ONLY_OFFERS_KEY,
                 DAM_ENERGY_BIDS_KEY,
+                DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+                DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+                DAM_ESR_AS_OFFERS_KEY,
             }
 
             for file_name, process_func in file_to_function.items():
