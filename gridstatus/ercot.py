@@ -4992,9 +4992,11 @@ class Ercot(ISOBase):
 
     def _get_settlement_points_mapping_zip(
         self,
-        date: str | None = None,
+        date: Literal["latest"] | datetime.datetime | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> tuple[ZipFile, pd.Timestamp]:
+        if date == "latest":
+            date = None
         doc_info = self._get_document(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
             date=date,
@@ -5027,11 +5029,14 @@ class Ercot(ISOBase):
         z, _ = self._get_settlement_points_mapping_zip(verbose=verbose)
         return self._read_csv_from_zip(z, "Settlement_Points")
 
+    @support_date_range(frequency=None)
     def get_settlement_points_electrical_bus_mapping(
         self,
-        date: str | None = None,
+        date: datetime.datetime | pd.Timestamp | None = None,
+        end: datetime.datetime | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """date: None for most recent, or a date for that publish date."""
         z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
         df = self._read_csv_from_zip(z, "Settlement_Points")
 
@@ -5053,11 +5058,14 @@ class Ercot(ISOBase):
         cols = ["Publish Date"] + list(column_mapping.values())
         return df[cols]
 
+    @support_date_range(frequency=None)
     def get_ccp_resource_names(
         self,
-        date: str | None = None,
+        date: datetime.datetime | pd.Timestamp | None = None,
+        end: datetime.datetime | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """date: None for most recent, or a date for that publish date."""
         z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
         df = self._read_csv_from_zip(z, "CCP_Resource_Names")
 
@@ -5071,11 +5079,14 @@ class Ercot(ISOBase):
         cols = ["Publish Date"] + list(column_mapping.values())
         return df[cols]
 
+    @support_date_range(frequency=None)
     def get_noie_mapping(
         self,
-        date: str | None = None,
+        date: datetime.datetime | pd.Timestamp | None = None,
+        end: datetime.datetime | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """date: None for most recent, or a date for that publish date."""
         z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
         df = self._read_csv_from_zip(z, "NOIE_Mapping")
 
@@ -5092,11 +5103,14 @@ class Ercot(ISOBase):
         cols = ["Publish Date"] + list(column_mapping.values())
         return df[cols]
 
+    @support_date_range(frequency=None)
     def get_resource_node_to_unit(
         self,
-        date: str | None = None,
+        date: datetime.datetime | pd.Timestamp | None = None,
+        end: datetime.datetime | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """date: None for most recent, or a date for that publish date."""
         z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
         df = self._read_csv_from_zip(z, "Resource_Node_to_Unit")
 
@@ -5111,11 +5125,14 @@ class Ercot(ISOBase):
         cols = ["Publish Date"] + list(column_mapping.values())
         return df[cols]
 
+    @support_date_range(frequency=None)
     def get_hub_name_dc_ties(
         self,
-        date: str | None = None,
+        date: datetime.datetime | pd.Timestamp | None = None,
+        end: datetime.datetime | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
+        """date: None for most recent, or a date for that publish date."""
         z, publish_date = self._get_settlement_points_mapping_zip(date, verbose)
         df = self._read_csv_from_zip(z, "Hub_Name_AND_DC_Ties")
 

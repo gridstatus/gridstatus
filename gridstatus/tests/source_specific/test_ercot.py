@@ -2386,6 +2386,29 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    def test_get_lmp_settlement_point_uses_mapping(self):
+        with api_vcr.use_cassette("test_get_lmp_settlement_point_uses_mapping.yaml"):
+            df = self.iso.get_lmp(
+                date="today",
+                location_type="Settlement Point",
+                verbose=True,
+            )
+        cols = [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+        assert df.columns.tolist() == cols
+        assert df.shape[0] >= 0
+        assert df["Location Type"].notna().all()
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
     def test_read_docs_return_empty_df(self):
         df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
 
