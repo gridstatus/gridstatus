@@ -2098,7 +2098,7 @@ class Ercot(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
             output_format: CurveOutputFormat.LIST (default) returns Python
                 list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
-                PG array strings, using ~15x less memory.
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
@@ -2557,7 +2557,7 @@ class Ercot(ISOBase):
         Args:
             output_format: CurveOutputFormat.LIST (default) returns Python
                 list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
-                PG array strings, using ~15x less memory.
+                PG array strings, using ~3x less peak memory.
         """
 
         report_date = date + pd.DateOffset(days=60)

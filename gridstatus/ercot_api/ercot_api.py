@@ -1513,7 +1513,7 @@ class ErcotAPI:
                 False
             output_format: CurveOutputFormat.LIST (default) returns Python
                 list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
-                PG array strings, using ~15x less memory.
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
@@ -1591,7 +1591,7 @@ class ErcotAPI:
                 False
             output_format: CurveOutputFormat.LIST (default) returns Python
                 list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
-                PG array strings, using ~15x less memory.
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:

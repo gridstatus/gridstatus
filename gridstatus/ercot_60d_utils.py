@@ -11,7 +11,7 @@ class CurveOutputFormat(StrEnum):
 
     LIST: Returns Python list-of-lists per cell (default).
     PG_ARRAY_AS_STRING: Returns PostgreSQL array strings like '{{mw,price},{mw,price}}'
-        directly, using ~15x less memory.
+        directly, using ~3x less peak memory.
     """
 
     LIST = "list"
@@ -399,8 +399,8 @@ SCED_RESOURCE_AS_OFFERS_COLUMNS = [
 def _categorize_strings(df):
     """Convert object columns to category dtype, skipping curve columns.
 
-    Curve columns (ending in 'Curve') and 'Block Indicators' contain lists or
-    high-cardinality strings that don't benefit from categorical encoding.
+    Curve columns (ending in 'Curve') and 'Block Indicators' contain structured
+    data (lists or serialized arrays) that should not be categorized.
     """
     for col in df.select_dtypes(include=["object"]).columns:
         if col.endswith("Curve") or col == "Block Indicators":
@@ -528,7 +528,7 @@ def extract_curve_as_pg_string(df, mw_cols, price_cols):
     """Like extract_curve() but returns PG array strings directly.
 
     Returns pd.Series of strings like '{{100.0,25.5},{200.0,60.0}}'
-    instead of Python list-of-lists. ~15x less memory.
+    instead of Python list-of-lists. ~3x less peak memory.
     """
     mw_arr = df[mw_cols].round(2).values  # (N, blocks) float64
     price_arr = df[price_cols].round(2).values
@@ -573,7 +573,7 @@ def extract_curve(
         price_cols: Explicit list of price column names.
         output_format: CurveOutputFormat.LIST (default) returns Python list-of-lists
             per cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns PG array strings like
-            '{{mw,price},{mw,price}}' directly, using ~15x less memory.
+            '{{mw,price},{mw,price}}' directly, using ~3x less peak memory.
     """
     if mw_cols is None or price_cols is None:
         # Auto-detect by prefix
@@ -1380,13 +1380,14 @@ def process_sced_resource_as_offers(
     Source columns: PRICEn_URS, PRICEn_DRS, PRICEn_RRSPF, PRICEn_RRSUF,
                    PRICEn_RRSFF, PRICEn_NS, PRICEn_ECRS, QUANTITY_MWn (n=1-6)
 
-    Creates offer curves like [[mw, price], ...] for each AS type.
+    Creates offer curves for each AS type. Format depends on output_format:
+    list-of-lists like [[mw, price], ...] or PG array strings.
 
     Args:
         df: DataFrame with raw SCED resource AS offers data.
         output_format: "list" (default) returns Python list-of-lists per cell.
             "pg_array_as_string" returns PG array strings like '{{mw,price},{mw,price}}'
-            directly, using ~15x less memory.
+            directly, using ~3x less peak memory.
     """
     # First create a curve_type column with the logic:
     # regulation down : values only in _DRS columns and not in other columns
