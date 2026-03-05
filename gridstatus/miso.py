@@ -1608,7 +1608,12 @@ class MISO(ISOBase):
 
         df = pd.DataFrame(constraints)
 
-        df["Interval Start"] = pd.to_datetime(df["Period"]).dt.tz_localize(
+        # MISO publishes empty binding constraints when there are no active constraints
+        if (df["Name"] == "None").all():
+            raise NoDataFoundException("No real-time binding constraints data found")
+
+        # Period is Interval End
+        df["Interval End"] = pd.to_datetime(df["Period"]).dt.tz_localize(
             self.default_timezone,
         )
 
@@ -1621,10 +1626,12 @@ class MISO(ISOBase):
             },
         )
 
-        for col in ["Shadow Price", "Override", "BP1", "PC1", "BP2", "PC2"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        # Shadow price is a float, all others are integers
+        df["Shadow Price"] = pd.to_numeric(df["Shadow Price"], errors="coerce")
+        for col in ["Override", "BP1", "PC1", "BP2", "PC2"]:
+            df[col] = df[col].astype(int)
 
-        df = add_interval_end(df, 5)
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
 
         return (
             df[
