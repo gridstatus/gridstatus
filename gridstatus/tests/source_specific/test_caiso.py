@@ -1861,26 +1861,31 @@ class TestAggregateGroups:
             {
                 "Interval Start": ["2025-01-01"] * 3,
                 "Location": ["LOC_A"] * 3,
+                "Constraint Cause": ["cause1"] * 3,
                 "Price": [10.0] * 3,
                 "Group": ["G1", "G2", "G3"],
             },
         )
-        non_group_cols = ["Interval Start", "Location", "Price"]
-        result = _aggregate_groups(df, non_group_cols)
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
         assert len(result) == 1
         assert result["Group"].iloc[0] == ["G1", "G2", "G3"]
+        assert result["Price"].iloc[0] == 10.0
 
     def test_groups_are_sorted(self):
         df = pd.DataFrame(
             {
                 "Interval Start": ["2025-01-01"] * 3,
                 "Location": ["LOC_A"] * 3,
+                "Constraint Cause": ["cause1"] * 3,
                 "Price": [10.0] * 3,
                 "Group": ["G3", "G1", "G2"],
             },
         )
-        non_group_cols = ["Interval Start", "Location", "Price"]
-        result = _aggregate_groups(df, non_group_cols)
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
         assert result["Group"].iloc[0] == ["G1", "G2", "G3"]
 
     def test_duplicate_groups_are_deduplicated(self):
@@ -1888,12 +1893,14 @@ class TestAggregateGroups:
             {
                 "Interval Start": ["2025-01-01"] * 3,
                 "Location": ["LOC_A"] * 3,
+                "Constraint Cause": ["cause1"] * 3,
                 "Price": [10.0] * 3,
                 "Group": ["G1", "G1", "G2"],
             },
         )
-        non_group_cols = ["Interval Start", "Location", "Price"]
-        result = _aggregate_groups(df, non_group_cols)
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
         assert len(result) == 1
         assert result["Group"].iloc[0] == ["G1", "G2"]
 
@@ -1902,23 +1909,35 @@ class TestAggregateGroups:
             {
                 "Interval Start": ["2025-01-01"],
                 "Location": ["LOC_A"],
+                "Constraint Cause": ["cause1"],
                 "Price": [10.0],
                 "Group": ["G1"],
             },
         )
-        non_group_cols = ["Interval Start", "Location", "Price"]
-        result = _aggregate_groups(df, non_group_cols)
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
         assert len(result) == 1
         assert result["Group"].iloc[0] == ["G1"]
 
     def test_empty_dataframe(self):
-        df = pd.DataFrame(columns=["Interval Start", "Location", "Price", "Group"])
-        non_group_cols = ["Interval Start", "Location", "Price"]
-        result = _aggregate_groups(df, non_group_cols)
+        df = pd.DataFrame(
+            columns=[
+                "Interval Start",
+                "Location",
+                "Constraint Cause",
+                "Price",
+                "Group",
+            ],
+        )
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
         assert len(result) == 0
         assert result.columns.tolist() == [
             "Interval Start",
             "Location",
+            "Constraint Cause",
             "Price",
             "Group",
         ]
@@ -1928,14 +1947,52 @@ class TestAggregateGroups:
             {
                 "Interval Start": ["2025-01-01"] * 4,
                 "Location": ["LOC_A", "LOC_A", "LOC_B", "LOC_B"],
+                "Constraint Cause": ["cause1"] * 4,
                 "Price": [10.0] * 4,
                 "Group": ["G1", "G2", "G3", "G4"],
             },
         )
-        non_group_cols = ["Interval Start", "Location", "Price"]
-        result = _aggregate_groups(df, non_group_cols)
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
         assert len(result) == 2
         loc_a = result[result["Location"] == "LOC_A"]["Group"].iloc[0]
         loc_b = result[result["Location"] == "LOC_B"]["Group"].iloc[0]
         assert loc_a == ["G1", "G2"]
         assert loc_b == ["G3", "G4"]
+
+    def test_different_constraint_causes_stay_separate(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"] * 4,
+                "Location": ["LOC_A"] * 4,
+                "Constraint Cause": ["cause1", "cause1", "cause2", "cause2"],
+                "Price": [10.0, 10.0, 20.0, 20.0],
+                "Group": ["G1", "G2", "G1", "G3"],
+            },
+        )
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        result = _aggregate_groups(df, groupby_cols, agg_cols)
+        assert len(result) == 2
+        cause1 = result[result["Constraint Cause"] == "cause1"]
+        cause2 = result[result["Constraint Cause"] == "cause2"]
+        assert cause1["Group"].iloc[0] == ["G1", "G2"]
+        assert cause1["Price"].iloc[0] == 10.0
+        assert cause2["Group"].iloc[0] == ["G1", "G3"]
+        assert cause2["Price"].iloc[0] == 20.0
+
+    def test_raises_if_agg_col_has_multiple_values(self):
+        df = pd.DataFrame(
+            {
+                "Interval Start": ["2025-01-01"] * 3,
+                "Location": ["LOC_A"] * 3,
+                "Constraint Cause": ["cause1"] * 3,
+                "Price": [10.0, 20.0, 10.0],
+                "Group": ["G1", "G2", "G3"],
+            },
+        )
+        groupby_cols = ["Interval Start", "Location", "Constraint Cause"]
+        agg_cols = ["Price"]
+        with pytest.raises(ValueError, match="Column 'Price' has multiple values"):
+            _aggregate_groups(df, groupby_cols, agg_cols)

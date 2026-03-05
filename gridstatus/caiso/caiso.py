@@ -33,26 +33,39 @@ from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 
-def _aggregate_groups(df, non_group_cols):
+def _aggregate_groups(df, groupby_cols, agg_cols, output_cols=None):
     """Aggregate Group column into a sorted array of unique values.
 
-    Groups rows by non_group_cols and collects all unique Group values
-    into a sorted list for each combination.
+    Groups rows by groupby_cols (interval + nomogram id + constraint cause)
+    and collects all unique Group values into a sorted list. Other columns
+    are aggregated by taking the first value.
 
     Args:
-        df: DataFrame with a "Group" column and all columns in non_group_cols.
-        non_group_cols: List of column names to group by.
+        df: DataFrame with a "Group" column and all columns in groupby_cols.
+        groupby_cols: Columns to group by (interval, location, constraint cause).
+        agg_cols: Non-groupby, non-Group columns to keep (aggregated via first).
+        output_cols: Optional list specifying the desired column order in the
+            output. If None, uses groupby_cols + agg_cols + ["Group"].
 
     Returns:
         DataFrame with Group column as sorted lists of unique values.
     """
-    all_cols = non_group_cols + ["Group"]
+    if output_cols is None:
+        output_cols = groupby_cols + agg_cols + ["Group"]
     if df.empty:
-        return pd.DataFrame(columns=all_cols)
-    df = df.groupby(non_group_cols, as_index=False).agg(
-        {"Group": lambda x: sorted(x.unique().tolist())},
-    )
-    return df[all_cols]
+        return pd.DataFrame(columns=output_cols)
+    grouped = df.groupby(groupby_cols)
+    for col in agg_cols:
+        nunique = grouped[col].nunique()
+        if (nunique > 1).any():
+            bad = nunique[nunique > 1].index.tolist()
+            raise ValueError(
+                f"Column '{col}' has multiple values within a group: {bad}",
+            )
+    agg_dict = {col: "first" for col in agg_cols}
+    agg_dict["Group"] = lambda x: sorted(x.unique().tolist())
+    df = grouped.agg(agg_dict).reset_index()
+    return df[output_cols]
 
 
 def _determine_lmp_frequency(args: dict) -> str:
@@ -2492,7 +2505,14 @@ class CAISO(ISOBase):
             },
         )
 
-        non_group_cols = [
+        groupby_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Constraint Cause",
+        ]
+        agg_cols = ["Nomogram ID XML", "Market Run ID", "Price"]
+        output_cols = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2500,8 +2520,9 @@ class CAISO(ISOBase):
             "Market Run ID",
             "Constraint Cause",
             "Price",
+            "Group",
         ]
-        return _aggregate_groups(df, non_group_cols)
+        return _aggregate_groups(df, groupby_cols, agg_cols, output_cols)
 
     def get_nomogram_branch_shadow_prices_hasp_hourly(
         self,
@@ -2545,7 +2566,14 @@ class CAISO(ISOBase):
             },
         )
 
-        non_group_cols = [
+        groupby_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Constraint Cause",
+        ]
+        agg_cols = ["Nomogram ID XML", "Market Run ID", "Price"]
+        output_cols = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2553,8 +2581,9 @@ class CAISO(ISOBase):
             "Market Run ID",
             "Constraint Cause",
             "Price",
+            "Group",
         ]
-        return _aggregate_groups(df, non_group_cols)
+        return _aggregate_groups(df, groupby_cols, agg_cols, output_cols)
 
     def get_nomogram_branch_shadow_price_forecast_15_min(
         self,
@@ -2598,7 +2627,14 @@ class CAISO(ISOBase):
             },
         )
 
-        non_group_cols = [
+        groupby_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Constraint Cause",
+        ]
+        agg_cols = ["Nomogram ID XML", "Market Run ID", "Price"]
+        output_cols = [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2606,8 +2642,9 @@ class CAISO(ISOBase):
             "Market Run ID",
             "Constraint Cause",
             "Price",
+            "Group",
         ]
-        return _aggregate_groups(df, non_group_cols)
+        return _aggregate_groups(df, groupby_cols, agg_cols, output_cols)
 
     def get_interval_nomogram_branch_shadow_prices_real_time_5_min(
         self,
@@ -2649,15 +2686,23 @@ class CAISO(ISOBase):
             },
         )
 
-        non_group_cols = [
+        groupby_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Constraint Cause",
+        ]
+        agg_cols = ["Market Run ID", "Price"]
+        output_cols = [
             "Interval Start",
             "Interval End",
             "Location",
             "Market Run ID",
             "Constraint Cause",
             "Price",
+            "Group",
         ]
-        return _aggregate_groups(df, non_group_cols)
+        return _aggregate_groups(df, groupby_cols, agg_cols, output_cols)
 
     def get_intertie_constraint_shadow_prices_real_time_5_min(
         self,
