@@ -3610,7 +3610,7 @@ class TestErcot(BaseTestISO):
         with api_vcr.use_cassette(
             "test_get_settlement_points_electrical_bus_mapping.yaml",
         ):
-            df = self.iso.get_settlement_points_electrical_bus_mapping()
+            df = self.iso.get_settlement_points_electrical_bus_mapping(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
         assert df["Publish Date"].notna().all()
@@ -3625,7 +3625,7 @@ class TestErcot(BaseTestISO):
 
     def test_get_ccp_resource_names(self):
         with api_vcr.use_cassette("test_get_ccp_resource_names.yaml"):
-            df = self.iso.get_ccp_resource_names()
+            df = self.iso.get_ccp_resource_names(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.ccp_resource_names_cols
         assert df["Publish Date"].notna().all()
@@ -3643,7 +3643,7 @@ class TestErcot(BaseTestISO):
 
     def test_get_noie_mapping(self):
         with api_vcr.use_cassette("test_get_noie_mapping.yaml"):
-            df = self.iso.get_noie_mapping()
+            df = self.iso.get_noie_mapping(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.noie_mapping_cols
         assert df["Publish Date"].notna().all()
@@ -3659,7 +3659,7 @@ class TestErcot(BaseTestISO):
 
     def test_get_resource_node_to_unit(self):
         with api_vcr.use_cassette("test_get_resource_node_to_unit.yaml"):
-            df = self.iso.get_resource_node_to_unit()
+            df = self.iso.get_resource_node_to_unit(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.resource_node_to_unit_cols
         assert df["Publish Date"].notna().all()
@@ -3673,7 +3673,7 @@ class TestErcot(BaseTestISO):
 
     def test_get_hub_name_dc_ties(self):
         with api_vcr.use_cassette("test_get_hub_name_dc_ties.yaml"):
-            df = self.iso.get_hub_name_dc_ties()
+            df = self.iso.get_hub_name_dc_ties(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.hub_name_dc_ties_cols
         assert df["Publish Date"].notna().all()
