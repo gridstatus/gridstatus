@@ -4990,26 +4990,202 @@ class Ercot(ISOBase):
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
-        """Get DataFrame whose columns can help us filter out values"""
+    def _get_settlement_points_mapping_documents(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> list[Document]:
+        if date == "latest":
+            date = None
+        if date is None and end is None:
+            return [
+                self._get_document(
+                    report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+                    extension=None,
+                    verbose=verbose,
+                ),
+            ]
 
-        doc_info = self._get_document(
+        all_docs = self._get_documents(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
             extension=None,
             verbose=verbose,
         )
-        doc_url = doc_info.url
 
-        logger.info(f"Fetching {doc_url}")
+        if not all_docs:
+            raise NoDataFoundException(
+                "No settlement points mapping documents found",
+            )
 
-        r = requests.get(doc_url)
+        if date is not None and end is None:
+            closest = min(
+                all_docs,
+                key=lambda d: abs(d.publish_date.normalize() - date.normalize()),
+            )
+            return [closest]
+
+        filtered = []
+        for doc in all_docs:
+            pub = doc.publish_date.normalize()
+            if date is not None and pub < date.normalize():
+                continue
+            if end is not None and pub >= end.normalize():
+                continue
+            filtered.append(doc)
+
+        if not filtered:
+            raise NoDataFoundException(
+                f"No settlement points mapping documents found between {date} and {end}",
+            )
+
+        return sorted(filtered, key=lambda d: d.publish_date)
+
+    def _download_and_extract_csv(
+        self,
+        doc: Document,
+        filename_contains: str,
+    ) -> tuple[pd.DataFrame, pd.Timestamp]:
+        logger.info(f"Fetching {doc.url}")
+        r = requests.get(doc.url)
         z = ZipFile(io.BytesIO(r.content))
         names = z.namelist()
-        settlement_points_file = [
-            name for name in names if "Settlement_Points" in name
-        ][0]
-        df = pd.read_csv(z.open(settlement_points_file))
+        matching = [name for name in names if filename_contains in name]
+        if not matching:
+            raise ValueError(
+                f"No file matching '{filename_contains}' found in zip. "
+                f"Available files: {names}",
+            )
+        df = pd.read_csv(z.open(matching[0]))
+        return df, doc.publish_date
+
+    def _get_settlement_points_csv(
+        self,
+        filename_contains: str,
+        column_mapping: dict[str, str],
+        date: pd.Timestamp | None = None,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        docs = self._get_settlement_points_mapping_documents(date, end, verbose)
+        dfs = []
+        for doc in docs:
+            df, publish_date = self._download_and_extract_csv(
+                doc,
+                filename_contains,
+            )
+            df = df.rename(columns=column_mapping)
+            df["Publish Date"] = publish_date.normalize()
+            cols = ["Publish Date"] + list(column_mapping.values())
+            dfs.append(df[cols])
+        return pd.concat(dfs).reset_index(drop=True)
+
+    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
+        """Get DataFrame whose columns can help us filter out values"""
+        docs = self._get_settlement_points_mapping_documents(verbose=verbose)
+        df, _ = self._download_and_extract_csv(docs[0], "Settlement_Points")
         return df
+
+    @support_date_range(frequency=None)
+    def get_settlement_points_electrical_bus_mapping(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Settlement_Points",
+            column_mapping={
+                "ELECTRICAL_BUS": "Electrical Bus",
+                "NODE_NAME": "Node Name",
+                "PSSE_BUS_NAME": "PSSE Bus Name",
+                "VOLTAGE_LEVEL": "Voltage Level",
+                "SUBSTATION": "Substation",
+                "SETTLEMENT_LOAD_ZONE": "Settlement Load Zone",
+                "RESOURCE_NODE": "Resource Node",
+                "HUB_BUS_NAME": "Hub Bus Name",
+                "HUB": "Hub",
+                "PSSE_BUS_NUMBER": "PSSE Bus Number",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_ccp_resource_names(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="CCP_Resource_Names",
+            column_mapping={
+                "CCP_NAME": "CCP Name",
+                "LOGICALREOURCENODENAME": "Logical Resource Node Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_noie_mapping(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="NOIE_Mapping",
+            column_mapping={
+                "PHYSICAL_LOAD": "Physical Load",
+                "NOIE": "NOIE",
+                "VOLTAGE_NAME": "Voltage",
+                "SUBSTATION": "Substation",
+                "ELECTRICAL_BUS": "Electrical Bus",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_resource_node_to_unit(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Resource_Node_to_Unit",
+            column_mapping={
+                "RESOURCE_NODE": "Resource Node",
+                "UNIT_SUBSTATION": "Unit Substation",
+                "UNIT_NAME": "Unit Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_hub_name_dc_ties(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Hub_Name_AND_DC_Ties",
+            column_mapping={
+                "NAME": "Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
 
     def read_doc(
         self,

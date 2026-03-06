@@ -2386,6 +2386,29 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    def test_get_lmp_settlement_point_uses_mapping(self):
+        with api_vcr.use_cassette("test_get_lmp_settlement_point_uses_mapping.yaml"):
+            df = self.iso.get_lmp(
+                date="today",
+                location_type="Settlement Point",
+                verbose=True,
+            )
+        cols = [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+        assert df.columns.tolist() == cols
+        assert df.shape[0] >= 0
+        assert df["Location Type"].notna().all()
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
     def test_read_docs_return_empty_df(self):
         df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
 
@@ -3566,6 +3589,94 @@ class TestErcot(BaseTestISO):
         assert df["ECRS Capability Gen"].iloc[0] == 600.0
         assert df["PRC"].iloc[0] == 5000.0
         assert df["ORDC Online"].iloc[0] == 3500.0
+
+    """get_settlement_points_electrical_bus_mapping"""
+
+    settlement_points_electrical_bus_mapping_cols = [
+        "Publish Date",
+        "Electrical Bus",
+        "Node Name",
+        "PSSE Bus Name",
+        "Voltage Level",
+        "Substation",
+        "Settlement Load Zone",
+        "Resource Node",
+        "Hub Bus Name",
+        "Hub",
+        "PSSE Bus Number",
+    ]
+
+    def test_get_settlement_points_electrical_bus_mapping(self):
+        with api_vcr.use_cassette(
+            "test_get_settlement_points_electrical_bus_mapping.yaml",
+        ):
+            df = self.iso.get_settlement_points_electrical_bus_mapping(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_ccp_resource_names"""
+
+    ccp_resource_names_cols = [
+        "Publish Date",
+        "CCP Name",
+        "Logical Resource Node Name",
+    ]
+
+    def test_get_ccp_resource_names(self):
+        with api_vcr.use_cassette("test_get_ccp_resource_names.yaml"):
+            df = self.iso.get_ccp_resource_names(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.ccp_resource_names_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_noie_mapping"""
+
+    noie_mapping_cols = [
+        "Publish Date",
+        "Physical Load",
+        "NOIE",
+        "Voltage",
+        "Substation",
+        "Electrical Bus",
+    ]
+
+    def test_get_noie_mapping(self):
+        with api_vcr.use_cassette("test_get_noie_mapping.yaml"):
+            df = self.iso.get_noie_mapping(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.noie_mapping_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_resource_node_to_unit"""
+
+    resource_node_to_unit_cols = [
+        "Publish Date",
+        "Resource Node",
+        "Unit Substation",
+        "Unit Name",
+    ]
+
+    def test_get_resource_node_to_unit(self):
+        with api_vcr.use_cassette("test_get_resource_node_to_unit.yaml"):
+            df = self.iso.get_resource_node_to_unit(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.resource_node_to_unit_cols
+        assert df["Publish Date"].notna().all()
+
+    """get_hub_name_dc_ties"""
+
+    hub_name_dc_ties_cols = [
+        "Publish Date",
+        "Name",
+    ]
+
+    def test_get_hub_name_dc_ties(self):
+        with api_vcr.use_cassette("test_get_hub_name_dc_ties.yaml"):
+            df = self.iso.get_hub_name_dc_ties(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.hub_name_dc_ties_cols
+        assert df["Publish Date"].notna().all()
 
 
 def check_load_forecast_by_model(df: pd.DataFrame) -> None:
