@@ -5013,6 +5013,18 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
+        if not all_docs:
+            raise NoDataFoundException(
+                "No settlement points mapping documents found",
+            )
+
+        if date is not None and end is None:
+            closest = min(
+                all_docs,
+                key=lambda d: abs(d.publish_date.normalize() - date.normalize()),
+            )
+            return [closest]
+
         filtered = []
         for doc in all_docs:
             pub = doc.publish_date.normalize()
