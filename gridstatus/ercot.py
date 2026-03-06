@@ -820,7 +820,7 @@ class Ercot(ISOBase):
 
         df["Interval Start"] = pd.to_datetime(df["Oper Day"]) + (
             df["Hour Ending"] / 100 - 1
-        ).astype("timedelta64[h]")
+        ).astype(int) * pd.Timedelta(hours=1)
         df["Interval Start"] = df["Interval Start"].dt.tz_localize(
             self.default_timezone,
             # Prevent linting to is False
@@ -5121,7 +5121,7 @@ class Ercot(ISOBase):
 
             doc["Interval Start"] = (
                 pd.to_datetime(doc["DeliveryDate"])
-                + doc["HourBeginning"].astype("timedelta64[h]")
+                + doc["HourBeginning"].astype(int) * pd.Timedelta(hours=1)
                 + ((doc["DeliveryInterval"] - 1) * interval_length)
             )
 
@@ -5153,7 +5153,7 @@ class Ercot(ISOBase):
             )
             doc["Interval Start"] = pd.to_datetime(doc["DeliveryDate"]) + doc[
                 "HourBeginning"
-            ].astype("timedelta64[h]")
+            ].astype(int) * pd.Timedelta(hours=1)
 
         if "TimeEnding" not in original_cols:
             try:
