@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+* Fix `parse_doc` crash on pandas >=2.0 when parsing 15-minute interval data (e.g., `get_rtm_spp`). Replaced `.astype("timedelta64[h]")` with `.astype(int) * pd.Timedelta(hours=1)`. Fixes [#227](https://github.com/gridstatus/gridstatus/issues/227).
+
 ## v0.34.0 - December 9, 2025
 
 ### Additions (New Features/Datasets)

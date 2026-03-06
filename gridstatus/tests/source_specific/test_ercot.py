@@ -2320,6 +2320,39 @@ class TestErcot(BaseTestISO):
             tz="US/Central",
         )
 
+    def test_parse_doc_delivery_interval_timedelta(self):
+        """Regression test for #227: parse_doc must handle DeliveryInterval
+        data without using timedelta64[h] (unsupported in pandas >=2.0)."""
+        data_string = """DeliveryDate,DeliveryHour,DeliveryInterval,SettlementPointName,SettlementPointType,SettlementPointPrice,DSTFlag
+01/15/2023,1,1,HB_HOUSTON,HU,25.50,N
+01/15/2023,1,2,HB_HOUSTON,HU,26.00,N
+01/15/2023,1,3,HB_HOUSTON,HU,24.75,N
+01/15/2023,1,4,HB_HOUSTON,HU,25.25,N
+01/15/2023,2,1,HB_HOUSTON,HU,23.00,N
+"""
+        df = pd.read_csv(StringIO(data_string))
+        df = self.iso.parse_doc(df)
+
+        assert "Interval Start" in df.columns
+        assert len(df) == 5
+
+        # First interval: hour 0 (HourBeginning = DeliveryHour - 1 = 0),
+        # interval 1 -> 00:00 CT
+        assert df["Interval Start"].iloc[0] == pd.Timestamp(
+            "2023-01-15 00:00:00-0600",
+            tz="US/Central",
+        )
+        # Second interval of hour 1: 00:15 CT
+        assert df["Interval Start"].iloc[1] == pd.Timestamp(
+            "2023-01-15 00:15:00-0600",
+            tz="US/Central",
+        )
+        # First interval of hour 2: 01:00 CT
+        assert df["Interval Start"].iloc[4] == pd.Timestamp(
+            "2023-01-15 01:00:00-0600",
+            tz="US/Central",
+        )
+
     """get_lmp"""
 
     @pytest.mark.integration
