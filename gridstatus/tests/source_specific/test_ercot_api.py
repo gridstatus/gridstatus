@@ -1056,6 +1056,16 @@ class TestErcotAPI(TestHelperMixin):
             .all()
         )
 
+        # Make sure none of these strings have leading or trailing whitespace
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "To Station",
+            "From Station",
+        ]:
+            assert df[col].str.strip().equals(df[col])
+
     @pytest.mark.integration
     def test_get_shadow_prices_dam_today_and_latest(self):
         df = self.iso.get_shadow_prices_dam("today", verbose=True)

@@ -1308,6 +1308,17 @@ class ErcotAPI:
             ],
         )
 
+        # Strip whitespace from Constraint Name, Contingency Name, Limiting Facility, To Station, and From Station.
+        # NOTE: this problem only occurs with the dam data
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "To Station",
+            "From Station",
+        ]:
+            data[col] = data[col].str.strip()
+
         data = data.drop(columns=["Delivery Time", "Time"])
 
         return data.sort_values(["Interval Start", "Constraint ID"]).reset_index(
