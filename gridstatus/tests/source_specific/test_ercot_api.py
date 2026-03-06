@@ -1104,7 +1104,7 @@ class TestErcotAPI(TestHelperMixin):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 4,
         )
-        past_end_date = past_date + pd.DateOffset(days=2)
+        past_end_date = past_date + pd.DateOffset(days=1)
 
         df = self.iso.get_shadow_prices_dam(
             date=past_date,
