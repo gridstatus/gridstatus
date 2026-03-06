@@ -1,3 +1,4 @@
+import datetime
 from io import StringIO
 from typing import Dict
 
@@ -3614,6 +3615,8 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
         assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
 
     """get_ccp_resource_names"""
 
@@ -3629,6 +3632,8 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.ccp_resource_names_cols
         assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
 
     """get_noie_mapping"""
 
@@ -3647,6 +3652,8 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.noie_mapping_cols
         assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
 
     """get_resource_node_to_unit"""
 
@@ -3663,6 +3670,8 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.resource_node_to_unit_cols
         assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
 
     """get_hub_name_dc_ties"""
 
@@ -3677,6 +3686,8 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.hub_name_dc_ties_cols
         assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
 
 
 def check_load_forecast_by_model(df: pd.DataFrame) -> None:

@@ -5075,7 +5075,7 @@ class Ercot(ISOBase):
                 filename_contains,
             )
             df = df.rename(columns=column_mapping)
-            df["Publish Date"] = publish_date.normalize()
+            df["Publish Date"] = publish_date.date()
             cols = ["Publish Date"] + list(column_mapping.values())
             dfs.append(df[cols])
         return pd.concat(dfs).reset_index(drop=True)
