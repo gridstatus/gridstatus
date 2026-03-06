@@ -1056,6 +1056,16 @@ class TestErcotAPI(TestHelperMixin):
             .all()
         )
 
+        # Make sure none of these strings have leading or trailing whitespace
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "To Station",
+            "From Station",
+        ]:
+            assert df[col].str.strip().equals(df[col])
+
     @pytest.mark.integration
     def test_get_shadow_prices_dam_today_and_latest(self):
         df = self.iso.get_shadow_prices_dam("today", verbose=True)
@@ -1094,7 +1104,7 @@ class TestErcotAPI(TestHelperMixin):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 4,
         )
-        past_end_date = past_date + pd.DateOffset(days=2)
+        past_end_date = past_date + pd.DateOffset(days=1)
 
         df = self.iso.get_shadow_prices_dam(
             date=past_date,
