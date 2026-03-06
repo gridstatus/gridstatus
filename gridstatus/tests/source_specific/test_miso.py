@@ -1140,11 +1140,11 @@ class TestMISO(BaseTestISO):
 
         assert df.dtypes["Constraint Name"] == "object"
         assert df.dtypes["Shadow Price"] == "float64"
-        assert df.dtypes["Override"] == "int64"
-        assert df.dtypes["BP1"] == "int64"
-        assert df.dtypes["PC1"] == "int64"
-        assert df.dtypes["BP2"] == "int64"
-        assert df.dtypes["PC2"] == "int64"
+        assert df.dtypes["Override"] == "Int64"
+        assert df.dtypes["BP1"] == "Int64"
+        assert df.dtypes["PC1"] == "Int64"
+        assert df.dtypes["BP2"] == "Int64"
+        assert df.dtypes["PC2"] == "Int64"
 
         assert (df["Constraint Name"] != "None").all()
 

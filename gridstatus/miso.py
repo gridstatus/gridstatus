@@ -1629,7 +1629,7 @@ class MISO(ISOBase):
         # Shadow price is a float, all others are integers
         df["Shadow Price"] = pd.to_numeric(df["Shadow Price"], errors="coerce")
         for col in ["Override", "BP1", "PC1", "BP2", "PC2"]:
-            df[col] = df[col].astype(int)
+            df[col] = df[col].replace({"": None}).astype("Int64")
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
 
