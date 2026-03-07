@@ -1942,7 +1942,7 @@ class ErcotAPI:
 
         meta = response["_meta"]
         total_pages = meta["totalPages"]
-        archives = response["archives"]
+        archives = response.get("archives", [])
 
         with self._create_progress_bar(
             total_pages,
@@ -1957,7 +1957,7 @@ class ErcotAPI:
                     urlstring,
                     api_params=api_params,
                 )
-                archives.extend(response["archives"])
+                archives.extend(response.get("archives", []))
 
                 pbar.update(1)
 
