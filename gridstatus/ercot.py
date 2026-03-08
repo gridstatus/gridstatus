@@ -44,6 +44,7 @@ from gridstatus.ercot_60d_utils import (
     SCED_LOAD_RESOURCE_KEY,
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
+    CurveOutputFormat,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -1378,6 +1379,16 @@ class Ercot(ISOBase):
         ).dt.tz_convert(self.default_timezone)
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
+        # For DST start in March 2026, ERCOT published a row with the same start and
+        # end time which is incorrect (during DST start, there should be a gap of one
+        # hour). We drop this interval
+        data = data[
+            ~(
+                (data["deliveryDateHrBegin"] == "2026-03-08 03:00:00")
+                & (data["deliveryDateHrEnd"] == "2026-03-08 03:00:00")
+            )
+        ]
+
         data.loc[
             :,
             "Publish Time",
@@ -2074,6 +2085,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Get 60 day SCED Disclosure data
 
@@ -2084,6 +2096,9 @@ class Ercot(ISOBase):
             process (bool, optional): if True, will process the data into
                 standardized format. if False, will return raw data
             verbose (bool, optional): print verbose output. Defaults to False.
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
@@ -2116,6 +2131,7 @@ class Ercot(ISOBase):
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction or use_sced_supplemental,
+            output_format=output_format,
         )
 
         if use_sced_supplemental:
@@ -2124,6 +2140,7 @@ class Ercot(ISOBase):
                 date,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             data.update(supplemental)
         elif use_esr_correction:
@@ -2132,6 +2149,7 @@ class Ercot(ISOBase):
                 date,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
@@ -2144,7 +2162,17 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
+        """Parse a 60-day SCED disclosure zip file into DataFrames.
+
+        Args:
+            z: Opened ZipFile containing SCED disclosure CSVs.
+            process: If True, apply processing functions to standardize data.
+            verbose: If True, print verbose output.
+            skip_esr: If True, skip ESR data extraction.
+            output_format: Curve output format passed to process functions.
+        """
         # TODO: there are other files in the zip folder
         load_resource_file = None
         gen_resource_file = None
@@ -2275,22 +2303,28 @@ class Ercot(ISOBase):
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
-            load_resource = process_sced_load(load_resource)
-            gen_resource = process_sced_gen(gen_resource)
+            load_resource = process_sced_load(
+                load_resource,
+                output_format=output_format,
+            )
+            gen_resource = process_sced_gen(gen_resource, output_format=output_format)
             smne = smne.rename(
                 columns={
                     "Resource Code": "Resource Name",
                 },
             )
             if esr is not None:
-                esr = process_sced_esr(esr)
+                esr = process_sced_esr(esr, output_format=output_format)
             if as_offer_updates is not None:
                 as_offer_updates = self.parse_doc(as_offer_updates)
                 as_offer_updates = process_sced_as_offer_updates_in_op_hour(
                     as_offer_updates,
                 )
             if resource_as_offers is not None:
-                resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
+                resource_as_offers = process_sced_resource_as_offers(
+                    resource_as_offers,
+                    output_format=output_format,
+                )
 
         result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
@@ -2314,6 +2348,7 @@ class Ercot(ISOBase):
         date: pd.Timestamp,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> pd.DataFrame | None:
         """Fetch ESR data from the supplemental correction file for specific dates.
 
@@ -2325,6 +2360,7 @@ class Ercot(ISOBase):
             date: The data date (not report date) to fetch ESR correction data for
             process: If True, process the data into standardized format
             verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
 
         Returns:
             DataFrame with ESR correction data, or None if not found
@@ -2380,7 +2416,7 @@ class Ercot(ISOBase):
         )
 
         if process:
-            esr = process_sced_esr(esr)
+            esr = process_sced_esr(esr, output_format=output_format)
 
         return esr
 
@@ -2412,6 +2448,7 @@ class Ercot(ISOBase):
         date: pd.Timestamp,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Fetch ESR, Gen Resource, and Load Resource data from supplemental
         correction files for data dates Dec 5-20, 2025.
@@ -2424,6 +2461,7 @@ class Ercot(ISOBase):
             date: The data date (not report date) to fetch supplemental data for
             process: If True, process the data into standardized format
             verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
 
         Returns:
             dict with keys for the corrected datasets
@@ -2479,7 +2517,7 @@ class Ercot(ISOBase):
             )
 
             if process:
-                df = process_fn(df)
+                df = process_fn(df, output_format=output_format)
 
             result[key] = df
 
@@ -2492,6 +2530,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Get 60 day DAM Disclosure data. Returns a dict with keys
 
@@ -2514,6 +2553,11 @@ class Ercot(ISOBase):
 
         The date passed in should be the report date. Since reports are delayed by 60
         days, the passed date should not be fewer than 60 days in the past.
+
+        Args:
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -2527,7 +2571,12 @@ class Ercot(ISOBase):
 
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
+        data = self._handle_60_day_dam_disclosure(
+            z,
+            process=process,
+            verbose=verbose,
+            output_format=output_format,
+        )
 
         return data
 
@@ -2537,7 +2586,17 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         files_prefix: dict = None,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
+        """Parse a 60-day DAM disclosure zip file into DataFrames.
+
+        Args:
+            z: Opened ZipFile containing DAM disclosure CSVs.
+            process: If True, apply processing functions to standardize data.
+            verbose: If True, print verbose output.
+            files_prefix: Override dict mapping data keys to file name prefixes.
+            output_format: Curve output format passed to process functions.
+        """
         if not files_prefix:
             files_prefix = {
                 DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
@@ -2603,9 +2662,26 @@ class Ercot(ISOBase):
                 DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
             }
 
+            # These process functions accept output_format for curve extraction
+            supports_output_format = {
+                DAM_GEN_RESOURCE_KEY,
+                DAM_ESR_KEY,
+                DAM_ENERGY_ONLY_OFFERS_KEY,
+                DAM_ENERGY_BIDS_KEY,
+                DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+                DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+                DAM_ESR_AS_OFFERS_KEY,
+            }
+
             for file_name, process_func in file_to_function.items():
                 if file_name in data:
-                    data[file_name] = process_func(data[file_name])
+                    if file_name in supports_output_format:
+                        data[file_name] = process_func(
+                            data[file_name],
+                            output_format=output_format,
+                        )
+                    else:
+                        data[file_name] = process_func(data[file_name])
 
         return data
 
@@ -4980,26 +5056,202 @@ class Ercot(ISOBase):
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
-        """Get DataFrame whose columns can help us filter out values"""
+    def _get_settlement_points_mapping_documents(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> list[Document]:
+        if date == "latest":
+            date = None
+        if date is None and end is None:
+            return [
+                self._get_document(
+                    report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+                    extension=None,
+                    verbose=verbose,
+                ),
+            ]
 
-        doc_info = self._get_document(
+        all_docs = self._get_documents(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
             extension=None,
             verbose=verbose,
         )
-        doc_url = doc_info.url
 
-        logger.info(f"Fetching {doc_url}")
+        if not all_docs:
+            raise NoDataFoundException(
+                "No settlement points mapping documents found",
+            )
 
-        r = requests.get(doc_url)
+        if date is not None and end is None:
+            closest = min(
+                all_docs,
+                key=lambda d: abs(d.publish_date.normalize() - date.normalize()),
+            )
+            return [closest]
+
+        filtered = []
+        for doc in all_docs:
+            pub = doc.publish_date.normalize()
+            if date is not None and pub < date.normalize():
+                continue
+            if end is not None and pub >= end.normalize():
+                continue
+            filtered.append(doc)
+
+        if not filtered:
+            raise NoDataFoundException(
+                f"No settlement points mapping documents found between {date} and {end}",
+            )
+
+        return sorted(filtered, key=lambda d: d.publish_date)
+
+    def _download_and_extract_csv(
+        self,
+        doc: Document,
+        filename_contains: str,
+    ) -> tuple[pd.DataFrame, pd.Timestamp]:
+        logger.info(f"Fetching {doc.url}")
+        r = requests.get(doc.url)
         z = ZipFile(io.BytesIO(r.content))
         names = z.namelist()
-        settlement_points_file = [
-            name for name in names if "Settlement_Points" in name
-        ][0]
-        df = pd.read_csv(z.open(settlement_points_file))
+        matching = [name for name in names if filename_contains in name]
+        if not matching:
+            raise ValueError(
+                f"No file matching '{filename_contains}' found in zip. "
+                f"Available files: {names}",
+            )
+        df = pd.read_csv(z.open(matching[0]))
+        return df, doc.publish_date
+
+    def _get_settlement_points_csv(
+        self,
+        filename_contains: str,
+        column_mapping: dict[str, str],
+        date: pd.Timestamp | None = None,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        docs = self._get_settlement_points_mapping_documents(date, end, verbose)
+        dfs = []
+        for doc in docs:
+            df, publish_date = self._download_and_extract_csv(
+                doc,
+                filename_contains,
+            )
+            df = df.rename(columns=column_mapping)
+            df["Publish Date"] = publish_date.date()
+            cols = ["Publish Date"] + list(column_mapping.values())
+            dfs.append(df[cols])
+        return pd.concat(dfs).reset_index(drop=True)
+
+    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
+        """Get DataFrame whose columns can help us filter out values"""
+        docs = self._get_settlement_points_mapping_documents(verbose=verbose)
+        df, _ = self._download_and_extract_csv(docs[0], "Settlement_Points")
         return df
+
+    @support_date_range(frequency=None)
+    def get_settlement_points_electrical_bus_mapping(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Settlement_Points",
+            column_mapping={
+                "ELECTRICAL_BUS": "Electrical Bus",
+                "NODE_NAME": "Node Name",
+                "PSSE_BUS_NAME": "PSSE Bus Name",
+                "VOLTAGE_LEVEL": "Voltage Level",
+                "SUBSTATION": "Substation",
+                "SETTLEMENT_LOAD_ZONE": "Settlement Load Zone",
+                "RESOURCE_NODE": "Resource Node",
+                "HUB_BUS_NAME": "Hub Bus Name",
+                "HUB": "Hub",
+                "PSSE_BUS_NUMBER": "PSSE Bus Number",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_ccp_resource_names(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="CCP_Resource_Names",
+            column_mapping={
+                "CCP_NAME": "CCP Name",
+                "LOGICALREOURCENODENAME": "Logical Resource Node Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_noie_mapping(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="NOIE_Mapping",
+            column_mapping={
+                "PHYSICAL_LOAD": "Physical Load",
+                "NOIE": "NOIE",
+                "VOLTAGE_NAME": "Voltage",
+                "SUBSTATION": "Substation",
+                "ELECTRICAL_BUS": "Electrical Bus",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_resource_node_to_unit(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Resource_Node_to_Unit",
+            column_mapping={
+                "RESOURCE_NODE": "Resource Node",
+                "UNIT_SUBSTATION": "Unit Substation",
+                "UNIT_NAME": "Unit Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_hub_name_dc_ties(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Hub_Name_AND_DC_Ties",
+            column_mapping={
+                "NAME": "Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
 
     def read_doc(
         self,
