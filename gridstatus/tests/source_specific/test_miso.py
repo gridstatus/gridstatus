@@ -1140,11 +1140,13 @@ class TestMISO(BaseTestISO):
 
         assert df.dtypes["Constraint Name"] == "object"
         assert df.dtypes["Shadow Price"] == "float64"
-        assert df.dtypes["Override"] == "float64"
-        assert df.dtypes["BP1"] == "float64"
-        assert df.dtypes["PC1"] == "float64"
-        assert df.dtypes["BP2"] == "float64"
-        assert df.dtypes["PC2"] == "float64"
+        assert df.dtypes["Override"] == "Int64"
+        assert df.dtypes["BP1"] == "Int64"
+        assert df.dtypes["PC1"] == "Int64"
+        assert df.dtypes["BP2"] == "Int64"
+        assert df.dtypes["PC2"] == "Int64"
+
+        assert (df["Constraint Name"] != "None").all()
 
     def test_get_binding_constraints_real_time_intraday_latest(self):
         with miso_vcr.use_cassette(
