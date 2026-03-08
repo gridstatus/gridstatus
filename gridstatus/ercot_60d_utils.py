@@ -601,7 +601,7 @@ def extract_curve(
             for j in range(n_points)
             if not (np.isnan(mw_arr[i, j]) or np.isnan(price_arr[i, j]))
         ]
-        curves.append(curve if curve else [])
+        curves.append(curve if curve else None)
 
     return pd.Series(curves, index=df.index)
 

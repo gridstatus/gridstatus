@@ -3907,8 +3907,8 @@ class TestExtractCurveFormats:
             output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
 
-        # All-NaN row should produce empty list / None
-        assert list_result.iloc[0] == []
+        # All-NaN row should produce None for both formats
+        assert list_result.iloc[0] is None
         assert pg_result.iloc[0] is None
 
         # Valid row should match
