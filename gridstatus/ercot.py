@@ -6331,12 +6331,15 @@ class Ercot(ISOBase):
         return self._handle_indicative_mcpc_rtd(df)
 
     def _handle_indicative_mcpc_rtd(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Parse timestamps with DST handling
+        # Parse timestamps with DST handling. nonexistent= only applies to
+        # spring-forward (gap when 02:00 does not exist); fall-back repeated
+        # hour is handled by ambiguous= from RepeatedHourFlag.
         df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"IntervalEndingRepeatedHourFlag": "DSTFlag"}),
             ),
+            nonexistent="shift_forward",
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
@@ -6346,6 +6349,7 @@ class Ercot(ISOBase):
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"RepeatedHourFlag": "DSTFlag"}),
             ),
+            nonexistent="shift_forward",
         )
 
         # Convert price columns to numeric (float64)
