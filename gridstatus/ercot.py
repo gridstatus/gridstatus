@@ -1525,13 +1525,36 @@ class Ercot(ISOBase):
         "WT": "Wind Turbine",
     }
 
+    @staticmethod
+    def _find_header_row(
+        excel_file: pd.ExcelFile,
+        sheet_name: str,
+        marker: str = "INR",
+        max_rows: int = 50,
+    ) -> int:
+        """Find the row containing column headers by scanning for a marker."""
+        preview = pd.read_excel(
+            excel_file,
+            sheet_name=sheet_name,
+            header=None,
+            nrows=max_rows,
+        )
+        for i, row in preview.iterrows():
+            if marker in row.values:
+                return i
+        raise ValueError(
+            f"Could not find header row with '{marker}' in sheet '{sheet_name}'",
+        )
+
     def _parse_large_gen(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
         """Parse 'Project Details - Large Gen' sheet."""
+        header_row = self._find_header_row(excel_file, "Project Details - Large Gen")
         queue = pd.read_excel(
             excel_file,
             sheet_name="Project Details - Large Gen",
-            skiprows=30,
-        ).iloc[4:]
+            header=header_row,
+        )
+        queue = queue.dropna(subset=["INR"])
 
         queue["State"] = "Texas"
         queue["Queue Date"] = queue["Screening Study Started"]
@@ -1558,10 +1581,11 @@ class Ercot(ISOBase):
 
     def _parse_small_gen(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
         """Parse 'Project Details - Small Gen' sheet."""
+        header_row = self._find_header_row(excel_file, "Project Details - Small Gen")
         queue = pd.read_excel(
             excel_file,
             sheet_name="Project Details - Small Gen",
-            skiprows=14,
+            header=header_row,
         )
         # Drop sub-header rows and empty rows
         queue = queue.dropna(subset=["INR"])
@@ -1608,10 +1632,11 @@ class Ercot(ISOBase):
 
     def _parse_inactive_projects(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
         """Parse 'Inactive Projects' sheet."""
+        header_row = self._find_header_row(excel_file, "Inactive Projects")
         df = pd.read_excel(
             excel_file,
             sheet_name="Inactive Projects",
-            skiprows=7,
+            header=header_row,
         )
         # Drop footer notes by requiring non-null Size Category (data rows)
         df = df.dropna(subset=["INR", "Size Category"])
@@ -1656,10 +1681,11 @@ class Ercot(ISOBase):
 
     def _parse_cancelled_projects(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
         """Parse 'Cancellation Update' sheet."""
+        header_row = self._find_header_row(excel_file, "Cancellation Update")
         df = pd.read_excel(
             excel_file,
             sheet_name="Cancellation Update",
-            skiprows=7,
+            header=header_row,
         )
         # Drop footer notes by requiring non-null Size Category (data rows)
         df = df.dropna(subset=["INR", "Size Category"])
