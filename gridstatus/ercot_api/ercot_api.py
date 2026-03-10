@@ -1200,7 +1200,7 @@ class ErcotAPI:
 
         return self.parse_dam_doc(data)
 
-    def parse_dam_doc(self, data):
+    def parse_dam_doc(self, data: pd.DataFrame) -> pd.DataFrame:
         data = self.ercot.parse_doc(
             data.rename(
                 columns=dict(
@@ -1306,7 +1306,11 @@ class ErcotAPI:
 
         return self._handle_shadow_prices_sced(data, verbose=verbose)
 
-    def _handle_shadow_prices_sced(self, data, verbose=False):
+    def _handle_shadow_prices_sced(
+        self,
+        data: pd.DataFrame,
+        verbose=False,
+    ) -> pd.DataFrame:
         data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
         data = data.rename(
             columns=self.ercot._shadow_prices_column_name_mapper(),
