@@ -45,6 +45,7 @@ from gridstatus.ercot_60d_utils import (
     SCED_LOAD_RESOURCE_KEY,
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
+    CurveOutputFormat,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -2414,6 +2415,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Get 60 day SCED Disclosure data
 
@@ -2424,6 +2426,9 @@ class Ercot(ISOBase):
             process (bool, optional): if True, will process the data into
                 standardized format. if False, will return raw data
             verbose (bool, optional): print verbose output. Defaults to False.
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
@@ -2456,6 +2461,7 @@ class Ercot(ISOBase):
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction or use_sced_supplemental,
+            output_format=output_format,
         )
 
         if use_sced_supplemental:
@@ -2464,6 +2470,7 @@ class Ercot(ISOBase):
                 date,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             data.update(supplemental)
         elif use_esr_correction:
@@ -2472,6 +2479,7 @@ class Ercot(ISOBase):
                 date,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
@@ -2484,7 +2492,17 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
+        """Parse a 60-day SCED disclosure zip file into DataFrames.
+
+        Args:
+            z: Opened ZipFile containing SCED disclosure CSVs.
+            process: If True, apply processing functions to standardize data.
+            verbose: If True, print verbose output.
+            skip_esr: If True, skip ESR data extraction.
+            output_format: Curve output format passed to process functions.
+        """
         # TODO: there are other files in the zip folder
         load_resource_file = None
         gen_resource_file = None
@@ -2615,22 +2633,28 @@ class Ercot(ISOBase):
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
-            load_resource = process_sced_load(load_resource)
-            gen_resource = process_sced_gen(gen_resource)
+            load_resource = process_sced_load(
+                load_resource,
+                output_format=output_format,
+            )
+            gen_resource = process_sced_gen(gen_resource, output_format=output_format)
             smne = smne.rename(
                 columns={
                     "Resource Code": "Resource Name",
                 },
             )
             if esr is not None:
-                esr = process_sced_esr(esr)
+                esr = process_sced_esr(esr, output_format=output_format)
             if as_offer_updates is not None:
                 as_offer_updates = self.parse_doc(as_offer_updates)
                 as_offer_updates = process_sced_as_offer_updates_in_op_hour(
                     as_offer_updates,
                 )
             if resource_as_offers is not None:
-                resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
+                resource_as_offers = process_sced_resource_as_offers(
+                    resource_as_offers,
+                    output_format=output_format,
+                )
 
         result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
@@ -2654,6 +2678,7 @@ class Ercot(ISOBase):
         date: pd.Timestamp,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> pd.DataFrame | None:
         """Fetch ESR data from the supplemental correction file for specific dates.
 
@@ -2665,6 +2690,7 @@ class Ercot(ISOBase):
             date: The data date (not report date) to fetch ESR correction data for
             process: If True, process the data into standardized format
             verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
 
         Returns:
             DataFrame with ESR correction data, or None if not found
@@ -2720,7 +2746,7 @@ class Ercot(ISOBase):
         )
 
         if process:
-            esr = process_sced_esr(esr)
+            esr = process_sced_esr(esr, output_format=output_format)
 
         return esr
 
@@ -2752,6 +2778,7 @@ class Ercot(ISOBase):
         date: pd.Timestamp,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Fetch ESR, Gen Resource, and Load Resource data from supplemental
         correction files for data dates Dec 5-20, 2025.
@@ -2764,6 +2791,7 @@ class Ercot(ISOBase):
             date: The data date (not report date) to fetch supplemental data for
             process: If True, process the data into standardized format
             verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
 
         Returns:
             dict with keys for the corrected datasets
@@ -2819,7 +2847,7 @@ class Ercot(ISOBase):
             )
 
             if process:
-                df = process_fn(df)
+                df = process_fn(df, output_format=output_format)
 
             result[key] = df
 
@@ -2832,6 +2860,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Get 60 day DAM Disclosure data. Returns a dict with keys
 
@@ -2854,6 +2883,11 @@ class Ercot(ISOBase):
 
         The date passed in should be the report date. Since reports are delayed by 60
         days, the passed date should not be fewer than 60 days in the past.
+
+        Args:
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -2867,7 +2901,12 @@ class Ercot(ISOBase):
 
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
+        data = self._handle_60_day_dam_disclosure(
+            z,
+            process=process,
+            verbose=verbose,
+            output_format=output_format,
+        )
 
         return data
 
@@ -2877,7 +2916,17 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         files_prefix: dict = None,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
+        """Parse a 60-day DAM disclosure zip file into DataFrames.
+
+        Args:
+            z: Opened ZipFile containing DAM disclosure CSVs.
+            process: If True, apply processing functions to standardize data.
+            verbose: If True, print verbose output.
+            files_prefix: Override dict mapping data keys to file name prefixes.
+            output_format: Curve output format passed to process functions.
+        """
         if not files_prefix:
             files_prefix = {
                 DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
@@ -2943,9 +2992,26 @@ class Ercot(ISOBase):
                 DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
             }
 
+            # These process functions accept output_format for curve extraction
+            supports_output_format = {
+                DAM_GEN_RESOURCE_KEY,
+                DAM_ESR_KEY,
+                DAM_ENERGY_ONLY_OFFERS_KEY,
+                DAM_ENERGY_BIDS_KEY,
+                DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+                DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+                DAM_ESR_AS_OFFERS_KEY,
+            }
+
             for file_name, process_func in file_to_function.items():
                 if file_name in data:
-                    data[file_name] = process_func(data[file_name])
+                    if file_name in supports_output_format:
+                        data[file_name] = process_func(
+                            data[file_name],
+                            output_format=output_format,
+                        )
+                    else:
+                        data[file_name] = process_func(data[file_name])
 
         return data
 
@@ -6595,12 +6661,15 @@ class Ercot(ISOBase):
         return self._handle_indicative_mcpc_rtd(df)
 
     def _handle_indicative_mcpc_rtd(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Parse timestamps with DST handling
+        # Parse timestamps with DST handling. nonexistent= only applies to
+        # spring-forward (gap when 02:00 does not exist); fall-back repeated
+        # hour is handled by ambiguous= from RepeatedHourFlag.
         df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"IntervalEndingRepeatedHourFlag": "DSTFlag"}),
             ),
+            nonexistent="shift_forward",
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
@@ -6610,6 +6679,7 @@ class Ercot(ISOBase):
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"RepeatedHourFlag": "DSTFlag"}),
             ),
+            nonexistent="shift_forward",
         )
 
         # Convert price columns to numeric (float64)

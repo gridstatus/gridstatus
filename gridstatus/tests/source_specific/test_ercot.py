@@ -2,6 +2,7 @@ import datetime
 from io import StringIO
 from typing import Dict
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -52,6 +53,10 @@ from gridstatus.ercot_60d_utils import (
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_COLUMNS,
     SCED_SMNE_KEY,
+    CurveOutputFormat,
+    _categorize_strings,
+    extract_curve,
+    process_as_offer_curves,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -3972,3 +3977,246 @@ def check_60_day_dam_disclosure(df_dict):
     assert not dam_load_resource_as_offers.duplicated(
         subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
     ).any()
+
+
+def _list_to_pg_string(lst):
+    """Convert a list-of-lists like [[1.0, 2.0], [3.0, 4.0]] to PG array string."""
+    return str(lst).replace("[", "{").replace("]", "}").replace(" ", "")
+
+
+class TestExtractCurveFormats:
+    """Equivalence tests between list and pg_array output formats."""
+
+    def _make_auto_detect_df(self, n_rows=100, n_blocks=5, curve_name="TestCurve"):
+        """Create a synthetic DataFrame with auto-detect column naming."""
+
+        rng = np.random.default_rng(42)
+        data = {}
+        for i in range(1, n_blocks + 1):
+            data[f"{curve_name}-MW{i}"] = rng.uniform(10, 500, n_rows)
+            data[f"{curve_name}-Price{i}"] = rng.uniform(5, 100, n_rows)
+        return pd.DataFrame(data)
+
+    def _make_explicit_cols_df(self, n_rows=100, n_blocks=6):
+        """Create a synthetic DataFrame with explicit column naming (SCED-style)."""
+
+        rng = np.random.default_rng(42)
+        data = {}
+        for i in range(1, n_blocks + 1):
+            data[f"QUANTITY_MW{i}"] = rng.uniform(10, 500, n_rows)
+            data[f"PRICE{i}_URS"] = rng.uniform(5, 100, n_rows)
+        return pd.DataFrame(data)
+
+    def test_extract_curve_list_vs_pg_array_auto_detect(self):
+        """Test that pg_array output matches list output (auto-detect)."""
+        df = self._make_auto_detect_df()
+        list_result = extract_curve(
+            df,
+            curve_name="TestCurve",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df,
+            curve_name="TestCurve",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert len(list_result) == len(pg_result)
+        for i in range(len(list_result)):
+            assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def test_extract_curve_list_vs_pg_array_explicit_cols(self):
+        """Test that pg_array output matches list output (explicit columns)."""
+        df = self._make_explicit_cols_df()
+        mw_cols = [f"QUANTITY_MW{i}" for i in range(1, 7)]
+        price_cols = [f"PRICE{i}_URS" for i in range(1, 7)]
+
+        list_result = extract_curve(
+            df,
+            mw_cols=mw_cols,
+            price_cols=price_cols,
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df,
+            mw_cols=mw_cols,
+            price_cols=price_cols,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert len(list_result) == len(pg_result)
+        for i in range(len(list_result)):
+            assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def test_extract_curve_pg_array_edge_cases(self):
+        """Test edge cases: all-NaN rows, partial NaN rows, single-block curves."""
+
+        # All-NaN row
+        df_nan = pd.DataFrame(
+            {
+                "C-MW1": [np.nan, 100.0],
+                "C-MW2": [np.nan, 200.0],
+                "C-Price1": [np.nan, 10.0],
+                "C-Price2": [np.nan, 20.0],
+            },
+        )
+        list_result = extract_curve(
+            df_nan,
+            curve_name="C",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df_nan,
+            curve_name="C",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        # All-NaN row should produce None for both formats
+        assert list_result.iloc[0] is None
+        assert pg_result.iloc[0] is None
+
+        # Valid row should match
+        assert _list_to_pg_string(list_result.iloc[1]) == pg_result.iloc[1]
+
+        # Partial NaN - only first block valid
+        df_partial = pd.DataFrame(
+            {
+                "C-MW1": [100.0],
+                "C-MW2": [np.nan],
+                "C-Price1": [10.0],
+                "C-Price2": [np.nan],
+            },
+        )
+        list_result = extract_curve(
+            df_partial,
+            curve_name="C",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df_partial,
+            curve_name="C",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+        assert _list_to_pg_string(list_result.iloc[0]) == pg_result.iloc[0]
+
+        # Single-block curve
+        df_single = pd.DataFrame({"C-MW1": [50.0, 75.0], "C-Price1": [25.0, 30.0]})
+        list_result = extract_curve(
+            df_single,
+            curve_name="C",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df_single,
+            curve_name="C",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+        for i in range(len(list_result)):
+            assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def _make_as_offer_curves_df(self):
+        """Create synthetic input for process_as_offer_curves."""
+        n_blocks = 3
+        services = ["RRSPFR", "REGUP"]
+        rows = []
+        for resource in ["RES_A", "RES_B"]:
+            row = {
+                "Interval Start": pd.Timestamp("2025-01-01 00:00"),
+                "Interval End": pd.Timestamp("2025-01-01 01:00"),
+                "Resource Name": resource,
+                "QSE": "QSE1",
+                "DME": "DME1",
+                "Multi-Hour Block Flag": "N",
+            }
+            for i in range(1, n_blocks + 1):
+                row[f"BLOCK INDICATOR{i}"] = "ON"
+                row[f"QUANTITY MW{i}"] = 100.0 * i
+                for svc in services:
+                    row[f"PRICE{i} {svc}"] = 10.0 * i + (0.5 if svc == "REGUP" else 0)
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def test_process_as_offer_curves_list_vs_pg_array(self):
+        """Curves from list format match pg_array_as_string when converted."""
+        df = self._make_as_offer_curves_df()
+        list_result = process_as_offer_curves(
+            df.copy(),
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = process_as_offer_curves(
+            df.copy(),
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert list(list_result.columns) == list(pg_result.columns)
+        assert len(list_result) == len(pg_result)
+
+        # Non-curve columns should match
+        non_curve_cols = [
+            c for c in list_result.columns if not c.endswith("Offer Curve")
+        ]
+        for col in non_curve_cols:
+            assert list(list_result[col]) == list(pg_result[col])
+
+        # Curve columns: convert list to pg string and compare
+        curve_cols = [c for c in list_result.columns if c.endswith("Offer Curve")]
+        for col in curve_cols:
+            for i in range(len(list_result)):
+                list_val = list_result[col].iloc[i]
+                pg_val = pg_result[col].iloc[i]
+                if list_val is pd.NA:
+                    assert pg_val is pd.NA
+                else:
+                    assert _list_to_pg_string(list_val) == pg_val
+
+    def test_curve_output_format_string_compat(self):
+        """Test that raw string args still work with CurveOutputFormat comparisons."""
+        assert CurveOutputFormat.LIST == "list"
+        assert CurveOutputFormat.PG_ARRAY_AS_STRING == "pg_array_as_string"
+        assert "list" == CurveOutputFormat.LIST
+        assert "pg_array_as_string" == CurveOutputFormat.PG_ARRAY_AS_STRING
+
+
+class TestCategorizeStrings:
+    """Tests for _categorize_strings() helper."""
+
+    def test_categorize_strings_converts_object_columns(self):
+        """Non-curve object columns are converted to category dtype."""
+        df = pd.DataFrame(
+            {
+                "Resource Name": ["RES_A", "RES_B", "RES_A"],
+                "QSE": ["QSE1", "QSE2", "QSE1"],
+                "HSL": [100.0, 200.0, 150.0],
+                "SCED1 Offer Curve": [[[1, 2]], [[3, 4]], [[5, 6]]],
+                "URS Offer Curve": ["{{1,2}}", "{{3,4}}", "{{5,6}}"],
+                "Block Indicators": [["A"], ["B"], ["C"]],
+            },
+        )
+        result = _categorize_strings(df)
+
+        # String columns should be category
+        assert result["Resource Name"].dtype.name == "category"
+        assert result["QSE"].dtype.name == "category"
+
+        # Numeric column unchanged
+        assert result["HSL"].dtype == "float64"
+
+        # Curve columns should remain object
+        assert result["SCED1 Offer Curve"].dtype == "object"
+        assert result["URS Offer Curve"].dtype == "object"
+
+        # Block Indicators should remain object
+        assert result["Block Indicators"].dtype == "object"
+
+    def test_categorize_strings_no_object_columns(self):
+        """DataFrame with no object columns is returned unchanged."""
+        df = pd.DataFrame({"A": [1, 2, 3], "B": [4.0, 5.0, 6.0]})
+        result = _categorize_strings(df)
+        assert result["A"].dtype == "int64"
+        assert result["B"].dtype == "float64"
+
+    def test_categorize_strings_preserves_values(self):
+        """Category conversion preserves actual string values."""
+        df = pd.DataFrame({"Resource Name": ["RES_A", "RES_B", "RES_A"]})
+        result = _categorize_strings(df)
+        assert list(result["Resource Name"]) == ["RES_A", "RES_B", "RES_A"]
