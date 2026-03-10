@@ -2415,6 +2415,57 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    """get_lmp_by_bus_dam"""
+
+    expected_lmp_by_bus_dam_columns = [
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+    ]
+
+    def _check_lmp_by_bus_dam(self, df):
+        assert df.columns.tolist() == self.expected_lmp_by_bus_dam_columns
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.value).all()
+        assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
+        assert df.dtypes["LMP"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_lmp_by_bus_dam_today(self):
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_today.yaml"):
+            df = self.iso.get_lmp_by_bus_dam("today", verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_lmp_by_bus_dam_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_latest.yaml"):
+            df = self.iso.get_lmp_by_bus_dam("latest", verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_lmp_by_bus_dam_historical(self):
+        date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_historical.yaml"):
+            df = self.iso.get_lmp_by_bus_dam(date, verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.DateOffset(days=1)
+
+    def test_get_lmp_by_bus_dam_date_range(self):
+        start = pd.Timestamp("2026-03-04", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-03-06", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_date_range.yaml"):
+            df = self.iso.get_lmp_by_bus_dam(start, end=end, verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
     def test_read_docs_return_empty_df(self):
         df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
 
@@ -2745,6 +2796,119 @@ class TestErcot(BaseTestISO):
 
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
         assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
+
+    """get_mcpc_dam"""
+
+    def _check_get_mcpc_dam(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["MCPC"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        # 5 AS types * 24 hours = 120 rows per day
+        assert set(df["AS Type"].unique()) == {"ECRS", "NSPIN", "REGDN", "REGUP", "RRS"}
+
+    def test_get_mcpc_dam_today(self):
+        with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
+            df = self.iso.get_mcpc_dam("today", verbose=True)
+        self._check_get_mcpc_dam(df)
+
+    def test_get_mcpc_dam_latest(self):
+        with api_vcr.use_cassette("test_get_mcpc_dam_latest.yaml"):
+            df = self.iso.get_mcpc_dam("latest")
+        self._check_get_mcpc_dam(df)
+
+    def test_get_mcpc_dam_historical(self):
+        date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_mcpc_dam_historical.yaml"):
+            df = self.iso.get_mcpc_dam(date, verbose=True)
+        self._check_get_mcpc_dam(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.DateOffset(days=1)
+
+    def test_get_mcpc_dam_date_range(self):
+        start = pd.Timestamp("2026-03-04", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-03-06", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_mcpc_dam_date_range.yaml"):
+            df = self.iso.get_mcpc_dam(start, end=end, verbose=True)
+        self._check_get_mcpc_dam(df)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    """get_shadow_prices_dam"""
+
+    expected_shadow_prices_dam_columns = [
+        "Interval Start",
+        "Interval End",
+        "Constraint ID",
+        "Constraint Name",
+        "Contingency Name",
+        "Limiting Facility",
+        "Constraint Limit",
+        "Constraint Value",
+        "Violation Amount",
+        "Shadow Price",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+    ]
+
+    def _check_shadow_prices_dam(self, df):
+        assert df.columns.tolist() == self.expected_shadow_prices_dam_columns
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert (
+            df.loc[
+                df["Contingency Name"] == "BASE CASE",
+                "Limiting Facility",
+            ]
+            .isna()
+            .all()
+        )
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "From Station",
+            "To Station",
+        ]:
+            assert df[col].dropna().str.strip().equals(df[col].dropna())
+
+    def test_get_shadow_prices_dam_today(self):
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_today.yaml"):
+            df = self.iso.get_shadow_prices_dam("today", verbose=True)
+        self._check_shadow_prices_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_shadow_prices_dam_latest(self):
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_latest.yaml"):
+            df = self.iso.get_shadow_prices_dam("latest")
+        self._check_shadow_prices_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_shadow_prices_dam_historical(self):
+        date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_historical.yaml"):
+            df = self.iso.get_shadow_prices_dam(date, verbose=True)
+        self._check_shadow_prices_dam(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.DateOffset(days=1)
+
+    def test_get_shadow_prices_dam_date_range(self):
+        start = pd.Timestamp("2026-03-04", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-03-06", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_date_range.yaml"):
+            df = self.iso.get_shadow_prices_dam(start, end=end, verbose=True)
+        self._check_shadow_prices_dam(df)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
 
     """get_mcpc_sced"""
 

@@ -6,6 +6,7 @@ from enum import Enum
 from typing import BinaryIO, Callable, List, Literal
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 import pytz
 import requests
@@ -134,6 +135,14 @@ RTM_PRICE_CORRECTIONS_RTID = 13045
 # DAM Price Corrections
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-196-M
 DAM_PRICE_CORRECTIONS_RTID = 13044
+
+# DAM Shadow Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
+DAM_SHADOW_PRICES_RTID = 12332
+
+# DAM LMPs by Electrical Bus
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-183-CD
+DAM_LMPS_BY_ELECTRICAL_BUS_RTID = 12328
 
 # LMPs by Electrical Bus
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-787-CD
@@ -1741,6 +1750,92 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
+    def get_lmp_by_bus_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day-Ahead Market (DAM) LMPs by Electrical Bus
+
+        Returns hourly Locational Marginal Prices per electrical bus from the
+        Day-Ahead Market.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-183-CD
+
+        Arguments:
+            date (str, datetime): date to get data for. Supports "latest",
+                "today", or a specific date.
+            end (str, datetime, optional): end date for a date range query.
+                If None, returns 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead LMPs by electrical bus
+        """
+        if date == "latest":
+            return self.get_lmp_by_bus_dam("today", verbose=verbose)
+
+        # DAM data is published the day before delivery
+        publish_date = date.normalize() - pd.DateOffset(days=1)
+
+        if end is not None:
+            published_before = end - pd.DateOffset(days=1)
+            published_after = publish_date
+            publish_date = None
+        else:
+            published_before = None
+            published_after = None
+
+        docs = self._get_documents(
+            report_type_id=DAM_LMPS_BY_ELECTRICAL_BUS_RTID,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(columns=self._lmp_by_bus_dam_cols),
+            verbose=verbose,
+        )
+
+        return self._handle_lmp_by_bus_dam_df(df)
+
+    _lmp_by_bus_dam_cols = [
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+    ]
+
+    def _handle_lmp_by_bus_dam_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException("No DAM LMP by bus data found")
+
+        df = df.rename(columns={"BusName": "Location"})
+        df = df.drop(columns=["Time"], errors="ignore")
+        df["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
+        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
     @lmp_config(
         supports={
             Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
@@ -1987,6 +2082,241 @@ class Ercot(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_mcpc_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Market Clearing Prices for Capacity (MCPC) from the Day-Ahead Market
+
+        Returns hourly MCPC per ancillary service type in long format.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
+
+        Arguments:
+            date (str, datetime): date to get data for. Supports "latest",
+                "today", or a specific date.
+            end (str, datetime, optional): end date for a date range query.
+                If None, returns 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns: Interval Start,
+                Interval End, AS Type, MCPC
+        """
+        if date == "latest":
+            return self.get_mcpc_dam("today", verbose=verbose)
+
+        # DAM data is published the day before delivery
+        publish_date = date.normalize() - pd.DateOffset(days=1)
+
+        if end is not None:
+            published_before = end - pd.DateOffset(days=1)
+            published_after = publish_date
+            publish_date = None
+        else:
+            published_before = None
+            published_after = None
+
+        docs = self._get_documents(
+            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(columns=self._mcpc_dam_cols),
+            verbose=verbose,
+        )
+
+        return self._handle_mcpc_dam_df(df)
+
+    _mcpc_dam_cols = [
+        "Interval Start",
+        "Interval End",
+        "AS Type",
+        "MCPC",
+    ]
+
+    def _handle_mcpc_dam_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException("No DAM MCPC data found")
+
+        df = df.rename(columns={"AncillaryType": "AS Type"})
+        df = df.drop(columns=["Time"], errors="ignore")
+        df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "MCPC"]]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_shadow_prices_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day-Ahead Market Shadow Prices
+
+        Returns shadow prices for binding transmission constraints from the
+        Day-Ahead Market.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
+
+        Arguments:
+            date (str, datetime): date to get data for. Supports "latest",
+                "today", or a specific date.
+            end (str, datetime, optional): end date for a date range query.
+                If None, returns 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead market shadow prices
+        """
+        if date == "latest":
+            return self.get_shadow_prices_dam("today", verbose=verbose)
+
+        # DAM data is published the day before delivery
+        publish_date = date.normalize() - pd.DateOffset(days=1)
+
+        if end is not None:
+            published_before = end - pd.DateOffset(days=1)
+            published_after = publish_date
+            publish_date = None
+        else:
+            published_before = None
+            published_after = None
+
+        docs = self._get_documents(
+            report_type_id=DAM_SHADOW_PRICES_RTID,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(columns=self._shadow_prices_dam_cols),
+            verbose=verbose,
+        )
+
+        return self._handle_shadow_prices_dam_df(df)
+
+    def _shadow_prices_column_name_mapper(self):
+        return {
+            "CCTStatus": "CCT Status",
+            "ConstraintId": "Constraint ID",
+            "ConstraintID": "Constraint ID",
+            "ConstraintLimit": "Constraint Limit",
+            "ConstraintName": "Constraint Name",
+            "ConstraintValue": "Constraint Value",
+            "ContingencyName": "Contingency Name",
+            "DeliveryTime": "Delivery Time",
+            "FromStation": "From Station",
+            "FromStationkV": "From Station kV",
+            "MaxShadowPrice": "Max Shadow Price",
+            "ShadowPrice": "Shadow Price",
+            "SystemLambda": "System Lambda",
+            "ToStation": "To Station",
+            "ToStationkV": "To Station kV",
+            "ViolatedMW": "Violated MW",
+            "ViolationAmount": "Violation Amount",
+        }
+
+    def _construct_limiting_facility_column(self, data):
+        data["Limiting Facility"] = np.where(
+            data["Contingency Name"] != "BASE CASE",
+            data["From Station"].astype(str)
+            + "_"
+            + data["From Station kV"].astype(str)
+            + "_"
+            + data["To Station"].astype(str)
+            + "_"
+            + data["To Station kV"].astype(str),
+            pd.NA,
+        )
+
+        return data
+
+    _shadow_prices_dam_cols = [
+        "Interval Start",
+        "Interval End",
+        "Constraint ID",
+        "Constraint Name",
+        "Contingency Name",
+        "Limiting Facility",
+        "Constraint Limit",
+        "Constraint Value",
+        "Violation Amount",
+        "Shadow Price",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+    ]
+
+    def _handle_shadow_prices_dam_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException("No DAM shadow prices data found")
+
+        df = df.rename(columns=self._shadow_prices_column_name_mapper())
+
+        # Strip whitespace from Contingency Name before constructing
+        # Limiting Facility (raw data may have leading whitespace in
+        # ContingencyName which would break the BASE CASE check)
+        if "Contingency Name" in df.columns:
+            df["Contingency Name"] = df["Contingency Name"].str.strip()
+
+        df = self._construct_limiting_facility_column(df)
+
+        # Replace empty strings with NA and strip whitespace after
+        # constructing Limiting Facility to match original behavior
+        df = df.replace("", pd.NA)
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "To Station",
+            "From Station",
+        ]:
+            if col in df.columns:
+                df[col] = df[col].str.strip()
+
+        output_cols = [
+            "Interval Start",
+            "Interval End",
+            "Constraint ID",
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "Constraint Limit",
+            "Constraint Value",
+            "Violation Amount",
+            "Shadow Price",
+            "From Station",
+            "To Station",
+            "From Station kV",
+            "To Station kV",
+        ]
+
+        df = df.drop(columns=["Delivery Time", "Time"], errors="ignore")
+        df = df[output_cols]
+
+        return df.sort_values(
+            ["Interval Start", "Constraint ID"],
+        ).reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_as_plan(
