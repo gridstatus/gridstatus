@@ -1307,8 +1307,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1332,8 +1333,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1356,8 +1358,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1381,8 +1384,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1408,8 +1412,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1433,8 +1438,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1463,8 +1469,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1489,8 +1496,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1520,8 +1528,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Shadow Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1547,8 +1556,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Shadow Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     """get_system_load_and_resource_schedules"""
