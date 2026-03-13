@@ -79,8 +79,6 @@ def make_availability_df() -> dict[str, pd.DataFrame]:
                         is_defined = RED_X_HTML_ENTITY
                     except NotImplementedError:
                         is_defined = RED_X_HTML_ENTITY
-                    except Exception:
-                        is_defined = RED_X_HTML_ENTITY
 
                 availability[i.__name__][method][date] = is_defined
 
