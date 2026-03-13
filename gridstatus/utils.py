@@ -110,7 +110,7 @@ def _handle_date(
     if date is None:
         return date
 
-    if date == "today" or date == "latest":
+    if date == "today":
         date = pd.Timestamp.now(tz=tz).normalize()
 
     if not isinstance(date, pd.Timestamp):
