@@ -2,9 +2,17 @@ from gridstatus.utils import make_availability_table, make_lmp_availability_tabl
 
 
 def insert_readme(files, start_str, end_str, to_insert):
-    for f in files:
-        with open(f, "r+") as f:
+    import os
+
+    for filepath in files:
+        if not os.path.exists(filepath):
+            print(f"Skipping {filepath}: file not found")
+            continue
+        with open(filepath, "r+") as f:
             content = f.read()
+            if start_str not in content or end_str not in content:
+                print(f"Skipping {filepath}: markers not found")
+                continue
             insert_start = content.index(start_str) + len(start_str)
             insert_end = content.index(end_str)
             new_file_content = (

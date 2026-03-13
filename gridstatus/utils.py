@@ -79,6 +79,8 @@ def make_availability_df() -> dict[str, pd.DataFrame]:
                         is_defined = RED_X_HTML_ENTITY
                     except NotImplementedError:
                         is_defined = RED_X_HTML_ENTITY
+                    except Exception:
+                        is_defined = RED_X_HTML_ENTITY
 
                 availability[i.__name__][method][date] = is_defined
 
@@ -108,7 +110,7 @@ def _handle_date(
     if date is None:
         return date
 
-    if date == "today":
+    if date == "today" or date == "latest":
         date = pd.Timestamp.now(tz=tz).normalize()
 
     if not isinstance(date, pd.Timestamp):
