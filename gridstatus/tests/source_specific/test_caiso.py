@@ -2029,7 +2029,7 @@ class TestCollapseGroupToArray:
             ts="2025-01-01 08:00",
         ) + _make_nomogram_rows(
             "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
-            200.0,
+            133.52,
             [3, 4],
             ts="2025-01-01 09:00",
         )
@@ -2037,4 +2037,13 @@ class TestCollapseGroupToArray:
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
         assert len(result) == 2
-        assert result["Groups"].apply(type).eq(list).all()
+        row_08 = result[
+            result["Interval Start"]
+            == pd.Timestamp("2025-01-01 08:00", tz="US/Pacific")
+        ].iloc[0]
+        row_09 = result[
+            result["Interval Start"]
+            == pd.Timestamp("2025-01-01 09:00", tz="US/Pacific")
+        ].iloc[0]
+        assert row_08["Groups"] == [1, 2]
+        assert row_09["Groups"] == [3, 4]
