@@ -1,10 +1,12 @@
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException
+from gridstatus.caiso.caiso import _collapse_group_to_array
 from gridstatus.caiso.caiso_constants import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -1854,3 +1856,185 @@ class TestCAISO(BaseTestISO):
         assert old_start in str(exc_info.value)
         assert old_end in str(exc_info.value)
         assert "Day Ahead Hourly" in str(exc_info.value)
+
+
+NOMOGRAM_GROUP_COLS = [
+    "Interval Start",
+    "Interval End",
+    "Location",
+    "Nomogram ID XML",
+    "Market Run ID",
+    "Constraint Cause",
+    "Price",
+]
+
+INTERTIE_GROUP_COLS = [
+    "Interval Start",
+    "Interval End",
+    "TI ID",
+    "TI Direction",
+    "Market Run ID",
+    "Constraint Cause",
+    "Shadow Price",
+]
+
+
+def _make_nomogram_rows(location, price, groups, ts="2025-01-01 08:00"):
+    """Create rows mimicking CAISO nomogram shadow price data before collapse."""
+    rows = []
+    for g in groups:
+        rows.append(
+            {
+                "Interval Start": pd.Timestamp(ts, tz="US/Pacific"),
+                "Interval End": pd.Timestamp(ts, tz="US/Pacific")
+                + pd.Timedelta(hours=1),
+                "Location": location,
+                "Nomogram ID XML": "NOM_1234",
+                "Market Run ID": "DAM",
+                "Constraint Cause": "Thermal",
+                "Price": price,
+                "Group": g,
+            },
+        )
+    return rows
+
+
+def _make_intertie_rows(ti_id, direction, shadow_price, groups, ts="2025-01-01 08:00"):
+    """Create rows mimicking CAISO intertie constraint shadow price data."""
+    rows = []
+    for g in groups:
+        rows.append(
+            {
+                "Interval Start": pd.Timestamp(ts, tz="US/Pacific"),
+                "Interval End": pd.Timestamp(ts, tz="US/Pacific")
+                + pd.Timedelta(minutes=5),
+                "TI ID": ti_id,
+                "TI Direction": direction,
+                "Market Run ID": "RTD",
+                "Constraint Cause": "Thermal",
+                "Shadow Price": shadow_price,
+                "Group": g,
+            },
+        )
+    return rows
+
+
+class TestCollapseGroupToArray:
+    """Unit tests for _collapse_group_to_array helper."""
+
+    def test_nomogram_multiple_groups_collapsed_and_sorted(self):
+        """Multiple Group rows for a single constraint collapse into a sorted list."""
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [3, 1, 5],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1, 3, 5]
+        assert "Group" not in result.columns
+
+    def test_intertie_multiple_groups_collapsed(self):
+        """Intertie constraint data collapses groups correctly."""
+        rows = _make_intertie_rows("EPE_NET_ITC", "E", -51.39, [2, 1])
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, INTERTIE_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1, 2]
+        assert result["TI ID"].iloc[0] == "EPE_NET_ITC"
+        assert result["TI Direction"].iloc[0] == "E"
+
+    def test_single_group_returns_single_element_list(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            100.0,
+            [1],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1]
+
+    def test_nan_groups_dropped(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            588.84,
+            [1, np.nan, 3],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1, 3]
+
+    def test_all_nan_groups_returns_empty_list(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            100.0,
+            [np.nan, np.nan],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == []
+
+    def test_float_groups_converted_to_int(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            100.0,
+            [1.0, 2.0],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        groups = result["Groups"].iloc[0]
+        assert groups == [1, 2]
+        assert all(isinstance(v, int) for v in groups)
+
+    def test_distinct_constraints_stay_separate(self):
+        """Different locations produce separate rows after collapse."""
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [2, 3, 5],
+        ) + _make_nomogram_rows(
+            "30900_DELANEY_500_24156_N.GILA_500_BR_1_1",
+            45.0,
+            [1],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 2
+        row_a = result[
+            result["Location"] == "24723_CONTROL_115_24865_TAP188_115_BR_2_1"
+        ].iloc[0]
+        row_b = result[
+            result["Location"] == "30900_DELANEY_500_24156_N.GILA_500_BR_1_1"
+        ].iloc[0]
+        assert row_a["Groups"] == [2, 3, 5]
+        assert row_b["Groups"] == [1]
+
+    def test_same_location_different_intervals_stay_separate(self):
+        """Same constraint at different intervals keeps separate rows."""
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [1, 2],
+            ts="2025-01-01 08:00",
+        ) + _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            200.0,
+            [3, 4],
+            ts="2025-01-01 09:00",
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 2
+        assert result["Groups"].apply(type).eq(list).all()
