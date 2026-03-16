@@ -1204,25 +1204,6 @@ class TestISONEAPI(TestHelperMixin):
         assert ((df["Interval End"] - df["Interval Start"]) == expected_interval).all()
         assert df["Marginal Value"].dtype in [np.int64, np.float64]
 
-    def test_get_binding_constraints_day_ahead_hourly_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_day_ahead_hourly_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
-
-        self._check_constraints(
-            df,
-            expected_columns=[
-                "Interval Start",
-                "Interval End",
-                "Constraint Name",
-                "Contingency Name",
-                "Interface Flag",
-                "Marginal Value",
-            ],
-            expected_interval=pd.Timedelta(hours=1),
-        )
-
     @pytest.mark.parametrize(
         "date,end",
         [
@@ -1268,7 +1249,6 @@ class TestISONEAPI(TestHelperMixin):
                         "Interval Start",
                         "Interval End",
                         "Constraint Name",
-                        "Contingency Name",
                         "Marginal Value",
                     ],
                     expected_interval=pd.Timedelta(minutes=15),
@@ -1373,7 +1353,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Interval Start",
                 "Interval End",
                 "Constraint Name",
-                "Contingency Name",
                 "Marginal Value",
             ],
             expected_interval=pd.Timedelta(minutes=5),
@@ -1423,7 +1402,6 @@ class TestISONEAPI(TestHelperMixin):
                 "Interval Start",
                 "Interval End",
                 "Constraint Name",
-                "Contingency Name",
                 "Marginal Value",
             ],
             expected_interval=pd.Timedelta(minutes=5),

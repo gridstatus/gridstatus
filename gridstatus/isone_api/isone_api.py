@@ -15,8 +15,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS,
     ISONE_CONSTRAINT_DAY_AHEAD_COLUMNS,
     ISONE_CONSTRAINT_FIFTEEN_MIN_COLUMNS,
-    ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS,
-    ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS,
+    ISONE_CONSTRAINT_FIVE_MIN_COLUMNS,
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
@@ -1767,11 +1766,7 @@ class ISONEAPI:
             "MarginalValue": "Marginal Value",
         }
 
-        if constraint_type == "prelim":
-            rename_map["ContingencyName"] = "Contingency Name"
-            columns = ISONE_CONSTRAINT_FIVE_MIN_PRELIM_COLUMNS
-        else:
-            columns = ISONE_CONSTRAINT_FIVE_MIN_FINAL_COLUMNS
+        columns = ISONE_CONSTRAINT_FIVE_MIN_COLUMNS
 
         return self._parse_constraint_dataframe(
             df,
