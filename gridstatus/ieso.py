@@ -4430,51 +4430,73 @@ class IESO(ISOBase):
                 f"No files found for date {date_str} after last modified time {last_modified}",
             )
         json_data_with_times = []
+        max_workers = min(3, len(filtered_files))
         max_retries = 3
-        retry_delay = 2
 
-        with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
+        # Helper functions to check if an exception is a connection error
+        def _is_connection_error(exc: BaseException) -> bool:
+            if isinstance(
+                exc,
+                (
+                    ConnectionResetError,
+                    ConnectionError,
+                    http.client.RemoteDisconnected,
+                ),
+            ):
+                return True
+            if isinstance(exc, OSError) and getattr(exc, "errno", None) == 104:
+                return True
+            msg = str(exc).lower()
+            return "connection reset" in msg or "connection aborted" in msg
+
+        def _fetch_with_retries(
+            file: str, last_modified_time: str
+        ) -> tuple[dict, pd.Timestamp]:
+            # small stagger based on filename hash so not all tasks start at once
+            initial_delay = (hash(file) % 2000) / 1000.0  # 0–2s
+            if initial_delay:
+                time.sleep(initial_delay)
+
+            attempt = 0
+            while True:
+                try:
+                    json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
+                    return json_data, pd.Timestamp(
+                        last_modified_time,
+                        tz=self.default_timezone,
+                    )
+                except Exception as e:
+                    attempt += 1
+                    if not _is_connection_error(e) or attempt >= max_retries:
+                        # Non-connection error or exhausted retries: bubble up
+                        raise
+                    # Backoff grows with attempt, scaled off max_retries
+                    backoff_seconds = attempt * (3 / max_retries)
+                    logger.warning(
+                        f"Connection error for file {file} (attempt {attempt}/{max_retries}): {e}. "
+                        f"Retrying in {backoff_seconds:.2f} seconds.",
+                    )
+                    time.sleep(backoff_seconds)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_file = {
                 executor.submit(
-                    self._fetch_and_parse_shadow_prices_file,
-                    base_url,
+                    _fetch_with_retries,
                     file,
+                    last_modified_time,
                 ): (file, last_modified_time)
                 for file, last_modified_time in filtered_files
             }
             for future in as_completed(future_to_file):
                 file, last_modified_time = future_to_file[future]
-                retries = 0
-                while retries < max_retries:
-                    try:
-                        json_data = future.result()
-                        json_data_with_times.append(
-                            (
-                                json_data,
-                                pd.Timestamp(
-                                    last_modified_time,
-                                    tz=self.default_timezone,
-                                ),
-                            ),
-                        )
-                        break
-                    except http.client.RemoteDisconnected as e:
-                        retries += 1
-                        if retries == max_retries:
-                            logger.error(
-                                f"Remote connection closed for file {file}: {str(e)}",
-                            )
-                            break
-                        logger.warning(
-                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
-                        )
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                    except Exception as e:
-                        logger.error(
-                            f"Unexpected error processing file {file}: {str(e)}",
-                        )
-                        break
+                try:
+                    json_data, ts = future.result()
+                    json_data_with_times.append((json_data, ts))
+                except Exception as e:
+                    logger.error(
+                        f"Failed to process file {file} after {max_retries} attempts: {e}",
+                    )
+
         return json_data_with_times
 
     def _parse_day_ahead_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
