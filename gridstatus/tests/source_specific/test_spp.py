@@ -1804,3 +1804,65 @@ class TestSPP(BaseTestISO):
         self._check_binding_constraints_real_time(df)
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date
+
+    """get_interchange_real_time"""
+
+    interchange_real_time_cols = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "SPP NSI",
+        "SPP NAI",
+        "AECI",
+        "AMRN",
+        "BLKW",
+        "CLEC",
+        "EDDY",
+        "EES",
+        "ERCOTE",
+        "ERCOTN",
+        "LAMAR",
+        "MEC",
+        "SCSE",
+        "SOUC",
+        "SPA",
+        "TVA",
+        "RCEAST",
+        "SPC",
+        "MCWEST",
+        "SGE",
+        "ALTW",
+        "DPC",
+        "GRE",
+        "MDU",
+        "NSP",
+        "OTP",
+        "SIKE",
+        "SPP NSI Future",
+    ]
+
+    def _check_interchange_real_time(self, df):
+        assert df.columns.tolist() == self.interchange_real_time_cols
+        assert len(df) > 0
+        assert df["Time"].dt.tz is not None
+
+    @pytest.mark.integration
+    def test_get_interchange_real_time_latest(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
+            df = self.iso.get_interchange_real_time("latest")
+
+        self._check_interchange_real_time(df)
+
+    @pytest.mark.integration
+    def test_get_interchange_real_time_today(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_today.yaml"):
+            df = self.iso.get_interchange_real_time("today")
+
+        self._check_interchange_real_time(df)
+
+    @pytest.mark.integration
+    def test_get_interchange_real_time_historical_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_interchange_real_time(
+                pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=3),
+            )

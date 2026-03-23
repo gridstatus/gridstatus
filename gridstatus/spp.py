@@ -2115,6 +2115,59 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
+    def get_interchange_real_time(
+        self,
+        date: str | pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time interchange (tie flow) data.
+
+        Returns ~2 days of 1-minute interchange data between SPP and neighboring
+        RTOs/balancing authorities.
+
+        Data from https://portal.spp.org/pages/integrated-marketplace-interchange-trend
+
+        Args:
+            date: supports "latest" and "today"
+            verbose: print info
+
+        Returns:
+            pd.DataFrame: interchange data
+        """
+        if date == "latest":
+            return self.get_interchange_real_time(
+                "today",
+                verbose=verbose,
+            ).reset_index(drop=True)
+
+        if not utils.is_today(date, self.default_timezone):
+            raise NotSupported(
+                "Only today and latest are supported for interchange real-time data"
+            )
+
+        url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
+
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+
+        return self._process_interchange_real_time(df)
+
+    def _process_interchange_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["Time"] = pd.to_datetime(
+            df["GMTTime"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df.drop(columns=["GMTTime"])
+
+        # Drop rows where all data columns are null (future forecast rows)
+        data_cols = [c for c in df.columns if c != "Time"]
+        df = df.dropna(subset=data_cols, how="all")
+
+        df = add_interval(df, interval_min=1)
+
+        return df.reset_index(drop=True)
+
 
 def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
     """Parse SPP generation mix data from
