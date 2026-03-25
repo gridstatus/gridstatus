@@ -2115,20 +2115,28 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
+    @support_date_range("MONTH_START")
     def get_interchange_real_time(
         self,
-        date: str | pd.Timestamp,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get real-time interchange (tie flow) data.
 
-        Returns ~2 days of 1-minute interchange data between SPP and neighboring
-        RTOs/balancing authorities.
+        For "latest" and "today", returns ~2 days of 1-minute interchange data
+        from the real-time endpoint.
 
-        Data from https://portal.spp.org/pages/integrated-marketplace-interchange-trend
+        For historical dates, downloads monthly CSV files from the historical
+        tie flow archive.
+
+        Data from:
+        - Real-time: https://portal.spp.org/pages/integrated-marketplace-interchange-trend
+        - Historical: https://portal.spp.org/pages/historical-tie-flow
 
         Args:
-            date: supports "latest" and "today"
+            date: supports "latest", "today", or a historical date/date range
+            end: end date for historical range queries
             verbose: print info
 
         Returns:
@@ -2140,15 +2148,38 @@ class SPP(ISOBase):
                 verbose=verbose,
             ).reset_index(drop=True)
 
-        if not utils.is_today(date, self.default_timezone):
-            raise NotSupported(
-                "Only today and latest are supported for interchange real-time data"
-            )
+        if utils.is_today(date, self.default_timezone):
+            url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
+            logger.info(f"Downloading {url}")
+            df = pd.read_csv(url)
+            return self._process_interchange_real_time(df)
 
-        url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
+        # Historical data: download monthly CSV
+        month_str = date.strftime("%b%Y")  # e.g., "Apr2015"
+        url = (
+            f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
+            f"?path=/TieFlows_{month_str}.csv"
+        )
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(
+                    f"No historical tie flow data found for {month_str}. "
+                    f"Historical data is available starting Mar2014."
+                )
+            raise
+
+        # Normalize historical column names to match real-time format
+        df = df.rename(
+            columns={
+                "GMTTIME": "GMTTime",
+                "SPP_NSI": "SPP NSI",
+                "SPP_NAI": "SPP NAI",
+            }
+        )
 
         return self._process_interchange_real_time(df)
 

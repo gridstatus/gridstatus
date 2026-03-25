@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gridstatus import SPP, Markets, NotSupported
+from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
     LOCATION_TYPE_BUS,
     LOCATION_TYPE_HUB,
@@ -1842,9 +1842,15 @@ class TestSPP(BaseTestISO):
     ]
 
     def _check_interchange_real_time(self, df):
-        assert df.columns.tolist() == self.interchange_real_time_cols
         assert len(df) > 0
         assert df["Time"].dt.tz is not None
+        # Time, Interval Start, Interval End are always present
+        assert "Time" in df.columns
+        assert "Interval Start" in df.columns
+        assert "Interval End" in df.columns
+        # Core interchange columns
+        assert "SPP NSI" in df.columns
+        assert "SPP NAI" in df.columns
 
     @pytest.mark.integration
     def test_get_interchange_real_time_latest(self):
@@ -1861,8 +1867,40 @@ class TestSPP(BaseTestISO):
         self._check_interchange_real_time(df)
 
     @pytest.mark.integration
-    def test_get_interchange_real_time_historical_not_supported(self):
-        with pytest.raises(NotSupported):
+    def test_get_interchange_real_time_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                pd.Timestamp("2025-01-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # Should contain data for January 2025
+        assert df["Interval Start"].min().month == 1
+        assert df["Interval Start"].min().year == 2025
+
+    @pytest.mark.integration
+    def test_get_interchange_real_time_historical_range(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical_range.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                date=pd.Timestamp("2025-01-01"),
+                end=pd.Timestamp("2025-03-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # Should span Jan and Feb 2025
+        assert df["Interval Start"].min().month == 1
+        assert df["Interval Start"].min().year == 2025
+        assert df["Interval Start"].max().month == 2
+        assert df["Interval Start"].max().year == 2025
+
+    @pytest.mark.integration
+    def test_get_interchange_real_time_no_data(self):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_interchange_real_time(
-                pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=3),
+                pd.Timestamp("2014-02-01"),
+                error="raise",
             )
