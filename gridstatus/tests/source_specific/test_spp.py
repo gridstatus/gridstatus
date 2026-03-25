@@ -1852,21 +1852,18 @@ class TestSPP(BaseTestISO):
         assert "SPP NSI" in df.columns
         assert "SPP NAI" in df.columns
 
-    @pytest.mark.integration
     def test_get_interchange_real_time_latest(self):
         with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
             df = self.iso.get_interchange_real_time("latest")
 
         self._check_interchange_real_time(df)
 
-    @pytest.mark.integration
     def test_get_interchange_real_time_today(self):
         with api_vcr.use_cassette("test_get_interchange_real_time_today.yaml"):
             df = self.iso.get_interchange_real_time("today")
 
         self._check_interchange_real_time(df)
 
-    @pytest.mark.integration
     def test_get_interchange_real_time_historical(self):
         with api_vcr.use_cassette(
             "test_get_interchange_real_time_historical.yaml",
@@ -1876,11 +1873,11 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_interchange_real_time(df)
-        # Should contain data for January 2025
-        assert df["Interval Start"].min().month == 1
-        assert df["Interval Start"].min().year == 2025
+        # The Jan 2025 file starts Dec 31 UTC-6 due to GMT→Central conversion
+        assert df["Interval Start"].min().year >= 2024
+        assert df["Interval Start"].max().month == 1
+        assert df["Interval Start"].max().year == 2025
 
-    @pytest.mark.integration
     def test_get_interchange_real_time_historical_range(self):
         with api_vcr.use_cassette(
             "test_get_interchange_real_time_historical_range.yaml",
@@ -1891,16 +1888,17 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_interchange_real_time(df)
-        # Should span Jan and Feb 2025
-        assert df["Interval Start"].min().month == 1
-        assert df["Interval Start"].min().year == 2025
+        # Should span Jan and Feb 2025 (starts Dec 31 due to GMT→Central)
+        assert df["Interval Start"].min().year >= 2024
         assert df["Interval Start"].max().month == 2
         assert df["Interval Start"].max().year == 2025
 
-    @pytest.mark.integration
     def test_get_interchange_real_time_no_data(self):
-        with pytest.raises(NoDataFoundException):
-            self.iso.get_interchange_real_time(
-                pd.Timestamp("2014-02-01"),
-                error="raise",
-            )
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_no_data.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_interchange_real_time(
+                    pd.Timestamp("2014-02-01"),
+                    error="raise",
+                )
