@@ -2187,6 +2187,7 @@ class SPP(ISOBase):
         df["Time"] = pd.to_datetime(
             df["GMTTime"],
             utc=True,
+            format="ISO8601",
         ).dt.tz_convert(self.default_timezone)
 
         df = df.drop(columns=["GMTTime"])
