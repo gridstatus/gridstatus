@@ -2192,6 +2192,9 @@ class SPP(ISOBase):
 
         df = df.drop(columns=["GMTTime"])
 
+        # Drop rows with null timestamps (bad data in some historical files)
+        df = df.dropna(subset=["Time"])
+
         # Drop rows where all data columns are null (future forecast rows)
         data_cols = [c for c in df.columns if c != "Time"]
         df = df.dropna(subset=data_cols, how="all")
