@@ -1614,7 +1614,11 @@ class TestSPP(BaseTestISO):
             "Load",
         ]
 
-        assert df["Time"].dtype == "datetime64[ns, US/Central]"
+        assert df["Interval Start"].dtype == "datetime64[ns, US/Central]"
+        assert df["Interval End"].dtype == "datetime64[ns, US/Central]"
+        assert df["Balancing Area Name"].dtype == "object"
+        assert df["Control Zone Name"].dtype == "object"
+        assert df["Forecast Area Type"].dtype == "object"
         assert df["Load"].dtype == "float64"
         assert set(df["Forecast Area Type"].unique()).issubset({"CF", "NC"})
 
