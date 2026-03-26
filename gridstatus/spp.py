@@ -1734,12 +1734,6 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: Hourly Load in wide format
         """
-        if date in ["today", "latest"] or utils.is_today(
-            date,
-            tz=self.default_timezone,
-        ):
-            raise NotSupported("Only historical data is available for hourly load data")
-
         if date >= HOURLY_LOAD_WIDE_FORMAT_END_DATE:
             raise NotSupported(
                 "SPP changed the hourly load data format on 2026-03-24. "
@@ -1777,7 +1771,7 @@ class SPP(ISOBase):
             raise NoDataFoundException("Data is on at least a one day delay")
 
         if date < HOURLY_LOAD_WIDE_FORMAT_END_DATE:
-            raise NotSupported(
+            raise NoDataFoundException(
                 "Data before 2026-03-24 uses the legacy wide format. "
                 "Use get_hourly_load_historical for data before 2026-03-24.",
             )

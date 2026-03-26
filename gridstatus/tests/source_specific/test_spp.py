@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gridstatus import SPP, Markets, NotSupported
+from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
     LOCATION_TYPE_BUS,
     LOCATION_TYPE_HUB,
@@ -1632,16 +1632,15 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
 
     def test_get_hourly_load_raises_on_old_date(self):
-        with pytest.raises(NotSupported):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_hourly_load(pd.Timestamp("2026-03-23"))
 
-    @pytest.mark.integration
     @pytest.mark.parametrize(
         "date",
         ["today", "latest", pd.Timestamp.now()],
     )
     def test_get_hourly_load_current_day_not_supported(self, date):
-        with pytest.raises(NotSupported):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_hourly_load(date)
 
     """get_market_clearing_real_time"""
