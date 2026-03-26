@@ -1563,7 +1563,7 @@ class TestSPP(BaseTestISO):
         start = pd.Timestamp("2026-03-20")
         end = pd.Timestamp("2026-03-22")
         with api_vcr.use_cassette(
-            "test_get_hourly_load_historical_20260320_20260322.yaml",
+            f"test_get_hourly_load_historical_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
         ):
             df = self.iso.get_hourly_load_historical(start=start, end=end)
 
@@ -1625,7 +1625,7 @@ class TestSPP(BaseTestISO):
     def test_get_hourly_load(self):
         date = pd.Timestamp("2026-03-24")
         with api_vcr.use_cassette(
-            "test_get_hourly_load_20260324.yaml",
+            f"test_get_hourly_load_{date}.yaml",
         ):
             df = self.iso.get_hourly_load(date)
 
