@@ -1716,7 +1716,7 @@ class SPP(ISOBase):
         ]
 
     @support_date_range("DAY_START")
-    def get_hourly_load_deprecated(
+    def get_hourly_load_historical(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1779,7 +1779,7 @@ class SPP(ISOBase):
         if date < HOURLY_LOAD_WIDE_FORMAT_END_DATE:
             raise NotSupported(
                 "Data before 2026-03-24 uses the legacy wide format. "
-                "Use get_hourly_load_deprecated for data before 2026-03-24.",
+                "Use get_hourly_load_historical for data before 2026-03-24.",
             )
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
