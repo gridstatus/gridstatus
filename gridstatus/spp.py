@@ -1774,7 +1774,7 @@ class SPP(ISOBase):
             date,
             tz=self.default_timezone,
         ):
-            raise NotSupported("Only historical data is available for hourly load data")
+            raise NoDataFoundException("Data is on at least a one day delay")
 
         if date < HOURLY_LOAD_WIDE_FORMAT_END_DATE:
             raise NotSupported(
