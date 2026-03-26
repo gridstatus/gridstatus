@@ -1906,7 +1906,6 @@ class SPP(ISOBase):
         )
 
         col_order = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Balancing Area Name",
@@ -1918,7 +1917,12 @@ class SPP(ISOBase):
         df = df[col_order]
 
         df = df.sort_values(
-            ["Time", "Balancing Area Name", "Control Zone Name", "Forecast Area Type"],
+            [
+                "Interval Start",
+                "Balancing Area Name",
+                "Control Zone Name",
+                "Forecast Area Type",
+            ],
         ).reset_index(drop=True)
 
         return df

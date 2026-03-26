@@ -1606,7 +1606,6 @@ class TestSPP(BaseTestISO):
         assert isinstance(df, pd.DataFrame)
 
         assert df.columns.tolist() == [
-            "Time",
             "Interval Start",
             "Interval End",
             "Balancing Area Name",
