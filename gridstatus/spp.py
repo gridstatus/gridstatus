@@ -28,6 +28,8 @@ RTBM_MCP = "rtbm-mcp"
 DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
+HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
+
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
@@ -1714,34 +1716,71 @@ class SPP(ISOBase):
         ]
 
     @support_date_range("DAY_START")
-    def get_hourly_load(
+    def get_hourly_load_historical(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get Hourly Load
+        """Get Hourly Load in the legacy wide format (before 2026-03-24).
 
-        Supports recent data. For historical annual data use get_hourly_load_annual
+        Deprecated: SPP changed the hourly load data format on 2026-03-24.
+        Use get_hourly_load for data on or after 2026-03-24.
 
         Args:
-            date: start date
+            date: start date (must be before 2026-03-24)
             end: end date
 
         Returns:
-            pd.DataFrame: Hourly Load
+            pd.DataFrame: Hourly Load in wide format
         """
-        if date in ["today", "latest"] or utils.is_today(
-            date,
-            tz=self.default_timezone,
-        ):
-            raise NotSupported("Only historical data is available for hourly load data")
+        if date >= HOURLY_LOAD_WIDE_FORMAT_END_DATE:
+            raise NotSupported(
+                "SPP changed the hourly load data format on 2026-03-24. "
+                "Use get_hourly_load for data on or after 2026-03-24.",
+            )
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_hourly_load(df)
+
+    @support_date_range("DAY_START")
+    def get_hourly_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Hourly Load in the long format (on or after 2026-03-24).
+
+        Args:
+            date: start date (must be on or after 2026-03-24)
+            end: end date
+
+        Returns:
+            pd.DataFrame: Hourly Load with columns Time, Interval Start,
+                Interval End, Balancing Area Name, Control Zone Name,
+                Forecast Area Type, Load
+        """
+        if date in ["today", "latest"] or utils.is_today(
+            date,
+            tz=self.default_timezone,
+        ):
+            raise NoDataFoundException("Data is on at least a one day delay")
+
+        if date < HOURLY_LOAD_WIDE_FORMAT_END_DATE:
+            raise NoDataFoundException(
+                "Data before 2026-03-24 uses the legacy wide format. "
+                "Use get_hourly_load_historical for data before 2026-03-24.",
+            )
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+
+        return self._process_hourly_load_long(df)
 
     def get_hourly_load_annual(self, year: int, verbose: bool = True) -> pd.DataFrame:
         """Get Hourly Load for a year. Starting 2011.
@@ -1764,6 +1803,19 @@ class SPP(ISOBase):
         return self._process_hourly_load(df)
 
     def _process_hourly_load(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process hourly load data in the legacy wide format.
+
+        Deprecated: This method handles the wide format used before 2026-03-24.
+        For data on or after 2026-03-24, use _process_hourly_load_long instead.
+        """
+        if "Market Hour" in df.columns:
+            raise NotSupported(
+                "SPP changed the hourly load data format on 2026-03-24 from wide "
+                "to long. This method only supports the wide format used before "
+                "2026-03-24. Use get_hourly_load with dates on or after 2026-03-24 "
+                "for the new long format.",
+            )
+
         # Some column names contain leading whitespace in some files - remove it
         df = df.rename(columns=lambda x: x.strip())
 
@@ -1825,6 +1877,53 @@ class SPP(ISOBase):
 
         df = df.sort_values("Time")
         df["System Total"] = df[load_cols].sum(axis=1, skipna=True)
+
+        return df
+
+    def _process_hourly_load_long(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process hourly load data in the new long format (starting 2026-03-24).
+
+        The new format has columns: Market Hour, Balancing Area Name,
+        Control Zone Name, Forecast Area Type, Load MW.
+        """
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = df.dropna(how="all")
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="Market Hour",
+            interval_duration=pd.Timedelta(minutes=60),
+            format="mixed",
+        )
+
+        df = df[~df["Interval Start"].isnull()].drop_duplicates()
+
+        df = df.rename(
+            columns={
+                "Load MW": "Load",
+            },
+        )
+
+        col_order = [
+            "Interval Start",
+            "Interval End",
+            "Balancing Area Name",
+            "Control Zone Name",
+            "Forecast Area Type",
+            "Load",
+        ]
+
+        df = df[col_order]
+
+        df = df.sort_values(
+            [
+                "Interval Start",
+                "Balancing Area Name",
+                "Control Zone Name",
+                "Forecast Area Type",
+            ],
+        ).reset_index(drop=True)
 
         return df
 
