@@ -1530,9 +1530,9 @@ class TestSPP(BaseTestISO):
 
         assert (df["Forecast Type"] == forecast_type).all()
 
-    """ get_hourly_load """
+    """ get_hourly_load_deprecated (wide format, before 2026-03-24) """
 
-    def _check_hourly_load(self, df):
+    def _check_hourly_load_deprecated(self, df):
         assert isinstance(df, pd.DataFrame)
 
         assert df.columns.tolist() == [
@@ -1559,29 +1559,81 @@ class TestSPP(BaseTestISO):
             "System Total",
         ]
 
-    def test_get_hourly_load_historical(self):
-        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
-        start = two_days_ago - pd.Timedelta(days=2)
+    def test_get_hourly_load_deprecated_historical(self):
+        start = pd.Timestamp("2026-03-20")
+        end = pd.Timestamp("2026-03-22")
         with api_vcr.use_cassette(
-            f"test_get_hourly_load_historical_{start.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+            "test_get_hourly_load_deprecated_historical_20260320_20260322.yaml",
         ):
-            df = self.iso.get_hourly_load(start=start, end=two_days_ago)
+            df = self.iso.get_hourly_load_deprecated(start=start, end=end)
 
         assert df["Interval Start"].min().date() == start.date()
-        assert df["Interval Start"].max().date() == two_days_ago.date()
-        self._check_hourly_load(df)
+        assert df["Interval Start"].max().date() == pd.Timestamp("2026-03-21").date()
+        self._check_hourly_load_deprecated(df)
 
-    def test_get_hourly_load_annual(self):
+    def test_get_hourly_load_deprecated_annual(self):
         year = 2020
         with api_vcr.use_cassette(
-            f"test_get_hourly_load_annual_{year}.yaml",
+            f"test_get_hourly_load_deprecated_annual_{year}.yaml",
         ):
             df = self.iso.get_hourly_load_annual(year=year)
 
         assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
+        self._check_hourly_load_deprecated(df)
+
+    def test_get_hourly_load_deprecated_raises_on_new_date(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_hourly_load_deprecated(pd.Timestamp("2026-03-24"))
+
+    def test_get_hourly_load_deprecated_process_raises_on_new_data(self):
+        new_format_df = pd.DataFrame(
+            {
+                "Market Hour": ["03/24/2026 06:00:00"],
+                "Balancing Area Name": ["SPP"],
+                "Control Zone Name": ["CSWS"],
+                "Forecast Area Type": ["CF"],
+                "Load MW": [4091.830],
+            },
+        )
+        with pytest.raises(NotSupported):
+            self.iso._process_hourly_load(new_format_df)
+
+    """ get_hourly_load (long format, >= 2026-03-24) """
+
+    def _check_hourly_load(self, df):
+        assert isinstance(df, pd.DataFrame)
+
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Balancing Area Name",
+            "Control Zone Name",
+            "Forecast Area Type",
+            "Load",
+        ]
+
+        assert df["Time"].dtype == "datetime64[ns, US/Central]"
+        assert df["Load"].dtype == "float64"
+        assert set(df["Forecast Area Type"].unique()).issubset({"CF", "NC"})
+
+    def test_get_hourly_load(self):
+        date = pd.Timestamp("2026-03-24")
+        with api_vcr.use_cassette(
+            "test_get_hourly_load_20260324.yaml",
+        ):
+            df = self.iso.get_hourly_load(date)
+
         self._check_hourly_load(df)
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == date.date()
+        assert len(df) > 0
+
+    def test_get_hourly_load_raises_on_old_date(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_hourly_load(pd.Timestamp("2026-03-23"))
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
