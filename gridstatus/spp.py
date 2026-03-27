@@ -2201,7 +2201,20 @@ class SPP(ISOBase):
 
         df = add_interval(df, interval_min=1)
 
-        return df.reset_index(drop=True)
+        # Melt from wide to long format so schema is stable across time periods
+        id_cols = ["Time", "Interval Start", "Interval End"]
+        value_cols = [c for c in df.columns if c not in id_cols]
+        df = df.melt(
+            id_vars=id_cols,
+            value_vars=value_cols,
+            var_name="Region",
+            value_name="Interchange",
+        )
+
+        # Drop rows where interchange is null (region didn't exist in this period)
+        df = df.dropna(subset=["Interchange"])
+
+        return df.sort_values(["Interval Start", "Region"]).reset_index(drop=True)
 
 
 def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:

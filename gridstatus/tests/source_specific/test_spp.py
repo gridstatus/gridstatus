@@ -1811,46 +1811,20 @@ class TestSPP(BaseTestISO):
         "Time",
         "Interval Start",
         "Interval End",
-        "SPP NSI",
-        "SPP NAI",
-        "AECI",
-        "AMRN",
-        "BLKW",
-        "CLEC",
-        "EDDY",
-        "EES",
-        "ERCOTE",
-        "ERCOTN",
-        "LAMAR",
-        "MEC",
-        "SCSE",
-        "SOUC",
-        "SPA",
-        "TVA",
-        "RCEAST",
-        "SPC",
-        "MCWEST",
-        "SGE",
-        "ALTW",
-        "DPC",
-        "GRE",
-        "MDU",
-        "NSP",
-        "OTP",
-        "SIKE",
-        "SPP NSI Future",
+        "Region",
+        "Interchange",
     ]
 
     def _check_interchange_real_time(self, df):
         assert len(df) > 0
         assert df["Time"].dt.tz is not None
-        # Time, Interval Start, Interval End are always present
-        assert "Time" in df.columns
-        assert "Interval Start" in df.columns
-        assert "Interval End" in df.columns
-        # Core interchange columns
-        assert "SPP NSI" in df.columns
-        assert "SPP NAI" in df.columns
+        assert list(df.columns) == self.interchange_real_time_cols
+        # Core interchange regions are present
+        regions = df["Region"].unique()
+        assert "SPP NSI" in regions
+        assert "SPP NAI" in regions
+        # No null interchange values
+        assert df["Interchange"].notna().all()
 
     def test_get_interchange_real_time_latest(self):
         with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
