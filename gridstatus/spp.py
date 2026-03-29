@@ -21,7 +21,7 @@ from gridstatus.gs_logging import logger
 # Endpoints
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
-FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
+FS_DAM_LMP_BY_LOCATION = "da-lmp-by-settlement-location"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
 OPERATING_RESERVES = "operating-reserves"
 RTBM_MCP = "rtbm-mcp"
@@ -1151,6 +1151,7 @@ class SPP(ISOBase):
             market=Markets.DAY_AHEAD_HOURLY,
             location_type=location_type,
             verbose=verbose,
+            include_baa=True,
         )
 
     def _get_feature_data(self, base_url: str, verbose: bool = False) -> pd.DataFrame:
@@ -1185,6 +1186,7 @@ class SPP(ISOBase):
         market: Markets,
         location_type: str,
         verbose: bool = False,
+        include_baa: bool = False,
     ) -> pd.DataFrame:
         """
         Finalizes DataFrame:
@@ -1201,6 +1203,8 @@ class SPP(ISOBase):
             market (str): Market
             location_type (str): Location type
             verbose (bool, optional): Verbose output
+            include_baa (bool, optional): Include BAA column. If BAA is not present and
+             this is True, it will be added with the default value of "SPP"
         """
         if market == Markets.REAL_TIME_5_MIN:
             interval_duration = pd.Timedelta(minutes=5)
@@ -1242,22 +1246,28 @@ class SPP(ISOBase):
             },
         )
 
-        df = df[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "PNode",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+        if include_baa and "BAA" not in df.columns:
+            df["BAA"] = "SPP"
+
+        # Insert BAA before location if it exists
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "PNode",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
         ]
 
+        if "BAA" in df.columns:
+            cols.insert(cols.index("Location"), "BAA")
+
+        df = df[cols]
         df = df.reset_index(drop=True)
 
         # Since Location = PNode for bus, we can drop PNode

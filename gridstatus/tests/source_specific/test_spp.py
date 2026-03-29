@@ -410,6 +410,7 @@ class TestSPP(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Market",
+            "BAA",
             "Location",
             "Location Type",
             "PNode",
