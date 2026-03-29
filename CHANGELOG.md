@@ -1,5 +1,88 @@
 # Changelog
 
+## v0.35.0 - March 13, 2026
+
+### Additions (New Features/Datasets)
+
+#### ERCOT
+* ERCOT LMP by Bus DAM, Shadow Prices DAM, and MCPC DAM in Ercot Scraper in [#815](https://github.com/gridstatus/gridstatus/pull/815)
+* ERCOT Settlement Points, Hubs, DC Ties, etc datasets in [#808](https://github.com/gridstatus/gridstatus/pull/808)
+* ERCOT SCED Resource AS Offers and AS Offer Updates in [#788](https://github.com/gridstatus/gridstatus/pull/788)
+* ERCOT DAM 60 Day ESR Datasets in [#784](https://github.com/gridstatus/gridstatus/pull/784)
+* ERCOT SCED 60 Day ESR in [#782](https://github.com/gridstatus/gridstatus/pull/782)
+* Add Columns for ERCOT SCED 60 Day Datasets in [#781](https://github.com/gridstatus/gridstatus/pull/781)
+* Added Columns for ERCOT SCED 60 Day Datasets in [#797](https://github.com/gridstatus/gridstatus/pull/797)
+* Add Curve Type to ERCOT SCED Resource AS Offers 60 Day in [#793](https://github.com/gridstatus/gridstatus/pull/793)
+* Add SCED2 Offer Curve to ERCOT SCED Gen Resource in [#764](https://github.com/gridstatus/gridstatus/pull/764)
+* ERCOT Load Forecast by Model in [#776](https://github.com/gridstatus/gridstatus/pull/776)
+* ERCOT Highest Price as Offer Selected DAM and SCED in [#754](https://github.com/gridstatus/gridstatus/pull/754)
+* Add Publish Time to ERCOT AS Total Capability in [#753](https://github.com/gridstatus/gridstatus/pull/753)
+* ERCOT DAM AS Price Corrections in [#765](https://github.com/gridstatus/gridstatus/pull/765)
+
+#### MISO
+* MISO Real Time Binding Constraints Intraday in [#795](https://github.com/gridstatus/gridstatus/pull/795)
+* MISO Multiday Operating Margin Methods in [#778](https://github.com/gridstatus/gridstatus/pull/778)
+* Add Battery Storage to MISO Fuel Mix in [#786](https://github.com/gridstatus/gridstatus/pull/786)
+
+#### PJM
+* PJM FTR Option Paths, Source Sink Prompt, and Source Sink Non-Prompt in [#800](https://github.com/gridstatus/gridstatus/pull/800)
+* PJM Retention Datasets in [#757](https://github.com/gridstatus/gridstatus/pull/757)
+
+#### ISONE
+* ISONE Zonal Load Estimated 5 Min in [#801](https://github.com/gridstatus/gridstatus/pull/801)
+
+#### CAISO
+* Convert Group to Array Column in CAISO Constraint Datasets in [#818](https://github.com/gridstatus/gridstatus/pull/818)
+
+### Fixes
+
+#### ERCOT
+* ERCOT daylight saving time fix in [#816](https://github.com/gridstatus/gridstatus/pull/816)
+* Reduce ERCOT 60 Day Disclosure Memory Usage in [#806](https://github.com/gridstatus/gridstatus/pull/806)
+* Remove Whitespace from String Columns in ERCOT Shadow Prices DAM in [#813](https://github.com/gridstatus/gridstatus/pull/813)
+* Fix publish date type for ERCOT Settlement Points in [#814](https://github.com/gridstatus/gridstatus/pull/814)
+* Fix ERCOT Available Seasonal Capacity Forecast for DST Start in [#804](https://github.com/gridstatus/gridstatus/pull/804)
+* Telemetered Net Output Fix in [#802](https://github.com/gridstatus/gridstatus/pull/802)
+* Use Supplemental Correction Data ERCOT SCED 60 Day in [#799](https://github.com/gridstatus/gridstatus/pull/799)
+* Fix Parsing Offline and Online Nonspin Offer Curves ERCOT DAM 60 Day Disclosure in [#796](https://github.com/gridstatus/gridstatus/pull/796)
+* Use Fixed ERCOT SCED ESR Data in [#790](https://github.com/gridstatus/gridstatus/pull/790)
+* Remove Interval Start and Interval End from ERCOT SCED 60 Day Datasets in [#787](https://github.com/gridstatus/gridstatus/pull/787)
+* Remove Interval Start and End from ERCOT SCED ESR in [#785](https://github.com/gridstatus/gridstatus/pull/785)
+* Add Timeout for ERCOT API Calls in [#777](https://github.com/gridstatus/gridstatus/pull/777)
+* Fix Frequency for ERCOT AS Demand Curves DAM and SCED in [#761](https://github.com/gridstatus/gridstatus/pull/761)
+* Fix Filtering for ERCOT AS Demand Curves in [#756](https://github.com/gridstatus/gridstatus/pull/756)
+* Update AS Price Corrections to MCPC DAM Price Corrections in [#768](https://github.com/gridstatus/gridstatus/pull/768)
+* Fix type annotation for date parameter in _get_document(s) in [#762](https://github.com/gridstatus/gridstatus/pull/762)
+
+#### MISO
+* Fix Integer Parsing in MISO Binding Constraints Intraday in [#811](https://github.com/gridstatus/gridstatus/pull/811)
+* MISO Binding Constraints Intraday Fixes in [#803](https://github.com/gridstatus/gridstatus/pull/803)
+* Update column name in [#789](https://github.com/gridstatus/gridstatus/pull/789)
+
+#### IESO
+* Update IESO Ontario Zonal LMP for New XML Schema in [#807](https://github.com/gridstatus/gridstatus/pull/807)
+* Fix IESO Load Year Transition in [#767](https://github.com/gridstatus/gridstatus/pull/767)
+
+#### PJM
+* Timeout for PJM API Calls in [#780](https://github.com/gridstatus/gridstatus/pull/780)
+
+#### NYISO
+* Remove 'latest' Option from NYISO Where Acceptable and Fix NYISO Tests in [#769](https://github.com/gridstatus/gridstatus/pull/769)
+
+#### ISONE
+* Fix: only add and sort by ARA if annual in [#760](https://github.com/gridstatus/gridstatus/pull/760)
+* Fix: Get all FCM Auctions in [#759](https://github.com/gridstatus/gridstatus/pull/759)
+* Use archive date calculation in [#758](https://github.com/gridstatus/gridstatus/pull/758)
+
+#### CAISO
+* No Verify SSL for CAISO OASIS in [#772](https://github.com/gridstatus/gridstatus/pull/772)
+
+### General Updates/Codebase Improvements
+* Support Python 3.13 / 3.14 in [#763](https://github.com/gridstatus/gridstatus/pull/763)
+* Support static types getting inferred from functions decorated with `support_date_range` in [#794](https://github.com/gridstatus/gridstatus/pull/794)
+* Fix Version Specifications in [#792](https://github.com/gridstatus/gridstatus/pull/792)
+* Documentation Updates in [#770](https://github.com/gridstatus/gridstatus/pull/770), [#771](https://github.com/gridstatus/gridstatus/pull/771), [#773](https://github.com/gridstatus/gridstatus/pull/773), [#774](https://github.com/gridstatus/gridstatus/pull/774)
+
 ## v0.34.0 - December 9, 2025
 
 ### Additions (New Features/Datasets)

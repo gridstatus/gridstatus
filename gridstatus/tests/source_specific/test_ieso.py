@@ -1711,6 +1711,37 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].min() == start
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=5)
 
+    def test_get_lmp_real_time_5_min_ontario_zonal_today(self):
+        """Test with today's data which uses the new XML schema (r2) with
+        separate DeliveryDate/DeliveryHour elements and flat ZonalPrice
+        elements."""
+        start = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        end = start + pd.Timedelta(hours=1)
+
+        with file_vcr.use_cassette(
+            f"test_get_lmp_real_time_5_min_ontario_zonal_today_{start.date()}.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_5_min_ontario_zonal(start, end=end)
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
+        assert (data[TIME_COLUMN].dt.date == start.date()).all()
+
+    def test_get_lmp_real_time_5_min_ontario_zonal_old_format(self):
+        """Test with a date that uses the old XML schema (r1) with combined
+        DeliveryDate text and RealTimePriceComponents elements."""
+        # March 4, 2026 uses the old format
+        start = pd.Timestamp("2026-03-04", tz=self.default_timezone)
+        end = start + pd.Timedelta(hours=1)
+
+        with file_vcr.use_cassette(
+            "test_get_lmp_real_time_5_min_ontario_zonal_old_format.yaml",
+        ):
+            data = self.iso.get_lmp_real_time_5_min_ontario_zonal(start, end=end)
+
+        self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
+        assert (data[TIME_COLUMN].dt.date == start.date()).all()
+        assert len(data) == 12  # 1 hour = 12 five-minute intervals
+
     """get_lmp_day_ahead_hourly_ontario_zonal"""
 
     def test_get_lmp_day_ahead_hourly_ontario_zonal_latest(self):

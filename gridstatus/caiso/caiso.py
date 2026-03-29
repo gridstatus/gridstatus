@@ -51,6 +51,19 @@ def _determine_lmp_frequency(args: dict) -> str:
         return "31D"
 
 
+def _collapse_group_to_array(
+    df: pd.DataFrame,
+    group_cols: list[str],
+) -> pd.DataFrame:
+    """Collapse multiple rows with different Group values into a single row
+    with a Groups list column. The non-group columns must be identical across
+    groups for a given combination of group_cols."""
+    df = df.groupby(group_cols, as_index=False, sort=False).agg(
+        Groups=("Group", lambda x: sorted(x.dropna().astype(int).tolist())),
+    )
+    return df
+
+
 def _determine_oasis_frequency(args: dict) -> str:
     dataset_config = copy.deepcopy(OASIS_DATASET_CONFIG[args["dataset"]])
     # get meta if it exists. and then max_query_frequency if it exists
@@ -2470,6 +2483,17 @@ class CAISO(ISOBase):
             },
         )
 
+        group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+        ]
+        df = _collapse_group_to_array(df, group_cols)
+
         return df[
             [
                 "Interval Start",
@@ -2479,7 +2503,7 @@ class CAISO(ISOBase):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
         ]
 
@@ -2525,6 +2549,17 @@ class CAISO(ISOBase):
             },
         )
 
+        group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+        ]
+        df = _collapse_group_to_array(df, group_cols)
+
         return df[
             [
                 "Interval Start",
@@ -2534,7 +2569,7 @@ class CAISO(ISOBase):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
         ]
 
@@ -2580,6 +2615,17 @@ class CAISO(ISOBase):
             },
         )
 
+        group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+        ]
+        df = _collapse_group_to_array(df, group_cols)
+
         return df[
             [
                 "Interval Start",
@@ -2589,7 +2635,7 @@ class CAISO(ISOBase):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
         ]
 
@@ -2633,6 +2679,16 @@ class CAISO(ISOBase):
             },
         )
 
+        group_cols = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+        ]
+        df = _collapse_group_to_array(df, group_cols)
+
         return df[
             [
                 "Interval Start",
@@ -2641,7 +2697,7 @@ class CAISO(ISOBase):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
         ]
 
@@ -2686,6 +2742,17 @@ class CAISO(ISOBase):
             },
         )
 
+        group_cols = [
+            "Interval Start",
+            "Interval End",
+            "TI ID",
+            "TI Direction",
+            "Market Run ID",
+            "Constraint Cause",
+            "Shadow Price",
+        ]
+        df = _collapse_group_to_array(df, group_cols)
+
         return df[
             [
                 "Interval Start",
@@ -2695,7 +2762,7 @@ class CAISO(ISOBase):
                 "Market Run ID",
                 "Constraint Cause",
                 "Shadow Price",
-                "Group",
+                "Groups",
             ]
         ]
 

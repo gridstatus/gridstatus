@@ -3116,55 +3116,44 @@ class IESO(ISOBase):
 
         delivery_date_text = root.find(".//DeliveryDate", ns).text
 
-        # Extract date and hour from the text (e.g., "For 2025-04-23 - Hour 12")
-        delivery_date = pd.Timestamp(
-            delivery_date_text.split(" - ")[0].replace("For ", ""),
-        )
-        delivery_hour = int(delivery_date_text.split(" - ")[1].replace("Hour ", ""))
+        if " - " in delivery_date_text:
+            # Format: "For 2025-04-23 - Hour 12"
+            delivery_date = pd.Timestamp(
+                delivery_date_text.split(" - ")[0].replace("For ", ""),
+            )
+            delivery_hour = int(
+                delivery_date_text.split(" - ")[1].replace("Hour ", ""),
+            )
+        else:
+            # Format: <DeliveryDate>2026-03-05</DeliveryDate>
+            #         <DeliveryHour>10</DeliveryHour>
+            delivery_date = pd.Timestamp(delivery_date_text)
+            delivery_hour = int(root.find(".//DeliveryHour", ns).text)
 
         base_datetime = (
             pd.to_datetime(delivery_date) + pd.Timedelta(hours=delivery_hour - 1)
         ).tz_localize(self.default_timezone)
 
-        price_components = root.findall(".//RealTimePriceComponents", ns)
+        zonal_prices = root.findall(".//ZonalPrice", ns)
 
-        zonal_prices = {}
-        loss_prices = {}
-        congestion_prices = {}
-
-        for component in price_components:
-            component_type = component.find("OntarioZonalPrice", ns).text
-
-            # Intervals are 1-indexed, so we loop from 1 to 12
-            for interval in range(1, 13):
-                interval_element_name = f"OntarioZonalPriceInterval{interval}"
-                interval_value_name = f"Interval{interval}"
-
-                interval_element = component.find(interval_element_name, ns)
-                if interval_element is not None:
-                    interval_value_elem = interval_element.find(interval_value_name, ns)
-                    if interval_value_elem is not None and interval_value_elem.text:
-                        value = float(interval_value_elem.text)
-
-                        if component_type == "Zonal Price":
-                            zonal_prices[interval] = value
-                        elif component_type == "Energy Loss Price":
-                            loss_prices[interval] = value
-                        elif component_type == "Energy Congestion Price":
-                            congestion_prices[interval] = value
         data_rows = []
 
-        for interval in range(1, 13):
-            if interval in zonal_prices:
+        if zonal_prices:
+            # New XML schema (r2): flat ZonalPrice elements with
+            # LmpCap, LossPriceCap, CongPriceCap
+            for zp in zonal_prices:
+                interval = int(zp.find("Interval", ns).text)
+                lmp_elem = zp.find("LmpCap", ns)
+                if lmp_elem is None or not lmp_elem.text:
+                    continue
+                lmp = float(lmp_elem.text)
+                loss = float(zp.find("LossPriceCap", ns).text or 0)
+                congestion = float(zp.find("CongPriceCap", ns).text or 0)
+                energy = lmp - congestion - loss
+
                 minutes_offset = (interval - 1) * 5
                 interval_start = base_datetime + pd.Timedelta(minutes=minutes_offset)
                 interval_end = interval_start + pd.Timedelta(minutes=5)
-
-                lmp = zonal_prices.get(interval, 0)
-                loss = loss_prices.get(interval, 0)
-                congestion = congestion_prices.get(interval, 0)
-
-                energy = lmp - congestion - loss
 
                 data_rows.append(
                     {
@@ -3177,6 +3166,62 @@ class IESO(ISOBase):
                         "Loss": loss,
                     },
                 )
+        else:
+            # Old XML schema (r1): RealTimePriceComponents with separate
+            # sections for Zonal Price, Energy Loss Price, Energy Congestion Price
+            price_components = root.findall(".//RealTimePriceComponents", ns)
+
+            lmp_prices = {}
+            loss_prices = {}
+            congestion_prices = {}
+
+            for component in price_components:
+                component_type = component.find("OntarioZonalPrice", ns).text
+
+                for interval in range(1, 13):
+                    interval_element_name = f"OntarioZonalPriceInterval{interval}"
+                    interval_value_name = f"Interval{interval}"
+
+                    interval_element = component.find(interval_element_name, ns)
+                    if interval_element is not None:
+                        interval_value_elem = interval_element.find(
+                            interval_value_name,
+                            ns,
+                        )
+                        if interval_value_elem is not None and interval_value_elem.text:
+                            value = float(interval_value_elem.text)
+
+                            if component_type == "Zonal Price":
+                                lmp_prices[interval] = value
+                            elif component_type == "Energy Loss Price":
+                                loss_prices[interval] = value
+                            elif component_type == "Energy Congestion Price":
+                                congestion_prices[interval] = value
+
+            for interval in range(1, 13):
+                if interval in lmp_prices:
+                    minutes_offset = (interval - 1) * 5
+                    interval_start = base_datetime + pd.Timedelta(
+                        minutes=minutes_offset,
+                    )
+                    interval_end = interval_start + pd.Timedelta(minutes=5)
+
+                    lmp = lmp_prices.get(interval, 0)
+                    loss = loss_prices.get(interval, 0)
+                    congestion = congestion_prices.get(interval, 0)
+                    energy = lmp - congestion - loss
+
+                    data_rows.append(
+                        {
+                            "Interval Start": interval_start,
+                            "Interval End": interval_end,
+                            "Location": ONTARIO_LOCATION,
+                            "LMP": lmp,
+                            "Energy": energy,
+                            "Congestion": congestion,
+                            "Loss": loss,
+                        },
+                    )
 
         df = (
             pd.DataFrame(data_rows)
@@ -4385,51 +4430,73 @@ class IESO(ISOBase):
                 f"No files found for date {date_str} after last modified time {last_modified}",
             )
         json_data_with_times = []
+        max_workers = min(3, len(filtered_files))
         max_retries = 3
-        retry_delay = 2
 
-        with ThreadPoolExecutor(max_workers=min(10, len(filtered_files))) as executor:
+        # Helper functions to check if an exception is a connection error
+        def _is_connection_error(exc: BaseException) -> bool:
+            if isinstance(
+                exc,
+                (
+                    ConnectionResetError,
+                    ConnectionError,
+                    http.client.RemoteDisconnected,
+                ),
+            ):
+                return True
+            if isinstance(exc, OSError) and getattr(exc, "errno", None) == 104:
+                return True
+            msg = str(exc).lower()
+            return "connection reset" in msg or "connection aborted" in msg
+
+        def _fetch_with_retries(
+            file: str, last_modified_time: str
+        ) -> tuple[dict, pd.Timestamp]:
+            # small stagger based on filename hash so not all tasks start at once
+            initial_delay = (hash(file) % 2000) / 1000.0  # 0–2s
+            if initial_delay:
+                time.sleep(initial_delay)
+
+            attempt = 0
+            while True:
+                try:
+                    json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
+                    return json_data, pd.Timestamp(
+                        last_modified_time,
+                        tz=self.default_timezone,
+                    )
+                except Exception as e:
+                    attempt += 1
+                    if not _is_connection_error(e) or attempt >= max_retries:
+                        # Non-connection error or exhausted retries: bubble up
+                        raise
+                    # Backoff grows with attempt, scaled off max_retries
+                    backoff_seconds = attempt * (3 / max_retries)
+                    logger.warning(
+                        f"Connection error for file {file} (attempt {attempt}/{max_retries}): {e}. "
+                        f"Retrying in {backoff_seconds:.2f} seconds.",
+                    )
+                    time.sleep(backoff_seconds)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_file = {
                 executor.submit(
-                    self._fetch_and_parse_shadow_prices_file,
-                    base_url,
+                    _fetch_with_retries,
                     file,
+                    last_modified_time,
                 ): (file, last_modified_time)
                 for file, last_modified_time in filtered_files
             }
             for future in as_completed(future_to_file):
                 file, last_modified_time = future_to_file[future]
-                retries = 0
-                while retries < max_retries:
-                    try:
-                        json_data = future.result()
-                        json_data_with_times.append(
-                            (
-                                json_data,
-                                pd.Timestamp(
-                                    last_modified_time,
-                                    tz=self.default_timezone,
-                                ),
-                            ),
-                        )
-                        break
-                    except http.client.RemoteDisconnected as e:
-                        retries += 1
-                        if retries == max_retries:
-                            logger.error(
-                                f"Remote connection closed for file {file}: {str(e)}",
-                            )
-                            break
-                        logger.warning(
-                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
-                        )
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                    except Exception as e:
-                        logger.error(
-                            f"Unexpected error processing file {file}: {str(e)}",
-                        )
-                        break
+                try:
+                    json_data, ts = future.result()
+                    json_data_with_times.append((json_data, ts))
+                except Exception as e:
+                    logger.error(
+                        f"Failed to process file {file} after {max_retries} attempts: {e}",
+                    )
+
         return json_data_with_times
 
     def _parse_day_ahead_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
