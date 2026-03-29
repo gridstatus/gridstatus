@@ -186,6 +186,80 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_load_forecast_seven_day_ahead(date, end=end)
             self._check_load_forecast(df, expected_interval_minutes=60)
 
+    """get_seven_day_resource_adequacy_outlook"""
+
+    def _seven_day_resource_adequacy_outlook_columns(self) -> list[str]:
+        return [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Demand",
+            "Net Demand",
+            "Day Ahead Demand Forecast",
+            "Day Ahead Net Demand Forecast",
+            "Resource Adequacy Capacity Forecast",
+            "Net Resource Adequacy Capacity Forecast",
+            "Reserve Requirement",
+            "Reserve Requirement Forecast",
+            "Resource Adequacy Credits",
+        ]
+
+    @pytest.mark.parametrize("date", ["2026-03-11"])
+    def test_get_seven_day_resource_adequacy_outlook_historical(self, date: str):
+        with caiso_vcr.use_cassette(
+            f"test_get_seven_day_resource_adequacy_outlook_{date}.yaml",
+            match_on=["method", "scheme", "host", "port", "path"],
+        ):
+            df = self.iso.get_seven_day_resource_adequacy_outlook(date)
+        assert df.shape[0] > 0
+        assert (
+            df.columns.tolist() == self._seven_day_resource_adequacy_outlook_columns()
+        )
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        assert df["Publish Time"].nunique() == 1
+        expected_pub = pd.Timestamp(date, tz=self.iso.default_timezone).normalize()
+        assert (df["Publish Time"] == expected_pub).all()
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    @pytest.mark.parametrize("start, end", [("2026-03-11", "2026-03-13")])
+    def test_get_seven_day_resource_adequacy_outlook_date_range(
+        self,
+        start: str,
+        end: str,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_seven_day_resource_adequacy_outlook_{start}_{end}.yaml",
+            match_on=["method", "scheme", "host", "port", "path"],
+        ):
+            df = self.iso.get_seven_day_resource_adequacy_outlook(start, end=end)
+        assert df.shape[0] > 0
+        assert (
+            df.columns.tolist() == self._seven_day_resource_adequacy_outlook_columns()
+        )
+        assert df["Publish Time"].nunique() == 2
+        assert df.columns[:3].tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+        ]
+        for col in ["Interval Start", "Interval End", "Publish Time"]:
+            assert isinstance(df.loc[0][col], pd.Timestamp)
+            assert df.loc[0][col].tz is not None
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        sorted_df = df.sort_values(
+            by=["Interval Start", "Publish Time"],
+            kind="mergesort",
+        )
+        assert sorted_df["Interval Start"].is_monotonic_increasing
+
     """get_solar_and_wind_forecast_dam"""
 
     def _check_solar_and_wind_forecast(self, df, expected_count_unique_publish_times):
