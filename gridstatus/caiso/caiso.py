@@ -586,18 +586,12 @@ class CAISO(ISOBase):
             date_str = date.strftime("%Y%m%d")
             url = f"{HISTORY_BASE}/{date_str}/{file_stem}.csv?_={cache_buster}"
         logger.info(f"Fetching URL: {url}")
-        if verbose:
-            print(url)
+
         try:
             r = requests.get(url, timeout=120)
             r.raise_for_status()
             return pd.read_csv(io.StringIO(r.text))
-        except requests.exceptions.SSLError:
-            raise
-        except requests.RequestException as e:
-            raise NoDataFoundException(
-                f"No seven-day resource adequacy outlook data found for {date.date()}: {e}",
-            ) from e
+
         except ValueError as e:
             raise NoDataFoundException(
                 f"No seven-day resource adequacy outlook data found for {date.date()}: {e}",
