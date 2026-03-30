@@ -659,7 +659,7 @@ class TestPJM(BaseTestISO):
         )
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_solar_forecast_hourly_today_or_latest(self, date):
+    def test_get_solar_forecast_hourly_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_solar_forecast_hourly_{date}.yaml"):
             df = self.iso.get_solar_forecast_hourly(date)
 
@@ -707,7 +707,7 @@ class TestPJM(BaseTestISO):
             ) + pd.Timedelta(days=1)
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_solar_forecast_5_min_today_or_latest(self, date):
+    def test_get_solar_forecast_5_min_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_solar_forecast_5_min_{date}.yaml"):
             df = self.iso.get_solar_forecast_5_min(date)
             self._check_solar_forecast(df)
@@ -772,7 +772,7 @@ class TestPJM(BaseTestISO):
         )
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_wind_forecast_hourly_today_or_latest(self, date):
+    def test_get_wind_forecast_hourly_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_wind_forecast_hourly_{date}.yaml"):
             df = self.iso.get_wind_forecast_hourly(date)
 
@@ -816,7 +816,7 @@ class TestPJM(BaseTestISO):
             assert df["Publish Time"].max() == self.local_start_of_day(past_end_date)
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_wind_forecast_5_min_today_or_latest(self, date):
+    def test_get_wind_forecast_5_min_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_wind_forecast_5_min_{date}.yaml"):
             df = self.iso.get_wind_forecast_5_min(date)
             self._check_wind_forecast(df)
@@ -1038,7 +1038,7 @@ class TestPJM(BaseTestISO):
         ).all()
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_projected_rto_statistics_at_peak_today_or_latest(self, date):
+    def test_projected_rto_statistics_at_peak_today(self, date):
         with pjm_vcr.use_cassette(f"test_projected_rto_statistics_at_peak_{date}.yaml"):
             df = self.iso.get_projected_rto_statistics_at_peak(date)
 
@@ -1105,7 +1105,7 @@ class TestPJM(BaseTestISO):
         }
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_projected_area_statistics_at_peak_today_or_latest(self, date):
+    def test_projected_area_statistics_at_peak_today(self, date):
         with pjm_vcr.use_cassette(
             f"test_projected_area_statistics_at_peak_{date}.yaml",
         ):
@@ -1162,7 +1162,7 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_solar_generation_5_min_today_or_latest(self, date):
+    def test_get_solar_generation_5_min_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_solar_generation_5_min_{date}.yaml"):
             df = self.iso.get_solar_generation_5_min(date)
 
@@ -1217,7 +1217,7 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_wind_generation_instantaneous_today_or_latest(self, date):
+    def test_get_wind_generation_instantaneous_today(self, date):
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(
@@ -1275,7 +1275,7 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_operational_reserves_today_or_latest(self, date):
+    def test_get_operational_reserves_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_operational_reserves_{date}.yaml"):
             df = self.iso.get_operational_reserves(date)
             range_start = self.local_start_of_today()
@@ -1335,7 +1335,7 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_transfer_interface_information_5_min_today_or_latest(self, date):
+    def test_get_transfer_interface_information_5_min_today(self, date):
         with pjm_vcr.use_cassette(
             f"test_get_transfer_interface_information_5_min_{date}.yaml",
         ):
@@ -1400,7 +1400,7 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_transmission_limits_today_or_latest(self, date):
+    def test_get_transmission_limits_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_transmission_limits_{date}.yaml"):
             df = self.iso.get_transmission_limits(date)
             range_start = self.local_start_of_today()
@@ -1462,7 +1462,7 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_solar_generation_by_area_today_or_latest(self, date):
+    def test_get_solar_generation_by_area_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_solar_generation_by_area_{date}.yaml"):
             df = self.iso.get_solar_generation_by_area(date)
             range_start = self.local_start_of_today()
@@ -1511,7 +1511,7 @@ class TestPJM(BaseTestISO):
         )
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_wind_generation_by_area_today_or_latest(self, date):
+    def test_get_wind_generation_by_area_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_wind_generation_by_area_{date}.yaml"):
             df = self.iso.get_wind_generation_by_area(date)
             range_start = self.local_start_of_today()
@@ -1577,11 +1577,14 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_dam_as_market_results_today_or_latest(self, date):
+    def test_get_dam_as_market_results_today(self, date):
         range_start = self.local_start_of_today()
         range_end = self.local_start_of_today() + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(f"test_get_dam_as_market_results_{date}.yaml"):
-            df = self.iso.get_dam_as_market_results(date)
+            try:
+                df = self.iso.get_dam_as_market_results(date)
+            except NoDataFoundException:
+                pytest.skip("No data found for DAM AS Market Results")
 
             self._check_pjm_response(
                 df=df,
@@ -1941,7 +1944,7 @@ class TestPJM(BaseTestISO):
         )
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_forecasted_generation_outages_today_or_latest(self, date):
+    def test_get_forecasted_generation_outages_today(self, date):
         start_date_local = self.local_today()
         expected_date = self.to_local_datetime(start_date_local)
 
@@ -2183,7 +2186,7 @@ class TestPJM(BaseTestISO):
             assert df["Time"].min().date() == pd.Timestamp(date).date()
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_area_control_error_today_or_latest(self, date: str):
+    def test_get_area_control_error_today(self, date: str):
         """Test getting area control error data for today"""
         with pjm_vcr.use_cassette(f"test_get_area_control_error_{date}.yaml"):
             df = self.iso.get_area_control_error(date)
@@ -2232,9 +2235,9 @@ class TestPJM(BaseTestISO):
     ]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_dispatched_reserves_prelim_today_or_latest(self, date):
+    def test_get_dispatched_reserves_prelim_today(self, date):
         with pjm_vcr.use_cassette(
-            f"test_get_dispatched_reserves_prelim_today_or_latest_{date}.yaml",
+            f"test_get_dispatched_reserves_prelim_today_{date}.yaml",
         ):
             df = self.iso.get_dispatched_reserves_prelim(date)
 
@@ -2518,7 +2521,7 @@ class TestPJM(BaseTestISO):
         assert df["Scheduled"].dtype in [np.float64, np.int64]
 
     @pytest.mark.parametrize("date", ["today"])
-    def test_get_tie_flows_5_min_today_or_latest(self, date):
+    def test_get_tie_flows_5_min_today(self, date):
         with pjm_vcr.use_cassette(f"test_get_tie_flows_5_min_{date}.yaml"):
             df = self.iso.get_tie_flows_5_min(date)
             self._check_tie_flows_5_min(df)
