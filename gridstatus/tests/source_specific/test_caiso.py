@@ -260,6 +260,20 @@ class TestCAISO(BaseTestISO):
         )
         assert sorted_df["Interval Start"].is_monotonic_increasing
 
+    def test_get_seven_day_resource_adequacy_outlook_latest_matches_today(self):
+        with caiso_vcr.use_cassette(
+            "test_get_seven_day_resource_adequacy_outlook_latest.yaml",
+            match_on=["method", "scheme", "host", "port", "path"],
+        ):
+            latest_df = self.iso.get_seven_day_resource_adequacy_outlook("latest")
+            today_df = self.iso.get_seven_day_resource_adequacy_outlook("today")
+        assert latest_df.equals(today_df)
+        assert (
+            latest_df.columns.tolist()
+            == self._seven_day_resource_adequacy_outlook_columns()
+        )
+        assert (latest_df["Publish Time"] == self.local_start_of_today()).all()
+
     """get_solar_and_wind_forecast_dam"""
 
     def _check_solar_and_wind_forecast(self, df, expected_count_unique_publish_times):
