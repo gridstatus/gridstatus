@@ -645,6 +645,19 @@ class CAISO(ISOBase):
                 "Resource Adequacy Credits",
             ]
         ]
+        numeric_cols = [
+            "Demand",
+            "Net Demand",
+            "Day Ahead Demand Forecast",
+            "Day Ahead Net Demand Forecast",
+            "Resource Adequacy Capacity Forecast",
+            "Net Resource Adequacy Capacity Forecast",
+            "Reserve Requirement",
+            "Reserve Requirement Forecast",
+            "Resource Adequacy Credits",
+        ]
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
         df = df.sort_values(
             by=["Interval Start", "Publish Time"],
             kind="mergesort",
