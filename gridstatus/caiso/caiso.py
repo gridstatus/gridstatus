@@ -141,56 +141,6 @@ def _get_historical(
     return df
 
 
-RTM_FORECAST_7DAY = "rtm_forecast_7day"
-
-_RTM_FORECAST_7DAY_COLUMN_RENAMES: dict[str, str] = {
-    "Day-ahead demand forecast": "Day Ahead Demand Forecast",
-    "Day-ahead net demand forecast": "Day Ahead Net Demand Forecast",
-    "Resource adequacy capacity forecast": "Resource Adequacy Capacity Forecast",
-    "Net resource adequacy capacity forecast": "Net Resource Adequacy Capacity Forecast",
-    "Reserve requirement": "Reserve Requirement",
-    "Reserve requirement forecast": "Reserve Requirement Forecast",
-    "Resource adequacy credits": "Resource Adequacy Credits",
-}
-
-_RTM_FORECAST_7DAY_OUTPUT_COLUMNS: list[str] = [
-    "Interval Start",
-    "Interval End",
-    "Publish Time",
-    "Demand",
-    "Net Demand",
-    "Day Ahead Demand Forecast",
-    "Day Ahead Net Demand Forecast",
-    "Resource Adequacy Capacity Forecast",
-    "Net Resource Adequacy Capacity Forecast",
-    "Reserve Requirement",
-    "Reserve Requirement Forecast",
-    "Resource Adequacy Credits",
-]
-
-
-def _fetch_rtm_forecast_7day_csv(
-    date: pd.Timestamp,
-    default_timezone: str,
-    verbose: bool = False,
-) -> pd.DataFrame:
-    cache_buster = int(pd.Timestamp.now(tz=default_timezone).timestamp())
-    if utils.is_today(date, default_timezone):
-        url = f"{CURRENT_BASE}/{RTM_FORECAST_7DAY}.csv?_={cache_buster}"
-    else:
-        date_str = date.strftime("%Y%m%d")
-        url = f"{HISTORY_BASE}/{date_str}/{RTM_FORECAST_7DAY}.csv?_={cache_buster}"
-    logger.info(f"Fetching URL: {url}")
-    try:
-        r = requests.get(url, timeout=120)
-        r.raise_for_status()
-        return pd.read_csv(io.StringIO(r.text))
-    except ValueError as e:
-        raise NoDataFoundException(
-            f"No seven-day resource adequacy outlook data found for {date.date()}: {e}",
-        ) from e
-
-
 def _caiso_handle_start_end(
     date: str | pd.Timestamp,
     end: str | pd.Timestamp | None = None,
@@ -614,17 +564,44 @@ class CAISO(ISOBase):
             )
 
         publish_day = utils._handle_date(date, self.default_timezone).normalize()
-        raw = _fetch_rtm_forecast_7day_csv(
-            publish_day,
-            self.default_timezone,
-            verbose=verbose,
-        )
+        raw = self._fetch_rtm_forecast_7day_csv(publish_day, verbose=verbose)
         df = self._parse_rtm_forecast_7day_csv(raw, publish_day)
         if df.empty:
             raise NoDataFoundException(
                 f"No seven-day resource adequacy outlook data found for {publish_day.date()}",
             )
         return df
+
+    def _fetch_rtm_forecast_7day_csv(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        tz = self.default_timezone
+        file_stem = "rtm_forecast_7day"
+        cache_buster = int(pd.Timestamp.now(tz=tz).timestamp())
+        if utils.is_today(date, tz):
+            url = f"{CURRENT_BASE}/{file_stem}.csv?_={cache_buster}"
+        else:
+            date_str = date.strftime("%Y%m%d")
+            url = f"{HISTORY_BASE}/{date_str}/{file_stem}.csv?_={cache_buster}"
+        logger.info(f"Fetching URL: {url}")
+        if verbose:
+            print(url)
+        try:
+            r = requests.get(url, timeout=120)
+            r.raise_for_status()
+            return pd.read_csv(io.StringIO(r.text))
+        except requests.exceptions.SSLError:
+            raise
+        except requests.RequestException as e:
+            raise NoDataFoundException(
+                f"No seven-day resource adequacy outlook data found for {date.date()}: {e}",
+            ) from e
+        except ValueError as e:
+            raise NoDataFoundException(
+                f"No seven-day resource adequacy outlook data found for {date.date()}: {e}",
+            ) from e
 
     def _parse_rtm_forecast_7day_csv(
         self,
@@ -646,9 +623,34 @@ class CAISO(ISOBase):
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
         publish_ts = publish_day_pt.tz_convert(self.default_timezone).normalize()
         df["Publish Time"] = publish_ts
-        df = df.rename(columns=_RTM_FORECAST_7DAY_COLUMN_RENAMES)
+        df = df.rename(
+            columns={
+                "Day-ahead demand forecast": "Day Ahead Demand Forecast",
+                "Day-ahead net demand forecast": "Day Ahead Net Demand Forecast",
+                "Resource adequacy capacity forecast": "Resource Adequacy Capacity Forecast",
+                "Net resource adequacy capacity forecast": "Net Resource Adequacy Capacity Forecast",
+                "Reserve requirement": "Reserve Requirement",
+                "Reserve requirement forecast": "Reserve Requirement Forecast",
+                "Resource adequacy credits": "Resource Adequacy Credits",
+            },
+        )
         df = df.drop(columns=["Time"])
-        df = df[_RTM_FORECAST_7DAY_OUTPUT_COLUMNS]
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Demand",
+                "Net Demand",
+                "Day Ahead Demand Forecast",
+                "Day Ahead Net Demand Forecast",
+                "Resource Adequacy Capacity Forecast",
+                "Net Resource Adequacy Capacity Forecast",
+                "Reserve Requirement",
+                "Reserve Requirement Forecast",
+                "Resource Adequacy Credits",
+            ]
+        ]
         df = df.sort_values(
             by=["Interval Start", "Publish Time"],
             kind="mergesort",
