@@ -4,7 +4,6 @@ import re
 import time
 import warnings
 from typing import Literal
-from urllib.error import HTTPError, URLError
 from zipfile import ZipFile
 
 import numpy as np
@@ -182,11 +181,11 @@ def _fetch_rtm_forecast_7day_csv(
         date_str = date.strftime("%Y%m%d")
         url = f"{HISTORY_BASE}/{date_str}/{RTM_FORECAST_7DAY}.csv?_={cache_buster}"
     logger.info(f"Fetching URL: {url}")
-    if verbose:
-        print(url)
     try:
-        return pd.read_csv(url)
-    except (HTTPError, URLError, OSError, ValueError) as e:
+        r = requests.get(url, timeout=120)
+        r.raise_for_status()
+        return pd.read_csv(io.StringIO(r.text))
+    except ValueError as e:
         raise NoDataFoundException(
             f"No seven-day resource adequacy outlook data found for {date.date()}: {e}",
         ) from e
