@@ -192,36 +192,6 @@ def _fetch_rtm_forecast_7day_csv(
         ) from e
 
 
-def _parse_rtm_forecast_7day_csv(
-    df: pd.DataFrame,
-    publish_day_pt: pd.Timestamp,
-    default_timezone: str,
-) -> pd.DataFrame:
-    df = df.dropna(subset=["Time"])
-    value_cols = [c for c in df.columns if c != "Time"]
-    df = df.dropna(subset=value_cols, how="all")
-    interval_end = pd.to_datetime(df["Time"], format="%m/%d/%Y %H:%M")
-    interval_end = interval_end.dt.tz_localize(
-        default_timezone,
-        ambiguous=True,
-        nonexistent="shift_forward",
-    )
-    df = df.copy()
-    df["Interval End"] = interval_end
-    df = df.dropna(subset=["Interval End"])
-    df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-    publish_ts = publish_day_pt.tz_convert(default_timezone).normalize()
-    df["Publish Time"] = publish_ts
-    df = df.rename(columns=_RTM_FORECAST_7DAY_COLUMN_RENAMES)
-    df = df.drop(columns=["Time"])
-    df = df[_RTM_FORECAST_7DAY_OUTPUT_COLUMNS]
-    df = df.sort_values(
-        by=["Interval Start", "Publish Time"],
-        kind="mergesort",
-    ).reset_index(drop=True)
-    return df
-
-
 def _caiso_handle_start_end(
     date: str | pd.Timestamp,
     end: str | pd.Timestamp | None = None,
@@ -650,15 +620,40 @@ class CAISO(ISOBase):
             self.default_timezone,
             verbose=verbose,
         )
-        df = _parse_rtm_forecast_7day_csv(
-            raw,
-            publish_day,
-            self.default_timezone,
-        )
+        df = self._parse_rtm_forecast_7day_csv(raw, publish_day)
         if df.empty:
             raise NoDataFoundException(
                 f"No seven-day resource adequacy outlook data found for {publish_day.date()}",
             )
+        return df
+
+    def _parse_rtm_forecast_7day_csv(
+        self,
+        df: pd.DataFrame,
+        publish_day_pt: pd.Timestamp,
+    ) -> pd.DataFrame:
+        df = df.dropna(subset=["Time"])
+        value_cols = [c for c in df.columns if c != "Time"]
+        df = df.dropna(subset=value_cols, how="all")
+        interval_end = pd.to_datetime(df["Time"], format="%m/%d/%Y %H:%M")
+        interval_end = interval_end.dt.tz_localize(
+            self.default_timezone,
+            ambiguous=True,
+            nonexistent="shift_forward",
+        )
+        df = df.copy()
+        df["Interval End"] = interval_end
+        df = df.dropna(subset=["Interval End"])
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+        publish_ts = publish_day_pt.tz_convert(self.default_timezone).normalize()
+        df["Publish Time"] = publish_ts
+        df = df.rename(columns=_RTM_FORECAST_7DAY_COLUMN_RENAMES)
+        df = df.drop(columns=["Time"])
+        df = df[_RTM_FORECAST_7DAY_OUTPUT_COLUMNS]
+        df = df.sort_values(
+            by=["Interval Start", "Publish Time"],
+            kind="mergesort",
+        ).reset_index(drop=True)
         return df
 
     # Deprecated in favor of the vintage-based functions, e.g. get_load_forecast_5_min
