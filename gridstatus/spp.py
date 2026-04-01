@@ -2148,14 +2148,20 @@ class SPP(ISOBase):
                 verbose=verbose,
             ).reset_index(drop=True)
 
-        if utils.is_today(date, self.default_timezone):
+        # Handle tuple date ranges by checking if the start is recent
+        if isinstance(date, tuple):
+            start = date[0]
+        else:
+            start = utils._handle_date(date, tz=self.default_timezone)
+
+        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
             url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
             logger.info(f"Downloading {url}")
             df = pd.read_csv(url)
             return self._process_interchange_real_time(df)
 
         # Historical data: download monthly CSV
-        month_str = date.strftime("%b%Y")  # e.g., "Apr2015"
+        month_str = start.strftime("%b%Y")  # e.g., "Apr2015"
         url = (
             f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
             f"?path=/TieFlows_{month_str}.csv"
