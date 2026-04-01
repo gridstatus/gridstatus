@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -1455,6 +1457,105 @@ class TestSPP(BaseTestISO):
         assert df["Publish Time"].nunique() == 2
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
+
+    """get_swpw_load"""
+
+    def test_get_swpw_load(self):
+        now = self.local_now().floor("5min")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now + pd.Timedelta(minutes=5), now],
+                "Interval End": [
+                    now + pd.Timedelta(minutes=5),
+                    now + pd.Timedelta(minutes=10),
+                    now + pd.Timedelta(minutes=5),
+                ],
+                "Actual": [1000.0, 1005.0, 1001.0],
+                "BAA": ["SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_swpw_load(date=now, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert df["Load"].tolist() == [1001.0]
+
+    def test_get_swpw_load_hourly(self):
+        now = self.local_now().floor("h")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    now + pd.Timedelta(hours=1),
+                    now + pd.Timedelta(hours=2),
+                ],
+                "Averaged Actual": [15000.0, 15100.0],
+                "BAA": ["SWPW", "SPP"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_swpw_load_hourly(date=now, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert df["Load"].tolist() == [15000.0]
+
+    def test_get_swpw_load_missing_actual_load_column(self):
+        now = self.local_now().floor("5min")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now],
+                "Interval End": [now + pd.Timedelta(minutes=5)],
+                "Actual Wind MW": [100.0],
+                "BAA": ["SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            with pytest.raises(KeyError):
+                self.iso.get_swpw_load(date=now, verbose=False)
+
+    def test_get_swpw_load_before_start_date_raises(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_swpw_load(date=pd.Timestamp("2026-03-31 23:55:00-0500"))
+
+    def test_get_swpw_load_hourly_before_start_date_raises(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_swpw_load_hourly(date=pd.Timestamp("2026-03-31 23:00:00-0500"))
 
     """get_status"""
 

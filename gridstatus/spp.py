@@ -30,6 +30,7 @@ DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
+SWPW_LOAD_START_DATE = pd.Timestamp("2026-04-01", tz="US/Central")
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -665,6 +666,140 @@ class SPP(ISOBase):
         )
 
         return df
+
+    def get_swpw_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns SWPW load from short-term load forecast data."""
+        if (
+            not isinstance(date, tuple)
+            and date not in ["today", "latest"]
+            and utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+        ):
+            raise NoDataFoundException(
+                f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
+            )
+
+        df = self._get_swpw_load_raw(date=date, end=end, verbose=verbose)
+
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["Interval Start", "Interval End", "Load"])
+
+        return (
+            df.dropna(subset=["Load"])
+            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="5_MIN")
+    def _get_swpw_load_raw(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        result = self._get_short_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
+            file_prefix="OP-STLF",
+            buffer_minutes=2,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="SHORT_TERM",
+            end_time_col="GMTInterval",
+            interval_duration=pd.Timedelta(minutes=5),
+            forecast_col="STLF",
+            drop_null_forecast_rows=False,
+        )
+
+        return (
+            df[df["BAA"].astype(str).str.strip() == "SWPW"][
+                ["Interval Start", "Interval End", "Actual"]
+            ]
+            .rename(columns={"Actual": "Load"})
+            .copy()
+        )
+
+    @support_date_range("DAY_START")
+    def get_swpw_load_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Returns hourly SWPW load from mid-term load forecast data."""
+        if (
+            not isinstance(date, tuple)
+            and date != "latest"
+            and utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+        ):
+            raise NoDataFoundException(
+                f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
+            )
+
+        if date == "latest":
+            fetch_date: str | pd.Timestamp = date
+        else:
+            date_ts = utils._handle_date(date, self.default_timezone)
+            now = self.now()
+            if date_ts.normalize() == now.normalize():
+                fetch_date = now - pd.Timedelta(minutes=10)
+            else:
+                fetch_date = date_ts.normalize() + pd.Timedelta(hours=23)
+
+        result = self._get_mid_term_forecast_data(
+            date=fetch_date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+            forecast_col="MTLF",
+        )
+
+        result_df = (
+            df[df["BAA"].astype(str).str.strip() == "SWPW"][
+                ["Interval Start", "Interval End", "Averaged Actual"]
+            ]
+            .rename(columns={"Averaged Actual": "Load"})
+            .copy()
+        )
+
+        if date != "latest":
+            date_ts = utils._handle_date(date, self.default_timezone)
+            day_start = date_ts.normalize()
+            day_end = day_start + pd.Timedelta(days=1)
+            result_df = result_df[
+                (result_df["Interval Start"] >= day_start)
+                & (result_df["Interval Start"] < day_end)
+            ]
+
+        return (
+            result_df.dropna(subset=["Load"])
+            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     def _post_process_solar_and_wind_forecast(
         self,
