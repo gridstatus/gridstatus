@@ -603,43 +603,48 @@ class SPP(ISOBase):
 
         return df
 
-    @support_date_range("DAY_START")
     def get_swpw_load(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pd.DataFrame:
         """Returns SWPW load from short-term load forecast data."""
-        if date != "latest" and (
+        if date not in ["today", "latest"] and (
             utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
         ):
             raise NoDataFoundException(
                 f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
             )
 
-        if date == "latest":
-            fetch_date: str | pd.Timestamp = date
-        else:
-            date_ts = utils._handle_date(date, self.default_timezone)
-            now = self.now()
-            if date_ts.normalize() == now.normalize():
-                fetch_date = now - pd.Timedelta(minutes=2)
-            else:
-                fetch_date = date_ts.normalize() + pd.Timedelta(
-                    hours=23,
-                    minutes=55,
-                )
+        df = self._get_swpw_load_raw(date=date, end=end, verbose=verbose)
 
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["Interval Start", "Interval End", "Load"])
+
+        return (
+            df.dropna(subset=["Load"])
+            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="5_MIN")
+    def _get_swpw_load_raw(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
         result = self._get_short_term_forecast_data(
-            date=fetch_date,
+            date=date,
             base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
             file_prefix="OP-STLF",
             buffer_minutes=2,
         )
 
         if result is None:
-            return pd.DataFrame(columns=["Interval Start", "Interval End", "Load"])
+            return None
 
         df, url = result
 
@@ -653,28 +658,12 @@ class SPP(ISOBase):
             drop_null_forecast_rows=False,
         )
 
-        result_df = (
+        return (
             df[df["BAA"].astype(str).str.strip() == "SWPW"][
                 ["Interval Start", "Interval End", "Actual"]
             ]
             .rename(columns={"Actual": "Load"})
             .copy()
-        )
-
-        if date != "latest":
-            date_ts = utils._handle_date(date, self.default_timezone)
-            day_start = date_ts.normalize()
-            day_end = day_start + pd.Timedelta(days=1)
-            result_df = result_df[
-                (result_df["Interval Start"] >= day_start)
-                & (result_df["Interval Start"] < day_end)
-            ]
-
-        return (
-            result_df.dropna(subset=["Load"])
-            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
         )
 
     @support_date_range("DAY_START")
