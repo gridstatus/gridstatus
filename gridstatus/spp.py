@@ -602,6 +602,92 @@ class SPP(ISOBase):
 
         return df
 
+    @support_date_range(frequency="5_MIN")
+    def get_swpw_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Returns SWPW load from short-term load forecast data."""
+        result = self._get_short_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
+            file_prefix="OP-STLF",
+            buffer_minutes=2,
+        )
+
+        if result is None:
+            return pd.DataFrame(columns=["Interval Start", "Interval End", "Load"])
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="SHORT_TERM",
+            end_time_col="GMTInterval",
+            interval_duration=pd.Timedelta(minutes=5),
+            forecast_col="STLF",
+            drop_null_forecast_rows=False,
+        )
+
+        result = (
+            df[df["BAA"].astype(str).str.strip() == "SWPW"][
+                ["Interval Start", "Interval End", "Actual"]
+            ]
+            .rename(columns={"Actual": "Load"})
+            .copy()
+        )
+
+        return (
+            result.dropna(subset=["Load"])
+            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("HOUR_START")
+    def get_swpw_load_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Returns hourly SWPW load from mid-term load forecast data."""
+        result = self._get_mid_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+            forecast_col="MTLF",
+        )
+
+        result = (
+            df[df["BAA"].astype(str).str.strip() == "SWPW"][
+                ["Interval Start", "Interval End", "Averaged Actual"]
+            ]
+            .rename(columns={"Averaged Actual": "Load"})
+            .copy()
+        )
+
+        return (
+            result.dropna(subset=["Load"])
+            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
     def _post_process_solar_and_wind_forecast(
         self,
         df: pd.DataFrame,
