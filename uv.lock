@@ -890,9 +890,9 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = "~=4.13" },
     { name = "certifi", specifier = "~=2025.1" },
     { name = "cryptography", specifier = ">=46.0.6,<47" },
-    { name = "filelock", specifier = ">=3.20.3" },
+    { name = "filelock", specifier = ">=3.20.3,<4" },
     { name = "frozendict", specifier = "~=2.4" },
-    { name = "h11", specifier = ">=0.16.0" },
+    { name = "h11", specifier = ">=0.16.0,<1" },
     { name = "lxml", specifier = "~=5.3" },
     { name = "openpyxl", specifier = "~=3.1" },
     { name = "pandas", specifier = "~=2.2" },
@@ -913,7 +913,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "fonttools", specifier = ">=4.60.2" },
+    { name = "fonttools", specifier = ">=4.60.2,<5" },
     { name = "ipython", specifier = ">=8.4.0,<10" },
     { name = "jinja2", specifier = "~=3.1" },
     { name = "jupyter", specifier = "~=1.1" },
@@ -921,11 +921,11 @@ dev = [
     { name = "matplotlib", specifier = "~=3.10" },
     { name = "mypy", specifier = "~=1.15" },
     { name = "myst-nb", specifier = "~=1.2" },
-    { name = "nbconvert", specifier = ">=7.17.0" },
+    { name = "nbconvert", specifier = ">=7.17.0,<8" },
     { name = "notebook", specifier = "~=7.4" },
-    { name = "pillow", specifier = ">=12.1.1" },
+    { name = "pillow", specifier = ">=12.1.1,<13" },
     { name = "pre-commit", specifier = "~=4.2" },
-    { name = "pygments", specifier = ">=2.20.0" },
+    { name = "pygments", specifier = ">=2.20.0,<3" },
     { name = "pytest", specifier = "~=8.3" },
     { name = "pytest-cov", specifier = "~=6.1" },
     { name = "pytest-rerunfailures", specifier = "~=15.0" },
@@ -944,7 +944,7 @@ dev = [
     { name = "time-machine", specifier = "~=2.16" },
     { name = "tornado", specifier = ">=6.5.5,<7" },
     { name = "vcrpy", specifier = "~=8.1" },
-    { name = "wheel", specifier = ">=0.46.2" },
+    { name = "wheel", specifier = ">=0.46.2,<1" },
 ]
 
 [[package]]
