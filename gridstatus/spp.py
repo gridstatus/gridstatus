@@ -29,6 +29,7 @@ DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
+SWPW_LOAD_START_DATE = pd.Timestamp("2026-04-01", tz="US/Central")
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -610,6 +611,13 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame | None:
         """Returns SWPW load from short-term load forecast data."""
+        if date not in ["today", "latest"] and (
+            utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+        ):
+            raise NoDataFoundException(
+                f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
+            )
+
         result = self._get_short_term_forecast_data(
             date=date,
             base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
@@ -655,6 +663,13 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame | None:
         """Returns hourly SWPW load from mid-term load forecast data."""
+        if date not in ["today", "latest"] and (
+            utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+        ):
+            raise NoDataFoundException(
+                f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
+            )
+
         result = self._get_mid_term_forecast_data(
             date=date,
             base_url=BASE_LOAD_FORECAST_MID_TERM_URL,

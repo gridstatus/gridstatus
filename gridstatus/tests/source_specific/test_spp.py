@@ -1439,8 +1439,16 @@ class TestSPP(BaseTestISO):
                 return_value=source_df,
             ),
         ):
-            with pytest.raises(NoDataFoundException):
+            with pytest.raises(KeyError):
                 self.iso.get_swpw_load(date=now, verbose=False)
+
+    def test_get_swpw_load_before_start_date_raises(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_swpw_load(date=pd.Timestamp("2026-03-31 23:55:00-0500"))
+
+    def test_get_swpw_load_hourly_before_start_date_raises(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_swpw_load_hourly(date=pd.Timestamp("2026-03-31 23:00:00-0500"))
 
     """get_status"""
 
