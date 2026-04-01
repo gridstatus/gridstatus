@@ -8,7 +8,6 @@ from gridstatus.spp import (
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
-    BAAEnum,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -26,65 +25,6 @@ class TestSPP(BaseTestISO):
         return pd.Timestamp.now(tz=self.iso.default_timezone)
 
     """get_fuel_mix"""
-
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_date_or_start(self):
-        pass
-
-    @pytest.mark.integration
-    def test_get_fuel_mix_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_fuel_mix_historical()
-
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_historical_with_date_range(self):
-        pass
-
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
-        pass
-
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_start_end_same_day(self):
-        pass
-
-    @pytest.mark.integration
-    def test_get_fuel_mix_central_time(self):
-        fm = self.iso.get_fuel_mix(date="latest")
-        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
-
-    @pytest.mark.integration
-    def test_get_fuel_mix_self_market(self):
-        fm = self.iso.get_fuel_mix(date="latest", detailed=True)
-
-        cols = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "BAA",
-            "Coal Market",
-            "Coal Self",
-            "Diesel Fuel Oil Market",
-            "Diesel Fuel Oil Self",
-            "Hydro Market",
-            "Hydro Self",
-            "Natural Gas Market",
-            "Natural Gas Self",
-            "Nuclear Market",
-            "Nuclear Self",
-            "Solar Market",
-            "Solar Self",
-            "Waste Disposal Services Market",
-            "Waste Disposal Services Self",
-            "Wind Market",
-            "Wind Self",
-            "Waste Heat Market",
-            "Waste Heat Self",
-            "Other Market",
-            "Other Self",
-        ]
-
-        assert fm.columns.tolist() == cols
 
     FUEL_MIX_COLS = [
         "Time",
@@ -130,77 +70,126 @@ class TestSPP(BaseTestISO):
         "Other Self",
     ]
 
-    def test_get_fuel_mix_baa_swpw_today(self):
+    # Base test uses dates >365 days old, which raises NotSupported
+    @pytest.mark.integration
+    def test_get_fuel_mix_historical(self):
+        with pytest.raises(NotSupported):
+            super().test_get_fuel_mix_historical()
+
+    def test_get_fuel_mix_date_or_start(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_date_or_start.yaml"):
+            super().test_get_fuel_mix_date_or_start()
+
+    def test_get_fuel_mix_historical_with_date_range(self):
         with api_vcr.use_cassette(
-            "test_get_fuel_mix_baa_swpw_today.yaml",
+            "test_get_fuel_mix_historical_with_date_range.yaml",
         ):
-            fm = self.iso.get_fuel_mix(date="today", baa=BAAEnum.SWPW)
+            super().test_get_fuel_mix_historical_with_date_range()
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
-        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
-        assert (fm["BAA"] == "SWPW").all()
-
-    def test_get_fuel_mix_baa_swpw_latest(self):
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
         with api_vcr.use_cassette(
-            "test_get_fuel_mix_baa_swpw_latest.yaml",
+            "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
         ):
-            fm = self.iso.get_fuel_mix(date="latest", baa=BAAEnum.SWPW)
+            super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
-        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
-        assert (fm["BAA"] == "SWPW").all()
-
-    def test_get_fuel_mix_baa_swpw_detailed(self):
+    def test_get_fuel_mix_start_end_same_day(self):
         with api_vcr.use_cassette(
-            "test_get_fuel_mix_baa_swpw_detailed.yaml",
+            "test_get_fuel_mix_start_end_same_day.yaml",
         ):
-            fm = self.iso.get_fuel_mix(
-                date="today",
-                baa=BAAEnum.SWPW,
-                detailed=True,
-            )
+            super().test_get_fuel_mix_start_end_same_day()
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
-        assert (fm["BAA"] == "SWPW").all()
-
-    """get_fuel_mix_rolling_year"""
-
-    def test_get_fuel_mix_rolling_year(self):
-        with api_vcr.use_cassette(
-            "test_get_fuel_mix_rolling_year.yaml",
-        ):
-            fm = self.iso.get_fuel_mix_rolling_year()
+    def test_get_fuel_mix_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
+            fm = self.iso.get_fuel_mix(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_COLS
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
         assert (fm["BAA"] == "SPP").all()
-        date_range = fm.Time.max() - fm.Time.min()
-        assert date_range > pd.Timedelta(days=300)
 
-    def test_get_fuel_mix_rolling_year_detailed(self):
-        with api_vcr.use_cassette(
-            "test_get_fuel_mix_rolling_year_detailed.yaml",
-        ):
-            fm = self.iso.get_fuel_mix_rolling_year(detailed=True)
+    def test_get_fuel_mix_today(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
+            fm = self.iso.get_fuel_mix(date="today")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert (fm["BAA"] == "SPP").all()
+
+    def test_get_fuel_mix_detailed(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_detailed.yaml"):
+            fm = self.iso.get_fuel_mix(date="latest", detailed=True)
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
         assert (fm["BAA"] == "SPP").all()
 
-    def test_get_fuel_mix_rolling_year_baa_swpw(self):
-        with api_vcr.use_cassette(
-            "test_get_fuel_mix_rolling_year_baa_swpw.yaml",
-        ):
-            fm = self.iso.get_fuel_mix_rolling_year(baa=BAAEnum.SWPW)
+    def test_get_fuel_mix_too_old_raises(self):
+        old_date = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(days=400)
+        with pytest.raises(NotSupported):
+            self.iso.get_fuel_mix(date=old_date)
+
+    def test_get_fuel_mix_historical_recent(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=1)
+        with api_vcr.use_cassette("test_get_fuel_mix_historical_recent.yaml"):
+            fm = self.iso.get_fuel_mix(date=yesterday)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert (fm["BAA"] == "SPP").all()
+        assert fm["Interval Start"].min() >= yesterday
+
+    """get_swpw_fuel_mix"""
+
+    def test_get_swpw_fuel_mix_latest(self):
+        with api_vcr.use_cassette("test_get_swpw_fuel_mix_latest.yaml"):
+            fm = self.iso.get_swpw_fuel_mix(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_COLS
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
         assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_swpw_fuel_mix_today(self):
+        with api_vcr.use_cassette("test_get_swpw_fuel_mix_today.yaml"):
+            fm = self.iso.get_swpw_fuel_mix(date="today")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_swpw_fuel_mix_detailed(self):
+        with api_vcr.use_cassette("test_get_swpw_fuel_mix_detailed.yaml"):
+            fm = self.iso.get_swpw_fuel_mix(date="latest", detailed=True)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_swpw_fuel_mix_too_old_raises(self):
+        old_date = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(days=400)
+        with pytest.raises(NotSupported):
+            self.iso.get_swpw_fuel_mix(date=old_date)
+
+    def test_get_swpw_fuel_mix_historical_recent(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=1)
+        with api_vcr.use_cassette(
+            "test_get_swpw_fuel_mix_historical_recent.yaml",
+        ):
+            fm = self.iso.get_swpw_fuel_mix(date=yesterday)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert (fm["BAA"] == "SWPW").all()
+        assert fm["Interval Start"].min() >= yesterday
 
     """get_lmp_real_time_5_min_by_location"""
 
