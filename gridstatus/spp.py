@@ -2423,6 +2423,111 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
+    @support_date_range("MONTH_START")
+    def get_interchange_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time interchange (tie flow) data.
+
+        For "latest" and "today", returns ~2 days of 1-minute interchange data
+        from the real-time endpoint.
+
+        For historical dates, downloads monthly CSV files from the historical
+        tie flow archive.
+
+        Data from:
+        - Real-time: https://portal.spp.org/pages/integrated-marketplace-interchange-trend
+        - Historical: https://portal.spp.org/pages/historical-tie-flow
+
+        Args:
+            date: supports "latest", "today", or a historical date/date range
+            end: end date for historical range queries
+            verbose: print info
+
+        Returns:
+            pd.DataFrame: interchange data
+        """
+        if date == "latest":
+            return self.get_interchange_real_time(
+                "today",
+                verbose=verbose,
+            ).reset_index(drop=True)
+
+        # Handle tuple date ranges by checking if the start is recent
+        if isinstance(date, tuple):
+            start = date[0]
+        else:
+            start = utils._handle_date(date, tz=self.default_timezone)
+
+        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
+            url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
+            logger.info(f"Downloading {url}")
+            df = pd.read_csv(url)
+            return self._process_interchange_real_time(df)
+
+        # Historical data: download monthly CSV
+        month_str = start.strftime("%b%Y")  # e.g., "Apr2015"
+        url = (
+            f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
+            f"?path=/TieFlows_{month_str}.csv"
+        )
+
+        logger.info(f"Downloading {url}")
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(
+                    f"No historical tie flow data found for {month_str}. "
+                    f"Historical data is available starting Mar2014."
+                )
+            raise
+
+        # Normalize historical column names to match real-time format
+        df = df.rename(
+            columns={
+                "GMTTIME": "GMTTime",
+                "SPP_NSI": "SPP NSI",
+                "SPP_NAI": "SPP NAI",
+            }
+        )
+
+        return self._process_interchange_real_time(df)
+
+    def _process_interchange_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["Time"] = pd.to_datetime(
+            df["GMTTime"],
+            utc=True,
+            format="ISO8601",
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df.drop(columns=["GMTTime"])
+
+        # Drop rows with null timestamps (bad data in some historical files)
+        df = df.dropna(subset=["Time"])
+
+        # Drop rows where all data columns are null (future forecast rows)
+        data_cols = [c for c in df.columns if c != "Time"]
+        df = df.dropna(subset=data_cols, how="all")
+
+        # Melt from wide to long format so schema is stable across time periods
+        id_cols = ["Time"]
+        value_cols = [c for c in df.columns if c not in id_cols]
+        df = df.melt(
+            id_vars=id_cols,
+            value_vars=value_cols,
+            var_name="Region",
+            value_name="Interchange",
+        )
+
+        # Drop rows where interchange is null (region didn't exist in this period)
+        df = df.dropna(subset=["Interchange"])
+
+        return df.sort_values(["Time", "Region"]).reset_index(drop=True)
+
 
 def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
     """Parse SPP generation mix data from

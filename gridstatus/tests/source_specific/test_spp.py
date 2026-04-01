@@ -2067,3 +2067,73 @@ class TestSPP(BaseTestISO):
         self._check_binding_constraints_real_time(df)
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date
+
+    """get_interchange_real_time"""
+
+    interchange_real_time_cols = [
+        "Time",
+        "Region",
+        "Interchange",
+    ]
+
+    def _check_interchange_real_time(self, df):
+        assert len(df) > 0
+        assert df["Time"].dt.tz is not None
+        assert list(df.columns) == self.interchange_real_time_cols
+        # Core interchange regions are present
+        regions = df["Region"].unique()
+        assert "SPP NSI" in regions
+        assert "SPP NAI" in regions
+        # No null interchange values
+        assert df["Interchange"].notna().all()
+
+    def test_get_interchange_real_time_latest(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
+            df = self.iso.get_interchange_real_time("latest")
+
+        self._check_interchange_real_time(df)
+
+    def test_get_interchange_real_time_today(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_today.yaml"):
+            df = self.iso.get_interchange_real_time("today")
+
+        self._check_interchange_real_time(df)
+
+    def test_get_interchange_real_time_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                pd.Timestamp("2025-01-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # The Jan 2025 file starts Dec 31 UTC-6 due to GMT→Central conversion
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 1
+        assert df["Time"].max().year == 2025
+
+    def test_get_interchange_real_time_historical_range(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical_range.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                date=pd.Timestamp("2025-01-01"),
+                end=pd.Timestamp("2025-03-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # Should span Jan and Feb 2025 (starts Dec 31 due to GMT→Central)
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 2
+        assert df["Time"].max().year == 2025
+
+    def test_get_interchange_real_time_no_data(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_no_data.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_interchange_real_time(
+                    pd.Timestamp("2014-02-01"),
+                    error="raise",
+                )
