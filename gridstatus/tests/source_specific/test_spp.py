@@ -996,12 +996,148 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_load_historical()
+        test_date = (
+            pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=14)
+        ).date()
+        df = self.iso.get_load(test_date)
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+        assert "Interval Start" in df.columns
+        assert "Interval End" in df.columns
+        assert "Load" in df.columns
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
         pass
+
+    def test_get_load_pre_baa_historical(self):
+        date = pd.Timestamp("2026-03-30 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 2
+        assert df["Load"].tolist() == [20000.0, 20100.0]
+
+    def test_get_load_post_baa_historical(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [
+                    date,
+                    date,
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=5),
+                ],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [15000.0, 5000.0, 15100.0, 5100.0],
+                "BAA": ["SPP", "SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 2
+        assert df["Load"].tolist() == [20000.0, 20200.0]
+
+    def test_get_load_pre_baa_historical_no_baa_column(self):
+        date = pd.Timestamp("2026-03-28 08:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date],
+                "Interval End": [date + pd.Timedelta(minutes=5)],
+                "Actual": [18000.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 1
+        assert df["Load"].iloc[0] == 18000.0
+
+    def test_get_load_pre_baa_historical_null_baa_values(self):
+        date = pd.Timestamp("2026-03-29 10:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [19000.0, 19100.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 2
 
     """get_load_forecast"""
 
@@ -1460,7 +1596,9 @@ class TestSPP(BaseTestISO):
 
     """get_load_by_baa"""
 
-    def test_get_load_by_baa(self):
+    LOAD_BY_BAA_COLS = ["Interval Start", "Interval End", "BAA", "Load"]
+
+    def test_get_load_by_baa_post_baa(self):
         now = self.local_now().floor("5min")
         source_df = pd.DataFrame(
             {
@@ -1489,33 +1627,27 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa(date=now, verbose=False)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "BAA",
-            "Load",
-        ]
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
         assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
         assert len(df) == 2
 
-    def test_get_load_by_baa_hourly(self):
-        now = self.local_now().floor("h")
+    def test_get_load_by_baa_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 12:00:00-0500")
         source_df = pd.DataFrame(
             {
-                "Interval Start": [now, now],
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
                 "Interval End": [
-                    now + pd.Timedelta(hours=1),
-                    now + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
                 ],
-                "Averaged Actual": [15000.0, 15100.0],
-                "BAA": ["SWPW", "SPP"],
+                "Actual": [20000.0, 20100.0],
             },
         )
 
         with (
             patch.object(
                 self.iso,
-                "_get_mid_term_forecast_data",
+                "_get_short_term_forecast_data",
                 return_value=(pd.DataFrame(), "mock-url"),
             ),
             patch.object(
@@ -1524,15 +1656,42 @@ class TestSPP(BaseTestISO):
                 return_value=source_df,
             ),
         ):
-            df = self.iso.get_load_by_baa_hourly(date=now, verbose=False)
+            df = self.iso.get_load_by_baa(date=date, verbose=False)
 
-        assert df.columns.tolist() == [
-            "Interval Start",
-            "Interval End",
-            "BAA",
-            "Load",
-        ]
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_pre_baa_null_values(self):
+        date = pd.Timestamp("2026-03-29 10:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [19000.0, 19100.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
         assert len(df) == 2
 
     def test_get_load_by_baa_missing_actual_load_column(self):
@@ -1561,15 +1720,115 @@ class TestSPP(BaseTestISO):
             with pytest.raises(KeyError):
                 self.iso.get_load_by_baa(date=now, verbose=False)
 
-    def test_get_load_by_baa_before_start_date_raises(self):
-        with pytest.raises(NoDataFoundException):
-            self.iso.get_load_by_baa(date=pd.Timestamp("2026-03-31 23:55:00-0500"))
+    """get_load_by_baa_hourly"""
 
-    def test_get_load_by_baa_hourly_before_start_date_raises(self):
-        with pytest.raises(NoDataFoundException):
-            self.iso.get_load_by_baa_hourly(
-                date=pd.Timestamp("2026-03-31 23:00:00-0500"),
-            )
+    def test_get_load_by_baa_hourly_post_baa(self):
+        now = self.local_now().floor("h")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now],
+                "Interval End": [
+                    now + pd.Timedelta(hours=1),
+                    now + pd.Timedelta(hours=1),
+                ],
+                "Averaged Actual": [15000.0, 5000.0],
+                "BAA": ["SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=now, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_hourly_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Averaged Actual": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_hourly_pre_baa_null_values(self):
+        date = pd.Timestamp("2026-03-29 10:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Averaged Actual": [19000.0, 19100.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_hourly_no_data(self):
+        date = pd.Timestamp("2026-03-25 10:00:00-0500")
+
+        with patch.object(
+            self.iso,
+            "_get_mid_term_forecast_data",
+            return_value=None,
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert len(df) == 0
 
     """get_status"""
 
@@ -1699,7 +1958,7 @@ class TestSPP(BaseTestISO):
         forecast_col = "STLF" if forecast_type == "SHORT_TERM" else "MTLF"
         actual_col = "Actual" if forecast_type == "SHORT_TERM" else "Averaged Actual"
 
-        expected_cols = [
+        required_cols = [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1714,7 +1973,14 @@ class TestSPP(BaseTestISO):
             else pd.Timedelta(hours=1)
         )
 
-        assert df.columns.tolist() == expected_cols
+        for col in required_cols:
+            assert col in df.columns, f"Missing column: {col}"
+
+        allowed_extra_cols = {"BAA"}
+        extra_cols = set(df.columns) - set(required_cols)
+        assert extra_cols <= allowed_extra_cols, (
+            f"Unexpected columns: {extra_cols - allowed_extra_cols}"
+        )
 
         assert (df[forecast_col] >= 0).all()
 

@@ -30,8 +30,6 @@ DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
-BAA_LOAD_START_DATE = pd.Timestamp("2026-04-01", tz="US/Central")
-
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
@@ -250,7 +248,12 @@ class SPP(ISOBase):
 
         return df
 
-    def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
+    def get_load(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """Returns load for last 24hrs in 5 minute intervals"""
         original_date = date
 
@@ -278,10 +281,20 @@ class SPP(ISOBase):
             return df
 
         else:
-            # hourly historical zonal loads
-            # https://marketplace.spp.org/pages/hourly-load
-            # five minute actual load available here: https://portal.spp.org/pages/stlf-vs-actual#
-            raise NotSupported()
+            baa_df = self.get_load_by_baa(date=original_date, end=end, verbose=verbose)
+            if baa_df.empty:
+                return pd.DataFrame(
+                    columns=["Interval Start", "Interval End", "Load"],
+                )
+            return (
+                baa_df.groupby(
+                    ["Interval Start", "Interval End"],
+                    as_index=False,
+                )["Load"]
+                .sum()
+                .sort_values("Interval Start")
+                .reset_index(drop=True)
+            )
 
     def get_load_forecast(
         self,
@@ -674,15 +687,6 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Returns actual load by BAA from short-term load forecast data."""
-        if (
-            not isinstance(date, tuple)
-            and date not in ["today", "latest"]
-            and utils._handle_date(date, self.default_timezone) < BAA_LOAD_START_DATE
-        ):
-            raise NoDataFoundException(
-                f"Load by BAA data is only available on or after {BAA_LOAD_START_DATE.date()}",
-            )
-
         df = self._get_load_by_baa_raw(date=date, end=end, verbose=verbose)
 
         if df is None or df.empty:
@@ -729,6 +733,11 @@ class SPP(ISOBase):
             drop_null_forecast_rows=False,
         )
 
+        if "BAA" not in df.columns:
+            df["BAA"] = BAAEnum.SPP.value
+        else:
+            df["BAA"] = df["BAA"].fillna(BAAEnum.SPP.value)
+
         baa_values = [e.value for e in BAAEnum]
         return (
             df[df["BAA"].astype(str).str.strip().isin(baa_values)][
@@ -746,14 +755,6 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame | None:
         """Returns hourly actual load by BAA from mid-term load forecast data."""
-        if (
-            not isinstance(date, tuple)
-            and date != "latest"
-            and utils._handle_date(date, self.default_timezone) < BAA_LOAD_START_DATE
-        ):
-            raise NoDataFoundException(
-                f"Load by BAA data is only available on or after {BAA_LOAD_START_DATE.date()}",
-            )
 
         if date == "latest":
             fetch_date: str | pd.Timestamp = date
@@ -787,6 +788,11 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(hours=1),
             forecast_col="MTLF",
         )
+
+        if "BAA" not in df.columns:
+            df["BAA"] = BAAEnum.SPP.value
+        else:
+            df["BAA"] = df["BAA"].fillna(BAAEnum.SPP.value)
 
         baa_values = [e.value for e in BAAEnum]
         result_df = (
