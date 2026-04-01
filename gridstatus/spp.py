@@ -1,5 +1,6 @@
 import re
 import urllib
+from enum import StrEnum
 from typing import BinaryIO, Callable
 
 import pandas as pd
@@ -113,6 +114,11 @@ LMP_HUBS_AND_INTERFACES = {
 }
 
 
+class BAAEnum(StrEnum):
+    SPP = "SPP"
+    SWPW = "SWPW"
+
+
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
 
@@ -143,47 +149,105 @@ class SPP(ISOBase):
     def now():
         return pd.Timestamp.now(tz=SPP.default_timezone)
 
+    @support_date_range(frequency=None)
     def get_fuel_mix(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
         detailed: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get fuel mix
+        """Get fuel mix for SPP BAA
 
         Args:
-            date: supports today and latest
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
             detailed: if True, breaks out self scheduled and market scheduled
-
-        Note:
-            if today, returns last 2 hours of data. maybe include previous day
 
         Returns:
             pd.DataFrame: fuel mix
-
         """
+        return self._get_fuel_mix(
+            date=date,
+            end=end,
+            detailed=detailed,
+            verbose=verbose,
+            baa=BAAEnum.SPP,
+        )
+
+    @support_date_range(frequency=None)
+    def get_swpw_fuel_mix(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        detailed: bool = False,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get fuel mix for SWPW BAA
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+            detailed: if True, breaks out self scheduled and market scheduled
+
+        Returns:
+            pd.DataFrame: fuel mix
+        """
+        return self._get_fuel_mix(
+            date=date,
+            end=end,
+            detailed=detailed,
+            verbose=verbose,
+            baa=BAAEnum.SWPW,
+        )
+
+    def _get_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        detailed: bool = False,
+        verbose: bool = False,
+        baa: BAAEnum = BAAEnum.SPP,
+    ) -> pd.DataFrame:
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        two_hours_ago = now - pd.Timedelta(hours=2)
+        one_year_ago = now - pd.Timedelta(days=365)
+
         if date == "latest":
-            return self.get_fuel_mix(
-                "today",
-                detailed=detailed,
-                verbose=verbose,
-            ).reset_index(drop=True)
+            file_type = "GenMix2Hour"
+        elif isinstance(date, pd.Timestamp):
+            start = date
+            if start < one_year_ago:
+                raise NotSupported(
+                    f"{baa} fuel mix data is only available for the last 365 days",
+                )
+            if start >= two_hours_ago:
+                file_type = "GenMix2Hour"
+            else:
+                file_type = "GenMix365"
+        else:
+            raise ValueError(f"Unexpected date type: {type(date)}")
 
-        if not utils.is_today(date, self.default_timezone):
-            # https://marketplace.spp.org/pages/generation-mix-historical
-            # many years of historical 5 minute data
-            raise NotSupported
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/{baa}/{file_type}_{baa}.csv"  # noqa
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/GenMix2Hour.csv"  # noqa
+        if verbose:
+            logger.info(f"Downloading fuel mix from {url}")
+
         df_raw = pd.read_csv(url)
-        historical_mix = process_gen_mix(df_raw, detailed=detailed)
+        df = process_gen_mix(df_raw, detailed=detailed)
 
-        historical_mix = historical_mix.drop(
+        df = df.drop(
             columns=["Short Term Load Forecast", "Average Actual Load"],
             errors="ignore",
         )
 
-        return historical_mix
+        if date != "latest" and isinstance(date, pd.Timestamp):
+            df = df[df["Interval Start"] >= date]
+            if end is not None:
+                df = df[df["Interval Start"] < end]
+            df = df.reset_index(drop=True)
+
+        return df
 
     def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
         """Returns load for last 24hrs in 5 minute intervals"""
