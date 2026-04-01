@@ -610,8 +610,10 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Returns SWPW load from short-term load forecast data."""
-        if date not in ["today", "latest"] and (
-            utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+        if (
+            not isinstance(date, tuple)
+            and date not in ["today", "latest"]
+            and utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
         ):
             raise NoDataFoundException(
                 f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
@@ -674,8 +676,10 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame | None:
         """Returns hourly SWPW load from mid-term load forecast data."""
-        if date != "latest" and (
-            utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+        if (
+            not isinstance(date, tuple)
+            and date != "latest"
+            and utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
         ):
             raise NoDataFoundException(
                 f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
