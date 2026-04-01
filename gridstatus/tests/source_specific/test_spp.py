@@ -8,6 +8,7 @@ from gridstatus.spp import (
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    BAAEnum,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -60,6 +61,7 @@ class TestSPP(BaseTestISO):
             "Time",
             "Interval Start",
             "Interval End",
+            "BAA",
             "Coal Market",
             "Coal Self",
             "Diesel Fuel Oil Market",
@@ -83,6 +85,122 @@ class TestSPP(BaseTestISO):
         ]
 
         assert fm.columns.tolist() == cols
+
+    FUEL_MIX_COLS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Coal",
+        "Diesel Fuel Oil",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Solar",
+        "Waste Disposal Services",
+        "Wind",
+        "Waste Heat",
+        "Other",
+    ]
+
+    FUEL_MIX_DETAILED_COLS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Coal Market",
+        "Coal Self",
+        "Diesel Fuel Oil Market",
+        "Diesel Fuel Oil Self",
+        "Hydro Market",
+        "Hydro Self",
+        "Natural Gas Market",
+        "Natural Gas Self",
+        "Nuclear Market",
+        "Nuclear Self",
+        "Solar Market",
+        "Solar Self",
+        "Waste Disposal Services Market",
+        "Waste Disposal Services Self",
+        "Wind Market",
+        "Wind Self",
+        "Waste Heat Market",
+        "Waste Heat Self",
+        "Other Market",
+        "Other Self",
+    ]
+
+    def test_get_fuel_mix_baa_swpw_today(self):
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_baa_swpw_today.yaml",
+        ):
+            fm = self.iso.get_fuel_mix(date="today", baa=BAAEnum.SWPW)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_fuel_mix_baa_swpw_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_baa_swpw_latest.yaml",
+        ):
+            fm = self.iso.get_fuel_mix(date="latest", baa=BAAEnum.SWPW)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_fuel_mix_baa_swpw_detailed(self):
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_baa_swpw_detailed.yaml",
+        ):
+            fm = self.iso.get_fuel_mix(
+                date="today",
+                baa=BAAEnum.SWPW,
+                detailed=True,
+            )
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert (fm["BAA"] == "SWPW").all()
+
+    """get_fuel_mix_rolling_year"""
+
+    def test_get_fuel_mix_rolling_year(self):
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_rolling_year.yaml",
+        ):
+            fm = self.iso.get_fuel_mix_rolling_year()
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SPP").all()
+        date_range = fm.Time.max() - fm.Time.min()
+        assert date_range > pd.Timedelta(days=300)
+
+    def test_get_fuel_mix_rolling_year_detailed(self):
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_rolling_year_detailed.yaml",
+        ):
+            fm = self.iso.get_fuel_mix_rolling_year(detailed=True)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert (fm["BAA"] == "SPP").all()
+
+    def test_get_fuel_mix_rolling_year_baa_swpw(self):
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_rolling_year_baa_swpw.yaml",
+        ):
+            fm = self.iso.get_fuel_mix_rolling_year(baa=BAAEnum.SWPW)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SWPW").all()
 
     """get_lmp_real_time_5_min_by_location"""
 

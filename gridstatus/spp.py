@@ -1,5 +1,6 @@
 import re
 import urllib
+from enum import StrEnum
 from typing import BinaryIO, Callable
 
 import pandas as pd
@@ -113,6 +114,11 @@ LMP_HUBS_AND_INTERFACES = {
 }
 
 
+class BAAEnum(StrEnum):
+    SPP = "SPP"
+    SWPW = "SWPW"
+
+
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
 
@@ -148,6 +154,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         detailed: bool = False,
         verbose: bool = False,
+        baa: BAAEnum = BAAEnum.SPP,
     ) -> pd.DataFrame:
         """Get fuel mix
 
@@ -167,6 +174,7 @@ class SPP(ISOBase):
                 "today",
                 detailed=detailed,
                 verbose=verbose,
+                baa=baa,
             ).reset_index(drop=True)
 
         if not utils.is_today(date, self.default_timezone):
@@ -174,7 +182,42 @@ class SPP(ISOBase):
             # many years of historical 5 minute data
             raise NotSupported
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/GenMix2Hour.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/{baa}/GenMix2Hour_{baa}.csv"  # noqa
+
+        if verbose:
+            logger.info(f"Downloading fuel mix from {url}")
+
+        df_raw = pd.read_csv(url)
+        historical_mix = process_gen_mix(df_raw, detailed=detailed)
+
+        historical_mix = historical_mix.drop(
+            columns=["Short Term Load Forecast", "Average Actual Load"],
+            errors="ignore",
+        )
+
+        return historical_mix
+
+    def get_fuel_mix_rolling_year(
+        self,
+        detailed: bool = False,
+        verbose: bool = False,
+        baa: BAAEnum = BAAEnum.SPP,
+    ) -> pd.DataFrame:
+        """Get rolling 365-day fuel mix at 5-minute resolution
+
+        Args:
+            detailed: if True, breaks out self scheduled and market scheduled
+            verbose: if True, log the download URL
+            baa: balancing authority area (SPP or SWPW)
+
+        Returns:
+            pd.DataFrame: fuel mix for the last 365 days
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/{baa}/GenMix365_{baa}.csv"  # noqa
+
+        if verbose:
+            logger.info(f"Downloading fuel mix from {url}")
+
         df_raw = pd.read_csv(url)
         historical_mix = process_gen_mix(df_raw, detailed=detailed)
 
