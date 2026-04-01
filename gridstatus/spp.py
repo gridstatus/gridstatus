@@ -30,6 +30,8 @@ DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
+BAA_LOAD_THRESHOLD_MW = 5000
+
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
 FILE_BROWSER_DOWNLOAD_URL = "https://portal.spp.org/file-browser-api/download"
@@ -710,9 +712,18 @@ class SPP(ISOBase):
         )
 
         if "BAA" not in df.columns:
-            df["BAA"] = BAAEnum.SPP.value
+            df["BAA"] = df["Actual"].apply(
+                lambda x: BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value,
+            )
         else:
-            df["BAA"] = df["BAA"].fillna(BAAEnum.SPP.value)
+            mask = df["BAA"].isna()
+            df.loc[mask, "BAA"] = df.loc[mask, "Actual"].apply(
+                lambda x: BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value,
+            )
 
         baa_values = [e.value for e in BAAEnum]
         return (
@@ -766,9 +777,18 @@ class SPP(ISOBase):
         )
 
         if "BAA" not in df.columns:
-            df["BAA"] = BAAEnum.SPP.value
+            df["BAA"] = df["Averaged Actual"].apply(
+                lambda x: BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value,
+            )
         else:
-            df["BAA"] = df["BAA"].fillna(BAAEnum.SPP.value)
+            mask = df["BAA"].isna()
+            df.loc[mask, "BAA"] = df.loc[mask, "Averaged Actual"].apply(
+                lambda x: BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value,
+            )
 
         baa_values = [e.value for e in BAAEnum]
         result_df = (
