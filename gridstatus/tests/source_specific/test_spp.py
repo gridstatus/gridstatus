@@ -1808,14 +1808,14 @@ class TestSPP(BaseTestISO):
     """get_interchange_real_time"""
 
     interchange_real_time_cols = [
-        "Timestamp",
+        "Time",
         "Region",
         "Interchange",
     ]
 
     def _check_interchange_real_time(self, df):
         assert len(df) > 0
-        assert df["Timestamp"].dt.tz is not None
+        assert df["Time"].dt.tz is not None
         assert list(df.columns) == self.interchange_real_time_cols
         # Core interchange regions are present
         regions = df["Region"].unique()
@@ -1846,9 +1846,9 @@ class TestSPP(BaseTestISO):
 
         self._check_interchange_real_time(df)
         # The Jan 2025 file starts Dec 31 UTC-6 due to GMT→Central conversion
-        assert df["Timestamp"].min().year >= 2024
-        assert df["Timestamp"].max().month == 1
-        assert df["Timestamp"].max().year == 2025
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 1
+        assert df["Time"].max().year == 2025
 
     def test_get_interchange_real_time_historical_range(self):
         with api_vcr.use_cassette(
@@ -1861,9 +1861,9 @@ class TestSPP(BaseTestISO):
 
         self._check_interchange_real_time(df)
         # Should span Jan and Feb 2025 (starts Dec 31 due to GMT→Central)
-        assert df["Timestamp"].min().year >= 2024
-        assert df["Timestamp"].max().month == 2
-        assert df["Timestamp"].max().year == 2025
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 2
+        assert df["Time"].max().year == 2025
 
     def test_get_interchange_real_time_no_data(self):
         with api_vcr.use_cassette(
