@@ -1458,16 +1458,16 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
-    """get_swpw_load"""
+    """get_load_by_baa"""
 
-    def test_get_swpw_load(self):
+    def test_get_load_by_baa(self):
         now = self.local_now().floor("5min")
         source_df = pd.DataFrame(
             {
-                "Interval Start": [now, now + pd.Timedelta(minutes=5), now],
+                "Interval Start": [now, now, now],
                 "Interval End": [
                     now + pd.Timedelta(minutes=5),
-                    now + pd.Timedelta(minutes=10),
+                    now + pd.Timedelta(minutes=5),
                     now + pd.Timedelta(minutes=5),
                 ],
                 "Actual": [1000.0, 1005.0, 1001.0],
@@ -1487,19 +1487,25 @@ class TestSPP(BaseTestISO):
                 return_value=source_df,
             ),
         ):
-            df = self.iso.get_swpw_load(date=now, verbose=False)
+            df = self.iso.get_load_by_baa(date=now, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert df["Load"].tolist() == [1001.0]
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "BAA",
+            "Load",
+        ]
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
 
-    def test_get_swpw_load_hourly(self):
+    def test_get_load_by_baa_hourly(self):
         now = self.local_now().floor("h")
         source_df = pd.DataFrame(
             {
-                "Interval Start": [now, now + pd.Timedelta(hours=1)],
+                "Interval Start": [now, now],
                 "Interval End": [
                     now + pd.Timedelta(hours=1),
-                    now + pd.Timedelta(hours=2),
+                    now + pd.Timedelta(hours=1),
                 ],
                 "Averaged Actual": [15000.0, 15100.0],
                 "BAA": ["SWPW", "SPP"],
@@ -1518,12 +1524,18 @@ class TestSPP(BaseTestISO):
                 return_value=source_df,
             ),
         ):
-            df = self.iso.get_swpw_load_hourly(date=now, verbose=False)
+            df = self.iso.get_load_by_baa_hourly(date=now, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert df["Load"].tolist() == [15000.0]
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "BAA",
+            "Load",
+        ]
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
 
-    def test_get_swpw_load_missing_actual_load_column(self):
+    def test_get_load_by_baa_missing_actual_load_column(self):
         now = self.local_now().floor("5min")
         source_df = pd.DataFrame(
             {
@@ -1547,15 +1559,17 @@ class TestSPP(BaseTestISO):
             ),
         ):
             with pytest.raises(KeyError):
-                self.iso.get_swpw_load(date=now, verbose=False)
+                self.iso.get_load_by_baa(date=now, verbose=False)
 
-    def test_get_swpw_load_before_start_date_raises(self):
+    def test_get_load_by_baa_before_start_date_raises(self):
         with pytest.raises(NoDataFoundException):
-            self.iso.get_swpw_load(date=pd.Timestamp("2026-03-31 23:55:00-0500"))
+            self.iso.get_load_by_baa(date=pd.Timestamp("2026-03-31 23:55:00-0500"))
 
-    def test_get_swpw_load_hourly_before_start_date_raises(self):
+    def test_get_load_by_baa_hourly_before_start_date_raises(self):
         with pytest.raises(NoDataFoundException):
-            self.iso.get_swpw_load_hourly(date=pd.Timestamp("2026-03-31 23:00:00-0500"))
+            self.iso.get_load_by_baa_hourly(
+                date=pd.Timestamp("2026-03-31 23:00:00-0500"),
+            )
 
     """get_status"""
 

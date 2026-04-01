@@ -30,7 +30,7 @@ DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
-SWPW_LOAD_START_DATE = pd.Timestamp("2026-04-01", tz="US/Central")
+BAA_LOAD_START_DATE = pd.Timestamp("2026-04-01", tz="US/Central")
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -667,36 +667,41 @@ class SPP(ISOBase):
 
         return df
 
-    def get_swpw_load(
+    def get_load_by_baa(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns SWPW load from short-term load forecast data."""
+        """Returns actual load by BAA from short-term load forecast data."""
         if (
             not isinstance(date, tuple)
             and date not in ["today", "latest"]
-            and utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+            and utils._handle_date(date, self.default_timezone) < BAA_LOAD_START_DATE
         ):
             raise NoDataFoundException(
-                f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
+                f"Load by BAA data is only available on or after {BAA_LOAD_START_DATE.date()}",
             )
 
-        df = self._get_swpw_load_raw(date=date, end=end, verbose=verbose)
+        df = self._get_load_by_baa_raw(date=date, end=end, verbose=verbose)
 
         if df is None or df.empty:
-            return pd.DataFrame(columns=["Interval Start", "Interval End", "Load"])
+            return pd.DataFrame(
+                columns=["Interval Start", "Interval End", "BAA", "Load"],
+            )
 
         return (
             df.dropna(subset=["Load"])
-            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .drop_duplicates(
+                subset=["Interval Start", "Interval End", "BAA"],
+                keep="last",
+            )
             .sort_values("Interval Start")
             .reset_index(drop=True)
         )
 
     @support_date_range(frequency="5_MIN")
-    def _get_swpw_load_raw(
+    def _get_load_by_baa_raw(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -724,29 +729,30 @@ class SPP(ISOBase):
             drop_null_forecast_rows=False,
         )
 
+        baa_values = [e.value for e in BAAEnum]
         return (
-            df[df["BAA"].astype(str).str.strip() == "SWPW"][
-                ["Interval Start", "Interval End", "Actual"]
+            df[df["BAA"].astype(str).str.strip().isin(baa_values)][
+                ["Interval Start", "Interval End", "BAA", "Actual"]
             ]
             .rename(columns={"Actual": "Load"})
             .copy()
         )
 
     @support_date_range("DAY_START")
-    def get_swpw_load_hourly(
+    def get_load_by_baa_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame | None:
-        """Returns hourly SWPW load from mid-term load forecast data."""
+        """Returns hourly actual load by BAA from mid-term load forecast data."""
         if (
             not isinstance(date, tuple)
             and date != "latest"
-            and utils._handle_date(date, self.default_timezone) < SWPW_LOAD_START_DATE
+            and utils._handle_date(date, self.default_timezone) < BAA_LOAD_START_DATE
         ):
             raise NoDataFoundException(
-                f"SWPW load data is only available on or after {SWPW_LOAD_START_DATE.date()}",
+                f"Load by BAA data is only available on or after {BAA_LOAD_START_DATE.date()}",
             )
 
         if date == "latest":
@@ -766,6 +772,11 @@ class SPP(ISOBase):
             buffer_minutes=10,
         )
 
+        if result is None:
+            return pd.DataFrame(
+                columns=["Interval Start", "Interval End", "BAA", "Load"],
+            )
+
         df, url = result
 
         df = self._post_process_load_forecast(
@@ -777,9 +788,10 @@ class SPP(ISOBase):
             forecast_col="MTLF",
         )
 
+        baa_values = [e.value for e in BAAEnum]
         result_df = (
-            df[df["BAA"].astype(str).str.strip() == "SWPW"][
-                ["Interval Start", "Interval End", "Averaged Actual"]
+            df[df["BAA"].astype(str).str.strip().isin(baa_values)][
+                ["Interval Start", "Interval End", "BAA", "Averaged Actual"]
             ]
             .rename(columns={"Averaged Actual": "Load"})
             .copy()
@@ -796,7 +808,10 @@ class SPP(ISOBase):
 
         return (
             result_df.dropna(subset=["Load"])
-            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
+            .drop_duplicates(
+                subset=["Interval Start", "Interval End", "BAA"],
+                keep="last",
+            )
             .sort_values("Interval Start")
             .reset_index(drop=True)
         )
