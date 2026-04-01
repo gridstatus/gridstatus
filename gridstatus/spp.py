@@ -254,47 +254,23 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load for last 24hrs in 5 minute intervals"""
-        original_date = date
+        """Returns total RTO load in 5 minute intervals from STLF data."""
+        baa_df = self.get_load_by_baa(date=date, end=end, verbose=verbose)
 
-        if date == "latest":
-            date = "today"
-
-        date = utils._handle_date(date, self.default_timezone)
-
-        df = self._get_load_and_forecast(verbose=verbose)
-
-        df = df.dropna(subset=["Actual Load"])
-
-        df = df.rename(columns={"Actual Load": "Load"})
-
-        df = df[["Time", "Load"]]
-        df = df.reset_index(drop=True)
-        df = add_interval(df, interval_min=5)
-
-        if original_date == "latest":
-            return df
-
-        elif utils.is_today(original_date, tz=self.default_timezone):
-            # returns two days, so make sure to only return current day's load
-            df = df[df["Time"].dt.date == date.date()].reset_index(drop=True)
-            return df
-
-        else:
-            baa_df = self.get_load_by_baa(date=original_date, end=end, verbose=verbose)
-            if baa_df.empty:
-                return pd.DataFrame(
-                    columns=["Interval Start", "Interval End", "Load"],
-                )
-            return (
-                baa_df.groupby(
-                    ["Interval Start", "Interval End"],
-                    as_index=False,
-                )["Load"]
-                .sum()
-                .sort_values("Interval Start")
-                .reset_index(drop=True)
+        if baa_df.empty:
+            return pd.DataFrame(
+                columns=["Interval Start", "Interval End", "Load"],
             )
+
+        return (
+            baa_df.groupby(
+                ["Interval Start", "Interval End"],
+                as_index=False,
+            )["Load"]
+            .sum()
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     def get_load_forecast(
         self,
