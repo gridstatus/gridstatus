@@ -30,6 +30,8 @@ DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
+# NOTE: Typically SWPW is ~2000-3000MW and SPP is ~20000-30000MW, so we can tell if there
+# is a load value with null BAA value, we can tell which BAA it is.
 BAA_LOAD_THRESHOLD_MW = 5000
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
@@ -725,11 +727,8 @@ class SPP(ISOBase):
                 else BAAEnum.SPP.value,
             )
 
-        baa_values = [e.value for e in BAAEnum]
         return (
-            df[df["BAA"].astype(str).str.strip().isin(baa_values)][
-                ["Interval Start", "Interval End", "BAA", "Actual"]
-            ]
+            df[["Interval Start", "Interval End", "BAA", "Actual"]]
             .rename(columns={"Actual": "Load"})
             .copy()
         )
