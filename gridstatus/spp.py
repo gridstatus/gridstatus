@@ -880,6 +880,15 @@ class SPP(ISOBase):
 
         return df
 
+    _ver_curtailment_numerical_cols = [
+        "Wind Redispatch Curtailments",
+        "Wind Manual Curtailments",
+        "Wind Curtailed For Energy",
+        "Solar Redispatch Curtailments",
+        "Solar Manual Curtailments",
+        "Solar Curtailed For Energy",
+    ]
+
     def _process_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
@@ -892,6 +901,10 @@ class SPP(ISOBase):
             },
         )
 
+        # There are some confirmed intervals in the source data where all the curtailment columns are NaN.
+        # We should drop these intervals.
+        df = df.dropna(subset=self._ver_curtailment_numerical_cols)
+
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnding",
@@ -899,7 +912,6 @@ class SPP(ISOBase):
         )
 
         cols = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Wind Redispatch Curtailments",
@@ -908,15 +920,29 @@ class SPP(ISOBase):
             "Solar Redispatch Curtailments",
             "Solar Manual Curtailments",
             "Solar Curtailed For Energy",
+            "BAA",
         ]
 
         # historical data doesnt have all columns
-        for c in cols:
-            if c not in df.columns:
-                df[c] = pd.NA
+        for col in cols:
+            if col not in df.columns:
+                # Default BAA to SPP for historical data
+                df[col] = pd.NA if col != "BAA" else BAAEnum.SPP
 
         df = df[cols]
 
+        return df
+
+    def _aggregate_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Sum VER curtailment numerical columns across BAAs."""
+        df = (
+            df.groupby(["Interval Start", "Interval End"], as_index=False)[
+                self._ver_curtailment_numerical_cols
+            ]
+            .sum()
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
         return df
 
     @support_date_range("DAY_START")
@@ -1019,15 +1045,68 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get VER Curtailments
+        """Get VER Curtailments summed across BAAs.
 
-        Supports recent data. For historical annual data use get_ver_curtailments_annual
+        Supports recent data. For historical annual data use
+        get_ver_curtailments_annual. For data broken down by BAA use
+        get_ver_curtailments_by_baa.
 
         Args:
             date: start date
             end: end date
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
 
+        df = self._process_ver_curtailments(df)
+        return self._aggregate_ver_curtailments(df)
+
+    def get_ver_curtailments_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
+        """Get VER Curtailments summed across BAAs for a year. Starting 2014.
+
+        Recent data use get_ver_curtailments. For data broken down by BAA use
+        get_ver_curtailments_by_baa_annual.
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+
+        df = self._process_ver_curtailments(df)
+        df = self._aggregate_ver_curtailments(df)
+
+        df = df[~df["Interval Start"].isnull()]
+
+        df = df.sort_values("Interval Start")
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_ver_curtailments_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get VER Curtailments broken down by BAA.
+
+        Supports recent data. For historical annual data use
+        get_ver_curtailments_by_baa_annual.
+
+        Args:
+            date: start date
+            end: end date
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
 
@@ -1036,13 +1115,14 @@ class SPP(ISOBase):
 
         return self._process_ver_curtailments(df)
 
-    def get_ver_curtailments_annual(
+    def get_ver_curtailments_by_baa_annual(
         self,
         year: int,
         verbose: bool = True,
     ) -> pd.DataFrame:
-        """Get VER Curtailments for a year. Starting 2014.
-        Recent data use get_ver_curtailments
+        """Get VER Curtailments broken down by BAA for a year. Starting 2014.
+
+        Recent data use get_ver_curtailments_by_baa.
 
         Args:
             year: year to get data for
@@ -1058,7 +1138,7 @@ class SPP(ISOBase):
 
         df = df[~df["Interval Start"].isnull()]
 
-        df = df.sort_values("Time")
+        df = df.sort_values("Interval Start")
 
         return df
 
@@ -2482,7 +2562,7 @@ class SPP(ISOBase):
             if e.code == 404:
                 raise NoDataFoundException(
                     f"No historical tie flow data found for {month_str}. "
-                    f"Historical data is available starting Mar2014."
+                    f"Historical data is available starting Mar2014.",
                 )
             raise
 
@@ -2492,7 +2572,7 @@ class SPP(ISOBase):
                 "GMTTIME": "GMTTime",
                 "SPP_NSI": "SPP NSI",
                 "SPP_NAI": "SPP NAI",
-            }
+            },
         )
 
         return self._process_interchange_real_time(df)

@@ -1576,22 +1576,27 @@ class TestSPP(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
-    """ get_ver_curtailment """
+    """ get_ver_curtailments """
+
+    _ver_curtailment_cols = [
+        "Interval Start",
+        "Interval End",
+        "Wind Redispatch Curtailments",
+        "Wind Manual Curtailments",
+        "Wind Curtailed For Energy",
+        "Solar Redispatch Curtailments",
+        "Solar Manual Curtailments",
+        "Solar Curtailed For Energy",
+    ]
 
     def _check_ver_curtailments(self, df):
         assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self._ver_curtailment_cols
+        assert "BAA" not in df.columns
 
-        assert df.columns.tolist() == [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Wind Redispatch Curtailments",
-            "Wind Manual Curtailments",
-            "Wind Curtailed For Energy",
-            "Solar Redispatch Curtailments",
-            "Solar Manual Curtailments",
-            "Solar Curtailed For Energy",
-        ]
+    def _check_ver_curtailments_by_baa(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self._ver_curtailment_cols + ["BAA"]
 
     def test_get_ver_curtailments_historical(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
@@ -1616,6 +1621,32 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
         self._check_ver_curtailments(df)
+
+    """ get_ver_curtailments_by_baa """
+
+    def test_get_ver_curtailments_by_baa_historical(self):
+        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
+        start = two_days_ago - pd.Timedelta(days=2)
+        with api_vcr.use_cassette(
+            f"test_get_ver_curtailments_by_baa_historical_{start.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_ver_curtailments_by_baa(start=start, end=two_days_ago)
+
+        assert df["Interval Start"].min().date() == start.date()
+        assert df["Interval Start"].max().date() == two_days_ago.date()
+        self._check_ver_curtailments_by_baa(df)
+
+    def test_get_ver_curtailments_by_baa_annual(self):
+        year = 2020
+        with api_vcr.use_cassette(
+            f"test_get_ver_curtailments_by_baa_annual_{year}.yaml",
+        ):
+            df = self.iso.get_ver_curtailments_by_baa_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
+        assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
+
+        self._check_ver_curtailments_by_baa(df)
 
     # get_capacity_of_generation_on_outage
 
