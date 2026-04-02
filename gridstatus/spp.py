@@ -1046,6 +1046,9 @@ class SPP(ISOBase):
         # Drop rows where all numerical curtailment columns are NaN
         df = df.dropna(subset=self._ver_curtailment_numerical_cols, how="all")
 
+        df = df[~df["Interval Start"].isnull()]
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+
         return df
 
     def _aggregate_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1153,6 +1156,23 @@ class SPP(ISOBase):
 
         return df
 
+    def _fetch_ver_curtailments_daily(self, date: pd.Timestamp) -> pd.DataFrame:
+        """Fetch and process a single day's VER curtailments CSV."""
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+        return self._process_ver_curtailments(df)
+
+    def _fetch_ver_curtailments_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
+        """Fetch and process a full year's VER curtailments zip."""
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        return self._process_ver_curtailments(df)
+
     @support_date_range("DAY_START")
     def get_ver_curtailments(
         self,
@@ -1170,12 +1190,7 @@ class SPP(ISOBase):
             date: start date
             end: end date
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
-
-        df = self._process_ver_curtailments(df)
+        df = self._fetch_ver_curtailments_daily(date)
         return self._aggregate_ver_curtailments(df)
 
     def get_ver_curtailments_annual(
@@ -1195,17 +1210,8 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
-
-        df = self._process_ver_curtailments(df)
-        df = self._aggregate_ver_curtailments(df)
-
-        df = df[~df["Interval Start"].isnull()]
-
-        df = df.sort_values("Interval Start")
-
-        return df
+        df = self._fetch_ver_curtailments_annual(year, verbose=verbose)
+        return self._aggregate_ver_curtailments(df)
 
     @support_date_range("DAY_START")
     def get_ver_curtailments_by_baa(
@@ -1223,12 +1229,7 @@ class SPP(ISOBase):
             date: start date
             end: end date
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
-
-        return self._process_ver_curtailments(df)
+        return self._fetch_ver_curtailments_daily(date)
 
     def get_ver_curtailments_by_baa_annual(
         self,
@@ -1246,16 +1247,7 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
-
-        df = self._process_ver_curtailments(df)
-
-        df = df[~df["Interval Start"].isnull()]
-
-        df = df.sort_values("Interval Start")
-
-        return df
+        return self._fetch_ver_curtailments_annual(year, verbose=verbose)
 
     def _get_load_and_forecast(self, verbose: bool = False) -> pd.DataFrame:
         url = f"{MARKETPLACE_BASE_URL}/chart-api/load-forecast/asChart"
