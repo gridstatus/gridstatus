@@ -2186,6 +2186,21 @@ class TestSPP(BaseTestISO):
         assert df["Time"].max().month == 4
         assert df["Time"].max().year == 2026
 
+    def test_get_west_interchange_real_time_historical_range(self):
+        with api_vcr.use_cassette(
+            "test_get_west_interchange_real_time_historical_range.yaml",
+        ):
+            df = self.iso.get_west_interchange_real_time(
+                date=pd.Timestamp("2026-03-01"),
+                end=pd.Timestamp("2026-05-01"),
+            )
+
+        self._check_west_interchange_real_time(df)
+        # Should span Mar and Apr 2026
+        assert df["Time"].min().month >= 3
+        assert df["Time"].max().month == 4
+        assert df["Time"].max().year == 2026
+
     def test_get_west_interchange_real_time_no_data(self):
         with api_vcr.use_cassette(
             "test_get_west_interchange_real_time_no_data.yaml",
