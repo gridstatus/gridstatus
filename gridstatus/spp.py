@@ -789,11 +789,8 @@ class SPP(ISOBase):
                 else BAAEnum.SPP.value,
             )
 
-        baa_values = [e.value for e in BAAEnum]
         result_df = (
-            df[df["BAA"].astype(str).str.strip().isin(baa_values)][
-                ["Interval Start", "Interval End", "BAA", "Averaged Actual"]
-            ]
+            df[["Interval Start", "Interval End", "BAA", "Averaged Actual"]]
             .rename(columns={"Averaged Actual": "Load"})
             .copy()
         )
@@ -809,10 +806,6 @@ class SPP(ISOBase):
 
         return (
             result_df.dropna(subset=["Load"])
-            .drop_duplicates(
-                subset=["Interval Start", "Interval End", "BAA"],
-                keep="last",
-            )
             .sort_values("Interval Start")
             .reset_index(drop=True)
         )
