@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import gridstatus
 from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
     LOCATION_TYPE_BUS,
@@ -142,54 +141,17 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette(
             "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
         ):
-            yesterday = gridstatus.utils._handle_date(
-                "today",
-                self.iso.default_timezone,
-            ) - pd.Timedelta(days=1)
-            yesterday = yesterday.replace(
-                hour=1,
-                minute=0,
-                second=0,
-                microsecond=0,
+            super().test_get_fuel_mix_range_two_days_with_day_start_endpoint(
+                time_column="Interval Start",
             )
-            start = yesterday - pd.Timedelta(hours=3)
-            df = self.iso.get_fuel_mix(
-                start=start,
-                end=yesterday + pd.Timedelta(minutes=1),
-            )
-            assert df["Interval Start"].max() >= yesterday.replace(
-                hour=0,
-                minute=0,
-                second=0,
-            )
-            assert df["Interval Start"].min() <= start
-            self._check_fuel_mix(df)
 
     def test_get_fuel_mix_start_end_same_day(self):
         with api_vcr.use_cassette(
             "test_get_fuel_mix_start_end_same_day.yaml",
         ):
-            yesterday = gridstatus.utils._handle_date(
-                "today",
-                self.iso.default_timezone,
-            ) - pd.Timedelta(days=1)
-            start = yesterday.replace(
-                hour=0,
-                minute=5,
-                second=0,
-                microsecond=0,
+            super().test_get_fuel_mix_start_end_same_day(
+                time_column="Interval Start",
             )
-            end = yesterday.replace(
-                hour=6,
-                minute=5,
-                second=0,
-                microsecond=0,
-            )
-            df = self.iso.get_fuel_mix(start=start, end=end)
-            assert df["Interval Start"].iloc[:-1].dt.date.unique().tolist() == [
-                yesterday.date(),
-            ]
-            self._check_fuel_mix(df)
 
     def test_get_fuel_mix_latest(self):
         with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
@@ -269,11 +231,11 @@ class TestSPP(BaseTestISO):
         assert "SPP" in fm["BAA"].values
         assert fm["Interval Start"].min() >= yesterday
 
-    """get_fuel_mix_detailed_by_baa"""
+    """get_fuel_mix_by_baa_detailed"""
 
-    def test_get_fuel_mix_detailed_by_baa_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_detailed_by_baa_latest.yaml"):
-            fm = self.iso.get_fuel_mix_detailed_by_baa(date="latest")
+    def test_get_fuel_mix_by_baa_detailed_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_detailed_latest.yaml"):
+            fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_BAA_COLS

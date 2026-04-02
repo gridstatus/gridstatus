@@ -155,7 +155,6 @@ class SPP(ISOBase):
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
-        detailed: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get combined fuel mix summed across SPP and SWPW BAAs
@@ -163,7 +162,6 @@ class SPP(ISOBase):
         Args:
             date: "latest", "today", a timestamp, or a date range tuple
             end: optional end date for range queries
-            detailed: if True, breaks out self scheduled and market scheduled
 
         Returns:
             pd.DataFrame: fuel mix summed across both BAAs
@@ -171,7 +169,7 @@ class SPP(ISOBase):
         return self._get_combined_fuel_mix(
             date=date,
             end=end,
-            detailed=detailed,
+            detailed=False,
             verbose=verbose,
             by_baa=False,
         )
@@ -207,7 +205,6 @@ class SPP(ISOBase):
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
-        detailed: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get fuel mix for both SPP and SWPW BAAs with a BAA column
@@ -215,7 +212,6 @@ class SPP(ISOBase):
         Args:
             date: "latest", "today", a timestamp, or a date range tuple
             end: optional end date for range queries
-            detailed: if True, breaks out self scheduled and market scheduled
 
         Returns:
             pd.DataFrame: fuel mix with BAA column differentiating SPP and SWPW
@@ -223,13 +219,13 @@ class SPP(ISOBase):
         return self._get_combined_fuel_mix(
             date=date,
             end=end,
-            detailed=detailed,
+            detailed=False,
             verbose=verbose,
             by_baa=True,
         )
 
     @support_date_range(frequency=None)
-    def get_fuel_mix_detailed_by_baa(
+    def get_fuel_mix_by_baa_detailed(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
