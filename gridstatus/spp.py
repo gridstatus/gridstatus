@@ -1005,6 +1005,15 @@ class SPP(ISOBase):
 
         return df
 
+    _ver_curtailment_numerical_cols = [
+        "Wind Redispatch Curtailments",
+        "Wind Manual Curtailments",
+        "Wind Curtailed For Energy",
+        "Solar Redispatch Curtailments",
+        "Solar Manual Curtailments",
+        "Solar Curtailed For Energy",
+    ]
+
     def _process_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
@@ -1024,7 +1033,6 @@ class SPP(ISOBase):
         )
 
         cols = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Wind Redispatch Curtailments",
@@ -1033,15 +1041,35 @@ class SPP(ISOBase):
             "Solar Redispatch Curtailments",
             "Solar Manual Curtailments",
             "Solar Curtailed For Energy",
+            "BAA",
         ]
 
         # historical data doesnt have all columns
-        for c in cols:
-            if c not in df.columns:
-                df[c] = pd.NA
+        for col in cols:
+            if col not in df.columns:
+                # Default BAA to SPP for historical data
+                df[col] = pd.NA if col != "BAA" else BAAEnum.SPP
 
         df = df[cols]
 
+        # Drop rows where all numerical curtailment columns are NaN
+        df = df.dropna(subset=self._ver_curtailment_numerical_cols, how="all")
+
+        df = df[~df["Interval Start"].isnull()]
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+
+        return df
+
+    def _aggregate_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Sum VER curtailment numerical columns across BAAs."""
+        df = (
+            df.groupby(["Interval Start", "Interval End"], as_index=False)[
+                self._ver_curtailment_numerical_cols
+            ]
+            .sum()
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
         return df
 
     @support_date_range("DAY_START")
@@ -1137,6 +1165,23 @@ class SPP(ISOBase):
 
         return df
 
+    def _fetch_ver_curtailments_daily(self, date: pd.Timestamp) -> pd.DataFrame:
+        """Fetch and process a single day's VER curtailments CSV."""
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+        return self._process_ver_curtailments(df)
+
+    def _fetch_ver_curtailments_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
+        """Fetch and process a full year's VER curtailments zip."""
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        return self._process_ver_curtailments(df)
+
     @support_date_range("DAY_START")
     def get_ver_curtailments(
         self,
@@ -1144,30 +1189,28 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get VER Curtailments
+        """Get VER Curtailments summed across BAAs.
 
-        Supports recent data. For historical annual data use get_ver_curtailments_annual
+        Supports recent data. For historical annual data use
+        get_ver_curtailments_annual. For data broken down by BAA use
+        get_ver_curtailments_by_baa.
 
         Args:
             date: start date
             end: end date
-
-
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
-
-        return self._process_ver_curtailments(df)
+        df = self._fetch_ver_curtailments_daily(date)
+        return self._aggregate_ver_curtailments(df)
 
     def get_ver_curtailments_annual(
         self,
         year: int,
         verbose: bool = True,
     ) -> pd.DataFrame:
-        """Get VER Curtailments for a year. Starting 2014.
-        Recent data use get_ver_curtailments
+        """Get VER Curtailments summed across BAAs for a year. Starting 2014.
+
+        Recent data use get_ver_curtailments. For data broken down by BAA use
+        get_ver_curtailments_by_baa_annual.
 
         Args:
             year: year to get data for
@@ -1176,16 +1219,44 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        df = self._fetch_ver_curtailments_annual(year, verbose=verbose)
+        return self._aggregate_ver_curtailments(df)
 
-        df = self._process_ver_curtailments(df)
+    @support_date_range("DAY_START")
+    def get_ver_curtailments_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get VER Curtailments broken down by BAA.
 
-        df = df[~df["Interval Start"].isnull()]
+        Supports recent data. For historical annual data use
+        get_ver_curtailments_by_baa_annual.
 
-        df = df.sort_values("Time")
+        Args:
+            date: start date
+            end: end date
+        """
+        return self._fetch_ver_curtailments_daily(date)
 
-        return df
+    def get_ver_curtailments_by_baa_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
+        """Get VER Curtailments broken down by BAA for a year. Starting 2014.
+
+        Recent data use get_ver_curtailments_by_baa.
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
+        return self._fetch_ver_curtailments_annual(year, verbose=verbose)
 
     def _get_load_and_forecast(self, verbose: bool = False) -> pd.DataFrame:
         url = f"{MARKETPLACE_BASE_URL}/chart-api/load-forecast/asChart"
