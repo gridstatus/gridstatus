@@ -59,6 +59,9 @@ class AESO:
             "API-KEY": self.api_key,
         }
 
+    # Default timeout for API requests: (connect_timeout, read_timeout) in seconds
+    REQUEST_TIMEOUT = (10, 120)
+
     def _make_request(self, endpoint: str, method: str = "GET") -> dict[str, Any]:
         """
         Make a request to the AESO API.
@@ -82,6 +85,7 @@ class AESO:
                 method=method,
                 url=url,
                 headers=self.default_headers,
+                timeout=self.REQUEST_TIMEOUT,
             )
             response.raise_for_status()
             return response.json()

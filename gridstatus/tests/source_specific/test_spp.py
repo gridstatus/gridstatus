@@ -1,8 +1,10 @@
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from gridstatus import SPP, Markets, NotSupported
+from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
     LOCATION_TYPE_BUS,
     LOCATION_TYPE_HUB,
@@ -26,63 +28,170 @@ class TestSPP(BaseTestISO):
 
     """get_fuel_mix"""
 
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_date_or_start(self):
-        pass
+    FUEL_MIX_COLS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Coal",
+        "Diesel Fuel Oil",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Solar",
+        "Waste Disposal Services",
+        "Wind",
+        "Waste Heat",
+        "Other",
+    ]
 
+    FUEL_MIX_DETAILED_COLS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Coal Market",
+        "Coal Self",
+        "Diesel Fuel Oil Market",
+        "Diesel Fuel Oil Self",
+        "Hydro Market",
+        "Hydro Self",
+        "Natural Gas Market",
+        "Natural Gas Self",
+        "Nuclear Market",
+        "Nuclear Self",
+        "Solar Market",
+        "Solar Self",
+        "Waste Disposal Services Market",
+        "Waste Disposal Services Self",
+        "Wind Market",
+        "Wind Self",
+        "Waste Heat Market",
+        "Waste Heat Self",
+        "Other Market",
+        "Other Self",
+    ]
+
+    # Base test uses dates >365 days old, which raises NotSupported
     @pytest.mark.integration
     def test_get_fuel_mix_historical(self):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical()
 
-    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_fuel_mix_date_or_start(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_date_or_start.yaml"):
+            super().test_get_fuel_mix_date_or_start()
+
     def test_get_fuel_mix_historical_with_date_range(self):
-        pass
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_historical_with_date_range.yaml",
+        ):
+            super().test_get_fuel_mix_historical_with_date_range()
 
-    @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
-        pass
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
+        ):
+            super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
 
-    @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_start_end_same_day(self):
-        pass
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_start_end_same_day.yaml",
+        ):
+            super().test_get_fuel_mix_start_end_same_day()
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_central_time(self):
-        fm = self.iso.get_fuel_mix(date="latest")
+    def test_get_fuel_mix_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
+            fm = self.iso.get_fuel_mix(date="latest")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
         assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SPP").all()
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_self_market(self):
-        fm = self.iso.get_fuel_mix(date="latest", detailed=True)
+    def test_get_fuel_mix_today(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
+            fm = self.iso.get_fuel_mix(date="today")
 
-        cols = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Coal Market",
-            "Coal Self",
-            "Diesel Fuel Oil Market",
-            "Diesel Fuel Oil Self",
-            "Hydro Market",
-            "Hydro Self",
-            "Natural Gas Market",
-            "Natural Gas Self",
-            "Nuclear Market",
-            "Nuclear Self",
-            "Solar Market",
-            "Solar Self",
-            "Waste Disposal Services Market",
-            "Waste Disposal Services Self",
-            "Wind Market",
-            "Wind Self",
-            "Waste Heat Market",
-            "Waste Heat Self",
-            "Other Market",
-            "Other Self",
-        ]
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert (fm["BAA"] == "SPP").all()
 
-        assert fm.columns.tolist() == cols
+    def test_get_fuel_mix_detailed(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_detailed.yaml"):
+            fm = self.iso.get_fuel_mix(date="latest", detailed=True)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert (fm["BAA"] == "SPP").all()
+
+    def test_get_fuel_mix_too_old_raises(self):
+        old_date = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(days=400)
+        with pytest.raises(NotSupported):
+            self.iso.get_fuel_mix(date=old_date)
+
+    def test_get_fuel_mix_historical_recent(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=1)
+        with api_vcr.use_cassette("test_get_fuel_mix_historical_recent.yaml"):
+            fm = self.iso.get_fuel_mix(date=yesterday)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert (fm["BAA"] == "SPP").all()
+        assert fm["Interval Start"].min() >= yesterday
+
+    """get_swpw_fuel_mix"""
+
+    def test_get_swpw_fuel_mix_latest(self):
+        with api_vcr.use_cassette("test_get_swpw_fuel_mix_latest.yaml"):
+            fm = self.iso.get_swpw_fuel_mix(date="latest")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_swpw_fuel_mix_today(self):
+        with api_vcr.use_cassette("test_get_swpw_fuel_mix_today.yaml"):
+            fm = self.iso.get_swpw_fuel_mix(date="today")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_swpw_fuel_mix_detailed(self):
+        with api_vcr.use_cassette("test_get_swpw_fuel_mix_detailed.yaml"):
+            fm = self.iso.get_swpw_fuel_mix(date="latest", detailed=True)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert (fm["BAA"] == "SWPW").all()
+
+    def test_get_swpw_fuel_mix_too_old_raises(self):
+        old_date = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(days=400)
+        with pytest.raises(NotSupported):
+            self.iso.get_swpw_fuel_mix(date=old_date)
+
+    def test_get_swpw_fuel_mix_historical_recent(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=1)
+        with api_vcr.use_cassette(
+            "test_get_swpw_fuel_mix_historical_recent.yaml",
+        ):
+            fm = self.iso.get_swpw_fuel_mix(date=yesterday)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert (fm["BAA"] == "SWPW").all()
+        assert fm["Interval Start"].min() >= yesterday
 
     """get_lmp_real_time_5_min_by_location"""
 
@@ -410,6 +519,7 @@ class TestSPP(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Market",
+            "BAA",
             "Location",
             "Location Type",
             "PNode",
@@ -1348,6 +1458,105 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
+    """get_swpw_load"""
+
+    def test_get_swpw_load(self):
+        now = self.local_now().floor("5min")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now + pd.Timedelta(minutes=5), now],
+                "Interval End": [
+                    now + pd.Timedelta(minutes=5),
+                    now + pd.Timedelta(minutes=10),
+                    now + pd.Timedelta(minutes=5),
+                ],
+                "Actual": [1000.0, 1005.0, 1001.0],
+                "BAA": ["SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_swpw_load(date=now, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert df["Load"].tolist() == [1001.0]
+
+    def test_get_swpw_load_hourly(self):
+        now = self.local_now().floor("h")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    now + pd.Timedelta(hours=1),
+                    now + pd.Timedelta(hours=2),
+                ],
+                "Averaged Actual": [15000.0, 15100.0],
+                "BAA": ["SWPW", "SPP"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_swpw_load_hourly(date=now, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert df["Load"].tolist() == [15000.0]
+
+    def test_get_swpw_load_missing_actual_load_column(self):
+        now = self.local_now().floor("5min")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now],
+                "Interval End": [now + pd.Timedelta(minutes=5)],
+                "Actual Wind MW": [100.0],
+                "BAA": ["SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            with pytest.raises(KeyError):
+                self.iso.get_swpw_load(date=now, verbose=False)
+
+    def test_get_swpw_load_before_start_date_raises(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_swpw_load(date=pd.Timestamp("2026-03-31 23:55:00-0500"))
+
+    def test_get_swpw_load_hourly_before_start_date_raises(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_swpw_load_hourly(date=pd.Timestamp("2026-03-31 23:00:00-0500"))
+
     """get_status"""
 
     @pytest.mark.integration
@@ -1530,9 +1739,9 @@ class TestSPP(BaseTestISO):
 
         assert (df["Forecast Type"] == forecast_type).all()
 
-    """ get_hourly_load """
+    """ get_hourly_load_historical (wide format, before 2026-03-24) """
 
-    def _check_hourly_load(self, df):
+    def _check_hourly_load_historical(self, df):
         assert isinstance(df, pd.DataFrame)
 
         assert df.columns.tolist() == [
@@ -1560,36 +1769,90 @@ class TestSPP(BaseTestISO):
         ]
 
     def test_get_hourly_load_historical(self):
-        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
-        start = two_days_ago - pd.Timedelta(days=2)
+        start = pd.Timestamp("2026-03-20")
+        end = pd.Timestamp("2026-03-22")
         with api_vcr.use_cassette(
-            f"test_get_hourly_load_historical_{start.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+            f"test_get_hourly_load_historical_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
         ):
-            df = self.iso.get_hourly_load(start=start, end=two_days_ago)
+            df = self.iso.get_hourly_load_historical(start=start, end=end)
 
         assert df["Interval Start"].min().date() == start.date()
-        assert df["Interval Start"].max().date() == two_days_ago.date()
-        self._check_hourly_load(df)
+        assert df["Interval Start"].max().date() == pd.Timestamp("2026-03-21").date()
+        self._check_hourly_load_historical(df)
 
-    def test_get_hourly_load_annual(self):
+    def test_get_hourly_load_historical_annual(self):
         year = 2020
         with api_vcr.use_cassette(
-            f"test_get_hourly_load_annual_{year}.yaml",
+            f"test_get_hourly_load_historical_annual_{year}.yaml",
         ):
             df = self.iso.get_hourly_load_annual(year=year)
 
         assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
-        self._check_hourly_load(df)
+        self._check_hourly_load_historical(df)
 
-    @pytest.mark.integration
+    def test_get_hourly_load_historical_raises_on_new_date(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_hourly_load_historical(pd.Timestamp("2026-03-24"))
+
+    def test_get_hourly_load_historical_process_raises_on_new_data(self):
+        new_format_df = pd.DataFrame(
+            {
+                "Market Hour": ["03/24/2026 06:00:00"],
+                "Balancing Area Name": ["SPP"],
+                "Control Zone Name": ["CSWS"],
+                "Forecast Area Type": ["CF"],
+                "Load MW": [4091.830],
+            },
+        )
+        with pytest.raises(NotSupported):
+            self.iso._process_hourly_load(new_format_df)
+
+    """ get_hourly_load (long format, >= 2026-03-24) """
+
+    def _check_hourly_load(self, df):
+        assert isinstance(df, pd.DataFrame)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Balancing Area Name",
+            "Control Zone Name",
+            "Forecast Area Type",
+            "Load",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, US/Central]"
+        assert df["Interval End"].dtype == "datetime64[ns, US/Central]"
+        assert df["Balancing Area Name"].dtype == "object"
+        assert df["Control Zone Name"].dtype == "object"
+        assert df["Forecast Area Type"].dtype == "object"
+        assert df["Load"].dtype == "float64"
+        assert set(df["Forecast Area Type"].unique()).issubset({"CF", "NC"})
+
+    def test_get_hourly_load(self):
+        date = pd.Timestamp("2026-03-24")
+        with api_vcr.use_cassette(
+            f"test_get_hourly_load_{date}.yaml",
+        ):
+            df = self.iso.get_hourly_load(date)
+
+        self._check_hourly_load(df)
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == date.date()
+        assert len(df) > 0
+
+    def test_get_hourly_load_raises_on_old_date(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_hourly_load(pd.Timestamp("2026-03-23"))
+
     @pytest.mark.parametrize(
         "date",
         ["today", "latest", pd.Timestamp.now()],
     )
     def test_get_hourly_load_current_day_not_supported(self, date):
-        with pytest.raises(NotSupported):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_hourly_load(date)
 
     """get_market_clearing_real_time"""
@@ -1804,3 +2067,73 @@ class TestSPP(BaseTestISO):
         self._check_binding_constraints_real_time(df)
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date
+
+    """get_interchange_real_time"""
+
+    interchange_real_time_cols = [
+        "Time",
+        "Region",
+        "Interchange",
+    ]
+
+    def _check_interchange_real_time(self, df):
+        assert len(df) > 0
+        assert df["Time"].dt.tz is not None
+        assert list(df.columns) == self.interchange_real_time_cols
+        # Core interchange regions are present
+        regions = df["Region"].unique()
+        assert "SPP NSI" in regions
+        assert "SPP NAI" in regions
+        # No null interchange values
+        assert df["Interchange"].notna().all()
+
+    def test_get_interchange_real_time_latest(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
+            df = self.iso.get_interchange_real_time("latest")
+
+        self._check_interchange_real_time(df)
+
+    def test_get_interchange_real_time_today(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_today.yaml"):
+            df = self.iso.get_interchange_real_time("today")
+
+        self._check_interchange_real_time(df)
+
+    def test_get_interchange_real_time_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                pd.Timestamp("2025-01-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # The Jan 2025 file starts Dec 31 UTC-6 due to GMT→Central conversion
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 1
+        assert df["Time"].max().year == 2025
+
+    def test_get_interchange_real_time_historical_range(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical_range.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                date=pd.Timestamp("2025-01-01"),
+                end=pd.Timestamp("2025-03-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # Should span Jan and Feb 2025 (starts Dec 31 due to GMT→Central)
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 2
+        assert df["Time"].max().year == 2025
+
+    def test_get_interchange_real_time_no_data(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_no_data.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_interchange_real_time(
+                    pd.Timestamp("2014-02-01"),
+                    error="raise",
+                )
