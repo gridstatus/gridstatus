@@ -901,10 +901,6 @@ class SPP(ISOBase):
             },
         )
 
-        # There are some confirmed intervals in the source data where all the curtailment columns are NaN.
-        # We should drop these intervals.
-        df = df.dropna(subset=self._ver_curtailment_numerical_cols)
-
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnding",
@@ -930,6 +926,9 @@ class SPP(ISOBase):
                 df[col] = pd.NA if col != "BAA" else BAAEnum.SPP
 
         df = df[cols]
+
+        # Drop rows where all numerical curtailment columns are NaN
+        df = df.dropna(subset=self._ver_curtailment_numerical_cols, how="all")
 
         return df
 
