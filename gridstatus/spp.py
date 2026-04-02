@@ -155,52 +155,167 @@ class SPP(ISOBase):
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
-        detailed: bool = False,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get fuel mix for SPP BAA
+        """Get combined fuel mix summed across SPP and SWPW BAAs
 
         Args:
             date: "latest", "today", a timestamp, or a date range tuple
             end: optional end date for range queries
-            detailed: if True, breaks out self scheduled and market scheduled
 
         Returns:
-            pd.DataFrame: fuel mix
+            pd.DataFrame: fuel mix summed across both BAAs
         """
-        return self._get_fuel_mix(
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=False,
+            verbose=verbose,
+            by_baa=False,
+        )
+
+    @support_date_range(frequency=None)
+    def get_fuel_mix_detailed(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get combined detailed fuel mix summed across SPP and SWPW BAAs
+
+        Breaks out self scheduled and market scheduled generation.
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+
+        Returns:
+            pd.DataFrame: detailed fuel mix summed across both BAAs
+        """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=True,
+            verbose=verbose,
+            by_baa=False,
+        )
+
+    @support_date_range(frequency=None)
+    def get_fuel_mix_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get fuel mix for both SPP and SWPW BAAs with a BAA column
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+
+        Returns:
+            pd.DataFrame: fuel mix with BAA column differentiating SPP and SWPW
+        """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=False,
+            verbose=verbose,
+            by_baa=True,
+        )
+
+    @support_date_range(frequency=None)
+    def get_fuel_mix_by_baa_detailed(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get detailed fuel mix for both SPP and SWPW BAAs with a BAA column
+
+        Breaks out self scheduled and market scheduled generation.
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+
+        Returns:
+            pd.DataFrame: detailed fuel mix with BAA column
+        """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=True,
+            verbose=verbose,
+            by_baa=True,
+        )
+
+    def _get_combined_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        detailed: bool = False,
+        verbose: bool = False,
+        by_baa: bool = False,
+    ) -> pd.DataFrame:
+        """Fetch fuel mix for both SPP and SWPW BAAs and combine them.
+
+        Args:
+            date: date to fetch
+            end: optional end date
+            detailed: if True, breaks out self scheduled and market scheduled
+            verbose: if True, log debug info
+            by_baa: if True, keep BAA column; if False, sum across BAAs
+
+        Returns:
+            pd.DataFrame: combined fuel mix
+        """
+        spp_df = self._get_fuel_mix(
             date=date,
             end=end,
             detailed=detailed,
             verbose=verbose,
             baa=BAAEnum.SPP,
         )
-
-    @support_date_range(frequency=None)
-    def get_swpw_fuel_mix(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: pd.Timestamp | None = None,
-        detailed: bool = False,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get fuel mix for SWPW BAA
-
-        Args:
-            date: "latest", "today", a timestamp, or a date range tuple
-            end: optional end date for range queries
-            detailed: if True, breaks out self scheduled and market scheduled
-
-        Returns:
-            pd.DataFrame: fuel mix
-        """
-        return self._get_fuel_mix(
+        swpw_df = self._get_fuel_mix(
             date=date,
             end=end,
             detailed=detailed,
             verbose=verbose,
             baa=BAAEnum.SWPW,
         )
+
+        if by_baa:
+            df = pd.concat([spp_df, swpw_df], ignore_index=True)
+            df = df.sort_values(
+                ["Interval Start", "BAA"],
+                ignore_index=True,
+            )
+            return df
+
+        # Sum fuel columns across BAAs for each interval
+        time_cols = ["Interval Start", "Interval End"]
+        fuel_cols = [c for c in spp_df.columns if c not in time_cols + ["BAA"]]
+
+        spp_df = spp_df.drop(columns=["BAA"], errors="ignore")
+        swpw_df = swpw_df.drop(columns=["BAA"], errors="ignore")
+
+        df = pd.merge(
+            spp_df,
+            swpw_df,
+            on=time_cols,
+            suffixes=("_spp", "_swpw"),
+            how="outer",
+        )
+
+        for col in fuel_cols:
+            spp_col = f"{col}_spp"
+            swpw_col = f"{col}_swpw"
+            df[col] = df[spp_col].fillna(0) + df[swpw_col].fillna(0)
+            df = df.drop(columns=[spp_col, swpw_col])
+
+        df = df.sort_values("Interval Start", ignore_index=True)
+        return df
 
     def _get_fuel_mix(
         self,
@@ -238,14 +353,15 @@ class SPP(ISOBase):
         df = process_gen_mix(df_raw, detailed=detailed)
 
         df = df.drop(
-            columns=["Short Term Load Forecast", "Average Actual Load"],
+            columns=["Short Term Load Forecast", "Average Actual Load", "Time"],
             errors="ignore",
         )
 
         if date != "latest" and isinstance(date, pd.Timestamp):
             df = df[df["Interval Start"] >= date]
-            if end is not None:
-                df = df[df["Interval Start"] < end]
+            if end is None:
+                end = date.normalize() + pd.Timedelta(days=1)
+            df = df[df["Interval Start"] < end]
             df = df.reset_index(drop=True)
 
         return df
