@@ -1,0 +1,43 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Connection:
+      - close
+      Host:
+      - portal.spp.org
+      User-Agent:
+      - Python-urllib/3.11
+    method: GET
+    uri: https://portal.spp.org/file-browser-api/download/historical-tie-flow?path=/TieFlows_SWPW_Feb2025.csv
+  response:
+    body:
+      string: ''
+    headers:
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Connection:
+      - close
+      Content-Length:
+      - '0'
+      Date:
+      - Thu, 02 Apr 2026 16:56:00 GMT
+      Expires:
+      - '0'
+      Pragma:
+      - no-cache
+      Server:
+      - nginx
+      Set-Cookie:
+      - JSESSIONID=A6D97103BA534F8B50E191692CF577DB; Path=/; HttpOnly
+      - XSRF-TOKEN=8471351e-c8e1-4bfc-918a-ca15e9ad6aa8; Path=/
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - DENY
+      X-XSS-Protection:
+      - '0'
+    status:
+      code: 404
+      message: ''
+version: 1
