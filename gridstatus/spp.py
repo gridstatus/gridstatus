@@ -122,6 +122,40 @@ class BAAEnum(StrEnum):
     SWPW = "SWPW"
 
 
+def fill_baa_column(df, load_col):
+    """Fill missing BAA values based on load magnitude.
+
+    If the BAA column doesn't exist, creates it. If it exists but has NaN values,
+    fills only the missing entries. Uses BAA_LOAD_THRESHOLD_MW to distinguish
+    between SWPW (small loads) and SPP (large loads).
+
+    Args:
+        df: DataFrame with a load column to use for BAA inference.
+        load_col: Name of the column containing load values.
+
+    Returns:
+        The DataFrame with BAA column filled in-place.
+    """
+    if "BAA" not in df.columns:
+        df["BAA"] = df[load_col].apply(
+            lambda x: (
+                BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value
+            ),
+        )
+    else:
+        mask = df["BAA"].isna()
+        df.loc[mask, "BAA"] = df.loc[mask, load_col].apply(
+            lambda x: (
+                BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value
+            ),
+        )
+    return df
+
+
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
 
@@ -378,9 +412,7 @@ class SPP(ISOBase):
         baa_df = self.get_load_by_baa(date=date, end=end, verbose=verbose)
 
         if baa_df.empty:
-            return pd.DataFrame(
-                columns=["Interval Start", "Interval End", "Load"],
-            )
+            raise NoDataFoundException(f"No load data found for date {date}")
 
         return (
             baa_df.groupby(
@@ -394,53 +426,26 @@ class SPP(ISOBase):
 
     def get_load_forecast(
         self,
-        date: str | pd.Timestamp,
-        forecast_type: str = "MID_TERM",
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load forecast for next 7 days in hourly intervals
+        """Returns total RTO load forecast in hourly intervals from MTLF data."""
+        baa_df = self.get_load_forecast_by_baa(date=date, end=end, verbose=verbose)
 
-        Arguments:
-            forecast_type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
-                every five minutes for a few hours
+        if baa_df.empty:
+            raise NoDataFoundException(
+                f"No load forecast by BAA data found for date {date}",
+            )
 
-        Returns:
-            pd.DataFrame: forecast for current day
-        """
-        df = self._get_load_and_forecast(verbose=verbose)
+        summed = baa_df.groupby(
+            ["Interval Start", "Interval End", "Publish Time"],
+            as_index=False,
+        )["Load Forecast"].sum()
 
-        # gives forecast from before current day
-        # only include forecasts starting at current day
-        last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
-        current_day = last_actual.replace(hour=0, minute=0)
-
-        current_day_forecast = df[df["Time"] >= current_day].copy()
-
-        # assume forecast is made at last actual
-        current_day_forecast["Forecast Time"] = last_actual
-
-        if forecast_type == "MID_TERM":
-            forecast_col = "Mid-Term Forecast"
-        elif forecast_type == "SHORT_TERM":
-            forecast_col = "Short-Term Forecast"
-        else:
-            raise RuntimeError("Invalid forecast type")
-
-        # there will be empty rows regardless of forecast type since they dont align
-        current_day_forecast = current_day_forecast.dropna(
-            subset=[forecast_col],
+        return summed.sort_values(["Interval Start", "Publish Time"]).reset_index(
+            drop=True,
         )
-
-        current_day_forecast = current_day_forecast[
-            ["Forecast Time", "Time", forecast_col]
-        ].rename({forecast_col: "Load Forecast"}, axis=1)
-
-        current_day_forecast = add_interval(
-            current_day_forecast,
-            interval_min=60,
-        )
-
-        return current_day_forecast
 
     @support_date_range("5_MIN")
     def get_load_forecast_short_term(
@@ -489,6 +494,8 @@ class SPP(ISOBase):
             drop_null_forecast_rows=drop_null_forecast_rows,
         )
 
+        fill_baa_column(df, "STLF")
+
         return df
 
     @support_date_range("HOUR_START")
@@ -531,6 +538,64 @@ class SPP(ISOBase):
         )
 
         return df
+
+    def get_load_forecast_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly load forecast by BAA from MTLF data."""
+        df = self._get_load_forecast_by_baa_raw(date=date, end=end, verbose=verbose)
+
+        if df is None or df.empty:
+            raise NoDataFoundException(
+                f"No load forecast by BAA data found for {date}",
+            )
+
+        return (
+            df.dropna(subset=["Load Forecast"])
+            .drop_duplicates(
+                subset=["Interval Start", "Interval End", "Publish Time", "BAA"],
+                keep="last",
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("HOUR_START")
+    def _get_load_forecast_by_baa_raw(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        result = self._get_mid_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            forecast_col="MTLF",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        fill_baa_column(df, "MTLF")
+
+        return df[
+            ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"]
+        ].rename(columns={"MTLF": "Load Forecast"})
 
     def _handle_dst_floor_date(
         self,
@@ -829,19 +894,7 @@ class SPP(ISOBase):
             drop_null_forecast_rows=False,
         )
 
-        if "BAA" not in df.columns:
-            df["BAA"] = df["Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
-        else:
-            mask = df["BAA"].isna()
-            df.loc[mask, "BAA"] = df.loc[mask, "Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
+        fill_baa_column(df, "Actual")
 
         return (
             df[["Interval Start", "Interval End", "BAA", "Actual"]]
@@ -891,19 +944,7 @@ class SPP(ISOBase):
             forecast_col="MTLF",
         )
 
-        if "BAA" not in df.columns:
-            df["BAA"] = df["Averaged Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
-        else:
-            mask = df["BAA"].isna()
-            df.loc[mask, "BAA"] = df.loc[mask, "Averaged Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
+        fill_baa_column(df, "Averaged Actual")
 
         result_df = (
             df[["Interval Start", "Interval End", "BAA", "Averaged Actual"]]
@@ -2752,7 +2793,7 @@ class SPP(ISOBase):
             if e.code == 404:
                 raise NoDataFoundException(
                     f"No historical SWPW tie flow data found for {month_str}. "
-                    f"Historical data is available starting Mar2026."
+                    f"Historical data is available starting Mar2026.",
                 )
             raise
 
@@ -2762,7 +2803,7 @@ class SPP(ISOBase):
                 "GMTTIME": "GMTTime",
                 "SPP_NSI": "SWPW NSI",
                 "SPP_NAI": "SWPW NAI",
-            }
+            },
         )
 
         return self._process_interchange_real_time(df)
