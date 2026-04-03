@@ -1472,10 +1472,8 @@ class TestSPP(BaseTestISO):
             "_get_mid_term_forecast_data",
             return_value=None,
         ):
-            df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
-
-        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
-        assert len(df) == 0
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_load_forecast_by_baa(date=date, verbose=False)
 
     """get_load_forecast_short_term"""
 

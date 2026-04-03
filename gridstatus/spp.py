@@ -434,7 +434,7 @@ class SPP(ISOBase):
         baa_df = self.get_load_forecast_by_baa(date=date, end=end, verbose=verbose)
 
         if baa_df.empty:
-            return NoDataFoundException(
+            raise NoDataFoundException(
                 f"No load forecast by BAA data found for date {date}",
             )
 
@@ -551,7 +551,7 @@ class SPP(ISOBase):
         df = self._get_load_forecast_by_baa_raw(date=date, end=end, verbose=verbose)
 
         if df is None or df.empty:
-            return NoDataFoundException(
+            raise NoDataFoundException(
                 f"No load forecast by BAA data found for {date}",
             )
 
