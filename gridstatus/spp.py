@@ -412,9 +412,7 @@ class SPP(ISOBase):
         baa_df = self.get_load_by_baa(date=date, end=end, verbose=verbose)
 
         if baa_df.empty:
-            return pd.DataFrame(
-                columns=["Interval Start", "Interval End", "Load"],
-            )
+            raise NoDataFoundException(f"No load data found for date {date}")
 
         return (
             baa_df.groupby(
@@ -436,13 +434,8 @@ class SPP(ISOBase):
         baa_df = self.get_load_forecast_by_baa(date=date, end=end, verbose=verbose)
 
         if baa_df.empty:
-            return pd.DataFrame(
-                columns=[
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Load Forecast",
-                ],
+            return NoDataFoundException(
+                f"No load forecast by BAA data found for date {date}",
             )
 
         return (
@@ -557,14 +550,8 @@ class SPP(ISOBase):
         df = self._get_load_forecast_by_baa_raw(date=date, end=end, verbose=verbose)
 
         if df is None or df.empty:
-            return pd.DataFrame(
-                columns=[
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "BAA",
-                    "Load Forecast",
-                ],
+            return NoDataFoundException(
+                f"No load forecast by BAA data found for {date}",
             )
 
         return (
@@ -605,28 +592,11 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(hours=1),
         )
 
-        if "BAA" not in df.columns:
-            df["BAA"] = df["MTLF"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
-        else:
-            mask = df["BAA"].isna()
-            df.loc[mask, "BAA"] = df.loc[mask, "MTLF"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
+        fill_baa_column(df, "MTLF")
 
-        baa_values = [e.value for e in BAAEnum]
-        return (
-            df[df["BAA"].astype(str).str.strip().isin(baa_values)][
-                ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"]
-            ]
-            .rename(columns={"MTLF": "Load Forecast"})
-            .copy()
-        )
+        return df[
+            ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"]
+        ].rename(columns={"MTLF": "Load Forecast"})
 
     def _handle_dst_floor_date(
         self,
