@@ -138,7 +138,10 @@ class BaseTestISO(TestHelperMixin):
         # make sure right number of days are returned
         assert df[time_column].dt.day.nunique() == num_days
 
-    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(
+        self,
+        time_column="Time",
+    ):
         yesterday = gridstatus.utils._handle_date(
             "today",
             self.iso.default_timezone,
@@ -150,12 +153,12 @@ class BaseTestISO(TestHelperMixin):
         # and does not include the whole day like other isos
         df = self.iso.get_fuel_mix(start=start, end=yesterday + pd.Timedelta(minutes=1))
 
-        assert df["Time"].max() >= yesterday.replace(hour=0, minute=0, second=0)
-        assert df["Time"].min() <= start
+        assert df[time_column].max() >= yesterday.replace(hour=0, minute=0, second=0)
+        assert df[time_column].min() <= start
 
         self._check_fuel_mix(df)
 
-    def test_get_fuel_mix_start_end_same_day(self):
+    def test_get_fuel_mix_start_end_same_day(self, time_column="Time"):
         yesterday = gridstatus.utils._handle_date(
             "today",
             self.iso.default_timezone,
@@ -164,7 +167,7 @@ class BaseTestISO(TestHelperMixin):
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
         df = self.iso.get_fuel_mix(start=start, end=end)
         # ignore last row, since it is sometime midnight of next day
-        assert df["Time"].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
+        assert df[time_column].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_latest(self, time_column="Time"):
