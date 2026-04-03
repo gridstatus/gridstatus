@@ -6,10 +6,13 @@ import pytest
 
 from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
+    BAA_LOAD_THRESHOLD_MW,
     LOCATION_TYPE_BUS,
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    BAAEnum,
+    fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -2673,3 +2676,78 @@ class TestSPP(BaseTestISO):
                     pd.Timestamp("2025-02-01"),
                     error="raise",
                 )
+
+
+class TestFillBaaColumn:
+    """Tests for the fill_baa_column utility function."""
+
+    def test_creates_baa_column_when_missing(self):
+        df = pd.DataFrame({"Load": [2000.0, 25000.0, 3000.0]})
+        result = fill_baa_column(df, "Load")
+        assert "BAA" in result.columns
+        assert result["BAA"].tolist() == [
+            BAAEnum.SWPW.value,
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_fills_nan_baa_values(self):
+        df = pd.DataFrame(
+            {
+                "Load": [2000.0, 25000.0, 3000.0],
+                "BAA": [BAAEnum.SWPW.value, None, None],
+            },
+        )
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [
+            BAAEnum.SWPW.value,
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_preserves_existing_baa_values(self):
+        df = pd.DataFrame(
+            {
+                "Load": [2000.0, 25000.0],
+                "BAA": [BAAEnum.SPP.value, BAAEnum.SWPW.value],
+            },
+        )
+        result = fill_baa_column(df, "Load")
+        # Existing non-null values should not be overwritten
+        assert result["BAA"].tolist() == [
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_nan_load_maps_to_spp(self):
+        df = pd.DataFrame({"Load": [float("nan"), 2000.0]})
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_threshold_boundary(self):
+        df = pd.DataFrame(
+            {"Load": [BAA_LOAD_THRESHOLD_MW - 1, BAA_LOAD_THRESHOLD_MW]},
+        )
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [
+            BAAEnum.SWPW.value,
+            BAAEnum.SPP.value,
+        ]
+
+    def test_returns_same_dataframe(self):
+        df = pd.DataFrame({"Load": [2000.0]})
+        result = fill_baa_column(df, "Load")
+        assert result is df
+
+    def test_all_baa_present_no_changes(self):
+        df = pd.DataFrame(
+            {
+                "Load": [2000.0, 25000.0],
+                "BAA": [BAAEnum.SPP.value, BAAEnum.SPP.value],
+            },
+        )
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
