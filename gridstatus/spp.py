@@ -443,10 +443,8 @@ class SPP(ISOBase):
             as_index=False,
         )["Load Forecast"].sum()
 
-        return (
-            summed.sort_values(["Interval Start", "Publish Time"])
-            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
-            .reset_index(drop=True)
+        return summed.sort_values(["Interval Start", "Publish Time"]).reset_index(
+            drop=True,
         )
 
     @support_date_range("5_MIN")
