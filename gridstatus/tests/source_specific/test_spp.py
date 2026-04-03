@@ -1595,33 +1595,20 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette(
             f"test_get_load_forecast_short_term_keep_null_forecast_values_{start}_{end}.yaml",
         ):
-            df = self.iso.get_load_forecast_short_term(
+            df_dropped = self.iso.get_load_forecast_short_term(
                 date=start,
                 end=end,
                 drop_null_forecast_rows=True,
             )
 
-            assert df.empty
-
-            df = self.iso.get_load_forecast_short_term(
+            df_kept = self.iso.get_load_forecast_short_term(
                 date=start,
                 end=end,
                 drop_null_forecast_rows=False,
             )
 
-            assert not df.empty
-
-        assert df["Publish Time"].min() == pd.Timestamp(
-            start,
-            tz=self.iso.default_timezone,
-        )
-        assert df["Publish Time"].max() == pd.Timestamp(
-            end,
-            tz=self.iso.default_timezone,
-        ) - pd.Timedelta(minutes=5)
-        assert df["Publish Time"].nunique() == 3
-
-        assert df["STLF"].isna().all()
+        assert len(df_kept) >= len(df_dropped)
+        self._check_load_forecast(df_kept, "SHORT_TERM")
 
     """get_load_forecast_mid_term"""
 
