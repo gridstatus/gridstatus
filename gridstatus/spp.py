@@ -2734,80 +2734,6 @@ class SPP(ISOBase):
         else:
             start = utils._handle_date(date, tz=self.default_timezone)
 
-        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
-            url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend-swpw/asFile"
-            logger.info(f"Downloading {url}")
-            df = pd.read_csv(url)
-            return self._process_interchange_real_time(df)
-
-        # Historical data: download monthly CSV
-        month_str = start.strftime("%b%Y")  # e.g., "Apr2026"
-        url = (
-            f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
-            f"?path=/TieFlows_SWPW_{month_str}.csv"
-        )
-
-        logger.info(f"Downloading {url}")
-        try:
-            df = pd.read_csv(url)
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                raise NoDataFoundException(
-                    f"No historical SWPW tie flow data found for {month_str}. "
-                    f"Historical data is available starting Mar2026."
-                )
-            raise
-
-        # Normalize historical column names to match real-time format
-        df = df.rename(
-            columns={
-                "GMTTIME": "GMTTime",
-                "SPP_NSI": "SWPW NSI",
-                "SPP_NAI": "SWPW NAI",
-            }
-        )
-
-        return self._process_interchange_real_time(df)
-
-    @support_date_range("MONTH_START")
-    def get_west_interchange_real_time(
-        self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get real-time interchange (tie flow) data for SPP West (SWPW).
-
-        For "latest" and "today", returns ~2 days of 1-minute interchange data
-        from the real-time endpoint.
-
-        For historical dates, downloads monthly CSV files from the historical
-        tie flow archive.
-
-        Data from:
-        - Real-time: https://portal.spp.org/pages/integrated-marketplace-interchange-trend
-        - Historical: https://portal.spp.org/pages/historical-tie-flow
-
-        Args:
-            date: supports "latest", "today", or a historical date/date range
-            end: end date for historical range queries
-            verbose: print info
-
-        Returns:
-            pd.DataFrame: interchange data
-        """
-        if date == "latest":
-            return self.get_west_interchange_real_time(
-                "today",
-                verbose=verbose,
-            ).reset_index(drop=True)
-
-        # Handle tuple date ranges by checking if the start is recent
-        if isinstance(date, tuple):
-            start = date[0]
-        else:
-            start = utils._handle_date(date, tz=self.default_timezone)
-
         now = pd.Timestamp.now(tz=self.default_timezone)
         start_date = utils._handle_date(start, tz=self.default_timezone)
         if (now - start_date).total_seconds() < 2 * 86400:
@@ -2833,6 +2759,9 @@ class SPP(ISOBase):
                     f"Historical data is available starting Mar2026."
                 )
             raise
+
+        # Strip leading '#' from column names (some CSV exports include it)
+        df.columns = [c.lstrip("#") for c in df.columns]
 
         # Normalize historical column names to match real-time format
         df = df.rename(
