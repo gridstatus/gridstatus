@@ -122,6 +122,40 @@ class BAAEnum(StrEnum):
     SWPW = "SWPW"
 
 
+def fill_baa_column(df, load_col):
+    """Fill missing BAA values based on load magnitude.
+
+    If the BAA column doesn't exist, creates it. If it exists but has NaN values,
+    fills only the missing entries. Uses BAA_LOAD_THRESHOLD_MW to distinguish
+    between SWPW (small loads) and SPP (large loads).
+
+    Args:
+        df: DataFrame with a load column to use for BAA inference.
+        load_col: Name of the column containing load values.
+
+    Returns:
+        The DataFrame with BAA column filled in-place.
+    """
+    if "BAA" not in df.columns:
+        df["BAA"] = df[load_col].apply(
+            lambda x: (
+                BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value
+            ),
+        )
+    else:
+        mask = df["BAA"].isna()
+        df.loc[mask, "BAA"] = df.loc[mask, load_col].apply(
+            lambda x: (
+                BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value
+            ),
+        )
+    return df
+
+
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
 
@@ -467,6 +501,8 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=5),
             drop_null_forecast_rows=drop_null_forecast_rows,
         )
+
+        fill_baa_column(df, "STLF")
 
         return df
 
@@ -889,19 +925,7 @@ class SPP(ISOBase):
             drop_null_forecast_rows=False,
         )
 
-        if "BAA" not in df.columns:
-            df["BAA"] = df["Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
-        else:
-            mask = df["BAA"].isna()
-            df.loc[mask, "BAA"] = df.loc[mask, "Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
+        fill_baa_column(df, "Actual")
 
         return (
             df[["Interval Start", "Interval End", "BAA", "Actual"]]
@@ -951,19 +975,7 @@ class SPP(ISOBase):
             forecast_col="MTLF",
         )
 
-        if "BAA" not in df.columns:
-            df["BAA"] = df["Averaged Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
-        else:
-            mask = df["BAA"].isna()
-            df.loc[mask, "BAA"] = df.loc[mask, "Averaged Actual"].apply(
-                lambda x: BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value,
-            )
+        fill_baa_column(df, "Averaged Actual")
 
         result_df = (
             df[["Interval Start", "Interval End", "BAA", "Averaged Actual"]]
@@ -2812,7 +2824,7 @@ class SPP(ISOBase):
             if e.code == 404:
                 raise NoDataFoundException(
                     f"No historical SWPW tie flow data found for {month_str}. "
-                    f"Historical data is available starting Mar2026."
+                    f"Historical data is available starting Mar2026.",
                 )
             raise
 
@@ -2822,7 +2834,7 @@ class SPP(ISOBase):
                 "GMTTIME": "GMTTime",
                 "SPP_NSI": "SWPW NSI",
                 "SPP_NAI": "SWPW NAI",
-            }
+            },
         )
 
         return self._process_interchange_real_time(df)
