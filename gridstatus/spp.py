@@ -2462,7 +2462,9 @@ class SPP(ISOBase):
         else:
             start = utils._handle_date(date, tz=self.default_timezone)
 
-        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        start_date = utils._handle_date(start, tz=self.default_timezone)
+        if (now - start_date).total_seconds() < 2 * 86400:
             url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
             logger.info(f"Downloading {url}")
             df = pd.read_csv(url)
@@ -2536,7 +2538,9 @@ class SPP(ISOBase):
         else:
             start = utils._handle_date(date, tz=self.default_timezone)
 
-        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        start_date = utils._handle_date(start, tz=self.default_timezone)
+        if (now - start_date).total_seconds() < 2 * 86400:
             url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend-swpw/asFile"
             logger.info(f"Downloading {url}")
             df = pd.read_csv(url)
