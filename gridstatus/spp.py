@@ -394,53 +394,32 @@ class SPP(ISOBase):
 
     def get_load_forecast(
         self,
-        date: str | pd.Timestamp,
-        forecast_type: str = "MID_TERM",
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load forecast for next 7 days in hourly intervals
+        """Returns total RTO load forecast in hourly intervals from MTLF data."""
+        baa_df = self.get_load_forecast_by_baa(date=date, end=end, verbose=verbose)
 
-        Arguments:
-            forecast_type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
-                every five minutes for a few hours
+        if baa_df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Load Forecast",
+                ],
+            )
 
-        Returns:
-            pd.DataFrame: forecast for current day
-        """
-        df = self._get_load_and_forecast(verbose=verbose)
-
-        # gives forecast from before current day
-        # only include forecasts starting at current day
-        last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
-        current_day = last_actual.replace(hour=0, minute=0)
-
-        current_day_forecast = df[df["Time"] >= current_day].copy()
-
-        # assume forecast is made at last actual
-        current_day_forecast["Forecast Time"] = last_actual
-
-        if forecast_type == "MID_TERM":
-            forecast_col = "Mid-Term Forecast"
-        elif forecast_type == "SHORT_TERM":
-            forecast_col = "Short-Term Forecast"
-        else:
-            raise RuntimeError("Invalid forecast type")
-
-        # there will be empty rows regardless of forecast type since they dont align
-        current_day_forecast = current_day_forecast.dropna(
-            subset=[forecast_col],
+        return (
+            baa_df.groupby(
+                ["Interval Start", "Interval End", "Publish Time"],
+                as_index=False,
+            )["Load Forecast"]
+            .sum()
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
         )
-
-        current_day_forecast = current_day_forecast[
-            ["Forecast Time", "Time", forecast_col]
-        ].rename({forecast_col: "Load Forecast"}, axis=1)
-
-        current_day_forecast = add_interval(
-            current_day_forecast,
-            interval_min=60,
-        )
-
-        return current_day_forecast
 
     @support_date_range("5_MIN")
     def get_load_forecast_short_term(
@@ -531,6 +510,87 @@ class SPP(ISOBase):
         )
 
         return df
+
+    def get_load_forecast_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly load forecast by BAA from MTLF data."""
+        df = self._get_load_forecast_by_baa_raw(date=date, end=end, verbose=verbose)
+
+        if df is None or df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "BAA",
+                    "Load Forecast",
+                ],
+            )
+
+        return (
+            df.dropna(subset=["Load Forecast"])
+            .drop_duplicates(
+                subset=["Interval Start", "Interval End", "Publish Time", "BAA"],
+                keep="last",
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("HOUR_START")
+    def _get_load_forecast_by_baa_raw(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        result = self._get_mid_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            forecast_col="MTLF",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        if "BAA" not in df.columns:
+            df["BAA"] = df["MTLF"].apply(
+                lambda x: BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value,
+            )
+        else:
+            mask = df["BAA"].isna()
+            df.loc[mask, "BAA"] = df.loc[mask, "MTLF"].apply(
+                lambda x: BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value,
+            )
+
+        baa_values = [e.value for e in BAAEnum]
+        return (
+            df[df["BAA"].astype(str).str.strip().isin(baa_values)][
+                ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"]
+            ]
+            .rename(columns={"MTLF": "Load Forecast"})
+            .copy()
+        )
 
     def _handle_dst_floor_date(
         self,

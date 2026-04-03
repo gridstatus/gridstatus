@@ -1221,9 +1221,257 @@ class TestSPP(BaseTestISO):
 
     """get_load_forecast"""
 
+    LOAD_FORECAST_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Load Forecast",
+    ]
+
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_load_forecast_historical(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_load_forecast_today(self):
+        pass
+
+    def test_get_load_forecast_post_baa(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [
+                    date,
+                    date,
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Publish Time": [publish_time] * 4,
+                "MTLF": [15000.0, 4000.0, 15100.0, 4100.0],
+                "BAA": ["SPP", "SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
+        assert len(df) == 2
+        assert df["Load Forecast"].tolist() == [19000.0, 19200.0]
+
+    def test_get_load_forecast_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 08:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date],
+                "Interval End": [date + pd.Timedelta(hours=1)],
+                "Publish Time": [publish_time],
+                "MTLF": [20000.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
+        assert len(df) == 1
+        assert df["Load Forecast"].iloc[0] == 20000.0
+
+    def test_get_load_forecast_null_baa_mixed_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [14000.0, 3500.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
+        assert len(df) == 1
+        assert df["Load Forecast"].iloc[0] == 17500.0
+
+    """get_load_forecast_by_baa"""
+
+    LOAD_FORECAST_BY_BAA_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "BAA",
+        "Load Forecast",
+    ]
+
+    def test_get_load_forecast_by_baa_post_baa(self):
+        now = self.local_now().floor("h")
+        publish_time = now
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now],
+                "Interval End": [
+                    now + pd.Timedelta(hours=1),
+                    now + pd.Timedelta(hours=1),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [15000.0, 4000.0],
+                "BAA": ["SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=now, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+
+    def test_get_load_forecast_by_baa_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_forecast_by_baa_null_baa_mixed_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [14000.0, 3500.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+        spp_row = df[df["BAA"] == "SPP"]
+        swpw_row = df[df["BAA"] == "SWPW"]
+        assert spp_row["Load Forecast"].iloc[0] == 14000.0
+        assert swpw_row["Load Forecast"].iloc[0] == 3500.0
+
+    def test_get_load_forecast_by_baa_empty_data(self):
+        date = pd.Timestamp("2026-03-25 10:00:00-0500")
+
+        with patch.object(
+            self.iso,
+            "_get_mid_term_forecast_data",
+            return_value=None,
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert len(df) == 0
 
     """get_load_forecast_short_term"""
 
