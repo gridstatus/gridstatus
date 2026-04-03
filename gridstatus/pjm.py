@@ -1791,9 +1791,14 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        return self._parse_transmission_limits(df)
+        return self._parse_transmission_limits(df, date, end)
 
-    def _parse_transmission_limits(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_transmission_limits(
+        self,
+        df: pd.DataFrame,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "constraint_name": "Constraint Name",
@@ -1813,6 +1818,15 @@ class PJM(ISOBase):
                 "Shadow Price",
             ]
         ]
+
+        # When there are no binding constraints, PJM publishes rows with "Constraint
+        # Name" == "none". We do not want to return these rows.
+        df = df[df["Constraint Name"] != "none"]
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No transmission limits found for {date} to {end}",
+            )
 
         return df.sort_values("Interval Start").reset_index(drop=True)
 

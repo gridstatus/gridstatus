@@ -1440,6 +1440,8 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
+        assert "none" not in df["Constraint Name"].values
+
     def test_get_transmission_limits_historical_date(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
         range_start = self.local_start_of_day(past_date)
@@ -1456,6 +1458,8 @@ class TestPJM(BaseTestISO):
                 start=range_start,
                 end=range_end,
             )
+
+        assert "none" not in df["Constraint Name"].values
 
     def test_get_transmission_limits_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
@@ -1474,6 +1478,8 @@ class TestPJM(BaseTestISO):
                 start=range_start,
                 end=range_end,
             )
+
+        assert "none" not in df["Constraint Name"].values
 
     """get_solar_generation_by_area"""
 
