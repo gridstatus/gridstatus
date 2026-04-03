@@ -438,13 +438,14 @@ class SPP(ISOBase):
                 f"No load forecast by BAA data found for date {date}",
             )
 
+        summed = baa_df.groupby(
+            ["Interval Start", "Interval End", "Publish Time"],
+            as_index=False,
+        )["Load Forecast"].sum()
+
         return (
-            baa_df.groupby(
-                ["Interval Start", "Interval End", "Publish Time"],
-                as_index=False,
-            )["Load Forecast"]
-            .sum()
-            .sort_values(["Interval Start", "Publish Time"])
+            summed.sort_values(["Interval Start", "Publish Time"])
+            .drop_duplicates(subset=["Interval Start", "Interval End"], keep="last")
             .reset_index(drop=True)
         )
 
