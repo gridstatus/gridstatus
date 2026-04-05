@@ -3950,16 +3950,26 @@ class TestProcessScedResourceAsOffers:
     ERCOT notice M-B040326-01: corrected files use NaN instead of zero
     for empty AS Sub-Type Offer Prices. These tests verify curve type
     classification works with both formats.
+
+    Test data modeled from real ERCOT observations:
+    - ADL_ESR1: ESR with multi-block offers across multiple AS types
+    - AEEC_ANTLP_2: gas unit with NS-only offline offers
+    Each resource has 3 rows per SCED interval (Online, Reg Down, Offline)
+    sharing the same QUANTITY_MW values but with prices in different AS columns.
     """
 
     def test_online_with_zeros(self):
+        """Online row from ADL_ESR1: URS, RRSPF, NS, ECRS have prices."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_A",
-                    "QUANTITY_MW1": 100,
-                    "PRICE1_URS": 25.0,
+                    "SCED Timestamp": "2026-01-15 00:00:18",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_URS": 42.01,
+                    "PRICE1_RRSPF": 2000.0,
+                    "PRICE1_NS": 0.01,
+                    "PRICE1_ECRS": 0.01,
                 },
             ],
         )
@@ -3967,29 +3977,35 @@ class TestProcessScedResourceAsOffers:
         assert result["Curve Type"].iloc[0] == "Online"
 
     def test_online_with_nans(self):
+        """Corrected Online row: NaN in DRS and other inactive AS types."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_A",
-                    "QUANTITY_MW1": 100,
-                    "PRICE1_URS": 25.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_URS": 42.01,
+                    "PRICE1_RRSPF": 2000.0,
+                    "PRICE1_NS": 0.01,
+                    "PRICE1_ECRS": 0.01,
                 },
             ],
         )
+        # Corrected files: inactive AS types are NaN, not zero
         price_cols = [c for c in df.columns if c.startswith("PRICE")]
         df[price_cols] = df[price_cols].replace(0, np.nan)
         result = process_sced_resource_as_offers(df)
         assert result["Curve Type"].iloc[0] == "Online"
 
     def test_regulation_down_with_zeros(self):
+        """Reg Down row from ADL_ESR1: only DRS has a price."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_B",
-                    "QUANTITY_MW1": 50,
-                    "PRICE1_DRS": 10.0,
+                    "SCED Timestamp": "2026-01-15 00:00:18",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_DRS": 42.01,
                 },
             ],
         )
@@ -3997,13 +4013,14 @@ class TestProcessScedResourceAsOffers:
         assert result["Curve Type"].iloc[0] == "Regulation Down"
 
     def test_regulation_down_with_nans(self):
+        """Corrected Reg Down row: all non-DRS columns are NaN."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_B",
-                    "QUANTITY_MW1": 50,
-                    "PRICE1_DRS": 10.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_DRS": 42.01,
                 },
             ],
         )
@@ -4014,13 +4031,14 @@ class TestProcessScedResourceAsOffers:
         assert result["Curve Type"].iloc[0] == "Regulation Down"
 
     def test_offline_with_zeros(self):
+        """Offline row from AEEC_ANTLP_2: only NS has a price."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_C",
-                    "QUANTITY_MW1": 75,
-                    "PRICE1_NS": 15.0,
+                    "SCED Timestamp": "2026-01-15 00:00:18",
+                    "Resource Name": "AEEC_ANTLP_2",
+                    "QUANTITY_MW1": 45.0,
+                    "PRICE1_NS": 8.0,
                 },
             ],
         )
@@ -4028,13 +4046,14 @@ class TestProcessScedResourceAsOffers:
         assert result["Curve Type"].iloc[0] == "Offline"
 
     def test_offline_with_nans(self):
+        """Corrected Offline row: all non-NS columns are NaN."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_C",
-                    "QUANTITY_MW1": 75,
-                    "PRICE1_NS": 15.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "AEEC_ANTLP_3",
+                    "QUANTITY_MW1": 36.0,
+                    "PRICE1_NS": 8.0,
                 },
             ],
         )
@@ -4044,26 +4063,34 @@ class TestProcessScedResourceAsOffers:
         result = process_sced_resource_as_offers(df)
         assert result["Curve Type"].iloc[0] == "Offline"
 
-    def test_mixed_curve_types_with_nans(self):
+    def test_three_rows_per_resource_with_nans(self):
+        """Real pattern: each resource has 3 rows per interval (one per curve type).
+
+        Modeled from ADL_ESR1 in corrected data. All three rows share the
+        same QUANTITY_MW values but have prices in different AS columns.
+        """
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_ONLINE",
-                    "QUANTITY_MW1": 100,
-                    "PRICE1_URS": 25.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_URS": 42.01,
+                    "PRICE1_RRSPF": 2000.0,
+                    "PRICE1_NS": 0.01,
+                    "PRICE1_ECRS": 0.01,
                 },
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_REGDOWN",
-                    "QUANTITY_MW1": 50,
-                    "PRICE1_DRS": 10.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_DRS": 42.01,
                 },
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_OFFLINE",
-                    "QUANTITY_MW1": 75,
-                    "PRICE1_NS": 15.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_NS": 183.16,
                 },
             ],
         )
@@ -4077,15 +4104,23 @@ class TestProcessScedResourceAsOffers:
         ]
 
     def test_nan_prices_excluded_from_curves(self):
+        """Corrected multi-block Online row: only blocks with real prices appear.
+
+        Modeled from AEEC_ANTLP_2 Online row with 2 blocks of URS offers.
+        In corrected files, blocks without an offer have NaN prices and
+        should be excluded from the extracted curve.
+        """
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_A",
-                    "QUANTITY_MW1": 100,
-                    "QUANTITY_MW2": 200,
-                    "PRICE1_URS": 25.0,
-                    "PRICE2_URS": 50.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "AEEC_ANTLP_3",
+                    "QUANTITY_MW1": 16.0,
+                    "QUANTITY_MW2": 36.0,
+                    "PRICE1_URS": 7.50,
+                    "PRICE2_URS": 15.0,
+                    "PRICE1_NS": 0.01,
+                    "PRICE2_NS": 0.01,
                 },
             ],
         )
@@ -4093,20 +4128,27 @@ class TestProcessScedResourceAsOffers:
         df[price_cols] = df[price_cols].replace(0, np.nan)
         result = process_sced_resource_as_offers(df)
 
+        # URS curve should have both blocks
         urs_curve = result["URS Offer Curve"].iloc[0]
         assert len(urs_curve) == 2
-        assert urs_curve[0] == [100.0, 25.0]
-        assert urs_curve[1] == [200.0, 50.0]
+        assert urs_curve[0] == [16.0, 7.5]
+        assert urs_curve[1] == [36.0, 15.0]
+
+        # DRS curve should be None (all prices NaN)
         assert result["DRS Offer Curve"].iloc[0] is None
 
     def test_output_columns(self):
+        """Verify processed output has the standard column set."""
         df = _make_sced_resource_as_offers_df(
             [
                 {
-                    "SCED Timestamp": "2026-01-15 10:00",
-                    "Resource Name": "GEN_A",
-                    "QUANTITY_MW1": 100,
-                    "PRICE1_URS": 25.0,
+                    "SCED Timestamp": "2026-02-03 00:00:23",
+                    "Resource Name": "ADL_ESR1",
+                    "QUANTITY_MW1": 120.0,
+                    "PRICE1_URS": 42.01,
+                    "PRICE1_RRSPF": 2000.0,
+                    "PRICE1_NS": 0.01,
+                    "PRICE1_ECRS": 0.01,
                 },
             ],
         )
