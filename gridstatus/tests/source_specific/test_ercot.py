@@ -57,6 +57,7 @@ from gridstatus.ercot_60d_utils import (
     _categorize_strings,
     extract_curve,
     process_as_offer_curves,
+    process_sced_resource_as_offers,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -3918,6 +3919,199 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     if SCED_RESOURCE_AS_OFFERS_KEY in df_dict:
         resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
         assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+
+
+def _make_sced_resource_as_offers_df(rows):
+    """Build a DataFrame matching the raw SCED Resource AS Offers schema.
+
+    Each row dict should contain "SCED Timestamp" and "Resource Name".
+    PRICE{n}_{suffix} and QUANTITY_MW{n} columns default to 0.
+    """
+    as_suffixes = ["URS", "DRS", "RRSPF", "RRSUF", "RRSFF", "NS", "ECRS"]
+    n_blocks = 6
+    all_cols = ["SCED Timestamp", "Resource Name"]
+    for i in range(1, n_blocks + 1):
+        all_cols.append(f"QUANTITY_MW{i}")
+    for i in range(1, n_blocks + 1):
+        for suffix in as_suffixes:
+            all_cols.append(f"PRICE{i}_{suffix}")
+
+    data = []
+    for row in rows:
+        record = {col: 0 for col in all_cols}
+        record.update(row)
+        data.append(record)
+    return pd.DataFrame(data, columns=all_cols)
+
+
+class TestProcessScedResourceAsOffers:
+    """Tests for process_sced_resource_as_offers curve type detection.
+
+    ERCOT notice M-B040326-01: corrected files use NaN instead of zero
+    for empty AS Sub-Type Offer Prices. These tests verify curve type
+    classification works with both formats.
+    """
+
+    def test_online_with_zeros(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_A",
+                    "QUANTITY_MW1": 100,
+                    "PRICE1_URS": 25.0,
+                },
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_online_with_nans(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_A",
+                    "QUANTITY_MW1": 100,
+                    "PRICE1_URS": 25.0,
+                },
+            ],
+        )
+        price_cols = [c for c in df.columns if c.startswith("PRICE")]
+        df[price_cols] = df[price_cols].replace(0, np.nan)
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_regulation_down_with_zeros(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_B",
+                    "QUANTITY_MW1": 50,
+                    "PRICE1_DRS": 10.0,
+                },
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Regulation Down"
+
+    def test_regulation_down_with_nans(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_B",
+                    "QUANTITY_MW1": 50,
+                    "PRICE1_DRS": 10.0,
+                },
+            ],
+        )
+        price_cols = [c for c in df.columns if c.startswith("PRICE")]
+        non_drs = [c for c in price_cols if not c.endswith("_DRS")]
+        df[non_drs] = df[non_drs].replace(0, np.nan)
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Regulation Down"
+
+    def test_offline_with_zeros(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_C",
+                    "QUANTITY_MW1": 75,
+                    "PRICE1_NS": 15.0,
+                },
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Offline"
+
+    def test_offline_with_nans(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_C",
+                    "QUANTITY_MW1": 75,
+                    "PRICE1_NS": 15.0,
+                },
+            ],
+        )
+        price_cols = [c for c in df.columns if c.startswith("PRICE")]
+        non_ns = [c for c in price_cols if not c.endswith("_NS")]
+        df[non_ns] = df[non_ns].replace(0, np.nan)
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Offline"
+
+    def test_mixed_curve_types_with_nans(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_ONLINE",
+                    "QUANTITY_MW1": 100,
+                    "PRICE1_URS": 25.0,
+                },
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_REGDOWN",
+                    "QUANTITY_MW1": 50,
+                    "PRICE1_DRS": 10.0,
+                },
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_OFFLINE",
+                    "QUANTITY_MW1": 75,
+                    "PRICE1_NS": 15.0,
+                },
+            ],
+        )
+        price_cols = [c for c in df.columns if c.startswith("PRICE")]
+        df[price_cols] = df[price_cols].replace(0, np.nan)
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == [
+            "Online",
+            "Regulation Down",
+            "Offline",
+        ]
+
+    def test_nan_prices_excluded_from_curves(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_A",
+                    "QUANTITY_MW1": 100,
+                    "QUANTITY_MW2": 200,
+                    "PRICE1_URS": 25.0,
+                    "PRICE2_URS": 50.0,
+                },
+            ],
+        )
+        price_cols = [c for c in df.columns if c.startswith("PRICE")]
+        df[price_cols] = df[price_cols].replace(0, np.nan)
+        result = process_sced_resource_as_offers(df)
+
+        urs_curve = result["URS Offer Curve"].iloc[0]
+        assert len(urs_curve) == 2
+        assert urs_curve[0] == [100.0, 25.0]
+        assert urs_curve[1] == [200.0, 50.0]
+        assert result["DRS Offer Curve"].iloc[0] is None
+
+    def test_output_columns(self):
+        df = _make_sced_resource_as_offers_df(
+            [
+                {
+                    "SCED Timestamp": "2026-01-15 10:00",
+                    "Resource Name": "GEN_A",
+                    "QUANTITY_MW1": 100,
+                    "PRICE1_URS": 25.0,
+                },
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
 def check_60_day_dam_disclosure(df_dict):
