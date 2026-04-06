@@ -2566,7 +2566,8 @@ class SPP(ISOBase):
             # to get all intervals for that day. Also adjust start time since interval files
             # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
             if end is None:
-                end = start_date + pd.Timedelta(days=1)
+                # Assume getting 5 minutes since this is a five minute dataset
+                end = start_date + pd.Timedelta(minutes=5)
             # Interval files for today start around 02:15, so adjust start if needed
             adjusted_start = max(
                 start_date,
