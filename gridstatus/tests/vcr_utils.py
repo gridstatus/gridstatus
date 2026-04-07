@@ -7,7 +7,10 @@ import vcr
 
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
 # say on a weekly or monthly job.
-RECORD_MODE = os.getenv("VCR_RECORD_MODE", "new_episodes")
+# In CI, default to "none" (playback only) so tests fail fast if a cassette is missing.
+# Locally, default to "new_episodes" so missing cassettes are recorded from live APIs.
+_default_mode = "none" if os.getenv("CI") == "true" else "new_episodes"
+RECORD_MODE = os.getenv("VCR_RECORD_MODE", _default_mode)
 
 # Map of ISO -> endpoint patterns that require date range handling
 DATE_RANGE_METHODS = {

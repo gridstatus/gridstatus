@@ -58,6 +58,30 @@ jobs:
         run: uv sync
       - name: Install vcrpy
         run: uv pip install vcrpy
+      - name: Generate per-ISO fixture hash
+        id: fixture-hash
+        run: |
+          HASH=$(uv run python scripts/fixtures.py manifest --iso ${{ matrix.iso }})
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+      - name: Get fixture cache paths
+        id: fixture-paths
+        run: |
+          PATHS=$(uv run python scripts/fixtures.py cache-paths --iso ${{ matrix.iso }})
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          echo "$PATHS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Cache VCR fixtures
+        id: vcr-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.fixture-paths.outputs.paths }}
+          key: vcr-fixtures-${{ matrix.iso }}-${{ steps.fixture-hash.outputs.hash }}
+          restore-keys: |
+            vcr-fixtures-${{ matrix.iso }}-
+      - name: Download VCR fixtures from S3
+        if: steps.vcr-cache.outputs.cache-hit != 'true'
+        run: uv run python scripts/fixtures.py download --iso ${{ matrix.iso }}
+        continue-on-error: true
       - name: Run ISO tests
         run: make test-${{ matrix.iso }}
 
@@ -88,6 +112,23 @@ jobs:
         run: uv sync
       - name: Install vcrpy
         run: uv pip install --no-deps vcrpy pytest-cov
+      - name: Generate all-fixtures hash
+        id: fixture-hash
+        run: |
+          HASH=$(uv run python scripts/fixtures.py manifest)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+      - name: Cache all VCR fixtures
+        id: vcr-cache
+        uses: actions/cache@v4
+        with:
+          path: gridstatus/tests/fixtures/
+          key: vcr-fixtures-all-${{ steps.fixture-hash.outputs.hash }}
+          restore-keys: |
+            vcr-fixtures-all-
+      - name: Download all VCR fixtures from S3
+        if: steps.vcr-cache.outputs.cache-hit != 'true'
+        run: uv run python scripts/fixtures.py download
+        continue-on-error: true
       - name: Run all tests with coverage
         run: make test-cov
       - name: Upload coverage

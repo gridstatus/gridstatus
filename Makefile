@@ -93,6 +93,25 @@ else
 	uv run pytest -vvv gridstatus/tests/source_specific/test_$(market).py::Test$(shell echo $(market) | tr '[:lower:]' '[:upper:]')::$(test)
 endif
 
+.PHONY: fixtures-download
+fixtures-download:
+	uv run python scripts/fixtures.py download
+
+.PHONY: fixtures-download-iso
+fixtures-download-iso:
+ifndef iso
+	$(error iso parameter is required. Usage: make fixtures-download-iso iso=caiso)
+endif
+	uv run python scripts/fixtures.py download --iso $(iso)
+
+.PHONY: fixtures-upload
+fixtures-upload:
+ifndef iso
+	uv run python scripts/fixtures.py upload
+else
+	uv run python scripts/fixtures.py upload --iso $(iso)
+endif
+
 .PHONY: installdeps-dev
 installdeps-dev:
 	uv sync
