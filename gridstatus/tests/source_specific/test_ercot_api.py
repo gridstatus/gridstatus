@@ -14,7 +14,6 @@ from gridstatus.ercot_60d_utils import (
 )
 from gridstatus.ercot_api.api_parser import VALID_VALUE_TYPES
 from gridstatus.ercot_api.ercot_api import (
-    HISTORICAL_DAYS_THRESHOLD,
     ErcotAPI,
 )
 from gridstatus.ercot_constants import (
@@ -114,12 +113,11 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_wind_actual_and_forecast_hourly(df)
 
-    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_wind_actual_and_forecast_hourly_date_range.yaml",
     )
     def test_get_wind_actual_and_forecast_hourly_date_range(self):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=2)
 
         df = self.iso.get_wind_actual_and_forecast_hourly(date, end, verbose=True)
@@ -173,14 +171,13 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
 
-    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
     )
     def test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range(
         self,
     ):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=2)
 
         df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
@@ -228,10 +225,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_solar_actual_and_forecast_hourly(df)
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_date_range.yaml")
     def test_get_solar_actual_and_forecast_hourly_date_range(self):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=2)
 
         df = self.iso.get_solar_actual_and_forecast_hourly(date, end, verbose=True)
@@ -285,14 +281,13 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Publish Time"].nunique() == 1
         self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
-    @pytest.mark.integration
     @api_vcr.use_cassette(
         "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
     )
     def test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range(
         self,
     ):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=2)
 
         df = self.iso.get_solar_actual_and_forecast_by_geographical_region_hourly(
@@ -317,12 +312,12 @@ class TestErcotAPI(TestHelperMixin):
     def _check_load_forecast_by_model(self, df):
         check_load_forecast_by_model(df)
 
+    @api_vcr.use_cassette("test_get_load_forecast_by_model_date_range.yaml")
     def test_get_load_forecast_by_model_date_range(self):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=2)
 
-        with api_vcr.use_cassette("test_get_load_forecast_by_model_date_range.yaml"):
-            df = self.iso.get_load_forecast_by_model(date, end, verbose=True)
+        df = self.iso.get_load_forecast_by_model(date, end, verbose=True)
 
         self._check_load_forecast_by_model(df)
 
@@ -372,7 +367,6 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_as_prices("latest").equals(df)
 
-    @pytest.mark.integration
     def test_get_as_prices_historical_date(self):
         historical_date = datetime.date(2021, 3, 12)
         df = self.iso.get_as_prices(historical_date, verbose=True)
@@ -386,7 +380,6 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_as_prices_historical_date_range(self):
         start_date = datetime.date(2021, 3, 8)
         end_date = datetime.date(2021, 3, 10)
@@ -420,6 +413,7 @@ class TestErcotAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_mcpc_dam_today(self):
         with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
             df = self.iso.get_mcpc_dam("today")
@@ -433,8 +427,8 @@ class TestErcotAPI(TestHelperMixin):
         ]
 
     def test_get_mcpc_dam_historical_date_range(self):
-        date = self.local_today() - pd.Timedelta(days=10)
-        end = date + pd.Timedelta(days=2)
+        date = pd.Timestamp("2025-11-01").date()
+        end = pd.Timestamp("2025-11-03").date()
 
         with api_vcr.use_cassette(
             f"test_get_mcpc_dam_historical_date_range_{date}_{end}.yaml",
@@ -525,7 +519,6 @@ class TestErcotAPI(TestHelperMixin):
             skip_column_named_time=True,
         )
 
-    @pytest.mark.integration
     def test_get_as_reports_historical_date(self):
         historical_date = datetime.date(2022, 1, 1)
         df = self.iso.get_as_reports(historical_date, verbose=True)
@@ -539,7 +532,6 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_as_reports_historical_date_range(self):
         start_date = datetime.date(2021, 1, 1)
         end_date = datetime.date(2021, 1, 3)
@@ -576,7 +568,7 @@ class TestErcotAPI(TestHelperMixin):
 
     def test_get_as_reports_dam(self):
         """Test get_as_reports_dam method - long format"""
-        date = self.local_start_of_today() - pd.Timedelta(days=4)
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
 
         with api_vcr.use_cassette(f"test_get_as_reports_dam_{date}.yaml"):
             df = self.iso.get_as_reports_dam(date, verbose=True)
@@ -590,7 +582,7 @@ class TestErcotAPI(TestHelperMixin):
     def test_get_as_reports_sced(self):
         """Test get_as_reports_sced method for SCED ancillary service offers"""
         # SCED AS reports started on December 5, 2025
-        date = self.local_start_of_today() - pd.Timedelta(days=4)
+        date = pd.Timestamp("2025-12-10", tz=self.iso.default_timezone)
 
         with api_vcr.use_cassette(f"test_get_as_reports_sced_{date}.yaml"):
             df = self.iso.get_as_reports_sced(date, verbose=True)
@@ -628,9 +620,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_as_plan("latest").equals(df)
 
-    @pytest.mark.integration
     def test_get_as_plan_historical_date(self):
-        date = self.local_today() - pd.Timedelta(days=30)
+        date = pd.Timestamp("2025-11-01").date()
 
         df = self.iso.get_as_plan(date)
 
@@ -645,9 +636,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["ECRS"].notna().any()
 
-    @pytest.mark.integration
     def test_get_as_plan_historical_date_range(self):
-        start_date = self.local_today() - pd.Timedelta(days=30)
+        start_date = pd.Timestamp("2025-11-01").date()
         end_date = start_date + pd.Timedelta(days=2)
 
         df = self.iso.get_as_plan(start_date, end_date)
@@ -665,7 +655,6 @@ class TestErcotAPI(TestHelperMixin):
             (start_date + pd.DateOffset(days=1)).date(),
         ]
 
-    @pytest.mark.integration
     def test_get_as_plan_before_ecrs(self):
         # Check that we add an ECRS column of nulls if it's not present
         date = "2012-05-01"
@@ -728,7 +717,6 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval End"].max() <= self.local_now()
 
     @pytest.mark.slow
-    @pytest.mark.integration
     def test_get_lmp_by_settlement_point_historical_date(self):
         historical_date = datetime.date(2021, 11, 6)
         df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
@@ -743,7 +731,6 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     @pytest.mark.slow
-    @pytest.mark.integration
     def test_get_lmp_by_settlement_point_historical_date_range(self):
         start_date = datetime.date(2021, 11, 12)
         end_date = datetime.date(2021, 11, 14)
@@ -808,7 +795,6 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_hourly_resource_outage_capacity("latest").equals(df)
 
-    @pytest.mark.integration
     def test_get_hourly_resource_outage_capacity_historical_date(self):
         historical_date = datetime.date(2021, 3, 1)
         df = self.iso.get_hourly_resource_outage_capacity(historical_date, verbose=True)
@@ -823,7 +809,6 @@ class TestErcotAPI(TestHelperMixin):
             historical_date,
         ) + pd.DateOffset(days=7)
 
-    @pytest.mark.integration
     def test_get_hourly_resource_outage_capacity_historical_date_range(self):
         start_date = datetime.date(2021, 3, 15)
         end_date = datetime.date(2021, 3, 17)
@@ -892,9 +877,8 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval End"].max() <= self.local_now()
 
     @pytest.mark.slow
-    @pytest.mark.integration
     def test_get_lmp_by_bus_historical_date(self):
-        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 2)
+        date = pd.Timestamp("2025-01-15").date()
 
         df = self.iso.get_lmp_by_bus(date, verbose=True)
 
@@ -906,12 +890,9 @@ class TestErcotAPI(TestHelperMixin):
         ) + pd.DateOffset(days=1)
 
     @pytest.mark.slow
-    @pytest.mark.integration
     def test_get_lmp_by_bus_historical_date_range(self):
-        start_date = self.local_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 3,
-        )
-        end_date = start_date + pd.DateOffset(days=2)
+        start_date = pd.Timestamp("2025-01-15").date()
+        end_date = pd.Timestamp("2025-01-17").date()
 
         df = self.iso.get_lmp_by_bus(start_date, end_date, verbose=True)
 
@@ -960,11 +941,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_lmp_by_bus_dam("latest").equals(df)
 
-    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_historical(self):
-        past_date = self.local_start_of_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 2,
-        )
+        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
 
         df = self.iso.get_lmp_by_bus_dam(past_date, verbose=True)
 
@@ -975,11 +953,8 @@ class TestErcotAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_historical_range(self):
-        past_date = self.local_start_of_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 3,
-        )
+        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         past_end_date = past_date + pd.DateOffset(days=2)
 
         df = self.iso.get_lmp_by_bus_dam(past_date, past_end_date, verbose=True)
@@ -989,7 +964,6 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == past_date.normalize()
         assert df["Interval End"].max() == past_end_date.normalize()
 
-    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_dst_end(self):
         date = "2024-11-03"
 
@@ -1004,7 +978,6 @@ class TestErcotAPI(TestHelperMixin):
         assert "2024-11-03 01:00:00-05:00" in unique_interval_strings
         assert "2024-11-03 01:00:00-06:00" in unique_interval_strings
 
-    @pytest.mark.integration
     def test_get_lmp_by_bus_dam_dst_start(self):
         date = "2024-03-10"
 
@@ -1085,11 +1058,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_shadow_prices_dam("latest").equals(df)
 
-    @pytest.mark.integration
     def test_get_shadow_prices_dam_historical(self):
-        past_date = self.local_start_of_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 3,
-        )
+        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         df = self.iso.get_shadow_prices_dam(past_date, verbose=True)
 
         self._check_shadow_prices_dam(df)
@@ -1099,11 +1069,8 @@ class TestErcotAPI(TestHelperMixin):
             past_date.date(),
         ) + pd.Timedelta(hours=23)
 
-    @pytest.mark.integration
     def test_get_shadow_prices_dam_historical_range(self):
-        past_date = self.local_start_of_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 4,
-        )
+        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         past_end_date = past_date + pd.DateOffset(days=1)
 
         df = self.iso.get_shadow_prices_dam(
@@ -1170,11 +1137,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_shadow_prices_sced("latest").equals(df)
 
-    @pytest.mark.integration
     def test_get_shadow_prices_sced_historical(self):
-        past_date = self.local_start_of_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 3,
-        )
+        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         df = self.iso.get_shadow_prices_sced(past_date, verbose=True)
 
         self._check_shadow_prices_sced(df)
@@ -1191,11 +1155,9 @@ class TestErcotAPI(TestHelperMixin):
             < start_of_past_date + pd.Timedelta(hours=24)
         )
 
-    @pytest.mark.integration
+
     def test_get_shadow_prices_sced_historical_range(self):
-        past_date = self.local_start_of_today() - pd.DateOffset(
-            days=HISTORICAL_DAYS_THRESHOLD * 2,
-        )
+        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
         past_end_date = past_date + pd.DateOffset(days=2)
 
         df = self.iso.get_shadow_prices_sced(
@@ -1247,11 +1209,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Market"].unique().tolist() == ["REAL_TIME_15_MIN"]
 
     @pytest.mark.slow
-    @pytest.mark.integration
     def test_get_spp_real_time_15_min_historical_date_range(self):
-        start_date = self.local_today() - pd.DateOffset(days=100)
-
-        end_date = start_date + pd.DateOffset(days=2)
+        start_date = pd.Timestamp("2025-01-15").date()
+        end_date = pd.Timestamp("2025-01-17").date()
 
         df = ErcotAPI(sleep_seconds=3.0, max_retries=5).get_spp_real_time_15_min(
             date=start_date,
@@ -1292,11 +1252,9 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Market"].unique().tolist() == ["DAY_AHEAD_HOURLY"]
 
-    @pytest.mark.integration
     def test_get_spp_day_ahead_hourly_historical_date_range(self):
-        start_date = self.local_today() - pd.DateOffset(days=100)
-
-        end_date = start_date + pd.DateOffset(days=2)
+        start_date = pd.Timestamp("2025-01-15").date()
+        end_date = pd.Timestamp("2025-01-17").date()
 
         df = ErcotAPI().get_spp_day_ahead_hourly(
             date=start_date,
@@ -1313,9 +1271,8 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_60_day_dam_disclosure"""
 
-    @pytest.mark.integration
     def test_get_60_day_dam_disclosure_historical(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=3000)
+        start_date = pd.Timestamp("2018-01-15", tz=self.iso.default_timezone)
         end_date = start_date + pd.DateOffset(days=2)
 
         df_dict = ErcotAPI().get_60_day_dam_disclosure(
@@ -1329,7 +1286,6 @@ class TestErcotAPI(TestHelperMixin):
             assert df["Interval Start"].min() == start_date
             assert df["Interval End"].max() == end_date
 
-    @pytest.mark.integration
     def test_get_60_day_dam_disclosure_repeated_offers(self):
         """Tests a problematic date where one resource has repeated offers for a
         single service on a single interval"""
@@ -1361,14 +1317,9 @@ class TestErcotAPI(TestHelperMixin):
 
             assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
 
-    @pytest.mark.integration
     def test_get_60_day_dam_disclosure_esr(self):
         # ESR data is available starting 2025-12-06
-        esr_start = pd.Timestamp("2025-12-06", tz="US/Central")
-        days_ago_65 = self.local_start_of_today() - pd.DateOffset(days=65)
-
-        # Use the later of 65 days ago or ESR start date
-        start_date = max(days_ago_65, esr_start)
+        start_date = pd.Timestamp("2025-12-10", tz="US/Central")
 
         with api_vcr.use_cassette(
             f"test_get_60_day_dam_disclosure_esr_{start_date.date()}",
@@ -1407,7 +1358,7 @@ class TestErcotAPI(TestHelperMixin):
     """get_60_day_sced_disclosure"""
 
     def test_get_60_day_sced_disclosure_historical(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=1000)
+        start_date = pd.Timestamp("2023-01-15", tz=self.iso.default_timezone)
         end_date = start_date + pd.DateOffset(days=2)
 
         with api_vcr.use_cassette(
@@ -1426,7 +1377,6 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_historical_data"""
 
-    @pytest.mark.integration
     def test_get_historical_data(self):
         start_date = datetime.date(2023, 1, 1)
         end_date = datetime.date(2023, 1, 3)
@@ -1520,7 +1470,6 @@ class TestErcotAPI(TestHelperMixin):
 
     """hit_ercot_api"""
 
-    @pytest.mark.integration
     def test_hit_ercot_api(self):
         """
         First we test that entering a bad endpoint results in a keyerror
@@ -1530,17 +1479,16 @@ class TestErcotAPI(TestHelperMixin):
 
         """
         Now a happy path test, using "actual system load by weather zone" endpoint.
-        Starting from two days ago should result in 48 hourly values (or 24, depending
-            on when the data is released and when the test is run), and there are
+        Using a fixed historical date range to get 48 hourly values, and there are
             12 columns in the resulting dataframe.
         We are also testing here that datetime objects are correctly parsed into
             the desired date string format that the operatingDayFrom parameter expects.
         """
-        two_days_ago = pd.Timestamp.utcnow() - pd.DateOffset(days=2)
+        start_date = pd.Timestamp("2025-11-01")
         actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
         two_days_actual_by_wzn = self.iso.hit_ercot_api(
             actual_by_wzn_endpoint,
-            operatingDayFrom=two_days_ago,
+            operatingDayFrom=start_date,
         )
         result_rows, result_cols = two_days_actual_by_wzn.shape
         assert result_rows in {24, 48}
@@ -1549,7 +1497,7 @@ class TestErcotAPI(TestHelperMixin):
         """
         Now let's apply a value filter and test it.
         We start by taking the midpoint value between min and max of total load over
-            the last two days, then query with a filter of only values above that,
+            the queried days, then query with a filter of only values above that,
             using the totalFrom parameter. There should be fewer than 48 rows, and all
             values for total load should be greater than the threshold we put in.
         """
@@ -1558,15 +1506,15 @@ class TestErcotAPI(TestHelperMixin):
         in_between_load = (max_load + min_load) / 2
         higher_loads_result = self.iso.hit_ercot_api(
             actual_by_wzn_endpoint,
-            operatingDayFrom=two_days_ago,
+            operatingDayFrom=start_date,
             totalFrom=in_between_load,
         )
         assert len(higher_loads_result["Total"]) < result_rows
         assert all(higher_loads_result["Total"] > in_between_load)
 
         """
-        Now we test the page_size and max_pages arguments. We know that our two days
-            query returns 24 or 48 results, so if we lower page_size to 10 and max_pages
+        Now we test the page_size and max_pages arguments. We know that our query
+            returns 24 or 48 results, so if we lower page_size to 10 and max_pages
             to 2, we should only get 20 rows total. We can also use this opportunity to
             test that invalid parameter names are silently ignored.
         """
@@ -1574,7 +1522,7 @@ class TestErcotAPI(TestHelperMixin):
             actual_by_wzn_endpoint,
             page_size=10,
             max_pages=2,
-            operatingDayFrom=two_days_ago,
+            operatingDayFrom=start_date,
             wowWhatAFakeParameter=True,
             thisOneIsAlsoFake=42,
         )
@@ -1711,8 +1659,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["QSE"].dtype == object
 
     def test_get_cop_adjustment_period_snapshot_60_day_date(self):
-        # Check the most recent date that data is available
-        date = self.local_today() - pd.DateOffset(days=61)
+        date = pd.Timestamp("2025-09-01").date()
 
         with api_vcr.use_cassette(
             f"test_get_cop_adjustment_period_snapshot_60_day_date_{date}.yaml",
@@ -1740,7 +1687,7 @@ class TestErcotAPI(TestHelperMixin):
             assert df[col].notnull().all()
 
     def test_get_cop_adjustment_period_snapshot_60_day_historical_date_range(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=500)
+        start_date = pd.Timestamp("2024-06-01", tz=self.iso.default_timezone)
         end_date = start_date + pd.DateOffset(days=2)
 
         with api_vcr.use_cassette(
@@ -1802,6 +1749,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df.dtypes["System Demand"] == "float64"
         assert df.dtypes["ESR Charging MW"] == "float64"
 
+    @pytest.mark.integration
     def test_get_system_load_charging_4_seconds_today(self):
         with api_vcr.use_cassette(
             "test_get_system_load_charging_4_seconds_today.yaml",
@@ -1815,9 +1763,8 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Time"].max() <= self.local_now()
 
     def test_get_system_load_charging_4_seconds_date_range(self):
-        # This dataset doesn't have historical data yet, so use recent data
-        start_date = self.local_today() - pd.DateOffset(days=1)
-        end_date = start_date + pd.DateOffset(days=1)
+        start_date = pd.Timestamp("2025-11-01").date()
+        end_date = pd.Timestamp("2025-11-02").date()
 
         df = self.iso.get_system_load_charging_4_seconds(
             date=start_date,

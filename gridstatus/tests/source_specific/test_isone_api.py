@@ -68,6 +68,7 @@ class TestISONEAPI(TestHelperMixin):
                 "AreaType",
             ]
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "location",
         TEST_SINGLE_LOCATIONS,
@@ -94,6 +95,7 @@ class TestISONEAPI(TestHelperMixin):
             assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
             assert isinstance(result["Load"].iloc[0], (int, float))
 
+    @pytest.mark.integration
     def test_get_dayahead_hourly_demand_latest(self):
         with api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml"):
             result = self.iso.get_dayahead_hourly_demand(
@@ -119,6 +121,7 @@ class TestISONEAPI(TestHelperMixin):
         with pytest.raises(ValueError):
             self.iso.get_dayahead_hourly_demand(locations=["INVALID_LOCATION"])
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "locations",
         TEST_MULTIPLE_LOCATIONS,
@@ -301,6 +304,7 @@ class TestISONEAPI(TestHelperMixin):
             grouped = result.groupby(["Interval Start", "Publish Time"])
             assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
 
+    @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
         with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
             result = self.iso.get_fuel_mix(date="latest")
@@ -340,6 +344,7 @@ class TestISONEAPI(TestHelperMixin):
                 assert result[col].dtype in [np.int64, np.float64]
                 assert (result[numeric_cols].sum(axis=1) > 0).all()
 
+    @pytest.mark.integration
     def test_get_load_hourly_latest(self):
         with api_vcr.use_cassette("test_get_load_hourly_latest.yaml"):
             result = self.iso.get_load_hourly(date="latest")
@@ -398,10 +403,9 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_interchange_hourly"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_interchange_hourly_date_range.yaml")
     def test_get_interchange_hourly_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
         with api_vcr.use_cassette(
             f"test_get_interchange_hourly_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
@@ -466,7 +470,7 @@ class TestISONEAPI(TestHelperMixin):
     """get_interchange_15_min"""
 
     def test_get_interchange_15_min_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
         with api_vcr.use_cassette(
             f"test_get_interchange_15_min_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
@@ -524,7 +528,7 @@ class TestISONEAPI(TestHelperMixin):
     """get_external_flows_5_min"""
 
     def test_get_external_flows_5_min_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
         with api_vcr.use_cassette(
             f"test_get_external_flows_5_min_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
@@ -603,6 +607,7 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.integration
     def test_get_zonal_load_estimated_5_min_latest(self):
         with api_vcr.use_cassette(
             "test_get_zonal_load_estimated_5_min_latest.yaml",
@@ -636,6 +641,7 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_hourly_prelim_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_hourly_prelim_latest.yaml"):
             result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
@@ -667,6 +673,7 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
             result = self.iso.get_lmp_real_time_hourly_final(date="latest")
@@ -698,6 +705,7 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_prelim_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
             result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
@@ -734,6 +742,7 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
             result = self.iso.get_lmp_real_time_5_min_final(date="latest")
@@ -821,6 +830,7 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Cold Weather Warning"].dtype == object
         assert result["Cold Weather Event"].dtype == object
 
+    @pytest.mark.integration
     def test_get_capacity_forecast_7_day_latest(self):
         with api_vcr.use_cassette("test_get_capacity_forecast_7_day_latest.yaml"):
             result = self.iso.get_capacity_forecast_7_day(date="latest")
@@ -857,6 +867,7 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.integration
     def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
         with api_vcr.use_cassette(
             "test_get_regulation_clearing_prices_real_time_5_min_latest.yaml",
@@ -933,6 +944,7 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
         with api_vcr.use_cassette(
             "test_get_reserve_requirements_prices_forecast_day_ahead_latest.yaml",
@@ -1002,6 +1014,7 @@ class TestISONEAPI(TestHelperMixin):
 
         assert ((df["Interval End"] - df["Interval Start"]) == interval).all()
 
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
         with api_vcr.use_cassette(
             "test_get_reserve_zone_prices_designations_real_time_5_min_latest.yaml",
@@ -1039,6 +1052,7 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_zone_prices_designations_real_time_hourly_final"""
 
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette(
             "test_get_reserve_zone_prices_designations_real_time_hourly_final_latest.yaml",
@@ -1080,6 +1094,7 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_zone_prices_designations_real_time_hourly_prelim"""
 
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
         self,
     ):
@@ -1155,6 +1170,7 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
         with api_vcr.use_cassette(
             "test_get_ancillary_services_strike_prices_day_ahead_latest.yaml",
@@ -1235,6 +1251,7 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(hours=1),
         )
 
+    @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_15_min_latest(self) -> None:
         with api_vcr.use_cassette(
             "test_get_binding_constraints_preliminary_real_time_15_min_latest.yaml",
@@ -1258,6 +1275,7 @@ class TestISONEAPI(TestHelperMixin):
                     "No data found for preliminary real-time 15-minute binding constraints",
                 )
 
+    @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
         with api_vcr.use_cassette(
             "test_get_binding_constraints_final_real_time_15_min_latest.yaml",
@@ -1339,6 +1357,7 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=15),
         )
 
+    @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_5_min_latest(self) -> None:
         with api_vcr.use_cassette(
             "test_get_binding_constraints_preliminary_real_time_5_min_latest.yaml",
@@ -1358,6 +1377,7 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=5),
         )
 
+    @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_5_min_latest(self) -> None:
         with api_vcr.use_cassette(
             "test_get_binding_constraints_final_real_time_5_min_latest.yaml",
@@ -1459,6 +1479,7 @@ class TestISONEAPI(TestHelperMixin):
         for col in numeric_cols:
             assert df[col].dtype in [np.int64, np.float64]
 
+    @pytest.mark.integration
     def test_get_fcm_reconfiguration_monthly_latest(self):
         with api_vcr.use_cassette("test_get_fcm_reconfiguration_monthly_latest.yaml"):
             result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
@@ -1483,6 +1504,7 @@ class TestISONEAPI(TestHelperMixin):
             self._check_fcm_reconfiguration(result)
             assert result["Interval Start"].min().date() == date.date()
 
+    @pytest.mark.integration
     def test_get_fcm_reconfiguration_annual_latest(self):
         with api_vcr.use_cassette("test_get_fcm_reconfiguration_annual_latest.yaml"):
             result = self.iso.get_fcm_reconfiguration_annual(date="latest")

@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
-from gridstatus import IESO, utils
+from gridstatus import IESO
 from gridstatus.base import NotSupported
 from gridstatus.ieso import _safe_find_float, _safe_find_int, _safe_find_text
 from gridstatus.ieso_constants import (
@@ -53,16 +53,20 @@ class TestIESO(BaseTestISO):
             time_column=TIME_COLUMN,
         )
 
-    @pytest.mark.integration
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
-        yesterday = utils._handle_date(
-            "today",
-            self.iso.default_timezone,
-        ) - pd.Timedelta(days=1)
-        yesterday = yesterday.replace(hour=1, minute=0, second=0, microsecond=0)
+        yesterday = pd.Timestamp(
+            "2025-11-02 01:00:00",
+            tz=self.default_timezone,
+        )
         start = yesterday - pd.Timedelta(hours=3)
 
-        df = self.iso.get_fuel_mix(date=start, end=yesterday + pd.Timedelta(minutes=1))
+        with file_vcr.use_cassette(
+            "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
+        ):
+            df = self.iso.get_fuel_mix(
+                date=start,
+                end=yesterday + pd.Timedelta(minutes=1),
+            )
 
         assert df[TIME_COLUMN].max() >= yesterday.replace(
             hour=0,
@@ -71,15 +75,14 @@ class TestIESO(BaseTestISO):
         )
         assert df[TIME_COLUMN].min() <= start
 
-    @pytest.mark.integration
     def test_get_fuel_mix_start_end_same_day(self):
-        yesterday = utils._handle_date(
-            "today",
-            self.iso.default_timezone,
-        ) - pd.Timedelta(days=1)
+        yesterday = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
-        df = self.iso.get_fuel_mix(date=start, end=end)
+
+        with file_vcr.use_cassette("test_get_fuel_mix_start_end_same_day.yaml"):
+            df = self.iso.get_fuel_mix(date=start, end=end)
+
         # ignore last row, since it is sometime midnight of next day
         assert df[TIME_COLUMN].iloc[:-1].dt.date.unique().tolist() == [
             yesterday.date(),
@@ -94,14 +97,14 @@ class TestIESO(BaseTestISO):
     def test_get_fuel_mix_in_future_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_fuel_mix(
-                pd.Timestamp.now(tz=self.default_timezone).date()
+                pd.Timestamp.now(tz=self.default_timezone).normalize()
                 + pd.Timedelta(days=1),
             )
 
     """get_generator_report_hourly"""
 
     def test_get_generator_report_hourly_historical(self):
-        date = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         date_str = date.strftime("%m/%d/%Y")
 
         with file_vcr.use_cassette(
@@ -132,7 +135,7 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_historical_with_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.Timedelta(days=7)
 
         with file_vcr.use_cassette(
@@ -146,9 +149,7 @@ class TestIESO(BaseTestISO):
             assert df[TIME_COLUMN].dt.day.nunique() == 7
 
     def test_get_generator_report_hourly_range_two_days_with_end(self):
-        start = (
-            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
-        ).floor("h")
+        start = pd.Timestamp("2025-11-01 08:00:00", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=3)
 
         with file_vcr.use_cassette(
@@ -167,9 +168,7 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_start_end_same_day(self):
-        start = (
-            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
-        ).normalize() + pd.Timedelta(hours=8)
+        start = pd.Timestamp("2025-11-01 08:00:00", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=6)
 
         with file_vcr.use_cassette(
@@ -179,6 +178,7 @@ class TestIESO(BaseTestISO):
             assert df[TIME_COLUMN].iloc[:-1].dt.date.unique().tolist() == [start.date()]
             self._check_get_generator_report_hourly(df)
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_latest(self):
         with file_vcr.use_cassette("test_get_generator_report_hourly_latest.yaml"):
             df = self.iso.get_generator_report_hourly("latest")
@@ -190,6 +190,7 @@ class TestIESO(BaseTestISO):
                 tz=self.default_timezone,
             ).floor("h") - pd.Timedelta(hours=2)
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_today(self):
         with file_vcr.use_cassette("test_get_generator_report_hourly_today.yaml"):
             df = self.iso.get_generator_report_hourly("today")
@@ -201,17 +202,18 @@ class TestIESO(BaseTestISO):
         ):
             with pytest.raises(NotSupported):
                 self.iso.get_generator_report_hourly(
-                    pd.Timestamp.now(tz=self.default_timezone).date()
+                    pd.Timestamp("2025-11-01").date()
                     - pd.Timedelta(
                         days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT + 1,
                     ),
                 )
 
+    @pytest.mark.integration
     def test_get_generator_report_hourly_in_future_raises_error(self):
         with file_vcr.use_cassette("test_get_generator_report_hourly_in_future.yaml"):
             with pytest.raises(NotSupported):
                 self.iso.get_generator_report_hourly(
-                    pd.Timestamp.now(tz=self.default_timezone).date()
+                    pd.Timestamp.now(tz=self.default_timezone).normalize()
                     + pd.Timedelta(days=1),
                 )
 
@@ -259,6 +261,7 @@ class TestIESO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_load("today")
 
+    @pytest.mark.integration
     def test_get_load_not_supported(self):
         with pytest.raises(NotSupported):
             self.iso.get_load("today")
@@ -474,28 +477,9 @@ class TestIESO(BaseTestISO):
     # NOTE(kladar): we will see how future data rolls in and historical rolls off
     # NOTE(kladar, 2024-12-11): Tests rolled off, earliest is currently 2024-09-10, 92 days ago
     RESOURCE_ADEQUACY_TEST_DATES = [
-        (
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=3)).strftime(
-                "%Y-%m-%d",
-            ),
-            (pd.Timestamp.now(tz=default_timezone) - pd.Timedelta(days=1)).strftime(
-                "%Y-%m-%d",
-            ),
-        ),
-        (
-            (pd.Timestamp.now(tz=default_timezone)).strftime("%Y-%m-%d"),
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=2)).strftime(
-                "%Y-%m-%d",
-            ),
-        ),
-        (
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=1)).strftime(
-                "%Y-%m-%d",
-            ),
-            (pd.Timestamp.now(tz=default_timezone) + pd.Timedelta(days=3)).strftime(
-                "%Y-%m-%d",
-            ),
-        ),
+        ("2025-10-30", "2025-11-01"),
+        ("2025-11-02", "2025-11-04"),
+        ("2025-11-03", "2025-11-05"),
     ]
 
     REQUIRED_RESOURCE_ADEQUACY_COLUMNS = [
@@ -655,13 +639,11 @@ class TestIESO(BaseTestISO):
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 
-    # TODO(kladar): eventually don't record this each time
     @file_vcr.use_cassette(
         "test_get_latest_resource_adequacy_json.yaml",
-        record_mode="ALL",
     )
     def test_get_latest_resource_adequacy_json(self):
-        date = pd.Timestamp.now(tz=self.default_timezone)
+        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         json_data, last_modified = self.iso._get_latest_resource_adequacy_json(date)
 
         assert isinstance(json_data, dict)
@@ -677,7 +659,7 @@ class TestIESO(BaseTestISO):
 
     @file_vcr.use_cassette("test_get_all_resource_adequacy_json.yaml")
     def test_get_all_resource_adequacy_json(self):
-        date = pd.Timestamp.now(tz=self.default_timezone)
+        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         json_data_with_times = self.iso._get_all_resource_adequacy_jsons(date)
 
         assert isinstance(json_data_with_times, list)
@@ -694,8 +676,9 @@ class TestIESO(BaseTestISO):
             assert "DeliveryDate" in doc_body
 
     def test_get_resource_adequacy_report_by_last_modified(self):
-        last_modified = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(
-            hours=1,
+        last_modified = pd.Timestamp(
+            "2025-11-01 12:00:00",
+            tz=self.default_timezone,
         )
         with file_vcr.use_cassette(
             "test_get_resource_adequacy_report_by_last_modified.yaml",
@@ -779,8 +762,8 @@ class TestIESO(BaseTestISO):
     """get_forecast_surplus_baseload"""
 
     def test_get_forecast_surplus_baseload_generation_single_date(self):
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        yesterday = today - pd.Timedelta(days=1)
+        yesterday = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        today = yesterday + pd.Timedelta(days=1)
         with file_vcr.use_cassette(
             f"test_get_forecast_surplus_baseload_generation_{yesterday.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -793,9 +776,8 @@ class TestIESO(BaseTestISO):
         assert df["Interval End"].max().date() == today.date() + pd.Timedelta(days=10)
 
     def test_get_forecast_surplus_baseload_generation_date_range(self):
-        today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        start = today - pd.Timedelta(days=3)
-        end = today
+        end = pd.Timestamp("2025-11-03", tz=self.default_timezone)
+        start = end - pd.Timedelta(days=3)
         with file_vcr.use_cassette(
             f"test_get_forecast_surplus_baseload_generation_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -807,6 +789,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min().date() == start.date() + pd.Timedelta(days=1)
         assert df["Interval End"].max().date() == end.date() + pd.Timedelta(days=10)
 
+    @pytest.mark.integration
     def test_get_forecast_surplus_baseload_generation_latest(self):
         with file_vcr.use_cassette(
             "test_get_forecast_surplus_baseload_generation_latest.yaml",
@@ -883,6 +866,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].max().date() == pd.Timestamp(date).date()
         assert len(df) == 24
 
+    @pytest.mark.integration
     @pytest.mark.parametrize("date, end", [("2023-01-01", "2023-01-03")])
     def test_get_yearly_intertie_actual_schedule_flow_hourly_date_range(
         self,
@@ -906,6 +890,7 @@ class TestIESO(BaseTestISO):
             == 24 * (pd.Timestamp(end).date() - pd.Timestamp(date).date()).days + 1
         )
 
+    @pytest.mark.integration
     def test_get_yearly_intertie_actual_schedule_flow_hourly_latest(self):
         with file_vcr.use_cassette(
             "test_get_yearly_intertie_actual_schedule_flow_hourly_latest.yaml",
@@ -989,6 +974,7 @@ class TestIESO(BaseTestISO):
 
         assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
 
+    @pytest.mark.integration
     def test_get_intertie_actual_schedule_flow_hourly_latest(self):
         with file_vcr.use_cassette(
             "test_get_intertie_actual_schedule_flow_hourly_latest.yaml",
@@ -1002,9 +988,7 @@ class TestIESO(BaseTestISO):
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_intertie_actual_schedule_flow_hourly_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1037,6 +1021,7 @@ class TestIESO(BaseTestISO):
             [col for col in df.columns if col not in time_columns]
         ].dtypes.unique() == np.dtype("float64")
 
+    @pytest.mark.integration
     def test_get_intertie_flow_5_min_latest(self):
         with file_vcr.use_cassette(
             "test_get_intertie_flow_5_min_latest.yaml",
@@ -1050,9 +1035,7 @@ class TestIESO(BaseTestISO):
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_intertie_flow_5_min_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1085,6 +1068,7 @@ class TestIESO(BaseTestISO):
             [col for col in df.columns if col not in time_columns]
         ].dtypes.unique() == np.dtype("float64")
 
+    @pytest.mark.integration
     def test_get_intertie_limits_real_time_5_min_latest(self):
         with file_vcr.use_cassette(
             "test_get_intertie_limits_real_time_5_min_latest.yaml",
@@ -1098,9 +1082,7 @@ class TestIESO(BaseTestISO):
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_intertie_limits_real_time_5_min_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(hours=2)
 
         with file_vcr.use_cassette(
@@ -1133,6 +1115,7 @@ class TestIESO(BaseTestISO):
             [col for col in df.columns if col not in time_columns]
         ].dtypes.unique() == np.dtype("float64")
 
+    @pytest.mark.integration
     def test_get_intertie_limits_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette(
             "test_get_intertie_limits_day_ahead_hourly_latest.yaml",
@@ -1148,9 +1131,7 @@ class TestIESO(BaseTestISO):
         assert df[TIME_COLUMN].iloc[0].normalize() == tomorrow
 
     def test_get_intertie_limits_day_ahead_hourly_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1206,6 +1187,7 @@ class TestIESO(BaseTestISO):
         assert not data["Location"].str.contains(":LMP").any()
         assert not data["Location"].str.contains(":HUB").any()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_latest(self):
         with file_vcr.use_cassette("test_get_lmp_real_time_5_min_latest.yaml"):
             data = self.iso.get_lmp_real_time_5_min("latest")
@@ -1217,9 +1199,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1235,6 +1215,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_day_ahead_hourly"""
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette("test_get_lmp_day_ahead_hourly_latest.yaml"):
             data = self.iso.get_lmp_day_ahead_hourly("latest")
@@ -1251,9 +1232,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1269,6 +1248,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_predispatch_hourly"""
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_latest(self):
         with file_vcr.use_cassette("test_get_lmp_dispatch_hourly_latest.yaml"):
             data = self.iso.get_lmp_predispatch_hourly("latest")
@@ -1284,9 +1264,7 @@ class TestIESO(BaseTestISO):
         ).any()
 
     def test_get_lmp_predispatch_hourly_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1358,6 +1336,7 @@ class TestIESO(BaseTestISO):
             "WEST",
         ]
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_real_time_5_min_virtual_zonal_latest.yaml",
@@ -1371,9 +1350,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_virtual_zonal_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1389,6 +1366,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_day_ahead_hourly_virtual_zonal"""
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_day_ahead_hourly_virtual_zonal_latest.yaml",
@@ -1407,9 +1385,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_virtual_zonal_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1425,6 +1401,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_predispatch_hourly_virtual_zonal"""
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_dispatch_hourly_virtual_zonal_latest.yaml",
@@ -1442,9 +1419,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_virtual_zonal_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1535,6 +1510,7 @@ class TestIESO(BaseTestISO):
             "WC.PRAIRERANGES_MISI",
         ]
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_intertie_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_real_time_5_min_intertie_latest.yaml",
@@ -1548,9 +1524,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_intertie_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1566,6 +1540,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_day_ahead_hourly_intertie"""
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_intertie_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_day_ahead_hourly_intertie_latest.yaml",
@@ -1585,9 +1560,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_intertie_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1603,6 +1576,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_predispatch_hourly_intertie"""
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_intertie_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_predispatch_hourly_intertie_latest.yaml",
@@ -1620,9 +1594,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_intertie_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1682,6 +1654,7 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].is_monotonic_increasing
         assert (data["Location"] == ONTARIO_LOCATION).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_real_time_5_min_ontario_zonal_latest.yaml",
@@ -1695,9 +1668,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1715,7 +1686,7 @@ class TestIESO(BaseTestISO):
         """Test with today's data which uses the new XML schema (r2) with
         separate DeliveryDate/DeliveryHour elements and flat ZonalPrice
         elements."""
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize()
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=1)
 
         with file_vcr.use_cassette(
@@ -1744,6 +1715,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_day_ahead_hourly_ontario_zonal"""
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_ontario_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_day_ahead_hourly_ontario_zonal_latest.yaml",
@@ -1762,9 +1734,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_ontario_zonal_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1780,6 +1750,7 @@ class TestIESO(BaseTestISO):
 
     """get_lmp_predispatch_hourly_ontario_zonal"""
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_ontario_zonal_latest(self):
         with file_vcr.use_cassette(
             "test_get_lmp_predispatch_hourly_ontario_zonal_latest.yaml",
@@ -1797,9 +1768,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_ontario_zonal_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1856,6 +1825,7 @@ class TestIESO(BaseTestISO):
         assert data["Recall Time"].dtype == "object"
         assert data["Status"].dtype == "object"
 
+    @pytest.mark.integration
     def test_get_transmission_outages_planned_latest(self):
         with file_vcr.use_cassette("transmission_outages_planned_latest.yaml"):
             data = self.iso.get_transmission_outages_planned("latest")
@@ -1869,12 +1839,12 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_transmission_outages_planned_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(days=3)
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
         with file_vcr.use_cassette(
             f"transmission_outages_planned_historical_date_range_{start.date()}_{end.date()}.yaml",
         ):
-            data = self.iso.get_transmission_outages_planned("today")
+            data = self.iso.get_transmission_outages_planned(start)
 
         self._check_transmission_outages_planned(data)
 
@@ -1914,6 +1884,7 @@ class TestIESO(BaseTestISO):
             ).any()
         )
 
+    @pytest.mark.integration
     def test_get_in_service_transmission_limits_latest(self):
         with file_vcr.use_cassette(
             "in_service_transmission_limits_latest.yaml",
@@ -1923,7 +1894,7 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_in_service_transmission_limits_historical_date(self):
-        start = pd.Timestamp.now() - pd.DateOffset(days=30)
+        start = pd.Timestamp("2025-11-01")
 
         with file_vcr.use_cassette(
             f"in_service_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1934,6 +1905,7 @@ class TestIESO(BaseTestISO):
 
     """get_outage_transmission_limits"""
 
+    @pytest.mark.integration
     def test_get_outage_transmission_limits_latest(self):
         with file_vcr.use_cassette(
             "outage_transmission_limits_latest.yaml",
@@ -1943,7 +1915,7 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_outage_transmission_limits_historical_date(self):
-        start = pd.Timestamp.now() - pd.DateOffset(days=30)
+        start = pd.Timestamp("2025-11-01")
 
         with file_vcr.use_cassette(
             f"outage_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1969,15 +1941,14 @@ class TestIESO(BaseTestISO):
         for col in numeric_cols:
             assert is_numeric_dtype(data[col])
 
+    @pytest.mark.integration
     def test_get_load_daily_zonal_5_min_latest(self):
         with file_vcr.use_cassette("test_get_load_zonal_5_min_latest.yaml"):
             data = self.iso.get_load_zonal_5_min("latest")
         self._check_load_zonal(data, 5)
 
     def test_get_load_zonal_5_min_historical_date_range(self):
-        start = (
-            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
-        ).floor("5min")
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1991,9 +1962,7 @@ class TestIESO(BaseTestISO):
         assert data["Interval End"].max() == end
 
     def test_get_load_zonal_5_min_year_boundary_transition(self):
-        start = (
-            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=2)
-        ).floor("5min")
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2017,6 +1986,7 @@ class TestIESO(BaseTestISO):
 
     """get_load_daily_zonal_hourly"""
 
+    @pytest.mark.integration
     def test_get_load_zonal_hourly_latest(self):
         with file_vcr.use_cassette("test_get_load_zonal_hourly_latest.yaml"):
             data = self.iso.get_load_zonal_hourly("latest")
@@ -2024,9 +1994,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_load_zonal_hourly_historical_date_range(self):
         # NB: Data stopped updating here
-        start = (
-            pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(days=30)
-        ).floor("h")
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2096,6 +2064,7 @@ class TestIESO(BaseTestISO):
 
         assert data["Interval Start"].is_monotonic_increasing
 
+    @pytest.mark.integration
     def test_get_real_time_totals_latest(self):
         with file_vcr.use_cassette("test_get_real_time_totals_latest.yaml"):
             data = self.iso.get_real_time_totals("latest")
@@ -2107,7 +2076,7 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_real_time_totals_historical_date_range(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+        start_date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -2145,6 +2114,7 @@ class TestIESO(BaseTestISO):
         assert all(col in df.columns for col in expected_cols)
         assert is_numeric_dtype(df["Generation Forecast"])
 
+    @pytest.mark.integration
     def test_get_solar_embedded_forecast_latest(self):
         with file_vcr.use_cassette("test_get_solar_embedded_forecast_latest.yaml"):
             df = self.iso.get_solar_embedded_forecast("latest")
@@ -2152,9 +2122,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_solar_embedded_forecast_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2168,9 +2136,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
     def test_get_solar_embedded_forecast_all_versions(self):
-        date = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=2,
-        )
+        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
 
         with file_vcr.use_cassette(
             f"test_get_solar_embedded_forecast_all_{date.date()}.yaml",
@@ -2181,6 +2147,7 @@ class TestIESO(BaseTestISO):
 
         assert df["Publish Time"].nunique() > 1
 
+    @pytest.mark.integration
     def test_get_wind_embedded_forecast_latest(self):
         with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
             df = self.iso.get_wind_embedded_forecast("latest")
@@ -2188,9 +2155,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_wind_embedded_forecast_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2202,6 +2167,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
+    @pytest.mark.integration
     def test_get_wind_market_participant_forecast_latest(self):
         with file_vcr.use_cassette(
             "test_get_wind_market_participant_forecast_latest.yaml",
@@ -2211,9 +2177,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_wind_market_participant_forecast_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2225,6 +2189,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
+    @pytest.mark.integration
     def test_get_solar_market_participant_forecast_latest(self):
         with file_vcr.use_cassette(
             "test_get_solar_market_participant_forecast_latest.yaml",
@@ -2234,9 +2199,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_solar_market_participant_forecast_historical_date_range(self):
-        start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
-            days=3,
-        )
+        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2263,6 +2226,7 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(df["Publish Time"])
         assert df["Shadow Price"].dtype == "float64"
 
+    @pytest.mark.integration
     def test_get_shadow_prices_real_time_5_min_latest(self):
         with file_vcr.use_cassette(
             "test_get_shadow_prices_real_time_5_min_latest.yaml",
@@ -2275,8 +2239,8 @@ class TestIESO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.now().normalize() - pd.Timedelta(days=12),
-                pd.Timestamp.now().normalize() - pd.Timedelta(days=10),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-03"),
             ),
         ],
     )
@@ -2286,6 +2250,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_shadow_prices_real_time_5_min(date, end=end)
             self._check_shadow_prices(df)
 
+    @pytest.mark.integration
     def test_get_shadow_prices_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette(
             "test_get_shadow_prices_day_ahead_hourly_latest.yaml",
@@ -2298,8 +2263,8 @@ class TestIESO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.now().normalize() - pd.Timedelta(days=12),
-                pd.Timestamp.now().normalize() - pd.Timedelta(days=10),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-03"),
             ),
         ],
     )
@@ -2373,6 +2338,7 @@ class TestIESO(BaseTestISO):
             data["Interval End"] - data["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_operating_reserves_latest(self):
         with file_vcr.use_cassette(
             "test_lmp_get_real_time_5_min_operating_reserves_latest.yaml",
@@ -2384,7 +2350,7 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
-        start_date = (pd.Timestamp.utcnow() - pd.DateOffset(days=3)).normalize()
+        start_date = pd.Timestamp("2025-11-01")
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -2400,6 +2366,7 @@ class TestIESO(BaseTestISO):
         assert data["Interval Start"].min() == start_date
         assert data["Interval Start"].max() == end_date - pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_lmp_day_ahead_operating_reserves_latest(self):
         with file_vcr.use_cassette(
             "test_lmp_get_day_ahead_operating_reserves_latest.yaml",
@@ -2409,7 +2376,7 @@ class TestIESO(BaseTestISO):
         self._check_lmp_day_ahead_operating_reserves(data)
 
     def test_get_lmp_day_ahead_operating_reserves_historical_date_range(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+        start_date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(

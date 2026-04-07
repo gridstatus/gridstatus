@@ -56,6 +56,7 @@ class TestISONE(BaseTestISO):
 
     """get_btm_solar"""
 
+    @pytest.mark.integration
     def test_get_btm_solar(self):
         df = self.iso.get_btm_solar(date="today", verbose=VERBOSE)
 
@@ -99,6 +100,7 @@ class TestISONE(BaseTestISO):
     def test_get_lmp_historical(self, market):
         super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -106,6 +108,7 @@ class TestISONE(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -129,6 +132,7 @@ class TestISONE(BaseTestISO):
             verbose=VERBOSE,
         )
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_no_intervals_gets_current_data(self):
         date = self.local_now() - pd.DateOffset(hours=2)
         end = date + pd.DateOffset(hours=1)
@@ -163,6 +167,7 @@ class TestISONE(BaseTestISO):
 
     """get_wind_forecast"""
 
+    @pytest.mark.integration
     def test_get_wind_forecast_today(self):
         df = self.iso.get_wind_forecast(date="today", verbose=VERBOSE)
         now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
@@ -180,18 +185,21 @@ class TestISONE(BaseTestISO):
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
+    @pytest.mark.integration
     def test_get_wind_forecast_latest(self):
         assert self.iso.get_wind_forecast(date="latest", verbose=VERBOSE).equals(
             self.iso.get_wind_forecast(date="today", verbose=VERBOSE),
         )
 
     def test_get_wind_forecast_historical_date_range(self):
-        two_days_ago = pd.Timestamp.now(
+        five_days_ago = pd.Timestamp(
+            "2025-11-01",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=2)
-        five_days_ago = pd.Timestamp.now(
+        )
+        two_days_ago = pd.Timestamp(
+            "2025-11-04",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=5)
+        )
 
         df = self.iso.get_wind_forecast(
             date=(five_days_ago, two_days_ago),
@@ -217,9 +225,10 @@ class TestISONE(BaseTestISO):
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
     def test_get_wind_forecast_historical_single_date(self):
-        four_days_ago = pd.Timestamp.now(
+        four_days_ago = pd.Timestamp(
+            "2025-11-01",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=4)
+        )
 
         df = self.iso.get_wind_forecast(date=four_days_ago, verbose=VERBOSE)
 
@@ -234,6 +243,7 @@ class TestISONE(BaseTestISO):
 
     """get_solar_forecast"""
 
+    @pytest.mark.integration
     def test_get_solar_forecast_today(self):
         df = self.iso.get_solar_forecast(date="today", verbose=VERBOSE)
         now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
@@ -251,18 +261,21 @@ class TestISONE(BaseTestISO):
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
+    @pytest.mark.integration
     def test_get_solar_forecast_latest(self):
         assert self.iso.get_solar_forecast(date="latest", verbose=VERBOSE).equals(
             self.iso.get_solar_forecast(date="today", verbose=VERBOSE),
         )
 
     def test_get_solar_forecast_historical_date_range(self):
-        two_days_ago = pd.Timestamp.now(
+        five_days_ago = pd.Timestamp(
+            "2025-11-01",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=2)
-        five_days_ago = pd.Timestamp.now(
+        )
+        two_days_ago = pd.Timestamp(
+            "2025-11-04",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=5)
+        )
 
         df = self.iso.get_solar_forecast(
             date=(five_days_ago, two_days_ago),
@@ -288,9 +301,10 @@ class TestISONE(BaseTestISO):
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
     def test_get_solar_forecast_historical_single_date(self):
-        four_days_ago = pd.Timestamp.now(
+        four_days_ago = pd.Timestamp(
+            "2025-11-01",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=4)
+        )
 
         df = self.iso.get_solar_forecast(date=four_days_ago, verbose=VERBOSE)
 
@@ -310,6 +324,7 @@ class TestISONE(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_historical()
 
+    @pytest.mark.integration
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
@@ -445,9 +460,10 @@ class TestISONE(BaseTestISO):
     ):
         # Test date range - decorator calls function once per day and concatenates results
         # So we should get data for all days in the range (inclusive of end date)
-        start = pd.Timestamp.now(
+        start = pd.Timestamp(
+            "2025-11-01",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=5)
+        )
         end = start + pd.Timedelta(days=1)
 
         cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_final_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}"
@@ -489,6 +505,7 @@ class TestISONE(BaseTestISO):
             # Use DateOffset to account for DST switch
         ) + pd.DateOffset(days=1, minutes=-5)
 
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_final_latest(self):
         # Test the "latest" option
         cassette_name = (

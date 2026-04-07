@@ -32,6 +32,7 @@ class TestAESO(TestHelperMixin):
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
 
+    @pytest.mark.integration
     def test_get_supply_and_demand(self):
         with api_vcr.use_cassette("test_get_supply_and_demand.yaml"):
             df = self.iso.get_supply_and_demand()
@@ -48,6 +49,7 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.integration
     def test_get_fuel_mix(self):
         with api_vcr.use_cassette("test_get_fuel_mix.yaml"):
             df = self.iso.get_fuel_mix()
@@ -77,6 +79,7 @@ class TestAESO(TestHelperMixin):
             "Net Interchange Flow should be the sum of individual flows"
         )
 
+    @pytest.mark.integration
     def test_get_interchange(self):
         with api_vcr.use_cassette("test_get_interchange.yaml"):
             df = self.iso.get_interchange()
@@ -88,6 +91,7 @@ class TestAESO(TestHelperMixin):
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
 
+    @pytest.mark.integration
     def test_get_reserves(self):
         with api_vcr.use_cassette("test_get_reserves.yaml"):
             df = self.iso.get_reserves()
@@ -107,11 +111,13 @@ class TestAESO(TestHelperMixin):
         assert df["Net To Grid Asset Flag"].dtype == "object"
         assert df["Asset Include Storage Flag"].dtype == "object"
 
+    @pytest.mark.integration
     def test_get_asset_list(self):
         with api_vcr.use_cassette("test_get_asset_list.yaml"):
             df = self.iso.get_asset_list()
             self._check_asset_list(df)
 
+    @pytest.mark.integration
     def test_get_asset_list_empty(self):
         with api_vcr.use_cassette("test_get_asset_list_empty.yaml"):
             df = self.iso.get_asset_list(asset_id="NONEXISTENT")
@@ -174,6 +180,7 @@ class TestAESO(TestHelperMixin):
                     minutes=5,
                 )
 
+    @pytest.mark.integration
     def test_get_pool_price_latest(self):
         """Test getting latest pool price data."""
         with api_vcr.use_cassette("test_get_pool_price_latest.yaml"):
@@ -208,6 +215,7 @@ class TestAESO(TestHelperMixin):
             self._check_pool_price(df)
             assert len(df) == expected_hours
 
+    @pytest.mark.integration
     def test_get_forecast_pool_price_latest(self):
         """Test getting latest forecast pool price data."""
         with api_vcr.use_cassette("test_get_forecast_pool_price_latest.yaml"):
@@ -269,6 +277,7 @@ class TestAESO(TestHelperMixin):
         assert not df["System Marginal Price"].isna().any()
         assert not df["Volume"].isna().any()
 
+    @pytest.mark.integration
     def test_get_system_marginal_price_latest(self):
         """Test getting latest system marginal price data."""
         with api_vcr.use_cassette("test_get_system_marginal_price_latest.yaml"):
@@ -380,6 +389,7 @@ class TestAESO(TestHelperMixin):
                 )
                 assert row["Publish Time"] == expected_publish
 
+    @pytest.mark.integration
     def test_get_load_latest(self):
         """Test getting latest load data."""
         with api_vcr.use_cassette("test_get_load_latest.yaml"):
@@ -415,6 +425,7 @@ class TestAESO(TestHelperMixin):
             self._check_load(df)
             assert len(df) == expected_hours
 
+    @pytest.mark.integration
     def test_get_load_forecast_latest(self):
         """Test getting latest load forecast data."""
         with api_vcr.use_cassette("test_get_load_forecast_latest.yaml"):
@@ -449,6 +460,7 @@ class TestAESO(TestHelperMixin):
             self._check_load_forecast(df)
             assert len(df) == expected_hours
 
+    @pytest.mark.integration
     def test_get_load_forecast_future_publish_times(self):
         """Test that future intervals have correct publish times."""
         with api_vcr.use_cassette("test_get_load_forecast_future_publish_times.yaml"):
@@ -525,6 +537,7 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.integration
     def test_get_unit_status(self):
         """Test getting current unit status data."""
         with api_vcr.use_cassette("test_get_unit_status.yaml"):
@@ -584,6 +597,7 @@ class TestAESO(TestHelperMixin):
         ]
         assert (df["Total Outage"] == df[outage_columns].sum(axis=1)).all()
 
+    @pytest.mark.integration
     def test_get_generator_outages_hourly_latest(self):
         """Test getting latest generator outages data."""
         with api_vcr.use_cassette("test_get_generator_outages_hourly_latest.yaml"):
@@ -660,6 +674,7 @@ class TestAESO(TestHelperMixin):
 
         assert (df["Interval End"] >= df["Interval Start"]).all()
 
+    @pytest.mark.integration
     def test_get_transmission_outages_latest(self):
         """Test getting latest transmission outages data."""
         with api_vcr.use_cassette("test_get_transmission_outages_latest.yaml"):
@@ -761,6 +776,7 @@ class TestAESO(TestHelperMixin):
         assert df["Interval Start"].is_monotonic_increasing
         assert (df["Interval End"] > df["Interval Start"]).all()
 
+    @pytest.mark.integration
     def test_get_wind_forecast_12_hour_latest(self):
         """Test getting latest 12-hour wind forecast data."""
         with api_vcr.use_cassette("test_get_wind_forecast_12_hour_latest.yaml"):
@@ -768,6 +784,7 @@ class TestAESO(TestHelperMixin):
             self._check_wind_solar_forecast(df, "wind")
             assert len(df) > 0
 
+    @pytest.mark.integration
     def test_get_wind_forecast_7_day_latest(self):
         """Test getting latest 7-day wind forecast data."""
         with api_vcr.use_cassette("test_get_wind_forecast_7_day_latest.yaml"):
@@ -775,6 +792,7 @@ class TestAESO(TestHelperMixin):
             self._check_wind_solar_forecast(df, "wind")
             assert len(df) > 0
 
+    @pytest.mark.integration
     def test_get_solar_forecast_12_hour_latest(self):
         """Test getting latest 12-hour solar forecast data."""
         with api_vcr.use_cassette("test_get_solar_forecast_12_hour_latest.yaml"):
@@ -782,6 +800,7 @@ class TestAESO(TestHelperMixin):
             self._check_wind_solar_forecast(df, "solar")
             assert len(df) > 0
 
+    @pytest.mark.integration
     def test_get_solar_forecast_7_day_latest(self):
         """Test getting latest 7-day solar forecast data."""
         with api_vcr.use_cassette("test_get_solar_forecast_7_day_latest.yaml"):
@@ -913,6 +932,7 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.integration
     def test_get_daily_average_pool_price_latest(self):
         """Test getting latest daily average pool price data."""
         with api_vcr.use_cassette("test_get_daily_average_pool_price_latest.yaml"):

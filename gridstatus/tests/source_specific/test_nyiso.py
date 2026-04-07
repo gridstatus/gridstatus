@@ -3,7 +3,6 @@ from typing import Literal
 import pandas as pd
 import pytest
 
-import gridstatus
 from gridstatus import NYISO, Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -20,6 +19,7 @@ class TestNYISO(BaseTestISO):
 
     """"get_capacity_prices"""
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "date",
         [
@@ -59,8 +59,10 @@ class TestNYISO(BaseTestISO):
             assert df.shape[0] >= 0
 
     def test_range_two_days_across_month(self):
-        today = gridstatus.utils._handle_date("today", self.iso.default_timezone)
-        first_day_of_month = today.replace(day=1, hour=5, minute=0, second=0)
+        first_day_of_month = pd.Timestamp(
+            "2025-11-01 05:00:00",
+            tz=self.iso.default_timezone,
+        )
         last_day_of_prev_month = first_day_of_month - pd.Timedelta(days=1)
         with nyiso_vcr.use_cassette(
             f"test_get_fuel_mix_range_two_days_across_month_{last_day_of_prev_month.strftime('%Y-%m-%d')}_{first_day_of_month.strftime('%Y-%m-%d')}.yaml",
@@ -130,6 +132,7 @@ class TestNYISO(BaseTestISO):
     def test_get_load_latest(self):
         super().test_get_load_latest()
 
+    @pytest.mark.integration
     def test_get_load_contains_zones(self):
         with nyiso_vcr.use_cassette(
             "test_get_load_contains_zones.yaml",
@@ -165,13 +168,14 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_load(start=date, end=end)
             assert df.shape[0] >= 0
 
-    @pytest.mark.parametrize(
-        "lookback_days",
-        [8],
-    )
-    def test_get_load_historical(self, lookback_days):
-        # TODO: why does this not work more than 8 days in the past
-        super().test_get_load_historical(lookback_days=lookback_days)
+    def test_get_load_historical(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_load_historical.yaml",
+        ):
+            date = "2025-11-01"
+            df = self.iso.get_load(date)
+            self._check_load(df)
+            assert df.loc[0]["Time"].strftime("%Y%m%d") == "20251101"
 
     """get_lmp"""
 
@@ -197,6 +201,7 @@ class TestNYISO(BaseTestISO):
         ):
             super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -209,6 +214,7 @@ class TestNYISO(BaseTestISO):
         ):
             super().test_get_lmp_today(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -221,6 +227,7 @@ class TestNYISO(BaseTestISO):
         ):
             super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "market, interval_duration_minutes",
         [(Markets.REAL_TIME_5_MIN, 5), (Markets.REAL_TIME_15_MIN, 15)],
@@ -242,6 +249,7 @@ class TestNYISO(BaseTestISO):
             )
             assert diffs.max() == pd.Timedelta(minutes=interval_duration_minutes)
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "market, interval_duration_minutes",
         [(Markets.REAL_TIME_5_MIN, 5), (Markets.REAL_TIME_15_MIN, 15)],
@@ -265,6 +273,7 @@ class TestNYISO(BaseTestISO):
             # There is only one interval, so the diff is 0
             assert (diffs == pd.Timedelta(minutes=0)).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_15_min_interval_boundaries(self):
         """Test that 15-minute LMP intervals fall on correct boundaries.
 
@@ -376,6 +385,7 @@ class TestNYISO(BaseTestISO):
             )
             assert (df_zone["Location Type"] == "Zone").all()
 
+    @pytest.mark.integration
     def test_get_lmp_location_type_zone_today(self):
         with nyiso_vcr.use_cassette(
             "test_get_lmp_location_type_zone_today.yaml",
@@ -387,6 +397,7 @@ class TestNYISO(BaseTestISO):
             )
             assert (df_zone["Location Type"] == "Zone").all()
 
+    @pytest.mark.integration
     def test_get_lmp_location_type_zone_latest(self):
         with nyiso_vcr.use_cassette(
             "test_get_lmp_location_type_zone_latest.yaml",
@@ -418,6 +429,7 @@ class TestNYISO(BaseTestISO):
                 "Reference Bus",
             ]
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -438,6 +450,7 @@ class TestNYISO(BaseTestISO):
                 "Reference Bus",
             ]
 
+    @pytest.mark.integration
     def test_get_lmp_location_type_generator_latest(self):
         with nyiso_vcr.use_cassette(
             "test_get_lmp_location_type_generator_latest.yaml",
@@ -452,6 +465,7 @@ class TestNYISO(BaseTestISO):
                 "Reference Bus",
             ]
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "date,market,location_type",
         [
@@ -668,14 +682,13 @@ class TestNYISO(BaseTestISO):
     """get_btm_solar"""
 
     def test_get_btm_solar(self):
-        # published ~8 hours after finish of previous day
-        two_days_ago = pd.Timestamp.now(tz="US/Eastern").date() - pd.Timedelta(days=2)
+        date = pd.Timestamp("2025-11-01").date()
 
         with nyiso_vcr.use_cassette(
-            f"test_get_btm_solar_{two_days_ago}.yaml",
+            f"test_get_btm_solar_{date}.yaml",
         ):
             df = self.iso.get_btm_solar(
-                date=two_days_ago,
+                date=date,
                 verbose=True,
             )
 
@@ -748,6 +761,7 @@ class TestNYISO(BaseTestISO):
             + pd.Timedelta(hours=7, minutes=55)
         ).all()
 
+    @pytest.mark.integration
     def test_get_btm_solar_forecast_today(self):
         with nyiso_vcr.use_cassette(
             "test_get_btm_solar_forecast_today.yaml",
@@ -780,6 +794,7 @@ class TestNYISO(BaseTestISO):
 
     """get_load_forecast"""
 
+    @pytest.mark.integration
     def test_load_forecast_today(self):
         with nyiso_vcr.use_cassette(
             "test_load_forecast_today.yaml",
@@ -797,8 +812,8 @@ class TestNYISO(BaseTestISO):
             )
 
     def test_load_forecast_historical_date_range(self):
-        end = pd.Timestamp.now().normalize() - pd.Timedelta(days=14)
-        date = (end - pd.Timedelta(days=7)).date()
+        date = pd.Timestamp("2025-11-01")
+        end = pd.Timestamp("2025-11-03")
         with nyiso_vcr.use_cassette(
             f"test_load_forecast_historical_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -820,6 +835,7 @@ class TestNYISO(BaseTestISO):
 
     """get_zonal_load_forecast"""
 
+    @pytest.mark.integration
     def test_zonal_load_forecast_today(self):
         with nyiso_vcr.use_cassette(
             "test_zonal_load_forecast_today.yaml",
@@ -851,8 +867,8 @@ class TestNYISO(BaseTestISO):
             ).all()
 
     def test_zonal_load_forecast_historical_date_range(self):
-        end = self.local_start_of_today() - pd.Timedelta(days=14)
-        date = end - pd.Timedelta(days=7)
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        end = date + pd.Timedelta(days=7)
 
         with nyiso_vcr.use_cassette(
             f"test_zonal_load_forecast_historical_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
@@ -889,7 +905,7 @@ class TestNYISO(BaseTestISO):
     """get_interface_limits_and_flows_5_min"""
 
     def test_get_interface_limits_and_flows_5_min_historical_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = self.local_start_of_day("2025-11-01")
         end = start + pd.Timedelta(days=1)
 
         with nyiso_vcr.use_cassette(
@@ -969,7 +985,7 @@ class TestNYISO(BaseTestISO):
     """get_lake_erie_circulation_real_time"""
 
     def test_get_lake_erie_circulation_real_time_historical_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=30)
+        start = self.local_start_of_day("2025-11-01")
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
@@ -989,7 +1005,7 @@ class TestNYISO(BaseTestISO):
     """get_lake_erie_circulation_day_ahead"""
 
     def test_get_lake_erie_circulation_day_ahead_historical_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=60)
+        start = self.local_start_of_day("2025-11-01")
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
@@ -1104,6 +1120,7 @@ class TestNYISO(BaseTestISO):
         assert (df["Interval End"] - df["Interval Start"] == expected_delta).all()
         assert df["Constraint Cost"].dtype.kind in {"i", "f"}
 
+    @pytest.mark.integration
     def test_get_limiting_constraints_real_time_latest(self):
         with nyiso_vcr.use_cassette(
             "test_get_limiting_constraints_real_time_latest.yaml",

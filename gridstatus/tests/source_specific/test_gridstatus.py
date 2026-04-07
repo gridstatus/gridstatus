@@ -41,6 +41,7 @@ def test_get_iso_invalid():
         gridstatus.get_iso("ISO DOESNT EXIST")
 
 
+@pytest.mark.integration
 def test_handle_date_today_tz():
     # make sure it returns a stamp
     # with the correct timezone
