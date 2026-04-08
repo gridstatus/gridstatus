@@ -1945,6 +1945,62 @@ class TestCAISO(BaseTestISO):
         assert old_end in str(exc_info.value)
         assert "Day Ahead Hourly" in str(exc_info.value)
 
+    def test_daily_energy_storage_reports_2026_04_06(self):
+        date = "2026-04-06"
+        with caiso_vcr.use_cassette("test_daily_energy_storage_report_2026_04_06.yaml"):
+            df_fmm = self.iso.get_storage_awards_fmm(date)
+            df_ifm = self.iso.get_storage_awards_ifm(date)
+            df_rtd = self.iso.get_storage_awards_rtd(date)
+            df_ruc = self.iso.get_storage_energy_awards_ruc(date)
+            df_bids_fmm = self.iso.get_storage_energy_bids_fmm(date)
+            df_bids_ifm = self.iso.get_storage_energy_bids_ifm(date)
+            df_soc_fmm = self.iso.get_storage_soc_fmm(date)
+            df_soc_h = self.iso.get_storage_soc_hourly(date)
+            df_soc_rtd = self.iso.get_storage_soc_rtd(date)
+
+        assert df_fmm.shape == (960, 5)
+        assert set(df_fmm.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Product",
+            "Type",
+            "MW",
+        }
+
+        assert df_ifm.shape == (240, 5)
+        assert df_rtd.shape == (576, 5)
+        assert df_ruc.shape == (576, 5)
+
+        assert df_bids_fmm.shape == (4608, 6)
+        assert set(df_bids_fmm.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Bid Range",
+            "Operation",
+            "Type",
+            "MW",
+        }
+
+        assert df_bids_ifm.shape == (1152, 6)
+
+        assert df_soc_fmm.shape == (288, 4)
+        assert set(df_soc_fmm.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Type",
+            "SOC",
+        }
+
+        assert df_soc_h.shape == (576, 4)
+        assert set(df_soc_h.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Schedule",
+            "SOC",
+        }
+
+        assert df_soc_rtd.shape == (288, 4)
+
 
 NOMOGRAM_GROUP_COLS = [
     "Interval Start",
