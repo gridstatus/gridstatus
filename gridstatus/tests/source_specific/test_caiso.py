@@ -1968,8 +1968,15 @@ class TestCAISO(BaseTestISO):
         }
 
         assert df_ifm.shape == (240, 5)
-        assert df_rtd.shape == (576, 5)
-        assert df_ruc.shape == (576, 5)
+        assert df_rtd.shape == (576, 4)
+        assert set(df_rtd.columns) == {
+            "Interval Start",
+            "Interval End",
+            "Type",
+            "MW",
+        }
+        assert df_ruc.shape == (576, 4)
+        assert set(df_ruc.columns) == set(df_rtd.columns)
 
         assert df_bids_fmm.shape == (4608, 6)
         assert set(df_bids_fmm.columns) == {
@@ -1983,23 +1990,23 @@ class TestCAISO(BaseTestISO):
 
         assert df_bids_ifm.shape == (1152, 6)
 
-        assert df_soc_fmm.shape == (288, 4)
+        assert df_soc_fmm.shape == (288, 3)
         assert set(df_soc_fmm.columns) == {
             "Interval Start",
             "Interval End",
-            "Type",
             "SOC",
         }
 
         assert df_soc_h.shape == (576, 4)
-        assert set(df_soc_h.columns) == {
+        assert list(df_soc_h.columns) == [
             "Interval Start",
             "Interval End",
-            "Schedule",
             "SOC",
-        }
+            "Schedule",
+        ]
 
-        assert df_soc_rtd.shape == (288, 4)
+        assert df_soc_rtd.shape == (288, 3)
+        assert set(df_soc_rtd.columns) == set(df_soc_fmm.columns)
 
 
 NOMOGRAM_GROUP_COLS = [

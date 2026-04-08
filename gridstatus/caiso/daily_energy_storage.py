@@ -122,38 +122,57 @@ def _long_energy_awards(
     values_standalone: list[Any],
     values_hybrid: list[Any],
     minutes: int,
-    product: str,
+    product: str | None = "Energy",
 ) -> pd.DataFrame:
     n = min(len(values_standalone), len(values_hybrid))
     if n == 0:
-        return pd.DataFrame(
-            columns=[
+        cols = ["Interval Start", "Interval End", "Type", "MW"]
+        if product is not None:
+            cols = [
                 "Interval Start",
                 "Interval End",
                 "Product",
                 "Type",
                 "MW",
-            ],
-        )
+            ]
+        return pd.DataFrame(columns=cols)
     starts, ends = _interval_index(report_start, n, minutes)
-    s_rows = pd.DataFrame(
-        {
-            "Interval Start": starts,
-            "Interval End": ends,
-            "Product": product,
-            "Type": "Standalone",
-            "MW": values_standalone[:n],
-        },
-    )
-    h_rows = pd.DataFrame(
-        {
-            "Interval Start": starts,
-            "Interval End": ends,
-            "Product": product,
-            "Type": "Hybrid",
-            "MW": values_hybrid[:n],
-        },
-    )
+    if product is not None:
+        s_rows = pd.DataFrame(
+            {
+                "Interval Start": starts,
+                "Interval End": ends,
+                "Product": product,
+                "Type": "Standalone",
+                "MW": values_standalone[:n],
+            },
+        )
+        h_rows = pd.DataFrame(
+            {
+                "Interval Start": starts,
+                "Interval End": ends,
+                "Product": product,
+                "Type": "Hybrid",
+                "MW": values_hybrid[:n],
+            },
+        )
+    else:
+        s_rows = pd.DataFrame(
+            {
+                "Interval Start": starts,
+                "Interval End": ends,
+                "Type": "Standalone",
+                "MW": values_standalone[:n],
+            },
+        )
+        h_rows = pd.DataFrame(
+            {
+                "Interval Start": starts,
+                "Interval End": ends,
+                "Type": "Hybrid",
+                "MW": values_hybrid[:n],
+            },
+        )
     return pd.concat([s_rows, h_rows], ignore_index=True)
 
 
@@ -430,7 +449,7 @@ def build_storage_awards_rtd(
         _parse_js_array(html, "tot_energy_rtd"),
         _parse_js_array(html, "tot_energy_hybrid_rtd"),
         5,
-        "Energy",
+        product=None,
     ).sort_values(["Interval Start", "Type"])
 
 
@@ -443,7 +462,7 @@ def build_storage_energy_awards_ruc(
         _parse_js_array(html, "tot_energy_ruc"),
         _parse_js_array(html, "tot_energy_hybrid_ruc"),
         5,
-        "Energy",
+        product=None,
     ).sort_values(["Interval Start", "Type"])
 
 
@@ -459,8 +478,8 @@ def build_storage_soc_hourly(
             columns=[
                 "Interval Start",
                 "Interval End",
-                "Schedule",
                 "SOC",
+                "Schedule",
             ],
         )
     starts, ends = _interval_index(report_start, n, 5)
@@ -468,16 +487,16 @@ def build_storage_soc_hourly(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "Schedule": "IFM",
             "SOC": ifm[:n],
+            "Schedule": "IFM",
         },
     )
     df_ruc = pd.DataFrame(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "Schedule": "RUC",
             "SOC": ruc[:n],
+            "Schedule": "RUC",
         },
     )
     return pd.concat([df_ifm, df_ruc], ignore_index=True).sort_values(
@@ -496,7 +515,6 @@ def build_storage_soc_fmm(
             columns=[
                 "Interval Start",
                 "Interval End",
-                "Type",
                 "SOC",
             ],
         )
@@ -505,10 +523,9 @@ def build_storage_soc_fmm(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "Type": "Standalone",
             "SOC": s,
         },
-    ).sort_values(["Interval Start", "Type"])
+    ).sort_values(["Interval Start"])
 
 
 def build_storage_soc_rtd(
@@ -522,7 +539,6 @@ def build_storage_soc_rtd(
             columns=[
                 "Interval Start",
                 "Interval End",
-                "Type",
                 "SOC",
             ],
         )
@@ -531,10 +547,9 @@ def build_storage_soc_rtd(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "Type": "Standalone",
             "SOC": s,
         },
-    ).sort_values(["Interval Start", "Type"])
+    ).sort_values(["Interval Start"])
 
 
 def build_storage_energy_bids_fmm(
