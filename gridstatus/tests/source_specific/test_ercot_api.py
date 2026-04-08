@@ -1256,21 +1256,24 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.slow
     def test_get_spp_real_time_15_min_historical_date_range(self):
-        start_date = pd.Timestamp("2025-01-15").date()
-        end_date = pd.Timestamp("2025-01-17").date()
+        with api_vcr.use_cassette(
+            "test_get_spp_real_time_15_min_historical_date_range.yaml",
+        ):
+            start_date = pd.Timestamp("2025-01-15").date()
+            end_date = pd.Timestamp("2025-01-17").date()
 
-        df = ErcotAPI(sleep_seconds=3.0, max_retries=5).get_spp_real_time_15_min(
-            date=start_date,
-            end=end_date,
-            verbose=True,
-        )
+            df = ErcotAPI(sleep_seconds=3.0, max_retries=5).get_spp_real_time_15_min(
+                date=start_date,
+                end=end_date,
+                verbose=True,
+            )
 
-        self._check_spp_real_time_15_min(df)
+            self._check_spp_real_time_15_min(df)
 
-        assert df["Interval Start"].nunique() == 96 * 2
+            assert df["Interval Start"].nunique() == 96 * 2
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """get_spp_day_ahead_hourly"""
 
@@ -1299,69 +1302,78 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Market"].unique().tolist() == ["DAY_AHEAD_HOURLY"]
 
     def test_get_spp_day_ahead_hourly_historical_date_range(self):
-        start_date = pd.Timestamp("2025-01-15").date()
-        end_date = pd.Timestamp("2025-01-17").date()
+        with api_vcr.use_cassette(
+            "test_get_spp_day_ahead_hourly_historical_date_range.yaml",
+        ):
+            start_date = pd.Timestamp("2025-01-15").date()
+            end_date = pd.Timestamp("2025-01-17").date()
 
-        df = ErcotAPI().get_spp_day_ahead_hourly(
-            date=start_date,
-            end=end_date,
-            verbose=True,
-        )
+            df = ErcotAPI().get_spp_day_ahead_hourly(
+                date=start_date,
+                end=end_date,
+                verbose=True,
+            )
 
-        self._check_spp_day_ahead_hourly(df)
+            self._check_spp_day_ahead_hourly(df)
 
-        assert df["Interval Start"].nunique() == 24 * 2
+            assert df["Interval Start"].nunique() == 24 * 2
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """get_60_day_dam_disclosure"""
 
     def test_get_60_day_dam_disclosure_historical(self):
-        start_date = pd.Timestamp("2018-01-15", tz=self.iso.default_timezone)
-        end_date = start_date + pd.DateOffset(days=2)
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_historical.yaml",
+        ):
+            start_date = pd.Timestamp("2018-01-15", tz=self.iso.default_timezone)
+            end_date = start_date + pd.DateOffset(days=2)
 
-        df_dict = ErcotAPI().get_60_day_dam_disclosure(
-            start_date,
-            end_date,
-        )
+            df_dict = ErcotAPI().get_60_day_dam_disclosure(
+                start_date,
+                end_date,
+            )
 
-        check_60_day_dam_disclosure(df_dict)
+            check_60_day_dam_disclosure(df_dict)
 
-        for df in df_dict.values():
-            assert df["Interval Start"].min() == start_date
-            assert df["Interval End"].max() == end_date
+            for df in df_dict.values():
+                assert df["Interval Start"].min() == start_date
+                assert df["Interval End"].max() == end_date
 
     def test_get_60_day_dam_disclosure_repeated_offers(self):
         """Tests a problematic date where one resource has repeated offers for a
         single service on a single interval"""
-        # This is the resource. We expect to still have the data for this resource
-        resource_name = "CANYONRO_LD1"
-        date_with_issue = pd.Timestamp("2024-09-04", tz="US/Central")
+        with api_vcr.use_cassette(
+            "test_get_60_day_dam_disclosure_repeated_offers.yaml",
+        ):
+            # This is the resource. We expect to still have the data for this resource
+            resource_name = "CANYONRO_LD1"
+            date_with_issue = pd.Timestamp("2024-09-04", tz="US/Central")
 
-        df_dict = ErcotAPI().get_60_day_dam_disclosure(
-            date_with_issue,
-        )
-
-        check_60_day_dam_disclosure(df_dict)
-
-        df_load = df_dict["dam_load_resource_as_offers"]
-        df_gen = df_dict["dam_gen_resource_as_offers"]
-
-        # The resource only occurs in the load data
-        assert df_load[df_load["Resource Name"] == resource_name].shape[0] == 24
-
-        for df in [df_load, df_gen]:
-            assert df.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
-
-            assert df["Interval Start"].min() == pd.Timestamp(date_with_issue)
-            assert df["Interval End"].max() == pd.Timestamp(
+            df_dict = ErcotAPI().get_60_day_dam_disclosure(
                 date_with_issue,
-            ) + pd.DateOffset(
-                days=1,
             )
 
-            assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
+            check_60_day_dam_disclosure(df_dict)
+
+            df_load = df_dict["dam_load_resource_as_offers"]
+            df_gen = df_dict["dam_gen_resource_as_offers"]
+
+            # The resource only occurs in the load data
+            assert df_load[df_load["Resource Name"] == resource_name].shape[0] == 24
+
+            for df in [df_load, df_gen]:
+                assert df.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+
+                assert df["Interval Start"].min() == pd.Timestamp(date_with_issue)
+                assert df["Interval End"].max() == pd.Timestamp(
+                    date_with_issue,
+                ) + pd.DateOffset(
+                    days=1,
+                )
+
+                assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
 
     def test_get_60_day_dam_disclosure_esr(self):
         # ESR data is available starting 2025-12-06
@@ -1528,56 +1540,57 @@ class TestErcotAPI(TestHelperMixin):
         with pytest.raises(KeyError) as _:
             self.iso.hit_ercot_api("just a real bad endpoint right here")
 
-        """
-        Now a happy path test, using "actual system load by weather zone" endpoint.
-        Using a fixed historical date range to get 48 hourly values, and there are
-            12 columns in the resulting dataframe.
-        We are also testing here that datetime objects are correctly parsed into
-            the desired date string format that the operatingDayFrom parameter expects.
-        """
-        start_date = pd.Timestamp("2025-11-01")
-        actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
-        two_days_actual_by_wzn = self.iso.hit_ercot_api(
-            actual_by_wzn_endpoint,
-            operatingDayFrom=start_date,
-        )
-        result_rows, result_cols = two_days_actual_by_wzn.shape
-        assert result_rows in {24, 48}
-        assert result_cols == 12
+        with api_vcr.use_cassette("test_hit_ercot_api.yaml"):
+            """
+            Now a happy path test, using "actual system load by weather zone" endpoint.
+            Using a fixed historical date range to get 48 hourly values, and there are
+                12 columns in the resulting dataframe.
+            We are also testing here that datetime objects are correctly parsed into
+                the desired date string format that the operatingDayFrom parameter expects.
+            """
+            start_date = pd.Timestamp("2025-11-01")
+            actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
+            two_days_actual_by_wzn = self.iso.hit_ercot_api(
+                actual_by_wzn_endpoint,
+                operatingDayFrom=start_date,
+            )
+            result_rows, result_cols = two_days_actual_by_wzn.shape
+            assert result_rows in {24, 48}
+            assert result_cols == 12
 
-        """
-        Now let's apply a value filter and test it.
-        We start by taking the midpoint value between min and max of total load over
-            the queried days, then query with a filter of only values above that,
-            using the totalFrom parameter. There should be fewer than 48 rows, and all
-            values for total load should be greater than the threshold we put in.
-        """
-        min_load = two_days_actual_by_wzn["Total"].min()
-        max_load = two_days_actual_by_wzn["Total"].max()
-        in_between_load = (max_load + min_load) / 2
-        higher_loads_result = self.iso.hit_ercot_api(
-            actual_by_wzn_endpoint,
-            operatingDayFrom=start_date,
-            totalFrom=in_between_load,
-        )
-        assert len(higher_loads_result["Total"]) < result_rows
-        assert all(higher_loads_result["Total"] > in_between_load)
+            """
+            Now let's apply a value filter and test it.
+            We start by taking the midpoint value between min and max of total load over
+                the queried days, then query with a filter of only values above that,
+                using the totalFrom parameter. There should be fewer than 48 rows, and all
+                values for total load should be greater than the threshold we put in.
+            """
+            min_load = two_days_actual_by_wzn["Total"].min()
+            max_load = two_days_actual_by_wzn["Total"].max()
+            in_between_load = (max_load + min_load) / 2
+            higher_loads_result = self.iso.hit_ercot_api(
+                actual_by_wzn_endpoint,
+                operatingDayFrom=start_date,
+                totalFrom=in_between_load,
+            )
+            assert len(higher_loads_result["Total"]) < result_rows
+            assert all(higher_loads_result["Total"] > in_between_load)
 
-        """
-        Now we test the page_size and max_pages arguments. We know that our query
-            returns 24 or 48 results, so if we lower page_size to 10 and max_pages
-            to 2, we should only get 20 rows total. We can also use this opportunity to
+            """
+            Now we test the page_size and max_pages arguments. We know that our query
+                returns 24 or 48 results, so if we lower page_size to 10 and max_pages
+                to 2, we should only get 20 rows total. We can also use this opportunity to
             test that invalid parameter names are silently ignored.
-        """
-        small_pages_result = self.iso.hit_ercot_api(
-            actual_by_wzn_endpoint,
-            page_size=10,
-            max_pages=2,
-            operatingDayFrom=start_date,
-            wowWhatAFakeParameter=True,
-            thisOneIsAlsoFake=42,
-        )
-        assert small_pages_result.shape == (20, 12)
+            """
+            small_pages_result = self.iso.hit_ercot_api(
+                actual_by_wzn_endpoint,
+                page_size=10,
+                max_pages=2,
+                operatingDayFrom=start_date,
+                wowWhatAFakeParameter=True,
+                thisOneIsAlsoFake=42,
+            )
+            assert small_pages_result.shape == (20, 12)
 
     """endpoints_map"""
 

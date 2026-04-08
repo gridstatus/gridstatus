@@ -222,10 +222,14 @@ class TestNYISO(BaseTestISO):
         Markets.REAL_TIME_HOURLY,
     )
     def test_lmp_date_range(self, market):
-        with nyiso_vcr.use_cassette(
-            f"test_lmp_date_range_{market}.yaml",
-        ):
-            super().test_lmp_date_range(market=market)
+        start = pd.Timestamp("2025-10-12", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2025-10-15", tz=self.iso.default_timezone)
+        cassette_name = f"test_lmp_date_range_{market.value.lower()}.yaml"
+        with nyiso_vcr.use_cassette(cassette_name):
+            df_1 = self.iso.get_lmp(start=start, end=end, market=market)
+            df_2 = self.iso.get_lmp(date=(start, end), market=market)
+            self._check_lmp_columns(df_1, market)
+            assert df_1.equals(df_2)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
