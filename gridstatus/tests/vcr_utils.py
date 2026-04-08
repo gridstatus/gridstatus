@@ -1,8 +1,10 @@
+import functools
 import json
 import os
 import shutil
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 import vcr
 
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
@@ -70,10 +72,70 @@ def clean_cassettes(path: str):
     os.makedirs(path, exist_ok=True)
 
 
+class _SkipOrCassette:
+    """Wraps a VCR cassette to skip when the file is missing. Works as both
+    context manager and decorator (like the original VCR cassette object)."""
+
+    def __init__(self, vcr_instance, cassette_dir, record_mode, path, kwargs):
+        self._vcr = vcr_instance
+        self._cassette_dir = cassette_dir
+        self._record_mode = record_mode
+        self._path = path
+        self._kwargs = kwargs
+        self._cassette_ctx = None
+
+    def _should_skip(self):
+        if self._record_mode != "none":
+            return False
+        full_path = (
+            self._path
+            if os.path.isabs(self._path)
+            else os.path.join(self._cassette_dir, self._path)
+        )
+        return not os.path.exists(full_path)
+
+    # -- context manager --
+    def __enter__(self):
+        if self._should_skip():
+            pytest.skip(f"VCR cassette not found: {os.path.basename(self._path)}")
+        self._cassette_ctx = self._vcr.use_cassette(self._path, **self._kwargs)
+        return self._cassette_ctx.__enter__()
+
+    def __exit__(self, *exc_info):
+        if self._cassette_ctx is not None:
+            return self._cassette_ctx.__exit__(*exc_info)
+
+    # -- decorator --
+    def __call__(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kw):
+            with self:
+                return func(*args, **kw)
+
+        return wrapper
+
+
+class SkipMissingCassetteVCR:
+    """Wrapper around vcr.VCR that skips tests when cassettes are missing in none mode."""
+
+    def __init__(self, vcr_instance: vcr.VCR, cassette_dir: str, record_mode: str):
+        self._vcr = vcr_instance
+        self._cassette_dir = cassette_dir
+        self._record_mode = record_mode
+
+    def __getattr__(self, name):
+        return getattr(self._vcr, name)
+
+    def use_cassette(self, path, **kwargs):
+        return _SkipOrCassette(
+            self._vcr, self._cassette_dir, self._record_mode, path, kwargs
+        )
+
+
 def setup_vcr(
     source: str,
     record_mode: str,
-) -> vcr.VCR:
+) -> SkipMissingCassetteVCR:
     cassette_dir = f"{os.path.dirname(__file__)}/fixtures/{source}/vcr_cassettes"
 
     if record_mode == "all":
@@ -91,4 +153,4 @@ def setup_vcr(
         ],
     }
 
-    return vcr.VCR(**vcr_config)
+    return SkipMissingCassetteVCR(vcr.VCR(**vcr_config), cassette_dir, record_mode)
