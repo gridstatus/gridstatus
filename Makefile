@@ -9,6 +9,7 @@ clean:
 PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 0 --durations=25
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not integration"
+UNIT_NOT_SLOW := -m "not integration and not slow"
 
 .PHONY: test-base
 test-base:
@@ -24,7 +25,7 @@ test-caiso:
 
 .PHONY: test-ercot
 test-ercot:
-	$(PYTEST_CMD) $(UNIT_ONLY) $(NOT_SLOW) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
+	$(PYTEST_CMD) $(UNIT_NOT_SLOW) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
 
 .PHONY: test-isone
 test-isone:
@@ -40,11 +41,11 @@ test-nyiso:
 
 .PHONY: test-pjm
 test-pjm:
-	$(PYTEST_CMD) $(UNIT_ONLY) $(NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
+	$(PYTEST_CMD) $(UNIT_NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
 
 .PHONY: test-spp
 test-spp:
-	$(PYTEST_CMD) $(UNIT_ONLY) $(NOT_SLOW) gridstatus/tests/source_specific/test_spp.py
+	$(PYTEST_CMD) $(UNIT_NOT_SLOW) gridstatus/tests/source_specific/test_spp.py
 
 .PHONY: test-eia
 test-eia:
