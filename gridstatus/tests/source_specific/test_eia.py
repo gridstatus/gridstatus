@@ -451,6 +451,7 @@ def _check_generators_data(
             assert pd.api.types.is_integer_dtype(df[col])
 
 
+@pytest.mark.integration
 def test_get_generators_relative_date():
     # The files for the most recent month are generally available 24-26 days
     # after the end of the month.

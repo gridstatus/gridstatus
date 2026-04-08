@@ -40,7 +40,7 @@ ISO_FIXTURE_MAP: dict[str, list[str]] = {
     "aeso": ["aeso"],
     "caiso": ["caiso", "caiso_save_to"],
     "ercot": ["ercot", "ercot_api"],
-    "isone": ["isone"],
+    "isone": ["isone", "isone_api"],
     "miso": ["miso", "miso_api"],
     "nyiso": ["nyiso"],
     "pjm": ["pjm"],

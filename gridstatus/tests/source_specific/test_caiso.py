@@ -23,6 +23,66 @@ class TestCAISO(BaseTestISO):
 
     trading_hub_locations = CAISO().trading_hub_locations
 
+    # --- BaseTestISO overrides: mark inherited today/latest/relative-date tests ---
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_date_or_start(self):
+        super().test_get_fuel_mix_date_or_start()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_historical_with_date_range(self):
+        super().test_get_fuel_mix_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+        super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_start_end_same_day(self):
+        super().test_get_fuel_mix_start_end_same_day()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_latest(self):
+        super().test_get_fuel_mix_latest()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_today(self):
+        super().test_get_fuel_mix_today()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical(self):
+        super().test_get_load_forecast_historical()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical_with_date_range(self):
+        super().test_get_load_forecast_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_today(self):
+        super().test_get_load_forecast_today()
+
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
+    @pytest.mark.integration
+    def test_get_status_latest(self):
+        super().test_get_status_latest()
+
+    @pytest.mark.integration
+    def test_get_storage_historical(self):
+        super().test_get_storage_historical()
+
+    @pytest.mark.integration
+    def test_get_storage_today(self):
+        super().test_get_storage_today()
+
+    # --- End BaseTestISO overrides ---
+
     """get_as"""
 
     @pytest.mark.parametrize("date", ["2022-10-15", "2022-10-16"])

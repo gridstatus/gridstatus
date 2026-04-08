@@ -44,6 +44,37 @@ class TestPJM(BaseTestISO):
         with pytest.raises(ValueError):
             _ = PJM(api_key=None)
 
+    # ── integration overrides for inherited BaseTestISO tests ──
+    # These tests use today/latest/relative dates and cannot run from VCR cassettes.
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_date_or_start(self):
+        super().test_get_fuel_mix_date_or_start()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_historical_with_date_range(self):
+        super().test_get_fuel_mix_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+        super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_start_end_same_day(self):
+        super().test_get_fuel_mix_start_end_same_day()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_latest(self):
+        super().test_get_fuel_mix_latest()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_today(self):
+        super().test_get_fuel_mix_today()
+
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
     """get_fuel_mix"""
 
     @pytest.mark.parametrize("date", ["2000-01-14"])

@@ -112,26 +112,28 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].dt.date.unique() == [today]
 
     def test_get_dam_system_lambda_historical(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_dam_system_lambda(date)
-        self._check_dam_system_lambda(df)
-        assert list(df["Publish Time"].dt.date.unique()) == [
-            date - pd.Timedelta(days=1),
-        ]
+        with api_vcr.use_cassette("test_get_dam_system_lambda_historical.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_dam_system_lambda(date)
+            self._check_dam_system_lambda(df)
+            assert list(df["Publish Time"].dt.date.unique()) == [
+                date - pd.Timedelta(days=1),
+            ]
 
     def test_get_dam_system_lambda_historical_range(self):
-        start_date = pd.Timestamp("2025-11-01").date()
-        end_date = start_date + pd.Timedelta(days=1)
-        df = self.iso.get_dam_system_lambda(
-            start=start_date,
-            end=end_date + pd.Timedelta(days=1),
-            verbose=True,
-        )
-        self._check_dam_system_lambda(df)
-        assert list(df["Publish Time"].dt.date.unique()) == [
-            start_date - pd.Timedelta(days=1),
-            end_date - pd.Timedelta(days=1),
-        ]
+        with api_vcr.use_cassette("test_get_dam_system_lambda_historical_range.yaml"):
+            start_date = pd.Timestamp("2025-11-01").date()
+            end_date = start_date + pd.Timedelta(days=1)
+            df = self.iso.get_dam_system_lambda(
+                start=start_date,
+                end=end_date + pd.Timedelta(days=1),
+                verbose=True,
+            )
+            self._check_dam_system_lambda(df)
+            assert list(df["Publish Time"].dt.date.unique()) == [
+                start_date - pd.Timedelta(days=1),
+                end_date - pd.Timedelta(days=1),
+            ]
 
     """sced_system_lambda"""
 
@@ -173,23 +175,24 @@ class TestErcot(BaseTestISO):
         assert df["Time"].unique()[0].date() == today
 
     def test_get_as_prices_historical(self):
-        as_cols = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Market",
-            "Non-Spinning Reserves",
-            "Regulation Down",
-            "Regulation Up",
-            "Responsive Reserves",
-            "ERCOT Contingency Reserve Service",
-        ]
+        with api_vcr.use_cassette("test_get_as_prices_historical.yaml"):
+            as_cols = [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Non-Spinning Reserves",
+                "Regulation Down",
+                "Regulation Up",
+                "Responsive Reserves",
+                "ERCOT Contingency Reserve Service",
+            ]
 
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_as_prices(date)
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
-        assert df["Time"].unique()[0].date() == date
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_as_prices(date)
+            assert df.shape[0] >= 0
+            assert df.columns.tolist() == as_cols
+            assert df["Time"].unique()[0].date() == date
 
     """get_as_plan"""
 
@@ -217,29 +220,31 @@ class TestErcot(BaseTestISO):
         assert self.iso.get_as_plan("latest").equals(df)
 
     def test_get_as_plan_historical_date(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_as_plan(date)
-        self._check_as_plan(df)
-        assert df["Interval Start"].min() == self.local_start_of_day(date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-        ) + pd.DateOffset(days=7)
-        assert df["Publish Time"].dt.date.unique().tolist() == [date]
+        with api_vcr.use_cassette("test_get_as_plan_historical_date.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_as_plan(date)
+            self._check_as_plan(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+            ) + pd.DateOffset(days=7)
+            assert df["Publish Time"].dt.date.unique().tolist() == [date]
 
     def test_get_as_plan_historical_date_range(self):
-        start_date = pd.Timestamp("2025-11-01").date()
-        end_date = start_date + pd.Timedelta(days=2)
-        df = self.iso.get_as_plan(start_date, end_date)
-        self._check_as_plan(df)
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end_date,
-            # Not inclusive of end date
-        ) + pd.DateOffset(days=6)
-        assert df["Publish Time"].dt.date.unique().tolist() == [
-            start_date,
-            (start_date + pd.DateOffset(days=1)).date(),
-        ]
+        with api_vcr.use_cassette("test_get_as_plan_historical_date_range.yaml"):
+            start_date = pd.Timestamp("2025-11-01").date()
+            end_date = start_date + pd.Timedelta(days=2)
+            df = self.iso.get_as_plan(start_date, end_date)
+            self._check_as_plan(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end_date,
+                # Not inclusive of end date
+            ) + pd.DateOffset(days=6)
+            assert df["Publish Time"].dt.date.unique().tolist() == [
+                start_date,
+                (start_date + pd.DateOffset(days=1)).date(),
+            ]
 
     @pytest.mark.integration
     def test_get_as_monitor(self):
@@ -394,21 +399,22 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
 
     def test_get_load_by_weather_zone_historical(self):
-        date = pd.Timestamp("2025-11-01").date()
-        cols = (
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-            ]
-            + self.weather_zone_columns
-            + ["System Total"]
-        )
-        df = self.iso.get_load_by_weather_zone(date)
-        self._check_time_columns(df, instant_or_interval="interval")
-        assert df["Time"].unique()[0].date() == date
+        with api_vcr.use_cassette("test_get_load_by_weather_zone_historical.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
+            cols = (
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                ]
+                + self.weather_zone_columns
+                + ["System Total"]
+            )
+            df = self.iso.get_load_by_weather_zone(date)
+            self._check_time_columns(df, instant_or_interval="interval")
+            assert df["Time"].unique()[0].date() == date
 
-        assert df.columns.tolist() == cols
+            assert df.columns.tolist() == cols
 
     @pytest.mark.integration
     def test_get_load_by_forecast_zone_today(self):
@@ -427,33 +433,35 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == columns
 
     def test_get_load_by_forecast_zone_historical(self):
-        date = pd.Timestamp("2025-11-01").date()
-        columns = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "NORTH",
-            "SOUTH",
-            "WEST",
-            "HOUSTON",
-            "TOTAL",
-        ]
-        df = self.iso.get_load_by_forecast_zone(date)
-        self._check_time_columns(df, instant_or_interval="interval")
-        assert df["Time"].unique()[0].date() == date
-        assert df.columns.tolist() == columns
+        with api_vcr.use_cassette("test_get_load_by_forecast_zone_historical.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
+            columns = [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "NORTH",
+                "SOUTH",
+                "WEST",
+                "HOUSTON",
+                "TOTAL",
+            ]
+            df = self.iso.get_load_by_forecast_zone(date)
+            self._check_time_columns(df, instant_or_interval="interval")
+            assert df["Time"].unique()[0].date() == date
+            assert df.columns.tolist() == columns
 
     """get_load_forecast"""
 
     def test_get_load_forecast_range(self):
-        start = pd.Timestamp("2025-11-01 06:00", tz=self.iso.default_timezone)
-        end = pd.Timestamp("2025-11-01 09:00", tz=self.iso.default_timezone)
-        df = self.iso.get_load_forecast(start=start, end=end)
+        with api_vcr.use_cassette("test_get_load_forecast_range.yaml"):
+            start = pd.Timestamp("2025-11-01 06:00", tz=self.iso.default_timezone)
+            end = pd.Timestamp("2025-11-01 09:00", tz=self.iso.default_timezone)
+            df = self.iso.get_load_forecast(start=start, end=end)
 
-        unique_load_forecast_time = df["Publish Time"].unique()
-        # make sure each is between start and end
-        assert (unique_load_forecast_time >= start).all()
-        assert (unique_load_forecast_time <= end).all()
+            unique_load_forecast_time = df["Publish Time"].unique()
+            # make sure each is between start and end
+            assert (unique_load_forecast_time >= start).all()
+            assert (unique_load_forecast_time <= end).all()
 
     expected_load_forecast_columns = [
         "Time",
@@ -468,12 +476,13 @@ class TestErcot(BaseTestISO):
     ]
 
     def test_get_load_forecast_historical(self):
-        test_date = pd.Timestamp("2025-11-01").date()
-        forecast = self.iso.get_load_forecast(date=test_date)
-        self._check_forecast(
-            forecast,
-            expected_columns=self.expected_load_forecast_columns,
-        )
+        with api_vcr.use_cassette("test_get_load_forecast_historical.yaml"):
+            test_date = pd.Timestamp("2025-11-01").date()
+            forecast = self.iso.get_load_forecast(date=test_date)
+            self._check_forecast(
+                forecast,
+                expected_columns=self.expected_load_forecast_columns,
+            )
 
     @pytest.mark.integration
     def test_get_load_forecast_today(self):
@@ -508,25 +517,28 @@ class TestErcot(BaseTestISO):
         self._check_forecast(df, expected_columns=cols)
 
     def test_get_load_forecast_by_weather_zone_historical(self):
-        date = pd.Timestamp("2025-11-01").date()
+        with api_vcr.use_cassette(
+            "test_get_load_forecast_by_weather_zone_historical.yaml",
+        ):
+            date = pd.Timestamp("2025-11-01").date()
 
-        cols = (
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-            ]
-            + self.weather_zone_columns
-            + ["System Total"]
-        )
+            cols = (
+                [
+                    "Time",
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                ]
+                + self.weather_zone_columns
+                + ["System Total"]
+            )
 
-        df = self.iso.get_load_forecast(
-            date,
-            forecast_type=ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
-        )
+            df = self.iso.get_load_forecast(
+                date,
+                forecast_type=ERCOTSevenDayLoadForecastReport.BY_WEATHER_ZONE,
+            )
 
-        self._check_forecast(df, expected_columns=cols)
+            self._check_forecast(df, expected_columns=cols)
 
     """get_load_forecast_by_model"""
 
@@ -664,56 +676,59 @@ class TestErcot(BaseTestISO):
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     def test_get_spp_dam_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
-        end = pd.Timestamp("2025-11-03", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_spp_dam_range.yaml"):
+            start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+            end = pd.Timestamp("2025-11-03", tz=self.iso.default_timezone)
 
-        df = self.iso.get_spp(
-            start=start,
-            end=end,
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="Load Zone",
-        )
+            df = self.iso.get_spp(
+                start=start,
+                end=end,
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="Load Zone",
+            )
 
-        # two unique days
-        # should be the two days since published one day ahead
-        assert set(df["Interval Start"].dt.date.unique()) == {
-            end.date(),
-            end.date() - pd.Timedelta(days=1),
-        }
-        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
+            # two unique days
+            # should be the two days since published one day ahead
+            assert set(df["Interval Start"].dt.date.unique()) == {
+                end.date(),
+                end.date() - pd.Timedelta(days=1),
+            }
+            self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     def test_get_spp_real_time_range(self):
-        start = pd.Timestamp("2025-11-01 23:00", tz=self.iso.default_timezone)
-        end = pd.Timestamp("2025-11-02 00:00", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_spp_real_time_range.yaml"):
+            start = pd.Timestamp("2025-11-01 23:00", tz=self.iso.default_timezone)
+            end = pd.Timestamp("2025-11-02 00:00", tz=self.iso.default_timezone)
 
-        df = self.iso.get_spp(
-            start=start,
-            end=end,
-            market=Markets.REAL_TIME_15_MIN,
-            location_type="Load Zone",
-        )
+            df = self.iso.get_spp(
+                start=start,
+                end=end,
+                market=Markets.REAL_TIME_15_MIN,
+                location_type="Load Zone",
+            )
 
-        # should be 4 intervals in last hour
-        assert (df.groupby("Location")["Interval Start"].count() == 4).all()
-        assert df["Interval End"].min() > start
-        assert df["Interval End"].max() <= end
+            # should be 4 intervals in last hour
+            assert (df.groupby("Location")["Interval Start"].count() == 4).all()
+            assert df["Interval End"].min() > start
+            assert df["Interval End"].max() <= end
 
-        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
+            self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     def test_get_spp_real_time_historical(self):
-        date = pd.Timestamp("2025-11-01").date()
-        next_day = pd.Timestamp("2025-11-02").date()
+        with api_vcr.use_cassette("test_get_spp_real_time_historical.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
+            next_day = pd.Timestamp("2025-11-02").date()
 
-        df = self.iso.get_spp(
-            date=date,
-            market=Markets.REAL_TIME_15_MIN,
-            location_type="Trading Hub",
-            verbose=True,
-        )
+            df = self.iso.get_spp(
+                date=date,
+                market=Markets.REAL_TIME_15_MIN,
+                location_type="Trading Hub",
+                verbose=True,
+            )
 
-        # assert Interval End max is next day
-        assert df["Interval End"].max().date() == next_day
-        assert df["Interval Start"].min().date() == date
+            # assert Interval End max is next day
+            assert df["Interval End"].max().date() == next_day
+            assert df["Interval Start"].min().date() == date
 
     @pytest.mark.integration
     def test_get_spp_real_time_handles_all_location_types(self):
@@ -733,19 +748,22 @@ class TestErcot(BaseTestISO):
         }
 
     def test_get_spp_day_ahead_handles_all_location_types(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_spp(
-            date=date,
-            market=Markets.DAY_AHEAD_HOURLY,
-            verbose=True,
-        )
+        with api_vcr.use_cassette(
+            "test_get_spp_day_ahead_handles_all_location_types.yaml",
+        ):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_spp(
+                date=date,
+                market=Markets.DAY_AHEAD_HOURLY,
+                verbose=True,
+            )
 
-        assert set(df["Location Type"].unique()) == {
-            "Resource Node",
-            "Load Zone DC Tie",
-            "Trading Hub",
-            "Load Zone",
-        }
+            assert set(df["Location Type"].unique()) == {
+                "Resource Node",
+                "Load Zone DC Tie",
+                "Trading Hub",
+                "Load Zone",
+            }
 
     @pytest.mark.slow
     @pytest.mark.integration
@@ -768,29 +786,35 @@ class TestErcot(BaseTestISO):
         self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     def test_get_spp_historical_day_ahead_hourly_zone(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_spp(
-            date=date,
-            market=Markets.DAY_AHEAD_HOURLY,
-            location_type="Load Zone",
-        )
-        # minimum interval start is beginning of day
-        assert df["Interval Start"].min().hour == 0
-        assert df["Interval Start"].min().minute == 0
-        self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
+        with api_vcr.use_cassette(
+            "test_get_spp_historical_day_ahead_hourly_zone.yaml",
+        ):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_spp(
+                date=date,
+                market=Markets.DAY_AHEAD_HOURLY,
+                location_type="Load Zone",
+            )
+            # minimum interval start is beginning of day
+            assert df["Interval Start"].min().hour == 0
+            assert df["Interval Start"].min().minute == 0
+            self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
     @pytest.mark.slow
     def test_get_spp_historical_real_time_15_minutes_zone(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_spp(
-            date=date,
-            market=Markets.REAL_TIME_15_MIN,
-            location_type="Load Zone",
-        )
-        # minimum interval start is beginning of day
-        assert df["Interval Start"].min().hour == 0
-        assert df["Interval Start"].min().minute == 0
-        self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
+        with api_vcr.use_cassette(
+            "test_get_spp_historical_real_time_15_minutes_zone.yaml",
+        ):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_spp(
+                date=date,
+                market=Markets.REAL_TIME_15_MIN,
+                location_type="Load Zone",
+            )
+            # minimum interval start is beginning of day
+            assert df["Interval Start"].min().hour == 0
+            assert df["Interval Start"].min().minute == 0
+            self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
     """get_60_day_sced_disclosure"""
 
@@ -952,11 +976,12 @@ class TestErcot(BaseTestISO):
     """get_60_day_dam_disclosure"""
 
     def test_get_60_day_dam_disclosure_historical(self):
-        date = pd.Timestamp("2025-09-01").date()
+        with api_vcr.use_cassette("test_get_60_day_dam_disclosure_historical.yaml"):
+            date = pd.Timestamp("2025-09-01").date()
 
-        df_dict = self.iso.get_60_day_dam_disclosure(date=date, process=True)
+            df_dict = self.iso.get_60_day_dam_disclosure(date=date, process=True)
 
-        check_60_day_dam_disclosure(df_dict)
+            check_60_day_dam_disclosure(df_dict)
 
     def test_get_60_day_dam_disclosure_esr(self):
         # ESR data is available starting 2025-12-06
@@ -1154,41 +1179,48 @@ class TestErcot(BaseTestISO):
             assert df[col].dt.tz.zone == self.iso.default_timezone
 
     def test_get_unplanned_resource_outages_historical_date(self):
-        date = pd.Timestamp("2025-11-05", tz=self.iso.default_timezone)
-        df = self.iso.get_unplanned_resource_outages(date=date)
+        with api_vcr.use_cassette(
+            "test_get_unplanned_resource_outages_historical_date.yaml",
+        ):
+            date = pd.Timestamp("2025-11-05", tz=self.iso.default_timezone)
+            df = self.iso.get_unplanned_resource_outages(date=date)
 
-        self._check_unplanned_resource_outages(df)
+            self._check_unplanned_resource_outages(df)
 
-        assert df["Current As Of"].dt.date.unique() == [
-            (date - pd.DateOffset(days=3)).date(),
-        ]
-        assert df["Publish Time"].dt.date.unique() == [date.date()]
+            assert df["Current As Of"].dt.date.unique() == [
+                (date - pd.DateOffset(days=3)).date(),
+            ]
+            assert df["Publish Time"].dt.date.unique() == [date.date()]
 
     def test_get_unplanned_resource_outages_historical_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette(
+            "test_get_unplanned_resource_outages_historical_range.yaml",
+        ):
+            start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
 
-        df_2_days = self.iso.get_unplanned_resource_outages(
-            start=start,
-            end=start + pd.DateOffset(2),
-        )
+            df_2_days = self.iso.get_unplanned_resource_outages(
+                start=start,
+                end=start + pd.DateOffset(2),
+            )
 
-        self._check_unplanned_resource_outages(df_2_days)
+            self._check_unplanned_resource_outages(df_2_days)
 
-        assert df_2_days["Current As Of"].dt.date.nunique() == 2
-        assert (
-            df_2_days["Current As Of"].min().date()
-            == (start - pd.DateOffset(days=3)).date()
-        )
-        assert (
-            df_2_days["Current As Of"].max().date()
-            == (start - pd.DateOffset(days=2)).date()
-        )
+            assert df_2_days["Current As Of"].dt.date.nunique() == 2
+            assert (
+                df_2_days["Current As Of"].min().date()
+                == (start - pd.DateOffset(days=3)).date()
+            )
+            assert (
+                df_2_days["Current As Of"].max().date()
+                == (start - pd.DateOffset(days=2)).date()
+            )
 
-        assert df_2_days["Publish Time"].dt.date.nunique() == 2
-        assert df_2_days["Publish Time"].min().date() == start.date()
-        assert (
-            df_2_days["Publish Time"].max().date() == (start + pd.DateOffset(1)).date()
-        )
+            assert df_2_days["Publish Time"].dt.date.nunique() == 2
+            assert df_2_days["Publish Time"].min().date() == start.date()
+            assert (
+                df_2_days["Publish Time"].max().date()
+                == (start + pd.DateOffset(1)).date()
+            )
 
     """test get_highest_price_as_offer_selected"""
 
@@ -1541,11 +1573,14 @@ class TestErcot(BaseTestISO):
     ]
 
     def test_get_hourly_resource_outage_capacity_historical(self):
-        date = pd.Timestamp("2025-11-01 12:00", tz=self.iso.default_timezone)
-        df = self.iso.get_hourly_resource_outage_capacity(date)
+        with api_vcr.use_cassette(
+            "test_get_hourly_resource_outage_capacity_historical.yaml",
+        ):
+            date = pd.Timestamp("2025-11-01 12:00", tz=self.iso.default_timezone)
+            df = self.iso.get_hourly_resource_outage_capacity(date)
 
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == self.hourly_resource_outage_capacity_cols
+            assert df.shape[0] >= 0
+            assert df.columns.tolist() == self.hourly_resource_outage_capacity_cols
 
     @pytest.mark.integration
     def test_get_hourly_resource_outage_capacity_latest(self):
@@ -1558,17 +1593,20 @@ class TestErcot(BaseTestISO):
         ) - pd.Timedelta(hours=2)
 
     def test_get_hourly_resource_outage_capacity_date_range(self):
-        start = pd.Timestamp("2025-11-01 06:00", tz=self.iso.default_timezone)
-        end = pd.Timestamp("2025-11-01 09:00", tz=self.iso.default_timezone)
-        df = self.iso.get_hourly_resource_outage_capacity(
-            start=start,
-            end=end,
-            verbose=True,
-        )
+        with api_vcr.use_cassette(
+            "test_get_hourly_resource_outage_capacity_date_range.yaml",
+        ):
+            start = pd.Timestamp("2025-11-01 06:00", tz=self.iso.default_timezone)
+            end = pd.Timestamp("2025-11-01 09:00", tz=self.iso.default_timezone)
+            df = self.iso.get_hourly_resource_outage_capacity(
+                start=start,
+                end=end,
+                verbose=True,
+            )
 
-        assert df.shape[0] >= 0
-        assert df.columns.tolist() == self.hourly_resource_outage_capacity_cols
-        assert df["Publish Time"].nunique() == 3
+            assert df.shape[0] >= 0
+            assert df.columns.tolist() == self.hourly_resource_outage_capacity_cols
+            assert df["Publish Time"].nunique() == 3
 
     """get_wind_actual_and_forecast_hourly"""
 
@@ -1614,15 +1652,18 @@ class TestErcot(BaseTestISO):
         assert df["Publish Time"].max().hour == 23
 
     def test_get_wind_actual_and_forecast_hourly_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01").date()
-        end = pd.Timestamp("2025-11-03").date()
-        df = self.iso.get_wind_actual_and_forecast_hourly(start, end, verbose=True)
+        with api_vcr.use_cassette(
+            "test_get_wind_actual_and_forecast_hourly_historical_date_range.yaml",
+        ):
+            start = pd.Timestamp("2025-11-01").date()
+            end = pd.Timestamp("2025-11-03").date()
+            df = self.iso.get_wind_actual_and_forecast_hourly(start, end, verbose=True)
 
-        self._check_hourly_wind_report(df)
+            self._check_hourly_wind_report(df)
 
-        assert df["Publish Time"].nunique() == 48
-        assert df["Publish Time"].min().hour == 0
-        assert df["Publish Time"].max().hour == 23
+            assert df["Publish Time"].nunique() == 48
+            assert df["Publish Time"].min().hour == 0
+            assert df["Publish Time"].max().hour == 23
 
     """get_wind_actual_and_forecast_by_geographical_region_hourly"""
 
@@ -1843,40 +1884,44 @@ class TestErcot(BaseTestISO):
     """get_system_wide_actuals"""
 
     def test_get_system_wide_actual_load_for_date(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_system_wide_actual_load(date)
+        with api_vcr.use_cassette("test_get_system_wide_actual_load_for_date.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_system_wide_actual_load(date)
 
-        # 1 Hour of data
-        assert df.shape[0] == 4
-        assert df["Interval Start"].min() == pd.Timestamp(
-            date,
-            tz=self.iso.default_timezone,
-        )
+            # 1 Hour of data
+            assert df.shape[0] == 4
+            assert df["Interval Start"].min() == pd.Timestamp(
+                date,
+                tz=self.iso.default_timezone,
+            )
 
-        cols = ["Time", "Interval Start", "Interval End", "Demand"]
-        assert df.columns.tolist() == cols
+            cols = ["Time", "Interval Start", "Interval End", "Demand"]
+            assert df.columns.tolist() == cols
 
     def test_get_system_wide_actual_load_date_range(self):
-        start_date = pd.Timestamp("2025-11-01").date()
-        end_date = pd.Timestamp("2025-11-03").date()
+        with api_vcr.use_cassette(
+            "test_get_system_wide_actual_load_date_range.yaml",
+        ):
+            start_date = pd.Timestamp("2025-11-01").date()
+            end_date = pd.Timestamp("2025-11-03").date()
 
-        df = self.iso.get_system_wide_actual_load(
-            start=start_date,
-            end=end_date,
-            verbose=True,
-        )
+            df = self.iso.get_system_wide_actual_load(
+                start=start_date,
+                end=end_date,
+                verbose=True,
+            )
 
-        cols = ["Time", "Interval Start", "Interval End", "Demand"]
+            cols = ["Time", "Interval Start", "Interval End", "Demand"]
 
-        assert df["Interval Start"].min() == pd.Timestamp(
-            start_date,
-            tz=self.iso.default_timezone,
-        )
-        assert df["Interval Start"].max() == pd.Timestamp(
-            end_date,
-            tz=self.iso.default_timezone,
-        ) - pd.Timedelta(minutes=15)
-        assert df.columns.tolist() == cols
+            assert df["Interval Start"].min() == pd.Timestamp(
+                start_date,
+                tz=self.iso.default_timezone,
+            )
+            assert df["Interval Start"].max() == pd.Timestamp(
+                end_date,
+                tz=self.iso.default_timezone,
+            ) - pd.Timedelta(minutes=15)
+            assert df.columns.tolist() == cols
 
     @pytest.mark.integration
     def test_get_system_wide_actual_load_today(self):
@@ -1974,33 +2019,41 @@ class TestErcot(BaseTestISO):
         )
 
     def test_get_short_term_system_adequacy_historical_date(self):
-        date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_short_term_system_adequacy(date)
+        with api_vcr.use_cassette(
+            "test_get_short_term_system_adequacy_historical_date.yaml",
+        ):
+            date = pd.Timestamp("2025-11-01").date()
+            df = self.iso.get_short_term_system_adequacy(date)
 
-        assert df["Publish Time"].nunique() >= 24
+            assert df["Publish Time"].nunique() >= 24
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-        ) + pd.DateOffset(days=7)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+            ) + pd.DateOffset(days=7)
 
-        self._check_short_term_system_adequacy(df)
+            self._check_short_term_system_adequacy(df)
 
     def test_get_short_term_system_adequacy_historical_range(self):
-        start = pd.Timestamp("2025-11-01").date()
-        end = pd.Timestamp("2025-11-02").date()
-        df = self.iso.get_short_term_system_adequacy(
-            start=start,
-            end=end,
-        )
+        with api_vcr.use_cassette(
+            "test_get_short_term_system_adequacy_historical_range.yaml",
+        ):
+            start = pd.Timestamp("2025-11-01").date()
+            end = pd.Timestamp("2025-11-02").date()
+            df = self.iso.get_short_term_system_adequacy(
+                start=start,
+                end=end,
+            )
 
-        assert df["Publish Time"].nunique() >= 24
-        assert df["Interval Start"].min() == self.local_start_of_day(start)
-        assert df["Interval End"].max() == self.local_start_of_day(end) + pd.DateOffset(
-            days=6,
-        )
+            assert df["Publish Time"].nunique() >= 24
+            assert df["Interval Start"].min() == self.local_start_of_day(start)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end,
+            ) + pd.DateOffset(
+                days=6,
+            )
 
-        self._check_short_term_system_adequacy(df)
+            self._check_short_term_system_adequacy(df)
 
     """get_real_time_adders_and_reserves"""
 
@@ -2086,19 +2139,22 @@ class TestErcot(BaseTestISO):
         assert len(df) >= 24 * INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION
 
     def test_get_real_time_adders_and_reserves_historical_range(self):
-        start = pd.Timestamp("2025-11-01").date()
-        end = pd.Timestamp("2025-11-03").date()
-        df = self.iso.get_real_time_adders_and_reserves(
-            start=start,
-            end=end,
-        )
+        with api_vcr.use_cassette(
+            "test_get_real_time_adders_and_reserves_historical_range.yaml",
+        ):
+            start = pd.Timestamp("2025-11-01").date()
+            end = pd.Timestamp("2025-11-03").date()
+            df = self.iso.get_real_time_adders_and_reserves(
+                start=start,
+                end=end,
+            )
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start)
-        assert df["Interval End"].max() == self.local_start_of_day(end)
+            assert df["Interval Start"].min() == self.local_start_of_day(start)
+            assert df["Interval End"].max() == self.local_start_of_day(end)
 
-        self._check_real_time_adders_and_reserves(df)
+            self._check_real_time_adders_and_reserves(df)
 
-        assert len(df) >= 24 * INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION * 2
+            assert len(df) >= 24 * INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION * 2
 
     """get_temperature_forecast_by_weather_zone"""
 
@@ -2142,47 +2198,55 @@ class TestErcot(BaseTestISO):
         assert self.iso.get_temperature_forecast_by_weather_zone("latest").equals(df)
 
     def test_get_temperature_forecast_by_weather_zone_historical_date(self):
-        date = pd.Timestamp("2025-10-15").date()
-        df = self.iso.get_temperature_forecast_by_weather_zone(date)
+        with api_vcr.use_cassette(
+            "test_get_temperature_forecast_by_weather_zone_historical_date.yaml",
+        ):
+            date = pd.Timestamp("2025-10-15").date()
+            df = self.iso.get_temperature_forecast_by_weather_zone(date)
 
-        assert df["Publish Time"].nunique() == 1
+            assert df["Publish Time"].nunique() == 1
 
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_day(date) + self.temperature_forecast_start_offset
-        )
-
-        assert (
-            df["Interval End"].max()
-            == self.local_start_of_day(
-                date,
+            assert (
+                df["Interval Start"].min()
+                == self.local_start_of_day(date)
+                + self.temperature_forecast_start_offset
             )
-            + self.temperature_forecast_end_offset
-        )
 
-        self._check_temperature_forecast_by_weather_zone(df)
+            assert (
+                df["Interval End"].max()
+                == self.local_start_of_day(
+                    date,
+                )
+                + self.temperature_forecast_end_offset
+            )
+
+            self._check_temperature_forecast_by_weather_zone(df)
 
     def test_get_temperature_forecast_by_weather_zone_historical_range(self):
-        start = pd.Timestamp("2025-10-15").date()
-        end = pd.Timestamp("2025-10-18").date()
+        with api_vcr.use_cassette(
+            "test_get_temperature_forecast_by_weather_zone_historical_range.yaml",
+        ):
+            start = pd.Timestamp("2025-10-15").date()
+            end = pd.Timestamp("2025-10-18").date()
 
-        df = self.iso.get_temperature_forecast_by_weather_zone(
-            start=start,
-            end=end,
-        )
+            df = self.iso.get_temperature_forecast_by_weather_zone(
+                start=start,
+                end=end,
+            )
 
-        assert df["Publish Time"].nunique() == 3
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_day(start) + self.temperature_forecast_start_offset
-        )
+            assert df["Publish Time"].nunique() == 3
+            assert (
+                df["Interval Start"].min()
+                == self.local_start_of_day(start)
+                + self.temperature_forecast_start_offset
+            )
 
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end,
-            # Non-inclusive end date
-        ) + self.temperature_forecast_end_offset - pd.DateOffset(days=1)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end,
+                # Non-inclusive end date
+            ) + self.temperature_forecast_end_offset - pd.DateOffset(days=1)
 
-        self._check_temperature_forecast_by_weather_zone(df)
+            self._check_temperature_forecast_by_weather_zone(df)
 
     def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
         # This forecast date includes 2025-11-02, DST end
@@ -3178,7 +3242,8 @@ class TestErcot(BaseTestISO):
         assert df["RUC Timestamp"].nunique() == 3
         assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
         assert df["Interval Start"].max() == pd.Timestamp(
-            "2025-11-02", tz=self.iso.default_timezone,
+            "2025-11-02",
+            tz=self.iso.default_timezone,
         ) + pd.Timedelta(hours=23)
 
     """get_dam_total_as_sold"""
@@ -3267,7 +3332,8 @@ class TestErcot(BaseTestISO):
         assert df["RUC Timestamp"].nunique() == 3
         assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
         assert df["Interval Start"].max() == pd.Timestamp(
-            "2025-11-02", tz=self.iso.default_timezone,
+            "2025-11-02",
+            tz=self.iso.default_timezone,
         ) + pd.Timedelta(hours=23)
 
     """get_as_demand_curves_daily_ruc"""
@@ -3814,6 +3880,36 @@ class TestErcot(BaseTestISO):
         assert df["Publish Date"].notna().all()
         assert isinstance(df["Publish Date"].iloc[0], datetime.date)
         assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+
+    """BaseTestISO integration overrides"""
+
+    @pytest.mark.integration
+    def test_get_interconnection_queue(self):
+        super().test_get_interconnection_queue()
+
+    @pytest.mark.integration
+    def test_get_lmp_latest(self, market=None):
+        super().test_get_lmp_latest(market=market)
+
+    @pytest.mark.integration
+    def test_get_lmp_today(self, market=None):
+        super().test_get_lmp_today(market=market)
+
+    @pytest.mark.integration
+    def test_get_load_historical(self, lookback_days=14):
+        super().test_get_load_historical(lookback_days=lookback_days)
+
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
+    @pytest.mark.integration
+    def test_get_status_latest(self):
+        super().test_get_status_latest()
 
     """get_hub_name_dc_ties"""
 

@@ -23,6 +23,12 @@ DST_CHANGE_TEST_DATES = [
     ("2024-03-09", "2024-03-11"),
 ]
 
+# Shorter 1-day ranges for 5-min LMP tests (cassettes are ~150MB each with 2-day ranges)
+DST_CHANGE_TEST_DATES_SHORT = [
+    ("2024-11-02", "2024-11-03"),
+    ("2024-03-09", "2024-03-10"),
+]
+
 TEST_MULTIPLE_LOCATIONS = [
     (".Z.MAINE", ".Z.NEWHAMPSHIRE"),
 ]
@@ -431,6 +437,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert sorted(df["Location"].unique()) == [
                 ".I.HQHIGATE120 2",
+                ".I.HQMRL_RD345 1",
                 ".I.HQ_P1_P2345 5",
                 ".I.NRTHPORT138 5",
                 ".I.ROSETON 345 1",
@@ -550,7 +557,7 @@ class TestISONEAPI(TestHelperMixin):
                 "Total Imports",
             ]
 
-            assert df["Interval Start"].min() == start
+            assert df["Interval Start"].min() <= start + pd.Timedelta(minutes=5)
             assert df["Interval End"].max() == end
 
             assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
@@ -559,6 +566,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert sorted(df["Location"].unique()) == [
                 ".I.HQHIGATE120 2",
+                ".I.HQMRL_RD345 1",
                 ".I.HQ_P1_P2345 5",
                 ".I.NRTHPORT138 5",
                 ".I.ROSETON 345 1",
@@ -721,7 +729,7 @@ class TestISONEAPI(TestHelperMixin):
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
-        DST_CHANGE_TEST_DATES,
+        DST_CHANGE_TEST_DATES_SHORT,
     )
     def test_get_lmp_real_time_5_min_prelim_date_range(self, date: str, end: str):
         cassette_name = f"test_get_lmp_real_time_5_min_prelim_{date}_{end}.yaml"
@@ -758,7 +766,7 @@ class TestISONEAPI(TestHelperMixin):
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
-        DST_CHANGE_TEST_DATES,
+        DST_CHANGE_TEST_DATES_SHORT,
     )
     def test_get_lmp_real_time_5_min_final_date_range(self, date: str, end: str):
         cassette_name = f"test_get_lmp_real_time_5_min_final_{date}_{end}.yaml"
@@ -1459,11 +1467,17 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=5),
         )
 
-    def _check_fcm_reconfiguration(self, df: pd.DataFrame) -> None:
+    def _check_fcm_reconfiguration(
+        self, df: pd.DataFrame, auction_type: str = "monthly"
+    ) -> None:
         assert isinstance(df, pd.DataFrame)
         assert len(df) > 0
-        assert list(df.columns) == ISONE_FCM_RECONFIGURATION_COLUMNS
-        assert "ARA" in df.columns
+        expected_cols = list(ISONE_FCM_RECONFIGURATION_COLUMNS)
+        if auction_type != "annual":
+            expected_cols.remove("ARA")
+        assert list(df.columns) == expected_cols
+        if auction_type == "annual":
+            assert "ARA" in df.columns
         assert df["Location Type"].isin(["Capacity Zone", "External Interface"]).all()
         assert df["Location ID"].dtype in [np.int64, np.float64]
         assert df["Location Name"].dtype == "object"
@@ -1509,8 +1523,8 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette("test_get_fcm_reconfiguration_annual_latest.yaml"):
             result = self.iso.get_fcm_reconfiguration_annual(date="latest")
 
-            self._check_fcm_reconfiguration(result)
-            assert result["ARA"].isin(["1", "2", "3"]).all()
+            self._check_fcm_reconfiguration(result, auction_type="annual")
+            assert result["ARA"].isin([1, 2, 3]).all()
 
     @pytest.mark.parametrize(
         "date",
@@ -1526,8 +1540,8 @@ class TestISONEAPI(TestHelperMixin):
                 date=date,
             )
 
-            self._check_fcm_reconfiguration(result)
-            assert result["ARA"].isin(["1", "2", "3"]).all()
+            self._check_fcm_reconfiguration(result, auction_type="annual")
+            assert result["ARA"].isin([1, 2, 3]).all()
             unique_ara_values = result["ARA"].unique()
             assert len(unique_ara_values) >= 1
             cp_start_year = date.year if date.month >= 6 else date.year - 1

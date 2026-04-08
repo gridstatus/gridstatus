@@ -368,28 +368,32 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_as_prices("latest").equals(df)
 
     def test_get_as_prices_historical_date(self):
-        historical_date = datetime.date(2021, 3, 12)
-        df = self.iso.get_as_prices(historical_date, verbose=True)
+        with api_vcr.use_cassette("test_get_as_prices_historical_date.yaml"):
+            historical_date = datetime.date(2021, 3, 12)
+            df = self.iso.get_as_prices(historical_date, verbose=True)
 
-        self._check_as_prices(df)
+            self._check_as_prices(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            historical_date,
-        ) + pd.DateOffset(
-            days=1,
-        )
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                historical_date
+            )
+            assert df["Interval End"].max() == self.local_start_of_day(
+                historical_date,
+            ) + pd.DateOffset(
+                days=1,
+            )
 
     def test_get_as_prices_historical_date_range(self):
-        start_date = datetime.date(2021, 3, 8)
-        end_date = datetime.date(2021, 3, 10)
-        df = self.iso.get_as_prices(start_date, end_date, verbose=True)
+        with api_vcr.use_cassette("test_get_as_prices_historical_date_range.yaml"):
+            start_date = datetime.date(2021, 3, 8)
+            end_date = datetime.date(2021, 3, 10)
+            df = self.iso.get_as_prices(start_date, end_date, verbose=True)
 
-        self._check_as_prices(df)
+            self._check_as_prices(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        # Not inclusive of end date
-        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            # Not inclusive of end date
+            assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """get_mcpc_dam"""
 
@@ -520,30 +524,34 @@ class TestErcotAPI(TestHelperMixin):
         )
 
     def test_get_as_reports_historical_date(self):
-        historical_date = datetime.date(2022, 1, 1)
-        df = self.iso.get_as_reports(historical_date, verbose=True)
+        with api_vcr.use_cassette("test_get_as_reports_historical_date.yaml"):
+            historical_date = datetime.date(2022, 1, 1)
+            df = self.iso.get_as_reports(historical_date, verbose=True)
 
-        self._check_as_reports(df, before_full_columns=True)
+            self._check_as_reports(df, before_full_columns=True)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            historical_date,
-        ) + pd.DateOffset(
-            days=1,
-        )
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                historical_date
+            )
+            assert df["Interval End"].max() == self.local_start_of_day(
+                historical_date,
+            ) + pd.DateOffset(
+                days=1,
+            )
 
     def test_get_as_reports_historical_date_range(self):
-        start_date = datetime.date(2021, 1, 1)
-        end_date = datetime.date(2021, 1, 3)
-        df = self.iso.get_as_reports(start_date, end_date, verbose=True)
+        with api_vcr.use_cassette("test_get_as_reports_historical_date_range.yaml"):
+            start_date = datetime.date(2021, 1, 1)
+            end_date = datetime.date(2021, 1, 3)
+            df = self.iso.get_as_reports(start_date, end_date, verbose=True)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        # Not inclusive of the end date
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end_date,
-        )
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            # Not inclusive of the end date
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end_date,
+            )
 
-        self._check_as_reports(df, before_full_columns=True)
+            self._check_as_reports(df, before_full_columns=True)
 
     @api_vcr.use_cassette("test_get_as_reports_full_columns_21_days_ago.yaml")
     def test_get_as_reports_full_columns(self):
@@ -621,60 +629,63 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_as_plan("latest").equals(df)
 
     def test_get_as_plan_historical_date(self):
-        date = pd.Timestamp("2025-11-01").date()
+        with api_vcr.use_cassette("test_get_as_plan_historical_date.yaml"):
+            date = pd.Timestamp("2025-11-01").date()
 
-        df = self.iso.get_as_plan(date)
+            df = self.iso.get_as_plan(date)
 
-        self._check_as_plan(df)
+            self._check_as_plan(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-        ) + pd.DateOffset(days=7)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+            ) + pd.DateOffset(days=7)
 
-        assert df["Publish Time"].dt.date.unique().tolist() == [date]
+            assert df["Publish Time"].dt.date.unique().tolist() == [date]
 
-        assert df["ECRS"].notna().any()
+            assert df["ECRS"].notna().any()
 
     def test_get_as_plan_historical_date_range(self):
-        start_date = pd.Timestamp("2025-11-01").date()
-        end_date = start_date + pd.Timedelta(days=2)
+        with api_vcr.use_cassette("test_get_as_plan_historical_date_range.yaml"):
+            start_date = pd.Timestamp("2025-11-01").date()
+            end_date = start_date + pd.Timedelta(days=2)
 
-        df = self.iso.get_as_plan(start_date, end_date)
+            df = self.iso.get_as_plan(start_date, end_date)
 
-        self._check_as_plan(df)
+            self._check_as_plan(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end_date,
-            # Not inclusive of end date
-        ) + pd.DateOffset(days=6)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                end_date,
+                # Not inclusive of end date
+            ) + pd.DateOffset(days=6)
 
-        assert df["Publish Time"].dt.date.unique().tolist() == [
-            start_date,
-            (start_date + pd.DateOffset(days=1)).date(),
-        ]
+            assert df["Publish Time"].dt.date.unique().tolist() == [
+                start_date,
+                (start_date + pd.DateOffset(days=1)).date(),
+            ]
 
     def test_get_as_plan_before_ecrs(self):
-        # Check that we add an ECRS column of nulls if it's not present
-        date = "2012-05-01"
+        with api_vcr.use_cassette("test_get_as_plan_before_ecrs.yaml"):
+            # Check that we add an ECRS column of nulls if it's not present
+            date = "2012-05-01"
 
-        df = self.iso.get_as_plan(date)
+            df = self.iso.get_as_plan(date)
 
-        self._check_as_plan(df)
+            self._check_as_plan(df)
 
-        assert df["ECRS"].isna().all()
+            assert df["ECRS"].isna().all()
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-            # Earlier files only contain two days of data
-        ) + pd.DateOffset(days=2)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+                # Earlier files only contain two days of data
+            ) + pd.DateOffset(days=2)
 
-        # First date of data
-        date = "2010-12-29"
-        df = self.iso.get_as_plan(date)
-        self._check_as_plan(df)
+            # First date of data
+            date = "2010-12-29"
+            df = self.iso.get_as_plan(date)
+            self._check_as_plan(df)
 
     """get_lmp_by_settlement_point"""
 
@@ -718,28 +729,38 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.slow
     def test_get_lmp_by_settlement_point_historical_date(self):
-        historical_date = datetime.date(2021, 11, 6)
-        df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
+        with api_vcr.use_cassette(
+            "test_get_lmp_by_settlement_point_historical_date.yaml"
+        ):
+            historical_date = datetime.date(2021, 11, 6)
+            df = self.iso.get_lmp_by_settlement_point(historical_date, verbose=True)
 
-        self._check_lmp_by_settlement_point(df)
+            self._check_lmp_by_settlement_point(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            historical_date,
-        ) + pd.DateOffset(
-            days=1,
-        )
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                historical_date
+            )
+            assert df["Interval End"].max() == self.local_start_of_day(
+                historical_date,
+            ) + pd.DateOffset(
+                days=1,
+            )
 
     @pytest.mark.slow
     def test_get_lmp_by_settlement_point_historical_date_range(self):
-        start_date = datetime.date(2021, 11, 12)
-        end_date = datetime.date(2021, 11, 14)
-        df = self.iso.get_lmp_by_settlement_point(start_date, end_date, verbose=True)
+        with api_vcr.use_cassette(
+            "test_get_lmp_by_settlement_point_historical_date_range.yaml"
+        ):
+            start_date = datetime.date(2021, 11, 12)
+            end_date = datetime.date(2021, 11, 14)
+            df = self.iso.get_lmp_by_settlement_point(
+                start_date, end_date, verbose=True
+            )
 
-        self._check_lmp_by_settlement_point(df)
+            self._check_lmp_by_settlement_point(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """get_hourly_resource_outage_capacity"""
 
@@ -796,42 +817,52 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_hourly_resource_outage_capacity("latest").equals(df)
 
     def test_get_hourly_resource_outage_capacity_historical_date(self):
-        historical_date = datetime.date(2021, 3, 1)
-        df = self.iso.get_hourly_resource_outage_capacity(historical_date, verbose=True)
+        with api_vcr.use_cassette(
+            "test_get_hourly_resource_outage_capacity_historical_date.yaml"
+        ):
+            historical_date = datetime.date(2021, 3, 1)
+            df = self.iso.get_hourly_resource_outage_capacity(
+                historical_date, verbose=True
+            )
 
-        self._check_hourly_resource_outage_capacity(df)
+            self._check_hourly_resource_outage_capacity(df)
 
-        assert (df["Publish Time"].dt.date == historical_date).all()
-        assert df["Publish Time"].nunique() == 24
+            assert (df["Publish Time"].dt.date == historical_date).all()
+            assert df["Publish Time"].nunique() == 24
 
-        assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
-        assert df["Interval End"].max() >= self.local_start_of_day(
-            historical_date,
-        ) + pd.DateOffset(days=7)
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                historical_date
+            )
+            assert df["Interval End"].max() >= self.local_start_of_day(
+                historical_date,
+            ) + pd.DateOffset(days=7)
 
     def test_get_hourly_resource_outage_capacity_historical_date_range(self):
-        start_date = datetime.date(2021, 3, 15)
-        end_date = datetime.date(2021, 3, 17)
+        with api_vcr.use_cassette(
+            "test_get_hourly_resource_outage_capacity_historical_date_range.yaml"
+        ):
+            start_date = datetime.date(2021, 3, 15)
+            end_date = datetime.date(2021, 3, 17)
 
-        df = self.iso.get_hourly_resource_outage_capacity(
-            start_date,
-            end_date,
-            verbose=True,
-        )
+            df = self.iso.get_hourly_resource_outage_capacity(
+                start_date,
+                end_date,
+                verbose=True,
+            )
 
-        self._check_hourly_resource_outage_capacity(df)
+            self._check_hourly_resource_outage_capacity(df)
 
-        # Not inclusive of end date
-        assert df["Publish Time"].dt.date.unique().tolist() == [
-            start_date,
-            (start_date + pd.DateOffset(days=1)).date(),
-        ]
-        assert df["Publish Time"].nunique() == 2 * 24
+            # Not inclusive of end date
+            assert df["Publish Time"].dt.date.unique().tolist() == [
+                start_date,
+                (start_date + pd.DateOffset(days=1)).date(),
+            ]
+            assert df["Publish Time"].nunique() == 2 * 24
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        assert df["Interval End"].max() >= self.local_start_of_day(
-            end_date,
-        ) + pd.DateOffset(days=6)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            assert df["Interval End"].max() >= self.local_start_of_day(
+                end_date,
+            ) + pd.DateOffset(days=6)
 
     """lmp_by_bus"""
 
@@ -878,29 +909,31 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.slow
     def test_get_lmp_by_bus_historical_date(self):
-        date = pd.Timestamp("2025-01-15").date()
+        with api_vcr.use_cassette("test_get_lmp_by_bus_historical_date.yaml"):
+            date = pd.Timestamp("2025-01-15").date()
 
-        df = self.iso.get_lmp_by_bus(date, verbose=True)
+            df = self.iso.get_lmp_by_bus(date, verbose=True)
 
-        self._check_lmp_by_bus(df)
+            self._check_lmp_by_bus(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(date)
-        assert df["Interval End"].max() == self.local_start_of_day(
-            date,
-        ) + pd.DateOffset(days=1)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+            ) + pd.DateOffset(days=1)
 
     @pytest.mark.slow
     def test_get_lmp_by_bus_historical_date_range(self):
-        start_date = pd.Timestamp("2025-01-15").date()
-        end_date = pd.Timestamp("2025-01-17").date()
+        with api_vcr.use_cassette("test_get_lmp_by_bus_historical_date_range.yaml"):
+            start_date = pd.Timestamp("2025-01-15").date()
+            end_date = pd.Timestamp("2025-01-17").date()
 
-        df = self.iso.get_lmp_by_bus(start_date, end_date, verbose=True)
+            df = self.iso.get_lmp_by_bus(start_date, end_date, verbose=True)
 
-        self._check_lmp_by_bus(df)
+            self._check_lmp_by_bus(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(start_date)
-        # Not inclusive of end date
-        assert df["Interval End"].max() == self.local_start_of_day(end_date)
+            assert df["Interval Start"].min() == self.local_start_of_day(start_date)
+            # Not inclusive of end date
+            assert df["Interval End"].max() == self.local_start_of_day(end_date)
 
     """lmp_by_bus_dam"""
 
@@ -942,58 +975,62 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_lmp_by_bus_dam("latest").equals(df)
 
     def test_get_lmp_by_bus_dam_historical(self):
-        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_historical.yaml"):
+            past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
 
-        df = self.iso.get_lmp_by_bus_dam(past_date, verbose=True)
+            df = self.iso.get_lmp_by_bus_dam(past_date, verbose=True)
 
-        self._check_lmp_by_bus_dam(df)
+            self._check_lmp_by_bus_dam(df)
 
-        assert df["Interval Start"].min() == past_date.normalize()
-        assert df["Interval End"].max() == past_date.normalize() + pd.DateOffset(
-            days=1,
-        )
+            assert df["Interval Start"].min() == past_date.normalize()
+            assert df["Interval End"].max() == past_date.normalize() + pd.DateOffset(
+                days=1,
+            )
 
     def test_get_lmp_by_bus_dam_historical_range(self):
-        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
-        past_end_date = past_date + pd.DateOffset(days=2)
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_historical_range.yaml"):
+            past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
+            past_end_date = past_date + pd.DateOffset(days=2)
 
-        df = self.iso.get_lmp_by_bus_dam(past_date, past_end_date, verbose=True)
+            df = self.iso.get_lmp_by_bus_dam(past_date, past_end_date, verbose=True)
 
-        self._check_lmp_by_bus_dam(df)
+            self._check_lmp_by_bus_dam(df)
 
-        assert df["Interval Start"].min() == past_date.normalize()
-        assert df["Interval End"].max() == past_end_date.normalize()
+            assert df["Interval Start"].min() == past_date.normalize()
+            assert df["Interval End"].max() == past_end_date.normalize()
 
     def test_get_lmp_by_bus_dam_dst_end(self):
-        date = "2024-11-03"
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_dst_end.yaml"):
+            date = "2024-11-03"
 
-        df = self.iso.get_lmp_by_bus_dam(date)
+            df = self.iso.get_lmp_by_bus_dam(date)
 
-        assert not df[["Interval Start", "Location"]].duplicated().any()
+            assert not df[["Interval Start", "Location"]].duplicated().any()
 
-        # Check that 01:00 local time is duplicated
-        unique_interval_strings = df["Interval Start"].astype(str).unique()
-        assert len(unique_interval_strings) == 25
+            # Check that 01:00 local time is duplicated
+            unique_interval_strings = df["Interval Start"].astype(str).unique()
+            assert len(unique_interval_strings) == 25
 
-        assert "2024-11-03 01:00:00-05:00" in unique_interval_strings
-        assert "2024-11-03 01:00:00-06:00" in unique_interval_strings
+            assert "2024-11-03 01:00:00-05:00" in unique_interval_strings
+            assert "2024-11-03 01:00:00-06:00" in unique_interval_strings
 
     def test_get_lmp_by_bus_dam_dst_start(self):
-        date = "2024-03-10"
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_dst_start.yaml"):
+            date = "2024-03-10"
 
-        df = self.iso.get_lmp_by_bus_dam(date)
+            df = self.iso.get_lmp_by_bus_dam(date)
 
-        assert not df[["Interval Start", "Location"]].duplicated().any()
+            assert not df[["Interval Start", "Location"]].duplicated().any()
 
-        # Check that there is a gap at 02:00 local time
-        unique_interval_strings = df["Interval Start"].astype(str).unique()
+            # Check that there is a gap at 02:00 local time
+            unique_interval_strings = df["Interval Start"].astype(str).unique()
 
-        assert len(unique_interval_strings) == 23
+            assert len(unique_interval_strings) == 23
 
-        assert "2024-03-10 01:00:00-06:00" in unique_interval_strings
-        # This hour does not exist
-        assert "2024-03-10 02:00:00-06:00" not in unique_interval_strings
-        assert "2024-03-10 03:00:00-05:00" in unique_interval_strings
+            assert "2024-03-10 01:00:00-06:00" in unique_interval_strings
+            # This hour does not exist
+            assert "2024-03-10 02:00:00-06:00" not in unique_interval_strings
+            assert "2024-03-10 03:00:00-05:00" in unique_interval_strings
 
     """shadow_prices_dam"""
 
@@ -1059,33 +1096,39 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_shadow_prices_dam("latest").equals(df)
 
     def test_get_shadow_prices_dam_historical(self):
-        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
-        df = self.iso.get_shadow_prices_dam(past_date, verbose=True)
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_historical.yaml"):
+            past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
+            df = self.iso.get_shadow_prices_dam(past_date, verbose=True)
 
-        self._check_shadow_prices_dam(df)
+            self._check_shadow_prices_dam(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date.date())
-        assert df["Interval Start"].max() == self.local_start_of_day(
-            past_date.date(),
-        ) + pd.Timedelta(hours=23)
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                past_date.date()
+            )
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                past_date.date(),
+            ) + pd.Timedelta(hours=23)
 
     def test_get_shadow_prices_dam_historical_range(self):
-        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
-        past_end_date = past_date + pd.DateOffset(days=1)
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_historical_range.yaml"):
+            past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
+            past_end_date = past_date + pd.DateOffset(days=1)
 
-        df = self.iso.get_shadow_prices_dam(
-            date=past_date,
-            end=past_end_date,
-            verbose=True,
-        )
+            df = self.iso.get_shadow_prices_dam(
+                date=past_date,
+                end=past_end_date,
+                verbose=True,
+            )
 
-        self._check_shadow_prices_dam(df)
+            self._check_shadow_prices_dam(df)
 
-        assert df["Interval Start"].min() == self.local_start_of_day(past_date.date())
-        # The data ends at the end of the day before the end date
-        assert df["Interval Start"].max() == self.local_start_of_day(
-            past_end_date.date(),
-        ) - pd.Timedelta(hours=1)
+            assert df["Interval Start"].min() == self.local_start_of_day(
+                past_date.date()
+            )
+            # The data ends at the end of the day before the end date
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                past_end_date.date(),
+            ) - pd.Timedelta(hours=1)
 
     """shadow_prices_sced"""
 
@@ -1138,47 +1181,50 @@ class TestErcotAPI(TestHelperMixin):
         assert self.iso.get_shadow_prices_sced("latest").equals(df)
 
     def test_get_shadow_prices_sced_historical(self):
-        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
-        df = self.iso.get_shadow_prices_sced(past_date, verbose=True)
+        with api_vcr.use_cassette("test_get_shadow_prices_sced_historical.yaml"):
+            past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
+            df = self.iso.get_shadow_prices_sced(past_date, verbose=True)
 
-        self._check_shadow_prices_sced(df)
+            self._check_shadow_prices_sced(df)
 
-        start_of_past_date = self.local_start_of_day(past_date.date())
+            start_of_past_date = self.local_start_of_day(past_date.date())
 
-        assert df["SCED Timestamp"].min() < start_of_past_date
+            assert df["SCED Timestamp"].min() < start_of_past_date
 
-        max_timestamp = df["SCED Timestamp"].max()
+            max_timestamp = df["SCED Timestamp"].max()
 
-        assert (
-            start_of_past_date + pd.Timedelta(hours=22)
-            < max_timestamp
-            < start_of_past_date + pd.Timedelta(hours=24)
-        )
-
+            assert (
+                start_of_past_date + pd.Timedelta(hours=22)
+                < max_timestamp
+                < start_of_past_date + pd.Timedelta(hours=24)
+            )
 
     def test_get_shadow_prices_sced_historical_range(self):
-        past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
-        past_end_date = past_date + pd.DateOffset(days=2)
+        with api_vcr.use_cassette("test_get_shadow_prices_sced_historical_range.yaml"):
+            past_date = pd.Timestamp("2025-01-15", tz=self.iso.default_timezone)
+            past_end_date = past_date + pd.DateOffset(days=2)
 
-        df = self.iso.get_shadow_prices_sced(
-            date=past_date,
-            end=past_end_date,
-            verbose=True,
-        )
+            df = self.iso.get_shadow_prices_sced(
+                date=past_date,
+                end=past_end_date,
+                verbose=True,
+            )
 
-        self._check_shadow_prices_sced(df)
+            self._check_shadow_prices_sced(df)
 
-        assert df["SCED Timestamp"].min() < self.local_start_of_day(past_date.date())
+            assert df["SCED Timestamp"].min() < self.local_start_of_day(
+                past_date.date()
+            )
 
-        max_timestamp = df["SCED Timestamp"].max()
+            max_timestamp = df["SCED Timestamp"].max()
 
-        assert (
-            self.local_start_of_day(past_end_date.date())
-            - pd.DateOffset(days=1)
-            + pd.Timedelta(hours=22)
-            < max_timestamp
-            < self.local_start_of_day(past_end_date.date())
-        )
+            assert (
+                self.local_start_of_day(past_end_date.date())
+                - pd.DateOffset(days=1)
+                + pd.Timedelta(hours=22)
+                < max_timestamp
+                < self.local_start_of_day(past_end_date.date())
+            )
 
     """get_spp_real_time_15_min"""
 
@@ -1378,95 +1424,100 @@ class TestErcotAPI(TestHelperMixin):
     """get_historical_data"""
 
     def test_get_historical_data(self):
-        start_date = datetime.date(2023, 1, 1)
-        end_date = datetime.date(2023, 1, 3)
+        with api_vcr.use_cassette("test_get_historical_data.yaml"):
+            start_date = datetime.date(2023, 1, 1)
+            end_date = datetime.date(2023, 1, 3)
 
-        data = self.iso.get_historical_data(
-            "/np4-745-cd/spp_hrly_actual_fcast_geo",
-            start_date=start_date,
-            end_date=end_date,
-        )
+            data = self.iso.get_historical_data(
+                "/np4-745-cd/spp_hrly_actual_fcast_geo",
+                start_date=start_date,
+                end_date=end_date,
+            )
 
-        assert data.columns.tolist() == [
-            "DELIVERY_DATE",
-            "HOUR_ENDING",
-            "GEN_SYSTEM_WIDE",
-            "COP_HSL_SYSTEM_WIDE",
-            "STPPF_SYSTEM_WIDE",
-            "PVGRPP_SYSTEM_WIDE",
-            "GEN_CenterWest",
-            "COP_HSL_CenterWest",
-            "STPPF_CenterWest",
-            "PVGRPP_CenterWest",
-            "GEN_NorthWest",
-            "COP_HSL_NorthWest",
-            "STPPF_NorthWest",
-            "PVGRPP_NorthWest",
-            "GEN_FarWest",
-            "COP_HSL_FarWest",
-            "STPPF_FarWest",
-            "PVGRPP_FarWest",
-            "GEN_FarEast",
-            "COP_HSL_FarEast",
-            "STPPF_FarEast",
-            "PVGRPP_FarEast",
-            "GEN_SouthEast",
-            "COP_HSL_SouthEast",
-            "STPPF_SouthEast",
-            "PVGRPP_SouthEast",
-            "GEN_CenterEast",
-            "COP_HSL_CenterEast",
-            "STPPF_CenterEast",
-            "PVGRPP_CenterEast",
-            "DSTFlag",
-        ]
+            assert data.columns.tolist() == [
+                "DELIVERY_DATE",
+                "HOUR_ENDING",
+                "GEN_SYSTEM_WIDE",
+                "COP_HSL_SYSTEM_WIDE",
+                "STPPF_SYSTEM_WIDE",
+                "PVGRPP_SYSTEM_WIDE",
+                "GEN_CenterWest",
+                "COP_HSL_CenterWest",
+                "STPPF_CenterWest",
+                "PVGRPP_CenterWest",
+                "GEN_NorthWest",
+                "COP_HSL_NorthWest",
+                "STPPF_NorthWest",
+                "PVGRPP_NorthWest",
+                "GEN_FarWest",
+                "COP_HSL_FarWest",
+                "STPPF_FarWest",
+                "PVGRPP_FarWest",
+                "GEN_FarEast",
+                "COP_HSL_FarEast",
+                "STPPF_FarEast",
+                "PVGRPP_FarEast",
+                "GEN_SouthEast",
+                "COP_HSL_SouthEast",
+                "STPPF_SouthEast",
+                "PVGRPP_SouthEast",
+                "GEN_CenterEast",
+                "COP_HSL_CenterEast",
+                "STPPF_CenterEast",
+                "PVGRPP_CenterEast",
+                "DSTFlag",
+            ]
 
-        data["DELIVERY_DATE"] = pd.to_datetime(data["DELIVERY_DATE"], format="%m/%d/%Y")
+            data["DELIVERY_DATE"] = pd.to_datetime(
+                data["DELIVERY_DATE"], format="%m/%d/%Y"
+            )
 
-        assert data["DELIVERY_DATE"].min().date() == datetime.date(2022, 12, 30)
-        # This a forecast
-        assert data["DELIVERY_DATE"].max().date() == datetime.date(2023, 1, 9)
-        # Any change in the shape would be a regression since this is historical data
-        assert data.shape == (10368, 31)
+            assert data["DELIVERY_DATE"].min().date() == datetime.date(2022, 12, 30)
+            # This a forecast
+            assert data["DELIVERY_DATE"].max().date() == datetime.date(2023, 1, 9)
+            # Any change in the shape would be a regression since this is historical data
+            assert data.shape == (10368, 31)
 
-        start_date = datetime.date(2020, 12, 1)
-        end_date = datetime.date(2020, 12, 2)
+            start_date = datetime.date(2020, 12, 1)
+            end_date = datetime.date(2020, 12, 2)
 
-        data = self.iso.get_historical_data(
-            "/np4-732-cd/wpp_hrly_avrg_actl_fcast",
-            start_date=start_date,
-            end_date=end_date,
-        )
+            data = self.iso.get_historical_data(
+                "/np4-732-cd/wpp_hrly_avrg_actl_fcast",
+                start_date=start_date,
+                end_date=end_date,
+            )
 
-        assert data.columns.tolist() == [
-            "DELIVERY_DATE",
-            "HOUR_ENDING",
-            "ACTUAL_SYSTEM_WIDE",
-            "COP_HSL_SYSTEM_WIDE",
-            "STWPF_SYSTEM_WIDE",
-            "WGRPP_SYSTEM_WIDE",
-            "ACTUAL_LZ_SOUTH_HOUSTON",
-            "COP_HSL_LZ_SOUTH_HOUSTON",
-            "STWPF_LZ_SOUTH_HOUSTON",
-            "WGRPP_LZ_SOUTH_HOUSTON",
-            "ACTUAL_LZ_WEST",
-            "COP_HSL_LZ_WEST",
-            "STWPF_LZ_WEST",
-            "WGRPP_LZ_WEST",
-            "ACTUAL_LZ_NORTH",
-            "COP_HSL_LZ_NORTH",
-            "STWPF_LZ_NORTH",
-            "WGRPP_LZ_NORTH",
-            "DSTFlag",
-        ]
+            assert data.columns.tolist() == [
+                "DELIVERY_DATE",
+                "HOUR_ENDING",
+                "ACTUAL_SYSTEM_WIDE",
+                "COP_HSL_SYSTEM_WIDE",
+                "STWPF_SYSTEM_WIDE",
+                "WGRPP_SYSTEM_WIDE",
+                "ACTUAL_LZ_SOUTH_HOUSTON",
+                "COP_HSL_LZ_SOUTH_HOUSTON",
+                "STWPF_LZ_SOUTH_HOUSTON",
+                "WGRPP_LZ_SOUTH_HOUSTON",
+                "ACTUAL_LZ_WEST",
+                "COP_HSL_LZ_WEST",
+                "STWPF_LZ_WEST",
+                "WGRPP_LZ_WEST",
+                "ACTUAL_LZ_NORTH",
+                "COP_HSL_LZ_NORTH",
+                "STWPF_LZ_NORTH",
+                "WGRPP_LZ_NORTH",
+                "DSTFlag",
+            ]
 
-        data["DELIVERY_DATE"] = pd.to_datetime(data["DELIVERY_DATE"], format="%m/%d/%Y")
-        assert data["DELIVERY_DATE"].min().date() == datetime.date(2020, 11, 29)
-        assert data["DELIVERY_DATE"].max().date() == datetime.date(2020, 12, 8)
+            data["DELIVERY_DATE"] = pd.to_datetime(
+                data["DELIVERY_DATE"], format="%m/%d/%Y"
+            )
+            assert data["DELIVERY_DATE"].min().date() == datetime.date(2020, 11, 29)
+            assert data["DELIVERY_DATE"].max().date() == datetime.date(2020, 12, 8)
 
-        # Since this is historical data, we do not except the shape to change. A change
-        # would be a regression.
-        assert data.shape == (5184, 19)
+            # Since this is historical data, we do not except the shape to change. A change
+            # would be a regression.
+            assert data.shape == (5184, 19)
 
     """hit_ercot_api"""
 
@@ -1763,24 +1814,27 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Time"].max() <= self.local_now()
 
     def test_get_system_load_charging_4_seconds_date_range(self):
-        start_date = pd.Timestamp("2025-11-01").date()
-        end_date = pd.Timestamp("2025-11-02").date()
+        with api_vcr.use_cassette(
+            "test_get_system_load_charging_4_seconds_date_range.yaml"
+        ):
+            start_date = pd.Timestamp("2025-11-01").date()
+            end_date = pd.Timestamp("2025-11-02").date()
 
-        df = self.iso.get_system_load_charging_4_seconds(
-            date=start_date,
-            end=end_date,
-            verbose=True,
-        )
+            df = self.iso.get_system_load_charging_4_seconds(
+                date=start_date,
+                end=end_date,
+                verbose=True,
+            )
 
-        self._check_system_load_charging_4_seconds(df)
+            self._check_system_load_charging_4_seconds(df)
 
-        assert df["Time"].min() >= self.local_start_of_day(start_date)
+            assert df["Time"].min() >= self.local_start_of_day(start_date)
 
-        # Not inclusive of end date
-        assert df["Time"].max() <= pd.Timestamp(
-            end_date,
-            tz=ErcotAPI().default_timezone,
-        )
+            # Not inclusive of end date
+            assert df["Time"].max() <= pd.Timestamp(
+                end_date,
+                tz=ErcotAPI().default_timezone,
+            )
 
     def test_get_system_load_charging_dst_end(self):
         start_date = pd.Timestamp("2025-11-02 00:00:00").tz_localize(

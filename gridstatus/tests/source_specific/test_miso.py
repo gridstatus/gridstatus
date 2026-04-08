@@ -282,6 +282,14 @@ class TestMISO(BaseTestISO):
 
     """get_load"""
 
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
     def test_get_load_historical(self):
         cassette_name = "test_get_load_historical.yaml"
         with miso_vcr.use_cassette(cassette_name):
@@ -331,9 +339,7 @@ class TestMISO(BaseTestISO):
 
     def test_get_load_forecast_historical(self):
         past_date = pd.Timestamp("2025-11-01").date()
-        cassette_name = (
-            f"test_get_load_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
-        )
+        cassette_name = f"test_get_load_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(past_date)
             assert df.columns.tolist() == self.load_forecast_cols
@@ -403,9 +409,7 @@ class TestMISO(BaseTestISO):
 
     def test_get_solar_forecast_historical(self):
         past_date = pd.Timestamp("2025-11-01").date()
-        cassette_name = (
-            f"test_get_solar_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
-        )
+        cassette_name = f"test_get_solar_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_solar_forecast(past_date)
 
@@ -455,9 +459,7 @@ class TestMISO(BaseTestISO):
 
     def test_get_wind_forecast_historical(self):
         past_date = pd.Timestamp("2025-11-01").date()
-        cassette_name = (
-            f"test_get_wind_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
-        )
+        cassette_name = f"test_get_wind_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_wind_forecast(past_date)
 

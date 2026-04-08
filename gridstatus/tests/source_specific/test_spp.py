@@ -26,6 +26,16 @@ api_vcr = setup_vcr(
 class TestSPP(BaseTestISO):
     iso = SPP()
 
+    # -- Base class tests using today/latest/relative dates → mark integration --
+
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
     """get_fuel_mix"""
 
     FUEL_MIX_COLS = [
@@ -125,33 +135,27 @@ class TestSPP(BaseTestISO):
         with pytest.raises(NotSupported):
             super().test_get_fuel_mix_historical(time_column="Interval Start")
 
+    @pytest.mark.integration
     def test_get_fuel_mix_date_or_start(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_date_or_start.yaml"):
-            super().test_get_fuel_mix_date_or_start()
+        super().test_get_fuel_mix_date_or_start()
 
+    @pytest.mark.integration
     def test_get_fuel_mix_historical_with_date_range(self):
-        with api_vcr.use_cassette(
-            "test_get_fuel_mix_historical_with_date_range.yaml",
-        ):
-            super().test_get_fuel_mix_historical_with_date_range(
-                time_column="Interval Start",
-            )
+        super().test_get_fuel_mix_historical_with_date_range(
+            time_column="Interval Start",
+        )
 
+    @pytest.mark.integration
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
-        with api_vcr.use_cassette(
-            "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
-        ):
-            super().test_get_fuel_mix_range_two_days_with_day_start_endpoint(
-                time_column="Interval Start",
-            )
+        super().test_get_fuel_mix_range_two_days_with_day_start_endpoint(
+            time_column="Interval Start",
+        )
 
+    @pytest.mark.integration
     def test_get_fuel_mix_start_end_same_day(self):
-        with api_vcr.use_cassette(
-            "test_get_fuel_mix_start_end_same_day.yaml",
-        ):
-            super().test_get_fuel_mix_start_end_same_day(
-                time_column="Interval Start",
-            )
+        super().test_get_fuel_mix_start_end_same_day(
+            time_column="Interval Start",
+        )
 
     @pytest.mark.integration
     def test_get_fuel_mix_latest(self):

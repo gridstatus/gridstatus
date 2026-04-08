@@ -17,6 +17,44 @@ nyiso_vcr = setup_vcr(
 class TestNYISO(BaseTestISO):
     iso = NYISO()
 
+    """BaseTestISO overrides — mark today/latest/relative-date tests as integration"""
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_date_or_start(self):
+        super().test_get_fuel_mix_date_or_start()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_historical_with_date_range(self):
+        super().test_get_fuel_mix_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+        super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_start_end_same_day(self):
+        super().test_get_fuel_mix_start_end_same_day()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_today(self):
+        super().test_get_fuel_mix_today()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical(self):
+        super().test_get_load_forecast_historical()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical_with_date_range(self):
+        super().test_get_load_forecast_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_today(self):
+        super().test_get_load_forecast_today()
+
     """"get_capacity_prices"""
 
     @pytest.mark.integration

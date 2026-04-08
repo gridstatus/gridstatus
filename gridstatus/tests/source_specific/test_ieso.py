@@ -94,6 +94,10 @@ class TestIESO(BaseTestISO):
         super().test_get_fuel_mix_latest(time_column=TIME_COLUMN)
 
     @pytest.mark.integration
+    def test_get_fuel_mix_today(self):
+        super().test_get_fuel_mix_today()
+
+    @pytest.mark.integration
     def test_get_fuel_mix_in_future_raises_error(self):
         with pytest.raises(NotSupported):
             self.iso.get_fuel_mix(
