@@ -55,7 +55,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
         yesterday = pd.Timestamp(
-            "2025-11-02 01:00:00",
+            "2026-03-15 01:00:00",
             tz=self.default_timezone,
         )
         start = yesterday - pd.Timedelta(hours=3)
@@ -76,7 +76,7 @@ class TestIESO(BaseTestISO):
         assert df[TIME_COLUMN].min() <= start
 
     def test_get_fuel_mix_start_end_same_day(self):
-        yesterday = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        yesterday = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
 
@@ -108,7 +108,7 @@ class TestIESO(BaseTestISO):
     """get_generator_report_hourly"""
 
     def test_get_generator_report_hourly_historical(self):
-        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         date_str = date.strftime("%m/%d/%Y")
 
         with file_vcr.use_cassette(
@@ -139,7 +139,7 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_historical_with_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.Timedelta(days=7)
 
         with file_vcr.use_cassette(
@@ -153,7 +153,7 @@ class TestIESO(BaseTestISO):
             assert df[TIME_COLUMN].dt.day.nunique() == 7
 
     def test_get_generator_report_hourly_range_two_days_with_end(self):
-        start = pd.Timestamp("2025-11-01 08:00:00", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15 08:00:00", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=3)
 
         with file_vcr.use_cassette(
@@ -172,7 +172,7 @@ class TestIESO(BaseTestISO):
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_start_end_same_day(self):
-        start = pd.Timestamp("2025-11-01 08:00:00", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15 08:00:00", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=6)
 
         with file_vcr.use_cassette(
@@ -206,7 +206,7 @@ class TestIESO(BaseTestISO):
         ):
             with pytest.raises(NotSupported):
                 self.iso.get_generator_report_hourly(
-                    pd.Timestamp("2025-11-01").date()
+                    pd.Timestamp("2026-03-15").date()
                     - pd.Timedelta(
                         days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT + 1,
                     ),
@@ -481,9 +481,9 @@ class TestIESO(BaseTestISO):
     # NOTE(kladar): we will see how future data rolls in and historical rolls off
     # NOTE(kladar, 2024-12-11): Tests rolled off, earliest is currently 2024-09-10, 92 days ago
     RESOURCE_ADEQUACY_TEST_DATES = [
-        ("2025-10-30", "2025-11-01"),
-        ("2025-11-02", "2025-11-04"),
-        ("2025-11-03", "2025-11-05"),
+        ("2026-03-13", "2026-03-15"),
+        ("2026-03-15", "2026-03-17"),
+        ("2026-03-16", "2026-03-18"),
     ]
 
     REQUIRED_RESOURCE_ADEQUACY_COLUMNS = [
@@ -647,7 +647,7 @@ class TestIESO(BaseTestISO):
         "test_get_latest_resource_adequacy_json.yaml",
     )
     def test_get_latest_resource_adequacy_json(self):
-        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         json_data, last_modified = self.iso._get_latest_resource_adequacy_json(date)
 
         assert isinstance(json_data, dict)
@@ -663,7 +663,7 @@ class TestIESO(BaseTestISO):
 
     @file_vcr.use_cassette("test_get_all_resource_adequacy_json.yaml")
     def test_get_all_resource_adequacy_json(self):
-        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         json_data_with_times = self.iso._get_all_resource_adequacy_jsons(date)
 
         assert isinstance(json_data_with_times, list)
@@ -681,7 +681,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_resource_adequacy_report_by_last_modified(self):
         last_modified = pd.Timestamp(
-            "2025-11-01 12:00:00",
+            "2026-03-15 12:00:00",
             tz=self.default_timezone,
         )
         with file_vcr.use_cassette(
@@ -766,7 +766,7 @@ class TestIESO(BaseTestISO):
     """get_forecast_surplus_baseload"""
 
     def test_get_forecast_surplus_baseload_generation_single_date(self):
-        yesterday = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        yesterday = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         today = yesterday + pd.Timedelta(days=1)
         with file_vcr.use_cassette(
             f"test_get_forecast_surplus_baseload_generation_{yesterday.strftime('%Y-%m-%d')}.yaml",
@@ -780,7 +780,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval End"].max().date() == today.date() + pd.Timedelta(days=10)
 
     def test_get_forecast_surplus_baseload_generation_date_range(self):
-        end = pd.Timestamp("2025-11-03", tz=self.default_timezone)
+        end = pd.Timestamp("2026-03-16", tz=self.default_timezone)
         start = end - pd.Timedelta(days=3)
         with file_vcr.use_cassette(
             f"test_get_forecast_surplus_baseload_generation_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
@@ -992,7 +992,7 @@ class TestIESO(BaseTestISO):
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_intertie_actual_schedule_flow_hourly_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1039,7 +1039,7 @@ class TestIESO(BaseTestISO):
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_intertie_flow_5_min_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1086,7 +1086,7 @@ class TestIESO(BaseTestISO):
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_intertie_limits_real_time_5_min_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(hours=2)
 
         with file_vcr.use_cassette(
@@ -1135,7 +1135,7 @@ class TestIESO(BaseTestISO):
         assert df[TIME_COLUMN].iloc[0].normalize() == tomorrow
 
     def test_get_intertie_limits_day_ahead_hourly_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1203,7 +1203,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1236,7 +1236,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1268,7 +1268,7 @@ class TestIESO(BaseTestISO):
         ).any()
 
     def test_get_lmp_predispatch_hourly_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1354,7 +1354,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_virtual_zonal_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1389,7 +1389,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_virtual_zonal_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1423,7 +1423,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_virtual_zonal_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1528,7 +1528,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_intertie_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1564,7 +1564,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_intertie_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1598,7 +1598,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_intertie_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1672,7 +1672,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=2)
 
         with file_vcr.use_cassette(
@@ -1690,7 +1690,7 @@ class TestIESO(BaseTestISO):
         """Test with today's data which uses the new XML schema (r2) with
         separate DeliveryDate/DeliveryHour elements and flat ZonalPrice
         elements."""
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.Timedelta(hours=1)
 
         with file_vcr.use_cassette(
@@ -1738,7 +1738,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_lmp_day_ahead_hourly_ontario_zonal_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1772,7 +1772,7 @@ class TestIESO(BaseTestISO):
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_ontario_zonal_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -1843,7 +1843,7 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_transmission_outages_planned_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
         with file_vcr.use_cassette(
             f"transmission_outages_planned_historical_date_range_{start.date()}_{end.date()}.yaml",
@@ -1898,7 +1898,7 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_in_service_transmission_limits_historical_date(self):
-        start = pd.Timestamp("2025-11-01")
+        start = pd.Timestamp("2026-03-15")
 
         with file_vcr.use_cassette(
             f"in_service_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1919,7 +1919,7 @@ class TestIESO(BaseTestISO):
         self._check_transmission_limits(data)
 
     def test_get_outage_transmission_limits_historical_date(self):
-        start = pd.Timestamp("2025-11-01")
+        start = pd.Timestamp("2026-03-15")
 
         with file_vcr.use_cassette(
             f"outage_transmission_limits_historical_date_range_{start.date()}.yaml",
@@ -1952,7 +1952,7 @@ class TestIESO(BaseTestISO):
         self._check_load_zonal(data, 5)
 
     def test_get_load_zonal_5_min_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1966,7 +1966,7 @@ class TestIESO(BaseTestISO):
         assert data["Interval End"].max() == end
 
     def test_get_load_zonal_5_min_year_boundary_transition(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -1998,7 +1998,7 @@ class TestIESO(BaseTestISO):
 
     def test_get_load_zonal_hourly_historical_date_range(self):
         # NB: Data stopped updating here
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2080,7 +2080,7 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_real_time_totals_historical_date_range(self):
-        start_date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start_date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -2126,7 +2126,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_solar_embedded_forecast_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2140,7 +2140,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
     def test_get_solar_embedded_forecast_all_versions(self):
-        date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
 
         with file_vcr.use_cassette(
             f"test_get_solar_embedded_forecast_all_{date.date()}.yaml",
@@ -2159,7 +2159,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_wind_embedded_forecast_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2181,7 +2181,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_wind_market_participant_forecast_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2203,7 +2203,7 @@ class TestIESO(BaseTestISO):
         self._check_variable_generation_forecast(df)
 
     def test_get_solar_market_participant_forecast_historical_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
 
         with file_vcr.use_cassette(
@@ -2243,8 +2243,8 @@ class TestIESO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp("2025-11-01"),
-                pd.Timestamp("2025-11-03"),
+                pd.Timestamp("2026-03-15"),
+                pd.Timestamp("2026-03-16"),
             ),
         ],
     )
@@ -2267,8 +2267,8 @@ class TestIESO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp("2025-11-01"),
-                pd.Timestamp("2025-11-03"),
+                pd.Timestamp("2026-03-15"),
+                pd.Timestamp("2026-03-16"),
             ),
         ],
     )
@@ -2354,7 +2354,7 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
-        start_date = pd.Timestamp("2025-11-01")
+        start_date = pd.Timestamp("2026-03-15")
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
@@ -2380,7 +2380,7 @@ class TestIESO(BaseTestISO):
         self._check_lmp_day_ahead_operating_reserves(data)
 
     def test_get_lmp_day_ahead_operating_reserves_historical_date_range(self):
-        start_date = pd.Timestamp("2025-11-01", tz=self.default_timezone)
+        start_date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(
