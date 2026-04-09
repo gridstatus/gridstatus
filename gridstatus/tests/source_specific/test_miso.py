@@ -189,6 +189,7 @@ class TestMISO(BaseTestISO):
 
             self._check_lmp_real_time_5_min_final(df)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_raises_error_if_no_data(self):
         date = pd.Timestamp("2025-11-01")
         cassette_name = f"test_get_lmp_real_time_5_min_final_raises_error_if_no_data_{date.strftime('%Y-%m-%d')}.yaml"

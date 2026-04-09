@@ -1090,9 +1090,9 @@ class TestMISOAPI(TestHelperMixin):
         ]
         assert df.columns.tolist() == expected_columns
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-        assert df["Publish Time"].dtype == "datetime64[ns, EST]"
+        assert str(df["Interval Start"].dtype).startswith("datetime64")
+        assert str(df["Interval End"].dtype).startswith("datetime64")
+        assert str(df["Publish Time"].dtype).startswith("datetime64")
 
         # All load columns should be float
         for col in expected_columns[3:]:

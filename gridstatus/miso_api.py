@@ -1381,6 +1381,9 @@ class MISOAPI:
         if "interval" in df.columns:
             df = df.drop(columns=["interval"])
 
+        if "init" in df.columns:
+            df = df.drop(columns=["init"])
+
         df = df.rename(
             columns={
                 "region": "Region",
