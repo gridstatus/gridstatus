@@ -132,6 +132,29 @@ class SkipMissingCassetteVCR:
         )
 
 
+def _strip_ercot_cache_buster(uri: str) -> str:
+    """Strip the cache-busting timestamp query parameter from ERCOT document
+    listing URLs so VCR can match requests across runs.
+
+    ERCOT's IceDocListJsonWS endpoint appends a random ``_NNNNN`` parameter
+    that changes every request, breaking URI-based cassette matching."""
+    parsed = urlparse(uri)
+    if "IceDocListJsonWS" in parsed.path:
+        params = parse_qs(parsed.query)
+        # Remove any single underscore-prefixed numeric params (cache busters)
+        filtered = {k: v for k, v in params.items() if not k.startswith("_")}
+        from urllib.parse import urlencode
+
+        new_query = urlencode(filtered, doseq=True)
+        return parsed._replace(query=new_query).geturl()
+    return uri
+
+
+def _ercot_uri_matcher(r1, r2):
+    """Custom VCR URI matcher that normalises ERCOT cache-buster params."""
+    return _strip_ercot_cache_buster(r1.uri) == _strip_ercot_cache_buster(r2.uri)
+
+
 def setup_vcr(
     source: str,
     record_mode: str,
@@ -141,16 +164,21 @@ def setup_vcr(
     if record_mode == "all":
         clean_cassettes(cassette_dir)
 
-    vcr_config = {
-        "cassette_library_dir": cassette_dir,
-        "record_mode": record_mode,
-        "match_on": ["uri", "method"],
-        "before_record": lambda request: before_record_callback(request, source),
-        "filter_headers": [
+    vcr_instance = vcr.VCR(
+        cassette_library_dir=cassette_dir,
+        record_mode=record_mode,
+        match_on=["uri", "method"],
+        before_record=lambda request: before_record_callback(request, source),
+        filter_headers=[
             ("Authorization", "XXXXXX"),
             ("Ocp-Apim-Subscription-Key", "XXXXXX"),
             ("X-Api-Key", "XXXXXX"),
         ],
-    }
+    )
 
-    return SkipMissingCassetteVCR(vcr.VCR(**vcr_config), cassette_dir, record_mode)
+    # For ERCOT, register a custom URI matcher that ignores cache-buster params
+    if source in ("ercot", "ercot_api"):
+        vcr_instance.register_matcher("ercot_uri", _ercot_uri_matcher)
+        vcr_instance.match_on = ["ercot_uri", "method"]
+
+    return SkipMissingCassetteVCR(vcr_instance, cassette_dir, record_mode)
