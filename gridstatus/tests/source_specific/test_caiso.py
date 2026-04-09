@@ -833,7 +833,7 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette(
             f"test_get_lmp_historical_{market.value.lower()}.yaml",
         ):
-            super().test_get_lmp_historical(market=market)
+            super().test_get_lmp_historical(market=market, date_str="2025-10-15")
 
     @pytest.mark.integration
     @with_markets(
@@ -1193,6 +1193,7 @@ class TestCAISO(BaseTestISO):
 
             assert df.empty
 
+    @pytest.mark.integration
     def test_get_pnodes(self):
         with caiso_vcr.use_cassette("test_get_pnodes.yaml"):
             df = self.iso.get_pnodes()
