@@ -39,9 +39,8 @@ class TestAESO(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_supply_and_demand(self):
-        with api_vcr.use_cassette("test_get_supply_and_demand.yaml"):
-            df = self.iso.get_supply_and_demand()
-            self._check_supply_and_demand(df)
+        df = self.iso.get_supply_and_demand()
+        self._check_supply_and_demand(df)
 
     def _check_fuel_mix(self, df: pd.DataFrame) -> None:
         expected_columns = list(FUEL_MIX_COLUMN_MAPPING.values())
@@ -56,9 +55,8 @@ class TestAESO(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_fuel_mix(self):
-        with api_vcr.use_cassette("test_get_fuel_mix.yaml"):
-            df = self.iso.get_fuel_mix()
-            self._check_fuel_mix(df)
+        df = self.iso.get_fuel_mix()
+        self._check_fuel_mix(df)
 
     def _check_interchange(self, df: pd.DataFrame) -> None:
         expected_columns = [
@@ -86,9 +84,8 @@ class TestAESO(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_interchange(self):
-        with api_vcr.use_cassette("test_get_interchange.yaml"):
-            df = self.iso.get_interchange()
-            self._check_interchange(df)
+        df = self.iso.get_interchange()
+        self._check_interchange(df)
 
     def _check_reserves(self, df: pd.DataFrame) -> None:
         expected_columns = list(RESERVES_COLUMN_MAPPING.values())
@@ -98,9 +95,8 @@ class TestAESO(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_reserves(self):
-        with api_vcr.use_cassette("test_get_reserves.yaml"):
-            df = self.iso.get_reserves()
-            self._check_reserves(df)
+        df = self.iso.get_reserves()
+        self._check_reserves(df)
 
     def _check_asset_list(self, df: pd.DataFrame) -> None:
         expected_columns = list(ASSET_LIST_COLUMN_MAPPING.values())
@@ -118,16 +114,14 @@ class TestAESO(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_asset_list(self):
-        with api_vcr.use_cassette("test_get_asset_list.yaml"):
-            df = self.iso.get_asset_list()
-            self._check_asset_list(df)
+        df = self.iso.get_asset_list()
+        self._check_asset_list(df)
 
     @pytest.mark.integration
     def test_get_asset_list_empty(self):
-        with api_vcr.use_cassette("test_get_asset_list_empty.yaml"):
-            df = self.iso.get_asset_list(asset_id="NONEXISTENT")
-            self._check_asset_list(df)
-            assert len(df) == 0
+        df = self.iso.get_asset_list(asset_id="NONEXISTENT")
+        self._check_asset_list(df)
+        assert len(df) == 0
 
     def _check_pool_price(self, df: pd.DataFrame) -> None:
         """Check pool price DataFrame structure and types."""
@@ -188,10 +182,9 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_pool_price_latest(self):
         """Test getting latest pool price data."""
-        with api_vcr.use_cassette("test_get_pool_price_latest.yaml"):
-            df = self.iso.get_pool_price(date="latest")
-            self._check_pool_price(df)
-            assert len(df) > 0
+        df = self.iso.get_pool_price(date="latest")
+        self._check_pool_price(df)
+        assert len(df) > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -223,10 +216,9 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_forecast_pool_price_latest(self):
         """Test getting latest forecast pool price data."""
-        with api_vcr.use_cassette("test_get_forecast_pool_price_latest.yaml"):
-            df = self.iso.get_forecast_pool_price(date="latest")
-            self._check_forecast_pool_price(df)
-            assert len(df) > 0
+        df = self.iso.get_forecast_pool_price(date="latest")
+        self._check_forecast_pool_price(df)
+        assert len(df) > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -285,13 +277,12 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_system_marginal_price_latest(self):
         """Test getting latest system marginal price data."""
-        with api_vcr.use_cassette("test_get_system_marginal_price_latest.yaml"):
-            df = self.iso.get_system_marginal_price(date="latest")
-            self._check_system_marginal_price(df)
-            assert len(df) > 0
+        df = self.iso.get_system_marginal_price(date="latest")
+        self._check_system_marginal_price(df)
+        assert len(df) > 0
 
-            current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
-            assert df["Interval End"].max() >= current_time.floor("min")
+        current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
+        assert df["Interval End"].max() >= current_time.floor("min")
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_minutes",
@@ -397,11 +388,10 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_load_latest(self):
         """Test getting latest load data."""
-        with api_vcr.use_cassette("test_get_load_latest.yaml"):
-            df = self.iso.get_load(date="latest")
-            self._check_load(df)
-            assert len(df) > 0
-            assert not df["Load"].isna().any()
+        df = self.iso.get_load(date="latest")
+        self._check_load(df)
+        assert len(df) > 0
+        assert not df["Load"].isna().any()
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -433,10 +423,9 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_load_forecast_latest(self):
         """Test getting latest load forecast data."""
-        with api_vcr.use_cassette("test_get_load_forecast_latest.yaml"):
-            df = self.iso.get_load_forecast(date="latest")
-            self._check_load_forecast(df)
-            assert len(df) > 0
+        df = self.iso.get_load_forecast(date="latest")
+        self._check_load_forecast(df)
+        assert len(df) > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -468,21 +457,18 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_load_forecast_future_publish_times(self):
         """Test that future intervals have correct publish times."""
-        with api_vcr.use_cassette("test_get_load_forecast_future_publish_times.yaml"):
-            future_date = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(
-                days=1,
-            )
-            df = self.iso.get_load_forecast(date=future_date)
+        future_date = pd.Timestamp.now(tz=self.iso.default_timezone) + pd.Timedelta(
+            days=1,
+        )
+        df = self.iso.get_load_forecast(date=future_date)
 
-            current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
-            today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
-            expected_publish = (
-                today_7am
-                if current_time >= today_7am
-                else today_7am - pd.Timedelta(days=1)
-            )
+        current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
+        today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
+        expected_publish = (
+            today_7am if current_time >= today_7am else today_7am - pd.Timedelta(days=1)
+        )
 
-            assert (df["Publish Time"] == expected_publish).all()
+        assert (df["Publish Time"] == expected_publish).all()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -545,10 +531,9 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_unit_status(self):
         """Test getting current unit status data."""
-        with api_vcr.use_cassette("test_get_unit_status.yaml"):
-            df = self.iso.get_unit_status(date="latest")
-            self._check_unit_status(df)
-            assert len(df) > 0
+        df = self.iso.get_unit_status(date="latest")
+        self._check_unit_status(df)
+        assert len(df) > 0
 
     def _check_generator_outages_hourly(self, df: pd.DataFrame) -> None:
         """Check generator outages DataFrame structure and types."""
@@ -605,10 +590,9 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_generator_outages_hourly_latest(self):
         """Test getting latest generator outages data."""
-        with api_vcr.use_cassette("test_get_generator_outages_hourly_latest.yaml"):
-            df = self.iso.get_generator_outages_hourly(date="latest")
-            self._check_generator_outages_hourly(df)
-            assert len(df) > 0
+        df = self.iso.get_generator_outages_hourly(date="latest")
+        self._check_generator_outages_hourly(df)
+        assert len(df) > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date",
@@ -682,11 +666,10 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_transmission_outages_latest(self):
         """Test getting latest transmission outages data."""
-        with api_vcr.use_cassette("test_get_transmission_outages_latest.yaml"):
-            df = self.iso.get_transmission_outages(date="latest")
-            self._check_transmission_outages(df)
-            assert len(df) > 0
-            assert df["Publish Time"].nunique() == 1
+        df = self.iso.get_transmission_outages(date="latest")
+        self._check_transmission_outages(df)
+        assert len(df) > 0
+        assert df["Publish Time"].nunique() == 1
 
     @pytest.mark.parametrize(
         "start_date,end_date",
@@ -784,34 +767,30 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_wind_forecast_12_hour_latest(self):
         """Test getting latest 12-hour wind forecast data."""
-        with api_vcr.use_cassette("test_get_wind_forecast_12_hour_latest.yaml"):
-            df = self.iso.get_wind_forecast_12_hour(date="latest")
-            self._check_wind_solar_forecast(df, "wind")
-            assert len(df) > 0
+        df = self.iso.get_wind_forecast_12_hour(date="latest")
+        self._check_wind_solar_forecast(df, "wind")
+        assert len(df) > 0
 
     @pytest.mark.integration
     def test_get_wind_forecast_7_day_latest(self):
         """Test getting latest 7-day wind forecast data."""
-        with api_vcr.use_cassette("test_get_wind_forecast_7_day_latest.yaml"):
-            df = self.iso.get_wind_forecast_7_day(date="latest")
-            self._check_wind_solar_forecast(df, "wind")
-            assert len(df) > 0
+        df = self.iso.get_wind_forecast_7_day(date="latest")
+        self._check_wind_solar_forecast(df, "wind")
+        assert len(df) > 0
 
     @pytest.mark.integration
     def test_get_solar_forecast_12_hour_latest(self):
         """Test getting latest 12-hour solar forecast data."""
-        with api_vcr.use_cassette("test_get_solar_forecast_12_hour_latest.yaml"):
-            df = self.iso.get_solar_forecast_12_hour(date="latest")
-            self._check_wind_solar_forecast(df, "solar")
-            assert len(df) > 0
+        df = self.iso.get_solar_forecast_12_hour(date="latest")
+        self._check_wind_solar_forecast(df, "solar")
+        assert len(df) > 0
 
     @pytest.mark.integration
     def test_get_solar_forecast_7_day_latest(self):
         """Test getting latest 7-day solar forecast data."""
-        with api_vcr.use_cassette("test_get_solar_forecast_7_day_latest.yaml"):
-            df = self.iso.get_solar_forecast_7_day(date="latest")
-            self._check_wind_solar_forecast(df, "solar")
-            assert len(df) > 0
+        df = self.iso.get_solar_forecast_7_day(date="latest")
+        self._check_wind_solar_forecast(df, "solar")
+        assert len(df) > 0
 
     def test_get_wind_forecast_12_hour_historical(self):
         """Test that historical 12-hour wind forecast raises NotSupported."""
@@ -940,10 +919,9 @@ class TestAESO(TestHelperMixin):
     @pytest.mark.integration
     def test_get_daily_average_pool_price_latest(self):
         """Test getting latest daily average pool price data."""
-        with api_vcr.use_cassette("test_get_daily_average_pool_price_latest.yaml"):
-            df = self.iso.get_daily_average_pool_price(date="latest")
-            self._check_daily_average_pool_price(df)
-            assert len(df) > 0
+        df = self.iso.get_daily_average_pool_price(date="latest")
+        self._check_daily_average_pool_price(df)
+        assert len(df) > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_days",

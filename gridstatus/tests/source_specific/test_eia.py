@@ -456,9 +456,7 @@ def test_get_generators_relative_date():
     # The files for the most recent month are generally available 24-26 days
     # after the end of the month.
     date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
-
-    with api_vcr.use_cassette(f"test_get_generators_relative_date_{date.date()}"):
-        data = EIA().get_generators(date)
+    data = EIA().get_generators(date)
 
     for generator_status, columns in [
         ("operating", OPERATING_GENERATOR_COLUMNS),

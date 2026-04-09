@@ -169,8 +169,7 @@ class TestMISOAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_interchange_hourly_today(self):
-        with api_vcr.use_cassette("test_get_interchange_hourly_today"):
-            df = self.iso.get_interchange_hourly("today")
+        df = self.iso.get_interchange_hourly("today")
 
         self._check_interchange_hourly(df)
 
@@ -1156,9 +1155,7 @@ class TestMISOAPI(TestHelperMixin):
     def test_get_outage_forecast(self):
         # Outage forecast is for future dates - use tomorrow
         date = self.local_start_of_today() + pd.Timedelta(days=1)
-
-        with api_vcr.use_cassette(f"get_outage_forecast_{date.date()}"):
-            df = self.iso.get_outage_forecast(date)
+        df = self.iso.get_outage_forecast(date)
 
         self._check_test_outage_forecast(df)
 
@@ -1198,9 +1195,7 @@ class TestMISOAPI(TestHelperMixin):
     def test_get_look_ahead_hourly(self):
         # Look ahead is for today and future dates
         date = self.local_start_of_today()
-
-        with api_vcr.use_cassette(f"get_look_ahead_hourly_{date.date()}"):
-            df = self.iso.get_look_ahead_hourly(date)
+        df = self.iso.get_look_ahead_hourly(date)
 
         self._check_test_look_ahead_hourly(df)
 
@@ -1222,10 +1217,7 @@ class TestMISOAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_pricing_nodes(self):
-        today = pd.Timestamp(self.local_today())
-
-        with api_vcr.use_cassette(f"get_pricing_nodes_{today.strftime('%Y-%m-%d')}"):
-            df = self.iso.get_pricing_nodes()
+        df = self.iso.get_pricing_nodes()
 
         assert df.shape[0] > 0
 
@@ -1237,13 +1229,8 @@ class TestMISOAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_pricing_nodes_by_date(self):
-        today = pd.Timestamp(self.local_today())
         date = "latest"
-
-        with api_vcr.use_cassette(
-            f"get_pricing_nodes_by_date_{today.strftime('%Y-%m-%d')}",
-        ):
-            df = self.iso.get_pricing_nodes(date)
+        df = self.iso.get_pricing_nodes(date)
 
         assert df.shape[0] > 0
 
@@ -1258,11 +1245,7 @@ class TestMISOAPI(TestHelperMixin):
         today = pd.Timestamp(self.local_today())
         date = today - pd.Timedelta(days=100)
         end = today
-
-        with api_vcr.use_cassette(
-            f"get_pricing_nodes_by_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}",
-        ):
-            df = self.iso.get_pricing_nodes(date, end)
+        df = self.iso.get_pricing_nodes(date, end)
 
         assert df.shape[0] > 0
 

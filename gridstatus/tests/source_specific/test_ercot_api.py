@@ -430,8 +430,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_mcpc_dam_today(self):
-        with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
-            df = self.iso.get_mcpc_dam("today")
+        df = self.iso.get_mcpc_dam("today")
         self._check_get_mcpc_dam(df)
         assert df["Interval Start"].min() == self.local_start_of_today()
 
@@ -1433,14 +1432,10 @@ class TestErcotAPI(TestHelperMixin):
     def test_get_60_day_sced_disclosure_historical(self):
         start_date = pd.Timestamp("2023-01-15", tz=self.iso.default_timezone)
         end_date = start_date + pd.DateOffset(days=2)
-
-        with api_vcr.use_cassette(
-            f"test_get_60_day_sced_disclosure_historical_{start_date.date()}_{end_date.date()}.yaml",
-        ):
-            df_dict = ErcotAPI().get_60_day_sced_disclosure(
-                start_date,
-                end_date,
-            )
+        df_dict = ErcotAPI().get_60_day_sced_disclosure(
+            start_date,
+            end_date,
+        )
 
         check_60_day_sced_disclosure(df_dict)
 
@@ -1830,10 +1825,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_system_load_charging_4_seconds_today(self):
-        with api_vcr.use_cassette(
-            "test_get_system_load_charging_4_seconds_today.yaml",
-        ):
-            df = self.iso.get_system_load_charging_4_seconds("today", verbose=True)
+        df = self.iso.get_system_load_charging_4_seconds("today", verbose=True)
 
         self._check_system_load_charging_4_seconds(df)
 
@@ -1843,27 +1835,24 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_system_load_charging_4_seconds_date_range(self):
-        with api_vcr.use_cassette(
-            "test_get_system_load_charging_4_seconds_date_range.yaml"
-        ):
-            start_date = pd.Timestamp("2026-04-03").date()
-            end_date = pd.Timestamp("2026-04-02").date()
+        start_date = pd.Timestamp("2026-04-03").date()
+        end_date = pd.Timestamp("2026-04-02").date()
 
-            df = self.iso.get_system_load_charging_4_seconds(
-                date=start_date,
-                end=end_date,
-                verbose=True,
-            )
+        df = self.iso.get_system_load_charging_4_seconds(
+            date=start_date,
+            end=end_date,
+            verbose=True,
+        )
 
-            self._check_system_load_charging_4_seconds(df)
+        self._check_system_load_charging_4_seconds(df)
 
-            assert df["Time"].min() >= self.local_start_of_day(start_date)
+        assert df["Time"].min() >= self.local_start_of_day(start_date)
 
-            # Not inclusive of end date
-            assert df["Time"].max() <= pd.Timestamp(
-                end_date,
-                tz=ErcotAPI().default_timezone,
-            )
+        # Not inclusive of end date
+        assert df["Time"].max() <= pd.Timestamp(
+            end_date,
+            tz=ErcotAPI().default_timezone,
+        )
 
     @pytest.mark.integration
     def test_get_system_load_charging_dst_end(self):
@@ -1871,9 +1860,7 @@ class TestErcotAPI(TestHelperMixin):
             self.iso.default_timezone,
         )
         end_date = start_date + pd.Timedelta(hours=6)
-
-        with api_vcr.use_cassette("test_get_system_load_charging_dst_end.yaml"):
-            data = self.iso.get_system_load_charging_4_seconds(start_date, end_date)
+        data = self.iso.get_system_load_charging_4_seconds(start_date, end_date)
 
         self._check_system_load_charging_4_seconds(data)
 

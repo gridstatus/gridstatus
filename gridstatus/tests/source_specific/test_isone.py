@@ -589,15 +589,9 @@ class TestISONE(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_final_latest(self):
-        # Test the "latest" option
-        cassette_name = (
-            "test_get_reserve_zone_prices_designations_real_time_5_min_final_latest"
+        df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
+            date="latest",
+            verbose=VERBOSE,
         )
 
-        with api_vcr.use_cassette(cassette_name):
-            df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
-                date="latest",
-                verbose=VERBOSE,
-            )
-
-            self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+        self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)

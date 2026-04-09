@@ -184,21 +184,19 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_generator_report_hourly_latest(self):
-        with file_vcr.use_cassette("test_get_generator_report_hourly_latest.yaml"):
-            df = self.iso.get_generator_report_hourly("latest")
-            self._check_get_generator_report_hourly(df)
-            assert df[TIME_COLUMN].min() == pd.Timestamp.now(
-                tz=self.default_timezone,
-            ).floor("D")
-            assert df[TIME_COLUMN].max() >= pd.Timestamp.now(
-                tz=self.default_timezone,
-            ).floor("h") - pd.Timedelta(hours=2)
+        df = self.iso.get_generator_report_hourly("latest")
+        self._check_get_generator_report_hourly(df)
+        assert df[TIME_COLUMN].min() == pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).floor("D")
+        assert df[TIME_COLUMN].max() >= pd.Timestamp.now(
+            tz=self.default_timezone,
+        ).floor("h") - pd.Timedelta(hours=2)
 
     @pytest.mark.integration
     def test_get_generator_report_hourly_today(self):
-        with file_vcr.use_cassette("test_get_generator_report_hourly_today.yaml"):
-            df = self.iso.get_generator_report_hourly("today")
-            assert df.equals(self.iso.get_generator_report_hourly("latest"))
+        df = self.iso.get_generator_report_hourly("today")
+        assert df.equals(self.iso.get_generator_report_hourly("latest"))
 
     def test_get_generator_report_hourly_too_far_in_past_raises_error(self):
         with file_vcr.use_cassette(
@@ -214,12 +212,11 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_generator_report_hourly_in_future_raises_error(self):
-        with file_vcr.use_cassette("test_get_generator_report_hourly_in_future.yaml"):
-            with pytest.raises(NotSupported):
-                self.iso.get_generator_report_hourly(
-                    pd.Timestamp.now(tz=self.default_timezone).normalize()
-                    + pd.Timedelta(days=1),
-                )
+        with pytest.raises(NotSupported):
+            self.iso.get_generator_report_hourly(
+                pd.Timestamp.now(tz=self.default_timezone).normalize()
+                + pd.Timedelta(days=1),
+            )
 
     """get_interconnection_queue"""
 
@@ -795,10 +792,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_forecast_surplus_baseload_generation_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_forecast_surplus_baseload_generation_latest.yaml",
-        ):
-            df = self.iso.get_forecast_surplus_baseload_generation("latest")
+        df = self.iso.get_forecast_surplus_baseload_generation("latest")
 
         assert isinstance(df, pd.DataFrame)
         self._check_forecast_surplus_baseload(df)
@@ -877,14 +871,11 @@ class TestIESO(BaseTestISO):
         date,
         end,
     ):
-        with file_vcr.use_cassette(
-            f"test_get_yearly_intertie_actual_schedule_flow_hourly_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
-        ):
-            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(
-                date,
-                end=end,
-                vintage="latest",
-            )
+        df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly(
+            date,
+            end=end,
+            vintage="latest",
+        )
 
         self._check_intertie_schedule_flow(df)
         assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
@@ -896,10 +887,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_yearly_intertie_actual_schedule_flow_hourly_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_yearly_intertie_actual_schedule_flow_hourly_latest.yaml",
-        ):
-            df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly("latest")
+        df = self.iso.get_yearly_intertie_actual_schedule_flow_hourly("latest")
 
         self._check_intertie_schedule_flow(df)
         current_year = pd.Timestamp.now(tz=self.default_timezone).year
@@ -980,10 +968,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_intertie_actual_schedule_flow_hourly_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_intertie_actual_schedule_flow_hourly_latest.yaml",
-        ):
-            df = self.iso.get_intertie_actual_schedule_flow_hourly("latest")
+        df = self.iso.get_intertie_actual_schedule_flow_hourly("latest")
 
         self._check_intertie_schedule_flow_hourly(df)
 
@@ -1027,10 +1012,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_intertie_flow_5_min_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_intertie_flow_5_min_latest.yaml",
-        ):
-            df = self.iso.get_intertie_flow_5_min("latest")
+        df = self.iso.get_intertie_flow_5_min("latest")
 
         self._check_intertie_flow_5_min(df)
 
@@ -1074,10 +1056,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_intertie_limits_real_time_5_min_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_intertie_limits_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_intertie_limits_real_time_5_min("latest")
+        df = self.iso.get_intertie_limits_real_time_5_min("latest")
 
         self._check_intertie_limits_real_time(df)
 
@@ -1121,10 +1100,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_intertie_limits_day_ahead_hourly_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_intertie_limits_day_ahead_hourly_latest.yaml",
-        ):
-            df = self.iso.get_intertie_limits_day_ahead_hourly("latest")
+        df = self.iso.get_intertie_limits_day_ahead_hourly("latest")
 
         self._check_intertie_limits_dam(df)
 
@@ -1193,8 +1169,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_latest(self):
-        with file_vcr.use_cassette("test_get_lmp_real_time_5_min_latest.yaml"):
-            data = self.iso.get_lmp_real_time_5_min("latest")
+        data = self.iso.get_lmp_real_time_5_min("latest")
 
         self._check_lmp_data(data, interval_minutes=5)
 
@@ -1221,8 +1196,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_latest(self):
-        with file_vcr.use_cassette("test_get_lmp_day_ahead_hourly_latest.yaml"):
-            data = self.iso.get_lmp_day_ahead_hourly("latest")
+        data = self.iso.get_lmp_day_ahead_hourly("latest")
 
         self._check_lmp_data(data, interval_minutes=60)
 
@@ -1254,8 +1228,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_latest(self):
-        with file_vcr.use_cassette("test_get_lmp_dispatch_hourly_latest.yaml"):
-            data = self.iso.get_lmp_predispatch_hourly("latest")
+        data = self.iso.get_lmp_predispatch_hourly("latest")
 
         self._check_lmp_data(data, interval_minutes=60, predispatch=True)
 
@@ -1342,10 +1315,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_virtual_zonal_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_virtual_zonal_latest.yaml",
-        ):
-            data = self.iso.get_lmp_real_time_5_min_virtual_zonal("latest")
+        data = self.iso.get_lmp_real_time_5_min_virtual_zonal("latest")
 
         self._check_lmp_virtual_zonal_data(data, interval_minutes=5)
 
@@ -1372,10 +1342,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_virtual_zonal_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_day_ahead_hourly_virtual_zonal_latest.yaml",
-        ):
-            data = self.iso.get_lmp_day_ahead_hourly_virtual_zonal("latest")
+        data = self.iso.get_lmp_day_ahead_hourly_virtual_zonal("latest")
 
         self._check_lmp_virtual_zonal_data(data, interval_minutes=60)
 
@@ -1407,10 +1374,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_virtual_zonal_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_dispatch_hourly_virtual_zonal_latest.yaml",
-        ):
-            data = self.iso.get_lmp_predispatch_hourly_virtual_zonal("latest")
+        data = self.iso.get_lmp_predispatch_hourly_virtual_zonal("latest")
 
         self._check_lmp_virtual_zonal_data(data, interval_minutes=60, predispatch=True)
 
@@ -1516,10 +1480,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_intertie_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_intertie_latest.yaml",
-        ):
-            data = self.iso.get_lmp_real_time_5_min_intertie("latest")
+        data = self.iso.get_lmp_real_time_5_min_intertie("latest")
 
         self._check_lmp_intertie(data, interval_minutes=5)
 
@@ -1546,10 +1507,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_intertie_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_day_ahead_hourly_intertie_latest.yaml",
-        ):
-            data = self.iso.get_lmp_day_ahead_hourly_intertie("latest")
+        data = self.iso.get_lmp_day_ahead_hourly_intertie("latest")
 
         self._check_lmp_intertie(data, interval_minutes=60)
 
@@ -1582,10 +1540,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_intertie_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_predispatch_hourly_intertie_latest.yaml",
-        ):
-            data = self.iso.get_lmp_predispatch_hourly_intertie("latest")
+        data = self.iso.get_lmp_predispatch_hourly_intertie("latest")
 
         self._check_lmp_intertie(data, interval_minutes=60, predispatch=True)
 
@@ -1660,10 +1615,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_ontario_zonal_latest.yaml",
-        ):
-            data = self.iso.get_lmp_real_time_5_min_ontario_zonal("latest")
+        data = self.iso.get_lmp_real_time_5_min_ontario_zonal("latest")
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
 
@@ -1721,10 +1673,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_ontario_zonal_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_day_ahead_hourly_ontario_zonal_latest.yaml",
-        ):
-            data = self.iso.get_lmp_day_ahead_hourly_ontario_zonal("latest")
+        data = self.iso.get_lmp_day_ahead_hourly_ontario_zonal("latest")
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=60)
 
@@ -1756,10 +1705,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_ontario_zonal_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_lmp_predispatch_hourly_ontario_zonal_latest.yaml",
-        ):
-            data = self.iso.get_lmp_predispatch_hourly_ontario_zonal("latest")
+        data = self.iso.get_lmp_predispatch_hourly_ontario_zonal("latest")
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=60, predispatch=True)
 
@@ -1831,8 +1777,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_transmission_outages_planned_latest(self):
-        with file_vcr.use_cassette("transmission_outages_planned_latest.yaml"):
-            data = self.iso.get_transmission_outages_planned("latest")
+        data = self.iso.get_transmission_outages_planned("latest")
 
         self._check_transmission_outages_planned(data)
 
@@ -1890,10 +1835,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_in_service_transmission_limits_latest(self):
-        with file_vcr.use_cassette(
-            "in_service_transmission_limits_latest.yaml",
-        ):
-            data = self.iso.get_in_service_transmission_limits("latest")
+        data = self.iso.get_in_service_transmission_limits("latest")
 
         self._check_transmission_limits(data)
 
@@ -1911,10 +1853,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_outage_transmission_limits_latest(self):
-        with file_vcr.use_cassette(
-            "outage_transmission_limits_latest.yaml",
-        ):
-            data = self.iso.get_outage_transmission_limits("latest")
+        data = self.iso.get_outage_transmission_limits("latest")
 
         self._check_transmission_limits(data)
 
@@ -1947,8 +1886,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_daily_zonal_5_min_latest(self):
-        with file_vcr.use_cassette("test_get_load_zonal_5_min_latest.yaml"):
-            data = self.iso.get_load_zonal_5_min("latest")
+        data = self.iso.get_load_zonal_5_min("latest")
         self._check_load_zonal(data, 5)
 
     def test_get_load_zonal_5_min_historical_date_range(self):
@@ -1992,8 +1930,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_zonal_hourly_latest(self):
-        with file_vcr.use_cassette("test_get_load_zonal_hourly_latest.yaml"):
-            data = self.iso.get_load_zonal_hourly("latest")
+        data = self.iso.get_load_zonal_hourly("latest")
         self._check_load_zonal(data, 60)
 
     def test_get_load_zonal_hourly_historical_date_range(self):
@@ -2070,8 +2007,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_real_time_totals_latest(self):
-        with file_vcr.use_cassette("test_get_real_time_totals_latest.yaml"):
-            data = self.iso.get_real_time_totals("latest")
+        data = self.iso.get_real_time_totals("latest")
 
         self._check_real_time_totals(data)
 
@@ -2120,8 +2056,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_embedded_forecast_latest(self):
-        with file_vcr.use_cassette("test_get_solar_embedded_forecast_latest.yaml"):
-            df = self.iso.get_solar_embedded_forecast("latest")
+        df = self.iso.get_solar_embedded_forecast("latest")
 
         self._check_variable_generation_forecast(df)
 
@@ -2153,8 +2088,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_wind_embedded_forecast_latest(self):
-        with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
-            df = self.iso.get_wind_embedded_forecast("latest")
+        df = self.iso.get_wind_embedded_forecast("latest")
 
         self._check_variable_generation_forecast(df)
 
@@ -2173,10 +2107,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_wind_market_participant_forecast_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_wind_market_participant_forecast_latest.yaml",
-        ):
-            df = self.iso.get_wind_market_participant_forecast("latest")
+        df = self.iso.get_wind_market_participant_forecast("latest")
 
         self._check_variable_generation_forecast(df)
 
@@ -2195,10 +2126,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_market_participant_forecast_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_solar_market_participant_forecast_latest.yaml",
-        ):
-            df = self.iso.get_solar_market_participant_forecast("latest")
+        df = self.iso.get_solar_market_participant_forecast("latest")
 
         self._check_variable_generation_forecast(df)
 
@@ -2232,12 +2160,9 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_shadow_prices_real_time_5_min_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_shadow_prices_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_shadow_prices_real_time_5_min("latest")
-            self._check_shadow_prices(df)
-            assert df["Interval Start"].is_monotonic_increasing
+        df = self.iso.get_shadow_prices_real_time_5_min("latest")
+        self._check_shadow_prices(df)
+        assert df["Interval Start"].is_monotonic_increasing
 
     @pytest.mark.parametrize(
         "date, end",
@@ -2256,12 +2181,9 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_shadow_prices_day_ahead_hourly_latest(self):
-        with file_vcr.use_cassette(
-            "test_get_shadow_prices_day_ahead_hourly_latest.yaml",
-        ):
-            df = self.iso.get_shadow_prices_day_ahead_hourly("latest")
-            self._check_shadow_prices(df)
-            assert df["Interval Start"].is_monotonic_increasing
+        df = self.iso.get_shadow_prices_day_ahead_hourly("latest")
+        self._check_shadow_prices(df)
+        assert df["Interval Start"].is_monotonic_increasing
 
     @pytest.mark.parametrize(
         "date, end",
@@ -2344,10 +2266,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_operating_reserves_latest(self):
-        with file_vcr.use_cassette(
-            "test_lmp_get_real_time_5_min_operating_reserves_latest.yaml",
-        ):
-            data = self.iso.get_lmp_real_time_operating_reserves("latest")
+        data = self.iso.get_lmp_real_time_operating_reserves("latest")
 
         self._check_lmp_real_time_5_min_operating_reserves(data)
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
@@ -2372,10 +2291,7 @@ class TestIESO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_operating_reserves_latest(self):
-        with file_vcr.use_cassette(
-            "test_lmp_get_day_ahead_operating_reserves_latest.yaml",
-        ):
-            data = self.iso.get_lmp_day_ahead_operating_reserves("latest")
+        data = self.iso.get_lmp_day_ahead_operating_reserves("latest")
 
         self._check_lmp_day_ahead_operating_reserves(data)
 

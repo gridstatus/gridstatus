@@ -159,8 +159,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
-            fm = self.iso.get_fuel_mix(date="latest")
+        fm = self.iso.get_fuel_mix(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_COLS
@@ -169,8 +168,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_today(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
-            fm = self.iso.get_fuel_mix(date="today")
+        fm = self.iso.get_fuel_mix(date="today")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_COLS
@@ -178,8 +176,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_detailed_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_detailed_latest.yaml"):
-            fm = self.iso.get_fuel_mix_detailed(date="latest")
+        fm = self.iso.get_fuel_mix_detailed(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
@@ -204,8 +201,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_by_baa_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_latest.yaml"):
-            fm = self.iso.get_fuel_mix_by_baa(date="latest")
+        fm = self.iso.get_fuel_mix_by_baa(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
@@ -214,8 +210,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_by_baa_today(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_today.yaml"):
-            fm = self.iso.get_fuel_mix_by_baa(date="today")
+        fm = self.iso.get_fuel_mix_by_baa(date="today")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
@@ -238,8 +233,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_by_baa_detailed_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_detailed_latest.yaml"):
-            fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
+        fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
 
         assert len(fm) > 0
         assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_BAA_COLS
@@ -281,10 +275,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_by_location_latest.yaml",
-        ):
-            df = self.iso.get_lmp_real_time_5_min_by_location(date="latest")
+        df = self.iso.get_lmp_real_time_5_min_by_location(date="latest")
 
         self._check_lmp_real_time_5_min_by_location(df)
 
@@ -298,13 +289,10 @@ class TestSPP(BaseTestISO):
     @pytest.mark.integration
     @pytest.mark.slow
     def test_get_lmp_real_time_5_min_by_location_today(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_by_location_today.yaml",
-        ):
-            df = self.iso.get_lmp_real_time_5_min_by_location(
-                date="today",
-                verbose=True,
-            )
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date="today",
+            verbose=True,
+        )
 
         self._check_lmp_real_time_5_min_by_location(df)
 
@@ -374,13 +362,10 @@ class TestSPP(BaseTestISO):
         ],
     )
     def test_get_lmp_real_time_5_min_by_location_filters_location(self, location_type):
-        with api_vcr.use_cassette(
-            f"test_get_lmp_real_time_5_min_by_location_filters_location_{location_type}.yaml",
-        ):
-            df = self.iso.get_lmp_real_time_5_min_by_location(
-                date="latest",
-                location_type=location_type,
-            )
+        df = self.iso.get_lmp_real_time_5_min_by_location(
+            date="latest",
+            location_type=location_type,
+        )
 
         self._check_lmp_real_time_5_min_by_location(df, location_types=[location_type])
 
@@ -451,10 +436,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_by_bus_latest.yaml",
-        ):
-            df = self.iso.get_lmp_real_time_5_min_by_bus(date="latest")
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="latest")
 
         self._check_lmp_real_time_5_min_by_bus(df)
         # Latest data should have one interval
@@ -467,10 +449,7 @@ class TestSPP(BaseTestISO):
     @pytest.mark.integration
     @pytest.mark.slow
     def test_get_lmp_real_time_5_min_by_bus_today(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_real_time_5_min_by_bus_today.yaml",
-        ):
-            df = self.iso.get_lmp_real_time_5_min_by_bus(date="today", verbose=True)
+        df = self.iso.get_lmp_real_time_5_min_by_bus(date="today", verbose=True)
 
         self._check_lmp_real_time_5_min_by_bus(df)
 
@@ -601,10 +580,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_today(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_day_ahead_hourly_today.yaml",
-        ):
-            df = self.iso.get_lmp_day_ahead_hourly(date="today")
+        df = self.iso.get_lmp_day_ahead_hourly(date="today")
 
         self._check_lmp_day_ahead_hourly(df)
         assert df["Interval Start"].min() == self.local_start_of_today()
@@ -653,13 +629,10 @@ class TestSPP(BaseTestISO):
         ],
     )
     def test_get_lmp_day_ahead_hourly_filters_location(self, location_type):
-        with api_vcr.use_cassette(
-            f"test_get_lmp_day_ahead_hourly_filters_location_{location_type}.yaml",
-        ):
-            df = self.iso.get_lmp_day_ahead_hourly(
-                date="today",
-                location_type=location_type,
-            )
+        df = self.iso.get_lmp_day_ahead_hourly(
+            date="today",
+            location_type=location_type,
+        )
 
         self._check_lmp_day_ahead_hourly(df, location_types=[location_type])
 
@@ -712,10 +685,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_operating_reserves_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_operating_reserves_latest.yaml",
-        ):
-            df = self.iso.get_operating_reserves(date="latest")
+        df = self.iso.get_operating_reserves(date="latest")
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
@@ -801,10 +771,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_day_ahead_operating_reserve_prices_today(self):
-        with api_vcr.use_cassette(
-            "test_get_day_ahead_operating_reserve_prices_today.yaml",
-        ):
-            df = self.iso.get_day_ahead_operating_reserve_prices(date="today")
+        df = self.iso.get_day_ahead_operating_reserve_prices(date="today")
 
         assert (
             df["Interval Start"].min()
@@ -843,8 +810,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_prices_real_time_5_min_latest(self):
-        with api_vcr.use_cassette("test_get_as_prices_real_time_5_min_latest.yaml"):
-            df = self.iso.get_as_prices_real_time_5_min(date="latest")
+        df = self.iso.get_as_prices_real_time_5_min(date="latest")
 
         self._check_as_prices_real_time_5_min(df)
 
@@ -926,10 +892,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_weis_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_lmp_real_time_weis_latest.yaml",
-        ):
-            df = self.iso.get_lmp_real_time_weis(date="latest")
+        df = self.iso.get_lmp_real_time_weis(date="latest")
 
         assert len(df) > 0
         assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
@@ -1471,10 +1434,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_forecast_short_term_today(self):
-        with api_vcr.use_cassette(
-            "test_get_load_forecast_short_term_today.yaml",
-        ):
-            df = self.iso.get_load_forecast_short_term(date="today")
+        df = self.iso.get_load_forecast_short_term(date="today")
 
         now = self.iso.now()
 
@@ -1491,10 +1451,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_forecast_short_term_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_load_forecast_short_term_latest.yaml",
-        ):
-            latest = self.iso.get_load_forecast_short_term(date="latest")
+        latest = self.iso.get_load_forecast_short_term(date="latest")
 
         # Single publish time
         assert (
@@ -1605,10 +1562,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_forecast_mid_term_today(self):
-        with api_vcr.use_cassette(
-            "test_get_load_forecast_mid_term_today.yaml",
-        ):
-            df = self.iso.get_load_forecast_mid_term(date="today")
+        df = self.iso.get_load_forecast_mid_term(date="today")
 
         now = self.iso.now()
 
@@ -1625,10 +1579,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_forecast_mid_term_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_load_forecast_mid_term_latest.yaml",
-        ):
-            latest = self.iso.get_load_forecast_mid_term(date="latest")
+        latest = self.iso.get_load_forecast_mid_term(date="latest")
 
         # Single publish time
         assert (
@@ -1696,10 +1647,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_today(self):
-        with api_vcr.use_cassette(
-            "test_get_solar_and_wind_forecast_short_term_today.yaml",
-        ):
-            df = self.iso.get_solar_and_wind_forecast_short_term(date="today")
+        df = self.iso.get_solar_and_wind_forecast_short_term(date="today")
 
         now = self.iso.now()
 
@@ -1719,10 +1667,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_solar_and_wind_forecast_short_term_latest.yaml",
-        ):
-            latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
+        latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
 
         # Single publish time
         assert (
@@ -1811,10 +1756,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_today(self):
-        with api_vcr.use_cassette(
-            "test_get_solar_and_wind_forecast_mid_term_today.yaml",
-        ):
-            df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
+        df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
 
         now = self.iso.now()
 
@@ -1831,10 +1773,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_solar_and_wind_forecast_mid_term_latest.yaml",
-        ):
-            latest = self.iso.get_solar_and_wind_forecast_mid_term(date="latest")
+        latest = self.iso.get_solar_and_wind_forecast_mid_term(date="latest")
 
         # Single publish time
         assert (
@@ -2584,8 +2523,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_market_clearing_real_time_latest(self):
-        with api_vcr.use_cassette("test_market_clearing_real_time_latest.yaml"):
-            df = self.iso.get_market_clearing_real_time(date="latest")
+        df = self.iso.get_market_clearing_real_time(date="latest")
 
         self._check_market_clearing_real_time(df)
 
@@ -2638,8 +2576,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_market_clearing_day_ahead_latest(self):
-        with api_vcr.use_cassette("test_market_clearing_day_ahead_latest.yaml"):
-            df = self.iso.get_market_clearing_day_ahead(date="latest")
+        df = self.iso.get_market_clearing_day_ahead(date="latest")
 
         self._check_market_clearing_day_ahead(df)
 
@@ -2679,10 +2616,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_binding_constraints_day_ahead_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_day_ahead_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
+        df = self.iso.get_binding_constraints_day_ahead_hourly(date="latest")
 
         self._check_binding_constraints_day_ahead(df)
 
@@ -2730,10 +2664,7 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_binding_constraints_real_time_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_real_time_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_real_time_5_min(date="latest")
+        df = self.iso.get_binding_constraints_real_time_5_min(date="latest")
 
         self._check_binding_constraints_real_time(df)
 
@@ -2761,14 +2692,10 @@ class TestSPP(BaseTestISO):
     def test_get_binding_constraints_real_time_5_min_range_includes_today(self):
         start_date = self.local_now() - pd.Timedelta(days=1)
         end_date = self.local_now()
-
-        with api_vcr.use_cassette(
-            f"test_get_binding_constraints_real_time_5_min_range_includes_today_{start_date.strftime('%Y%m%d')}_to_{end_date.strftime('%Y%m%d')}.yaml",
-        ):
-            df = self.iso.get_binding_constraints_real_time_5_min(
-                date=start_date,
-                end=end_date,
-            )
+        df = self.iso.get_binding_constraints_real_time_5_min(
+            date=start_date,
+            end=end_date,
+        )
 
         self._check_binding_constraints_real_time(df)
         assert df["Interval Start"].min() == start_date
@@ -2795,15 +2722,13 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_interchange_real_time_latest(self):
-        with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
-            df = self.iso.get_interchange_real_time("latest")
+        df = self.iso.get_interchange_real_time("latest")
 
         self._check_interchange_real_time(df)
 
     @pytest.mark.integration
     def test_get_interchange_real_time_today(self):
-        with api_vcr.use_cassette("test_get_interchange_real_time_today.yaml"):
-            df = self.iso.get_interchange_real_time("today")
+        df = self.iso.get_interchange_real_time("today")
 
         self._check_interchange_real_time(df)
 
@@ -2867,19 +2792,13 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_west_interchange_real_time_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_west_interchange_real_time_latest.yaml",
-        ):
-            df = self.iso.get_west_interchange_real_time("latest")
+        df = self.iso.get_west_interchange_real_time("latest")
 
         self._check_west_interchange_real_time(df)
 
     @pytest.mark.integration
     def test_get_west_interchange_real_time_today(self):
-        with api_vcr.use_cassette(
-            "test_get_west_interchange_real_time_today.yaml",
-        ):
-            df = self.iso.get_west_interchange_real_time("today")
+        df = self.iso.get_west_interchange_real_time("today")
 
         self._check_west_interchange_real_time(df)
 

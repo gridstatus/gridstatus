@@ -288,16 +288,14 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_today(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
-            df = self.iso.get_fuel_mix("today")
+        df = self.iso.get_fuel_mix("today")
         self._check_fuel_mix(df)
         assert df.shape[0] >= 0
         assert df.columns.tolist() == self.fuel_mix_cols
 
     @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
-            df = self.iso.get_fuel_mix("latest")
+        df = self.iso.get_fuel_mix("latest")
         self._check_fuel_mix(df)
         # returns two days of data
         assert df["Time"].dt.date.nunique() == 2
@@ -356,15 +354,13 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_fuel_mix_detailed_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_detailed_latest.yaml"):
-            df = self.iso.get_fuel_mix_detailed("latest")
+        df = self.iso.get_fuel_mix_detailed("latest")
         assert df.columns.tolist() == self.fuel_mix_detailed_columns
         assert df["Time"].dt.date.nunique() == 2
 
     @pytest.mark.integration
     def test_get_fuel_mix_detailed_today(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_detailed_today.yaml"):
-            df = self.iso.get_fuel_mix_detailed("today")
+        df = self.iso.get_fuel_mix_detailed("today")
         assert df.columns.tolist() == self.fuel_mix_detailed_columns
         assert df["Time"].dt.date.nunique() == 1
 
@@ -720,20 +716,19 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_spp_real_time_historical(self):
-        with api_vcr.use_cassette("test_get_spp_real_time_historical.yaml"):
-            date = pd.Timestamp("2026-04-03").date()
-            next_day = pd.Timestamp("2026-04-02").date()
+        date = pd.Timestamp("2026-04-03").date()
+        next_day = pd.Timestamp("2026-04-02").date()
 
-            df = self.iso.get_spp(
-                date=date,
-                market=Markets.REAL_TIME_15_MIN,
-                location_type="Trading Hub",
-                verbose=True,
-            )
+        df = self.iso.get_spp(
+            date=date,
+            market=Markets.REAL_TIME_15_MIN,
+            location_type="Trading Hub",
+            verbose=True,
+        )
 
-            # assert Interval End max is next day
-            assert df["Interval End"].max().date() == next_day
-            assert df["Interval Start"].min().date() == date
+        # assert Interval End max is next day
+        assert df["Interval End"].max().date() == next_day
+        assert df["Interval Start"].min().date() == date
 
     @pytest.mark.integration
     def test_get_spp_real_time_handles_all_location_types(self):
@@ -826,14 +821,10 @@ class TestErcot(BaseTestISO):
     @pytest.mark.integration
     def test_get_60_day_sced_disclosure_historical(self):
         date = pd.Timestamp("2026-04-03").date()
-
-        with api_vcr.use_cassette(
-            f"test_get_60_day_sced_disclosure_historical_{date}",
-        ):
-            df_dict = self.iso.get_60_day_sced_disclosure(
-                date=date,
-                process=True,
-            )
+        df_dict = self.iso.get_60_day_sced_disclosure(
+            date=date,
+            process=True,
+        )
 
         load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
@@ -920,14 +911,10 @@ class TestErcot(BaseTestISO):
         # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
         # supplemental correction for ESR, Gen Resource, and Load Resource
         date = pd.Timestamp("2026-04-07").date()
-
-        with api_vcr.use_cassette(
-            "test_get_60_day_sced_disclosure_supplemental_correction",
-        ):
-            df_dict = self.iso.get_60_day_sced_disclosure(
-                date=date,
-                process=True,
-            )
+        df_dict = self.iso.get_60_day_sced_disclosure(
+            date=date,
+            process=True,
+        )
 
         check_60_day_sced_disclosure(df_dict)
 
@@ -1066,14 +1053,10 @@ class TestErcot(BaseTestISO):
         gen, load, and ESR.
         """
         date = pd.Timestamp("2026-04-08").date()
-
-        with api_vcr.use_cassette(
-            "test_get_60_day_dam_disclosure_online_nonspin_offer_curves.yaml",
-        ):
-            df_dict = self.iso.get_60_day_dam_disclosure(
-                date=date,
-                process=True,
-            )
+        df_dict = self.iso.get_60_day_dam_disclosure(
+            date=date,
+            process=True,
+        )
 
         col = "ONLINE NONSPIN Offer Curve"
 
@@ -1111,14 +1094,10 @@ class TestErcot(BaseTestISO):
         which has OFFLINE NONSPIN data.
         """
         date = pd.Timestamp("2026-04-08").date()
-
-        with api_vcr.use_cassette(
-            "test_get_60_day_dam_disclosure_offline_nonspin_offer_curves.yaml",
-        ):
-            df_dict = self.iso.get_60_day_dam_disclosure(
-                date=date,
-                process=True,
-            )
+        df_dict = self.iso.get_60_day_dam_disclosure(
+            date=date,
+            process=True,
+        )
 
         col = "OFFLINE NONSPIN Offer Curve"
 
@@ -1683,13 +1662,10 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_wind_actual_and_forecast_by_geographical_region_hourly_today(self):
-        with api_vcr.use_cassette(
-            "test_get_wind_actual_and_forecast_by_geographical_region_hourly_today.yaml",
-        ):
-            df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
-                "today",
-                verbose=True,
-            )
+        df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
+            "today",
+            verbose=True,
+        )
 
         self._check_hourly_wind_report(df, geographic_data=True)
 
@@ -1724,10 +1700,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_actual_and_forecast_hourly_today(self):
-        with api_vcr.use_cassette(
-            "test_get_solar_actual_and_forecast_hourly_today.yaml",
-        ):
-            df = self.iso.get_solar_actual_and_forecast_hourly("today", verbose=True)
+        df = self.iso.get_solar_actual_and_forecast_hourly("today", verbose=True)
 
         self._check_hourly_solar_report(df)
 
@@ -2278,11 +2251,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
-        # This forecast date includes 2026-04-02, DST end
-        with api_vcr.use_cassette(
-            "test_get_temperature_forecast_by_weather_zone_dst_end_2025.yaml",
-        ):
-            df = self.iso.get_temperature_forecast_by_weather_zone("2026-04-03")
+        df = self.iso.get_temperature_forecast_by_weather_zone("2026-04-03")
 
         self._check_temperature_forecast_by_weather_zone(df)
 
@@ -2434,12 +2403,11 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_settlement_point_uses_mapping(self):
-        with api_vcr.use_cassette("test_get_lmp_settlement_point_uses_mapping.yaml"):
-            df = self.iso.get_lmp(
-                date="today",
-                location_type="Settlement Point",
-                verbose=True,
-            )
+        df = self.iso.get_lmp(
+            date="today",
+            location_type="Settlement Point",
+            verbose=True,
+        )
         cols = [
             "Interval Start",
             "Interval End",
@@ -2480,23 +2448,20 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_by_bus_dam_today(self):
-        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_today.yaml"):
-            df = self.iso.get_lmp_by_bus_dam("today", verbose=True)
+        df = self.iso.get_lmp_by_bus_dam("today", verbose=True)
         self._check_lmp_by_bus_dam(df)
         assert df.shape[0] > 0
 
     @pytest.mark.integration
     def test_get_lmp_by_bus_dam_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_latest.yaml"):
-            df = self.iso.get_lmp_by_bus_dam("latest", verbose=True)
+        df = self.iso.get_lmp_by_bus_dam("latest", verbose=True)
         self._check_lmp_by_bus_dam(df)
         assert df.shape[0] > 0
 
     @pytest.mark.integration
     def test_get_lmp_by_bus_dam_historical(self):
         date = pd.Timestamp("2026-04-02", tz=self.iso.default_timezone)
-        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_historical.yaml"):
-            df = self.iso.get_lmp_by_bus_dam(date, verbose=True)
+        df = self.iso.get_lmp_by_bus_dam(date, verbose=True)
         self._check_lmp_by_bus_dam(df)
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.DateOffset(days=1)
@@ -2505,8 +2470,7 @@ class TestErcot(BaseTestISO):
     def test_get_lmp_by_bus_dam_date_range(self):
         start = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
         end = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
-        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_date_range.yaml"):
-            df = self.iso.get_lmp_by_bus_dam(start, end=end, verbose=True)
+        df = self.iso.get_lmp_by_bus_dam(start, end=end, verbose=True)
         self._check_lmp_by_bus_dam(df)
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
@@ -2618,10 +2582,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_dam_total_energy_purchased_today(self):
-        with api_vcr.use_cassette(
-            "test_get_dam_total_energy_purchased_today.yaml",
-        ):
-            df = self.iso.get_dam_total_energy_purchased("today")
+        df = self.iso.get_dam_total_energy_purchased("today")
 
         self._check_dam_total_energy_purchased(df)
 
@@ -2666,10 +2627,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_dam_total_energy_sold_today(self):
-        with api_vcr.use_cassette(
-            "test_get_dam_total_energy_sold_today.yaml",
-        ):
-            df = self.iso.get_dam_total_energy_sold("today")
+        df = self.iso.get_dam_total_energy_sold("today")
 
         self._check_dam_total_energy_sold(df)
 
@@ -2814,10 +2772,7 @@ class TestErcot(BaseTestISO):
     @pytest.mark.integration
     def test_get_hourly_load_post_settlements_latest(self):
         """Test getting the latest year's data."""
-        with api_vcr.use_cassette(
-            "test_get_hourly_load_post_settlements_latest.yaml",
-        ):
-            df = self.iso.get_hourly_load_post_settlements("latest")
+        df = self.iso.get_hourly_load_post_settlements("latest")
         self._check_hourly_load_post_settlements(df)
 
         # Should be current year data
@@ -2828,10 +2783,7 @@ class TestErcot(BaseTestISO):
     @pytest.mark.parametrize("date, end", [("2010-03-01", "2010-08-02")])
     def test_get_hourly_load_post_settlements_xls(self, date, end):
         """Test getting historical data from the 2004-2016 era."""
-        with api_vcr.use_cassette(
-            "test_get_hourly_load_post_settlements_historical_2004_2016.yaml",
-        ):
-            df = self.iso.get_hourly_load_post_settlements(date, end)
+        df = self.iso.get_hourly_load_post_settlements(date, end)
         self._check_hourly_load_post_settlements(df)
 
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
@@ -2841,10 +2793,7 @@ class TestErcot(BaseTestISO):
     @pytest.mark.parametrize("date, end", [("2023-07-01", "2023-08-02")])
     def test_get_hourly_load_post_settlements_zip(self, date, end):
         """Test getting modern data from the 2017-2025 era."""
-        with api_vcr.use_cassette(
-            "test_get_hourly_load_post_settlements_modern_2017_2025.yaml",
-        ):
-            df = self.iso.get_hourly_load_post_settlements(date, end)
+        df = self.iso.get_hourly_load_post_settlements(date, end)
         self._check_hourly_load_post_settlements(df)
 
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
@@ -2870,21 +2819,18 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_mcpc_dam_today(self):
-        with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
-            df = self.iso.get_mcpc_dam("today", verbose=True)
+        df = self.iso.get_mcpc_dam("today", verbose=True)
         self._check_get_mcpc_dam(df)
 
     @pytest.mark.integration
     def test_get_mcpc_dam_latest(self):
-        with api_vcr.use_cassette("test_get_mcpc_dam_latest.yaml"):
-            df = self.iso.get_mcpc_dam("latest")
+        df = self.iso.get_mcpc_dam("latest")
         self._check_get_mcpc_dam(df)
 
     @pytest.mark.integration
     def test_get_mcpc_dam_historical(self):
         date = pd.Timestamp("2026-04-02", tz=self.iso.default_timezone)
-        with api_vcr.use_cassette("test_get_mcpc_dam_historical.yaml"):
-            df = self.iso.get_mcpc_dam(date, verbose=True)
+        df = self.iso.get_mcpc_dam(date, verbose=True)
         self._check_get_mcpc_dam(df)
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.DateOffset(days=1)
@@ -2893,8 +2839,7 @@ class TestErcot(BaseTestISO):
     def test_get_mcpc_dam_date_range(self):
         start = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
         end = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
-        with api_vcr.use_cassette("test_get_mcpc_dam_date_range.yaml"):
-            df = self.iso.get_mcpc_dam(start, end=end, verbose=True)
+        df = self.iso.get_mcpc_dam(start, end=end, verbose=True)
         self._check_get_mcpc_dam(df)
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
@@ -2940,23 +2885,20 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_shadow_prices_dam_today(self):
-        with api_vcr.use_cassette("test_get_shadow_prices_dam_today.yaml"):
-            df = self.iso.get_shadow_prices_dam("today", verbose=True)
+        df = self.iso.get_shadow_prices_dam("today", verbose=True)
         self._check_shadow_prices_dam(df)
         assert df.shape[0] > 0
 
     @pytest.mark.integration
     def test_get_shadow_prices_dam_latest(self):
-        with api_vcr.use_cassette("test_get_shadow_prices_dam_latest.yaml"):
-            df = self.iso.get_shadow_prices_dam("latest")
+        df = self.iso.get_shadow_prices_dam("latest")
         self._check_shadow_prices_dam(df)
         assert df.shape[0] > 0
 
     @pytest.mark.integration
     def test_get_shadow_prices_dam_historical(self):
         date = pd.Timestamp("2026-04-02", tz=self.iso.default_timezone)
-        with api_vcr.use_cassette("test_get_shadow_prices_dam_historical.yaml"):
-            df = self.iso.get_shadow_prices_dam(date, verbose=True)
+        df = self.iso.get_shadow_prices_dam(date, verbose=True)
         self._check_shadow_prices_dam(df)
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.DateOffset(days=1)
@@ -2965,8 +2907,7 @@ class TestErcot(BaseTestISO):
     def test_get_shadow_prices_dam_date_range(self):
         start = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
         end = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
-        with api_vcr.use_cassette("test_get_shadow_prices_dam_date_range.yaml"):
-            df = self.iso.get_shadow_prices_dam(start, end=end, verbose=True)
+        df = self.iso.get_shadow_prices_dam(start, end=end, verbose=True)
         self._check_shadow_prices_dam(df)
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == end
@@ -2985,10 +2926,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_mcpc_sced_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_mcpc_sced_date_range_latest.yaml",
-        ):
-            df = self.iso.get_mcpc_sced("latest")
+        df = self.iso.get_mcpc_sced("latest")
 
         self._check_get_mcpc_sced(df)
 
@@ -3032,10 +2970,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_mcpc_real_time_15_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_mcpc_real_time_15_min_date_range_latest.yaml",
-        ):
-            df = self.iso.get_mcpc_real_time_15_min("latest")
+        df = self.iso.get_mcpc_real_time_15_min("latest")
 
         self._check_get_mcpc_real_time_15_min(df)
 
@@ -3087,10 +3022,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_demand_curves_dam_and_sced_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_dam_and_sced_date_range_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_dam_and_sced("latest")
+        df = self.iso.get_as_demand_curves_dam_and_sced("latest")
 
         self._check_get_as_demand_curves_dam_and_sced(df)
 
@@ -3135,10 +3067,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_deployment_factors_projected_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_projected_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_projected("latest")
+        df = self.iso.get_as_deployment_factors_projected("latest")
 
         self._check_as_deployment_factors_projected(df)
 
@@ -3190,10 +3119,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_deployment_factors_weekly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_weekly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_weekly_ruc("latest")
+        df = self.iso.get_as_deployment_factors_weekly_ruc("latest")
 
         self._check_as_deployment_factors_ruc(df)
 
@@ -3204,11 +3130,7 @@ class TestErcot(BaseTestISO):
     def test_get_as_deployment_factors_weekly_ruc_date_range(self):
         date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
         end = date + pd.DateOffset(days=2)
-
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_weekly_ruc_date_range.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_weekly_ruc(date, end)
+        df = self.iso.get_as_deployment_factors_weekly_ruc(date, end)
 
         self._check_as_deployment_factors_ruc(df)
 
@@ -3225,10 +3147,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_deployment_factors_daily_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_daily_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_daily_ruc("latest")
+        df = self.iso.get_as_deployment_factors_daily_ruc("latest")
 
         self._check_as_deployment_factors_ruc(df)
 
@@ -3260,10 +3179,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_deployment_factors_hourly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_hourly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_hourly_ruc("latest")
+        df = self.iso.get_as_deployment_factors_hourly_ruc("latest")
 
         self._check_as_deployment_factors_ruc(df)
 
@@ -3276,11 +3192,7 @@ class TestErcot(BaseTestISO):
         # Data is published per HRUC run (once per hour) for the rest of the current day
         date = pd.Timestamp("2026-04-03 22:00", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=3)
-
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_hourly_ruc_date_range.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_hourly_ruc(date, end)
+        df = self.iso.get_as_deployment_factors_hourly_ruc(date, end)
 
         self._check_as_deployment_factors_ruc(df)
 
@@ -3307,10 +3219,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_dam_total_as_sold_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_dam_total_as_sold_latest.yaml",
-        ):
-            df = self.iso.get_dam_total_as_sold("latest")
+        df = self.iso.get_dam_total_as_sold("latest")
 
         self._check_get_dam_total_as_sold(df)
 
@@ -3354,10 +3263,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_demand_curves_hourly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_hourly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_hourly_ruc("latest")
+        df = self.iso.get_as_demand_curves_hourly_ruc("latest")
 
         self._check_hourly_ruc_as_demand_curves(df)
 
@@ -3367,11 +3273,7 @@ class TestErcot(BaseTestISO):
     def test_get_as_demand_curves_hourly_ruc_date_range(self):
         date = pd.Timestamp("2026-04-03 23:00", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=3)
-
-        with api_vcr.use_cassette(
-            f"test_get_as_demand_curves_hourly_ruc_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_hourly_ruc(date, end)
+        df = self.iso.get_as_demand_curves_hourly_ruc(date, end)
 
         self._check_hourly_ruc_as_demand_curves(df)
 
@@ -3405,10 +3307,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_demand_curves_daily_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_daily_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_daily_ruc("latest")
+        df = self.iso.get_as_demand_curves_daily_ruc("latest")
 
         self._check_daily_ruc_as_demand_curves(df)
 
@@ -3454,10 +3353,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_demand_curves_weekly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_weekly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_weekly_ruc("latest")
+        df = self.iso.get_as_demand_curves_weekly_ruc("latest")
 
         self._check_weekly_ruc_as_demand_curves(df)
 
@@ -3469,11 +3365,7 @@ class TestErcot(BaseTestISO):
     def test_get_as_demand_curves_weekly_ruc_date_range(self):
         date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
         end = date + pd.DateOffset(days=2)
-
-        with api_vcr.use_cassette(
-            f"test_get_as_demand_curves_weekly_ruc_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_weekly_ruc(date, end)
+        df = self.iso.get_as_demand_curves_weekly_ruc(date, end)
 
         self._check_weekly_ruc_as_demand_curves(df)
 
@@ -3508,10 +3400,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_indicative_mcpc_rtd_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_indicative_mcpc_rtd_latest.yaml",
-        ):
-            df = self.iso.get_indicative_mcpc_rtd("latest")
+        df = self.iso.get_indicative_mcpc_rtd("latest")
 
         self._check_get_indicative_mcpc_rtd(df)
 
@@ -3569,10 +3458,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_as_total_capability_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_total_capability_latest.yaml",
-        ):
-            df = self.iso.get_as_total_capability("latest")
+        df = self.iso.get_as_total_capability("latest")
 
         self._check_get_as_total_capability(df)
 
@@ -3587,11 +3473,7 @@ class TestErcot(BaseTestISO):
         end = date + pd.Timedelta(hours=2)
 
         assert date.date() != end.date()
-
-        with api_vcr.use_cassette(
-            f"test_get_as_total_capability_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_as_total_capability(date, end)
+        df = self.iso.get_as_total_capability(date, end)
 
         self._check_get_as_total_capability(df)
 
@@ -3661,10 +3543,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_real_time_adders_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_real_time_adders_latest.yaml",
-        ):
-            df = self.iso.get_real_time_adders("latest")
+        df = self.iso.get_real_time_adders("latest")
 
         self._check_real_time_adders(df)
 
@@ -3677,11 +3556,7 @@ class TestErcot(BaseTestISO):
         end = date + pd.Timedelta(hours=2)
 
         assert date.date() != end.date()
-
-        with api_vcr.use_cassette(
-            f"test_get_real_time_adders_date_range_{date}_{end}.yaml",
-        ):
-            df = self.iso.get_real_time_adders(date, end)
+        df = self.iso.get_real_time_adders(date, end)
 
         self._check_real_time_adders(df)
 
@@ -3706,10 +3581,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_system_as_capacity_monitor_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_system_as_capacity_monitor_latest.yaml",
-        ):
-            df = self.iso.get_system_as_capacity_monitor("latest")
+        df = self.iso.get_system_as_capacity_monitor("latest")
 
         self._check_system_as_capacity_monitor(df)
 
@@ -3863,10 +3735,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_settlement_points_electrical_bus_mapping(self):
-        with api_vcr.use_cassette(
-            "test_get_settlement_points_electrical_bus_mapping.yaml",
-        ):
-            df = self.iso.get_settlement_points_electrical_bus_mapping(date="latest")
+        df = self.iso.get_settlement_points_electrical_bus_mapping(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
         assert df["Publish Date"].notna().all()
@@ -3883,8 +3752,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_ccp_resource_names(self):
-        with api_vcr.use_cassette("test_get_ccp_resource_names.yaml"):
-            df = self.iso.get_ccp_resource_names(date="latest")
+        df = self.iso.get_ccp_resource_names(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.ccp_resource_names_cols
         assert df["Publish Date"].notna().all()
@@ -3904,8 +3772,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_noie_mapping(self):
-        with api_vcr.use_cassette("test_get_noie_mapping.yaml"):
-            df = self.iso.get_noie_mapping(date="latest")
+        df = self.iso.get_noie_mapping(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.noie_mapping_cols
         assert df["Publish Date"].notna().all()
@@ -3923,8 +3790,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_resource_node_to_unit(self):
-        with api_vcr.use_cassette("test_get_resource_node_to_unit.yaml"):
-            df = self.iso.get_resource_node_to_unit(date="latest")
+        df = self.iso.get_resource_node_to_unit(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.resource_node_to_unit_cols
         assert df["Publish Date"].notna().all()
@@ -3970,8 +3836,7 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_hub_name_dc_ties(self):
-        with api_vcr.use_cassette("test_get_hub_name_dc_ties.yaml"):
-            df = self.iso.get_hub_name_dc_ties(date="latest")
+        df = self.iso.get_hub_name_dc_ties(date="latest")
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.hub_name_dc_ties_cols
         assert df["Publish Date"].notna().all()

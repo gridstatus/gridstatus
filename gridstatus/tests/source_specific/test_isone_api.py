@@ -93,46 +93,42 @@ class TestISONEAPI(TestHelperMixin):
         TEST_SINGLE_LOCATIONS,
     )
     def test_get_realtime_hourly_demand_latest(self, location: str):
-        with api_vcr.use_cassette(
-            f"test_get_realtime_hourly_demand_latest_{location}.yaml",
-        ):
-            result = self.iso.get_realtime_hourly_demand(
-                date="latest",
-                locations=[location],
-            )
+        result = self.iso.get_realtime_hourly_demand(
+            date="latest",
+            locations=[location],
+        )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-            ]
-            assert result["Location"].iloc[0] == location
-            assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
-            assert isinstance(result["Load"].iloc[0], (int, float))
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert result["Location"].iloc[0] == location
+        assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
+        assert isinstance(result["Load"].iloc[0], (int, float))
 
     @pytest.mark.integration
     def test_get_dayahead_hourly_demand_latest(self):
-        with api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml"):
-            result = self.iso.get_dayahead_hourly_demand(
-                date="latest",
-                locations=["NEPOOL AREA"],
-            )
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-            ]
-            assert result["Location"].iloc[0] == "NEPOOL AREA"
-            assert result["Location Id"].iloc[0] == 32
-            assert isinstance(result["Load"].iloc[0], np.number)
+        result = self.iso.get_dayahead_hourly_demand(
+            date="latest",
+            locations=["NEPOOL AREA"],
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
+        assert result["Location Id"].iloc[0] == 32
+        assert isinstance(result["Load"].iloc[0], np.number)
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
@@ -149,28 +145,25 @@ class TestISONEAPI(TestHelperMixin):
         self,
         locations: tuple[str, str],
     ):
-        with api_vcr.use_cassette(
-            f"test_get_realtime_hourly_demand_multiple_locations_{locations}.yaml",
-        ):
-            result = self.iso.get_realtime_hourly_demand(
-                date="latest",
-                locations=list(locations),
-            )
+        result = self.iso.get_realtime_hourly_demand(
+            date="latest",
+            locations=list(locations),
+        )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == len(locations)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-            ]
-            assert set(result["Location"]) == set(locations)
-            assert set(result["Location Id"]) == {
-                ZONE_LOCATIONID_MAP[loc] for loc in locations
-            }
-            assert all(isinstance(load, (int, float)) for load in result["Load"])
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == len(locations)
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert set(result["Location"]) == set(locations)
+        assert set(result["Location Id"]) == {
+            ZONE_LOCATIONID_MAP[loc] for loc in locations
+        }
+        assert all(isinstance(load, (int, float)) for load in result["Load"])
 
     @pytest.mark.parametrize(
         "date,end,locations",
@@ -325,18 +318,17 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
-            result = self.iso.get_fuel_mix(date="latest")
+        result = self.iso.get_fuel_mix(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert "Time" in result.columns
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert "Time" in result.columns
 
-            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
-            numeric_cols = [col for col in result.columns if col != "Time"]
-            for col in numeric_cols:
-                assert result[col].dtype in [np.int64, np.float64]
-                assert (result[col] >= 0).all()
+        assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+        numeric_cols = [col for col in result.columns if col != "Time"]
+        for col in numeric_cols:
+            assert result[col].dtype in [np.int64, np.float64]
+            assert (result[col] >= 0).all()
 
     @pytest.mark.parametrize(
         "date,end",
@@ -365,25 +357,24 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_load_hourly_latest(self):
-        with api_vcr.use_cassette("test_get_load_hourly_latest.yaml"):
-            result = self.iso.get_load_hourly(date="latest")
+        result = self.iso.get_load_hourly(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-                "Native Load",
-                "ARD Demand",
-            ]
-            assert result["Location"].iloc[0] == "NEPOOL AREA"
-            assert result["Location Id"].iloc[0] == 32
-            assert isinstance(result["Load"].iloc[0], (int, float))
-            assert isinstance(result["Native Load"].iloc[0], (int, float))
-            assert isinstance(result["ARD Demand"].iloc[0], (int, float))
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+            "Native Load",
+            "ARD Demand",
+        ]
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
+        assert result["Location Id"].iloc[0] == 32
+        assert isinstance(result["Load"].iloc[0], (int, float))
+        assert isinstance(result["Native Load"].iloc[0], (int, float))
+        assert isinstance(result["ARD Demand"].iloc[0], (int, float))
 
     @pytest.mark.parametrize(
         "date,end",
@@ -630,10 +621,7 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_zonal_load_estimated_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_zonal_load_estimated_5_min_latest.yaml",
-        ):
-            result = self.iso.get_zonal_load_estimated_5_min(date="latest")
+        result = self.iso.get_zonal_load_estimated_5_min(date="latest")
 
         self._check_zonal_load_estimated_5_min(result)
 
@@ -664,12 +652,11 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_hourly_prelim_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_hourly_prelim_latest.yaml"):
-            result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
+        result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -696,12 +683,11 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_hourly_final_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
-            result = self.iso.get_lmp_real_time_hourly_final(date="latest")
+        result = self.iso.get_lmp_real_time_hourly_final(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -728,16 +714,15 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_prelim_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
-            result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
+        result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
+        assert (
+            (result["Interval End"] - result["Interval Start"])
+            == pd.Timedelta(minutes=5)
+        ).all()
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -765,16 +750,15 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
-            result = self.iso.get_lmp_real_time_5_min_final(date="latest")
+        result = self.iso.get_lmp_real_time_5_min_final(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
+        assert (
+            (result["Interval End"] - result["Interval Start"])
+            == pd.Timedelta(minutes=5)
+        ).all()
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -853,12 +837,11 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_capacity_forecast_7_day_latest(self):
-        with api_vcr.use_cassette("test_get_capacity_forecast_7_day_latest.yaml"):
-            result = self.iso.get_capacity_forecast_7_day(date="latest")
+        result = self.iso.get_capacity_forecast_7_day(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_capacity_forecast_7_day_columns(result)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_capacity_forecast_7_day_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -890,12 +873,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_regulation_clearing_prices_real_time_5_min_latest.yaml",
-        ):
-            result = self.iso.get_regulation_clearing_prices_real_time_5_min(
-                date="latest",
-            )
+        result = self.iso.get_regulation_clearing_prices_real_time_5_min(
+            date="latest",
+        )
 
         self._check_regulation_clearing_prices_real_time_5_min(result)
 
@@ -967,12 +947,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_requirements_prices_forecast_day_ahead_latest.yaml",
-        ):
-            result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
-                date="latest",
-            )
+        result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
+            date="latest",
+        )
 
         self._check_reserve_requirements_prices_forecast_day_ahead(result)
 
@@ -1037,12 +1014,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_5_min_latest.yaml",
-        ):
-            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
-                date="latest",
-            )
+        result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
+            date="latest",
+        )
 
         self._check_reserve_zone_prices_designations(result, pd.Timedelta(minutes=5))
 
@@ -1075,14 +1049,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_hourly_final_latest.yaml",
-        ):
-            result = (
-                self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
-                    date="latest",
-                )
-            )
+        result = self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
+            date="latest",
+        )
 
         self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
@@ -1119,14 +1088,9 @@ class TestISONEAPI(TestHelperMixin):
     def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
         self,
     ):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest.yaml",
-        ):
-            result = (
-                self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
-                    date="latest",
-                )
-            )
+        result = self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
+            date="latest",
+        )
 
         self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
@@ -1193,12 +1157,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_ancillary_services_strike_prices_day_ahead_latest.yaml",
-        ):
-            result = self.iso.get_ancillary_services_strike_prices_day_ahead(
-                date="latest",
-            )
+        result = self.iso.get_ancillary_services_strike_prices_day_ahead(
+            date="latest",
+        )
 
         self._check_strike_prices_day_ahead(result)
 
@@ -1274,34 +1235,28 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_15_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_preliminary_real_time_15_min_latest.yaml",
-        ):
-            try:
-                df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
-                    date="latest",
-                )
-                self._check_constraints(
-                    df,
-                    expected_columns=[
-                        "Interval Start",
-                        "Interval End",
-                        "Constraint Name",
-                        "Marginal Value",
-                    ],
-                    expected_interval=pd.Timedelta(minutes=15),
-                )
-            except NoDataFoundException:
-                pytest.skip(
-                    "No data found for preliminary real-time 15-minute binding constraints",
-                )
+        try:
+            df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
+                date="latest",
+            )
+            self._check_constraints(
+                df,
+                expected_columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Marginal Value",
+                ],
+                expected_interval=pd.Timedelta(minutes=15),
+            )
+        except NoDataFoundException:
+            pytest.skip(
+                "No data found for preliminary real-time 15-minute binding constraints",
+            )
 
     @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_final_real_time_15_min_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
+        df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
 
         self._check_constraints(
             df,
@@ -1380,12 +1335,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_5_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_preliminary_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
-                date="latest",
-            )
+        df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
+            date="latest",
+        )
 
         self._check_constraints(
             df,
@@ -1400,10 +1352,7 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_5_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_final_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
+        df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
 
         self._check_constraints(
             df,
@@ -1508,10 +1457,9 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_fcm_reconfiguration_monthly_latest(self):
-        with api_vcr.use_cassette("test_get_fcm_reconfiguration_monthly_latest.yaml"):
-            result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
+        result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
 
-            self._check_fcm_reconfiguration(result)
+        self._check_fcm_reconfiguration(result)
 
     @pytest.mark.parametrize(
         "date",
@@ -1533,11 +1481,10 @@ class TestISONEAPI(TestHelperMixin):
 
     @pytest.mark.integration
     def test_get_fcm_reconfiguration_annual_latest(self):
-        with api_vcr.use_cassette("test_get_fcm_reconfiguration_annual_latest.yaml"):
-            result = self.iso.get_fcm_reconfiguration_annual(date="latest")
+        result = self.iso.get_fcm_reconfiguration_annual(date="latest")
 
-            self._check_fcm_reconfiguration(result, auction_type="annual")
-            assert result["ARA"].isin([1, 2, 3]).all()
+        self._check_fcm_reconfiguration(result, auction_type="annual")
+        assert result["ARA"].isin([1, 2, 3]).all()
 
     @pytest.mark.parametrize(
         "date",

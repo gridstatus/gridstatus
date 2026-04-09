@@ -78,12 +78,8 @@ class TestNYISO(BaseTestISO):
         ],
     )
     def test_get_capacity_prices(self, date):
-        with nyiso_vcr.use_cassette(
-            f"test_get_capacity_prices_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
-        ):
-            df = self.iso.get_capacity_prices(date=date, verbose=True)
-            assert not df.empty, "DataFrame came back empty"
-            # TODO: missing report: https://github.com/gridstatus/gridstatus/issues/309
+        df = self.iso.get_capacity_prices(date=date, verbose=True)
+        assert not df.empty, "DataFrame came back empty"
 
     """get_fuel_mix"""
 
@@ -180,26 +176,23 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_contains_zones(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_load_contains_zones.yaml",
-        ):
-            df = self.iso.get_load(date="today")
-            nyiso_load_cols = [
-                "Time",
-                "Load",
-                "CAPITL",
-                "CENTRL",
-                "DUNWOD",
-                "GENESE",
-                "HUD VL",
-                "LONGIL",
-                "MHK VL",
-                "MILLWD",
-                "N.Y.C.",
-                "NORTH",
-                "WEST",
-            ]
-            assert df.columns.tolist() == nyiso_load_cols
+        df = self.iso.get_load(date="today")
+        nyiso_load_cols = [
+            "Time",
+            "Load",
+            "CAPITL",
+            "CENTRL",
+            "DUNWOD",
+            "GENESE",
+            "HUD VL",
+            "LONGIL",
+            "MHK VL",
+            "MILLWD",
+            "N.Y.C.",
+            "NORTH",
+            "WEST",
+        ]
+        assert df.columns.tolist() == nyiso_load_cols
 
     @pytest.mark.parametrize(
         "date,end",
@@ -259,10 +252,7 @@ class TestNYISO(BaseTestISO):
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_today(self, market):
-        with nyiso_vcr.use_cassette(
-            f"test_get_lmp_today_{market}.yaml",
-        ):
-            super().test_get_lmp_today(market=market)
+        super().test_get_lmp_today(market=market)
 
     @pytest.mark.integration
     @with_markets(
@@ -272,10 +262,7 @@ class TestNYISO(BaseTestISO):
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_latest(self, market):
-        with nyiso_vcr.use_cassette(
-            f"test_get_lmp_latest_{market}.yaml",
-        ):
-            super().test_get_lmp_latest(market=market)
+        super().test_get_lmp_latest(market=market)
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
@@ -283,21 +270,18 @@ class TestNYISO(BaseTestISO):
         [(Markets.REAL_TIME_5_MIN, 5), (Markets.REAL_TIME_15_MIN, 15)],
     )
     def test_get_lmp_real_time_today(self, market, interval_duration_minutes):
-        with nyiso_vcr.use_cassette(
-            f"test_get_lmp_real_time_{interval_duration_minutes}_min_today.yaml",
-        ):
-            df = self.iso.get_lmp("today", market=market)
+        df = self.iso.get_lmp("today", market=market)
 
-            assert (
-                df["Interval End"] - df["Interval Start"]
-                == pd.Timedelta(minutes=interval_duration_minutes)
-            ).all()
+        assert (
+            df["Interval End"] - df["Interval Start"]
+            == pd.Timedelta(minutes=interval_duration_minutes)
+        ).all()
 
-            diffs = df["Interval End"].diff()
-            assert diffs[diffs > pd.Timedelta(minutes=0)].min() <= pd.Timedelta(
-                minutes=interval_duration_minutes,
-            )
-            assert diffs.max() == pd.Timedelta(minutes=interval_duration_minutes)
+        diffs = df["Interval End"].diff()
+        assert diffs[diffs > pd.Timedelta(minutes=0)].min() <= pd.Timedelta(
+            minutes=interval_duration_minutes,
+        )
+        assert diffs.max() == pd.Timedelta(minutes=interval_duration_minutes)
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
@@ -309,19 +293,16 @@ class TestNYISO(BaseTestISO):
         market,
         interval_duration_minutes,
     ):
-        with nyiso_vcr.use_cassette(
-            f"test_get_lmp_real_time_{interval_duration_minutes}_min_latest.yaml",
-        ):
-            df = self.iso.get_lmp("latest", market=market)
+        df = self.iso.get_lmp("latest", market=market)
 
-            assert (
-                df["Interval End"] - df["Interval Start"]
-                == pd.Timedelta(minutes=interval_duration_minutes)
-            ).all()
+        assert (
+            df["Interval End"] - df["Interval Start"]
+            == pd.Timedelta(minutes=interval_duration_minutes)
+        ).all()
 
-            diffs = df["Interval End"].diff().dropna()
-            # There is only one interval, so the diff is 0
-            assert (diffs == pd.Timedelta(minutes=0)).all()
+        diffs = df["Interval End"].diff().dropna()
+        # There is only one interval, so the diff is 0
+        assert (diffs == pd.Timedelta(minutes=0)).all()
 
     @pytest.mark.integration
     def test_get_lmp_real_time_15_min_interval_boundaries(self):
@@ -338,52 +319,47 @@ class TestNYISO(BaseTestISO):
         interval start by subtracting 5 minutes instead of 15 minutes from
         the raw timestamp.
         """
-        with nyiso_vcr.use_cassette(
-            "test_get_lmp_real_time_15_min_interval_boundaries.yaml",
-        ):
-            df = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
+        df = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
 
-            # Skip test if no 15-minute data available yet
-            if df.empty:
-                pytest.skip("No 15-minute data available")
+        # Skip test if no 15-minute data available yet
+        if df.empty:
+            pytest.skip("No 15-minute data available")
 
-            # Test 1: All intervals are exactly 15 minutes
-            durations = (
-                df["Interval End"] - df["Interval Start"]
-            ).dt.total_seconds() / 60
-            assert (durations == 15).all(), (
-                "All 15-minute intervals must be exactly 15 minutes long"
+        # Test 1: All intervals are exactly 15 minutes
+        durations = (df["Interval End"] - df["Interval Start"]).dt.total_seconds() / 60
+        assert (durations == 15).all(), (
+            "All 15-minute intervals must be exactly 15 minutes long"
+        )
+
+        # Test 2: All Interval Start minutes are on correct boundaries (0, 15, 30, 45)
+        start_minutes = df["Interval Start"].dt.minute
+        valid_start_minutes = start_minutes.isin([0, 15, 30, 45])
+        assert valid_start_minutes.all(), (
+            f"All Interval Start minutes must be 0, 15, 30, or 45. Found: {start_minutes.unique()}"
+        )
+
+        # Test 3: All Interval End minutes are on correct boundaries (0, 15, 30, 45)
+        end_minutes = df["Interval End"].dt.minute
+        valid_end_minutes = end_minutes.isin([0, 15, 30, 45])
+        assert valid_end_minutes.all(), (
+            f"All Interval End minutes must be 0, 15, 30, or 45. Found: {end_minutes.unique()}"
+        )
+
+        # Test 4: Intervals are contiguous for each location
+        for location in df["Location"].unique():
+            df_location = df[df["Location"] == location].sort_values(
+                "Interval Start",
             )
-
-            # Test 2: All Interval Start minutes are on correct boundaries (0, 15, 30, 45)
-            start_minutes = df["Interval Start"].dt.minute
-            valid_start_minutes = start_minutes.isin([0, 15, 30, 45])
-            assert valid_start_minutes.all(), (
-                f"All Interval Start minutes must be 0, 15, 30, or 45. Found: {start_minutes.unique()}"
-            )
-
-            # Test 3: All Interval End minutes are on correct boundaries (0, 15, 30, 45)
-            end_minutes = df["Interval End"].dt.minute
-            valid_end_minutes = end_minutes.isin([0, 15, 30, 45])
-            assert valid_end_minutes.all(), (
-                f"All Interval End minutes must be 0, 15, 30, or 45. Found: {end_minutes.unique()}"
-            )
-
-            # Test 4: Intervals are contiguous for each location
-            for location in df["Location"].unique():
-                df_location = df[df["Location"] == location].sort_values(
-                    "Interval Start",
+            if len(df_location) > 1:
+                # Check that each interval's end matches the next interval's start
+                gaps = (
+                    df_location["Interval Start"].iloc[1:].values
+                    - df_location["Interval End"].iloc[:-1].values
                 )
-                if len(df_location) > 1:
-                    # Check that each interval's end matches the next interval's start
-                    gaps = (
-                        df_location["Interval Start"].iloc[1:].values
-                        - df_location["Interval End"].iloc[:-1].values
-                    )
-                    gaps_seconds = pd.to_timedelta(gaps).total_seconds()
-                    assert (gaps_seconds == 0).all(), (
-                        f"Intervals must be contiguous for location {location}"
-                    )
+                gaps_seconds = pd.to_timedelta(gaps).total_seconds()
+                assert (gaps_seconds == 0).all(), (
+                    f"Intervals must be contiguous for location {location}"
+                )
 
     @pytest.mark.parametrize(
         "start,end",
@@ -438,27 +414,21 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_lmp_location_type_zone_today(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_lmp_location_type_zone_today.yaml",
-        ):
-            df_zone = self.iso.get_lmp(
-                date="today",
-                market=Markets.DAY_AHEAD_HOURLY,
-                location_type="zone",
-            )
-            assert (df_zone["Location Type"] == "Zone").all()
+        df_zone = self.iso.get_lmp(
+            date="today",
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type="zone",
+        )
+        assert (df_zone["Location Type"] == "Zone").all()
 
     @pytest.mark.integration
     def test_get_lmp_location_type_zone_latest(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_lmp_location_type_zone_latest.yaml",
-        ):
-            df_zone = self.iso.get_lmp(
-                date="latest",
-                market=Markets.DAY_AHEAD_HOURLY,
-                location_type="zone",
-            )
-            assert (df_zone["Location Type"] == "Zone").all()
+        df_zone = self.iso.get_lmp(
+            date="latest",
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type="zone",
+        )
+        assert (df_zone["Location Type"] == "Zone").all()
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
@@ -488,33 +458,27 @@ class TestNYISO(BaseTestISO):
         Markets.REAL_TIME_15_MIN,
     )
     def test_get_lmp_location_type_generator_today(self, market):
-        with nyiso_vcr.use_cassette(
-            "test_get_lmp_location_type_generator_today.yaml",
-        ):
-            df_gen = self.iso.get_lmp(
-                date="today",
-                market=market,
-                location_type="generator",
-            )
-            assert list(df_gen["Location Type"].unique()) == [
-                "Generator",
-                "Reference Bus",
-            ]
+        df_gen = self.iso.get_lmp(
+            date="today",
+            market=market,
+            location_type="generator",
+        )
+        assert list(df_gen["Location Type"].unique()) == [
+            "Generator",
+            "Reference Bus",
+        ]
 
     @pytest.mark.integration
     def test_get_lmp_location_type_generator_latest(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_lmp_location_type_generator_latest.yaml",
-        ):
-            df_gen = self.iso.get_lmp(
-                date="latest",
-                market=Markets.DAY_AHEAD_HOURLY,
-                location_type="generator",
-            )
-            assert list(df_gen["Location Type"].unique()) == [
-                "Generator",
-                "Reference Bus",
-            ]
+        df_gen = self.iso.get_lmp(
+            date="latest",
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type="generator",
+        )
+        assert list(df_gen["Location Type"].unique()) == [
+            "Generator",
+            "Reference Bus",
+        ]
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
@@ -814,13 +778,10 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_btm_solar_forecast_today(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_btm_solar_forecast_today.yaml",
-        ):
-            df = self.iso.get_btm_solar_forecast(
-                date="today",
-                verbose=True,
-            )
+        df = self.iso.get_btm_solar_forecast(
+            date="today",
+            verbose=True,
+        )
 
         self._check_btm_solar_forecast(df)
 
@@ -847,20 +808,17 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_load_forecast_today(self):
-        with nyiso_vcr.use_cassette(
-            "test_load_forecast_today.yaml",
-        ):
-            forecast = self.iso.get_load_forecast("today")
-            self._check_forecast(
-                forecast,
-                expected_columns=[
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Forecast Time",
-                    "Load Forecast",
-                ],
-            )
+        forecast = self.iso.get_load_forecast("today")
+        self._check_forecast(
+            forecast,
+            expected_columns=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Forecast Time",
+                "Load Forecast",
+            ],
+        )
 
     def test_load_forecast_historical_date_range(self):
         date = pd.Timestamp("2025-11-01")
@@ -888,34 +846,31 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_zonal_load_forecast_today(self):
-        with nyiso_vcr.use_cassette(
-            "test_zonal_load_forecast_today.yaml",
-        ):
-            df = self.iso.get_zonal_load_forecast("today")
+        df = self.iso.get_zonal_load_forecast("today")
 
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "NYISO",
-                "Capitl",
-                "Centrl",
-                "Dunwod",
-                "Genese",
-                "Hud Vl",
-                "Longil",
-                "Mhk Vl",
-                "Millwd",
-                "N.Y.C.",
-                "North",
-                "West",
-            ]
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "NYISO",
+            "Capitl",
+            "Centrl",
+            "Dunwod",
+            "Genese",
+            "Hud Vl",
+            "Longil",
+            "Mhk Vl",
+            "Millwd",
+            "N.Y.C.",
+            "North",
+            "West",
+        ]
 
-            assert df["Publish Time"].nunique() == 1
-            assert df["Interval Start"].min() == self.local_start_of_today()
-            assert (
-                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
-            ).all()
+        assert df["Publish Time"].nunique() == 1
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
+        ).all()
 
     def test_zonal_load_forecast_historical_date_range(self):
         date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
@@ -1173,10 +1128,7 @@ class TestNYISO(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_limiting_constraints_real_time_latest(self):
-        with nyiso_vcr.use_cassette(
-            "test_get_limiting_constraints_real_time_latest.yaml",
-        ):
-            df = self.iso.get_limiting_constraints_real_time(date="latest")
+        df = self.iso.get_limiting_constraints_real_time(date="latest")
         self._check_limiting_constraints(df, expected_duration_minutes=5)
 
     @pytest.mark.parametrize(
