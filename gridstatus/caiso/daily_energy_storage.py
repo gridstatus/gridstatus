@@ -1,3 +1,11 @@
+"""Parse CAISO Daily Energy Storage HTML reports.
+
+Each report embeds chart series as JavaScript array literals assigned to named
+variables (for example ``tot_energy_rtd``). The arrays contain numeric values
+only; they do not include timestamps. We align values to clock time by index
+from the report operating day start in Pacific time; see ``_interval_index``.
+"""
+
 from __future__ import annotations
 
 import ast
@@ -60,40 +68,48 @@ def _fetch_daily_energy_storage_html(
 
 
 def _extract_js_array_literal(html: str, var_name: str) -> str | None:
-    assign_needle = f"{var_name} = ["
-    pos = html.find(assign_needle)
-    if pos == -1:
-        assign_needle = f"var {var_name} = ["
-        pos = html.find(assign_needle)
-    if pos == -1:
+    # Find a top-level ``[ ... ]`` assigned to ``var_name``. Example (illustrative):
+    #   var tot_energy_rtd = [1334, 1098, 42];
+    # We take the substring ``[1334, 1098, 42]`` by bracket depth counting.
+    needle_plain = f"{var_name} = ["
+    needle_with_var = f"var {var_name} = ["
+    match_index = html.find(needle_plain)
+    matched_needle = needle_plain
+    if match_index == -1:
+        match_index = html.find(needle_with_var)
+        matched_needle = needle_with_var
+    if match_index == -1:
         return None
-    i = pos + len(assign_needle) - 1
-    if i < 0 or html[i] != "[":
+    array_open_index = match_index + len(matched_needle) - 1
+    if array_open_index < 0 or html[array_open_index] != "[":
         return None
-    depth = 0
-    start = i
-    while i < len(html):
-        c = html[i]
-        if c == "[":
-            depth += 1
-        elif c == "]":
-            depth -= 1
-            if depth == 0:
-                return html[start : i + 1]
-        i += 1
+    bracket_depth = 0
+    substring_start = array_open_index
+    scan_index = array_open_index
+    html_length = len(html)
+    while scan_index < html_length:
+        current_char = html[scan_index]
+        if current_char == "[":
+            bracket_depth += 1
+        elif current_char == "]":
+            bracket_depth -= 1
+            if bracket_depth == 0:
+                return html[substring_start : scan_index + 1]
+        scan_index += 1
     return None
 
 
 def _parse_js_array(html: str, var_name: str) -> list[Any]:
-    raw = _extract_js_array_literal(html, var_name)
-    if raw is None:
+    # Example: literal ``[1334, 1098]`` becomes ``list[Any]`` of ints; parse errors -> [].
+    array_text = _extract_js_array_literal(html, var_name)
+    if array_text is None:
         return []
     try:
-        val = ast.literal_eval(raw)
+        parsed_value = ast.literal_eval(array_text)
     except (SyntaxError, ValueError):
         return []
-    if isinstance(val, list):
-        return val
+    if isinstance(parsed_value, list):
+        return parsed_value
     return []
 
 

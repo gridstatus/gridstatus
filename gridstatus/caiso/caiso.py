@@ -3069,12 +3069,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Energy and ancillary services awards for storage in the FMM (15-minute)."""
-        if date == "latest":
-            return self.get_storage_awards_fmm(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3090,12 +3084,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Energy and AS awards for storage in the IFM (energy at 5-minute, AS hourly)."""
-        if date == "latest":
-            return self.get_storage_awards_ifm(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3111,12 +3099,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Energy awards for storage in RTD (5-minute)."""
-        if date == "latest":
-            return self.get_storage_awards_rtd(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3132,12 +3114,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """RUC energy awards to storage (5-minute)."""
-        if date == "latest":
-            return self.get_storage_energy_awards_ruc(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3153,12 +3129,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """FMM energy bid-in capacity by price bin (15-minute)."""
-        if date == "latest":
-            return self.get_storage_energy_bids_fmm(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3174,12 +3144,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """IFM energy bid-in capacity by price bin (hourly)."""
-        if date == "latest":
-            return self.get_storage_energy_bids_ifm(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3195,12 +3159,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """State of charge for storage in the FMM (15-minute, standalone resources)."""
-        if date == "latest":
-            return self.get_storage_soc_fmm(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3216,12 +3174,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Hourly state of charge by IFM vs RUC schedule (5-minute series)."""
-        if date == "latest":
-            return self.get_storage_soc_hourly(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
@@ -3237,12 +3189,6 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """State of charge for storage in RTD (5-minute, standalone resources)."""
-        if date == "latest":
-            return self.get_storage_soc_rtd(
-                pd.Timestamp.now(tz=self.default_timezone).normalize()
-                - pd.DateOffset(days=1),
-                verbose=verbose,
-            )
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
