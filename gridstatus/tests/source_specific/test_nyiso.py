@@ -20,6 +20,14 @@ class TestNYISO(BaseTestISO):
     """BaseTestISO overrides — mark today/latest/relative-date tests as integration"""
 
     @pytest.mark.integration
+    def test_get_fuel_mix_historical(self, time_column="Time"):
+        super().test_get_fuel_mix_historical(time_column=time_column)
+
+    @pytest.mark.integration
+    def test_get_interconnection_queue(self):
+        super().test_get_interconnection_queue()
+
+    @pytest.mark.integration
     def test_get_fuel_mix_date_or_start(self):
         super().test_get_fuel_mix_date_or_start()
 
