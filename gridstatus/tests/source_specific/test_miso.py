@@ -165,6 +165,7 @@ class TestMISO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_lmp_real_time_5_min_final("today")
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_historical_date_range(self):
         # Use a Wednesday (2025-11-05 is a Wednesday) to check logic
         start = pd.Timestamp("2025-11-05").date()
