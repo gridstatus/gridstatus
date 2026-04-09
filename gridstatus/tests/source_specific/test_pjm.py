@@ -124,7 +124,16 @@ class TestPJM(BaseTestISO):
     @pytest.mark.parametrize("market", [Markets.DAY_AHEAD_HOURLY])
     def test_lmp_date_range(self, market: Markets):
         with pjm_vcr.use_cassette(f"test_lmp_date_range_{market}.yaml"):
-            super().test_lmp_date_range(market=market)
+            # Use fixed dates instead of base class's pd.Timestamp.now()
+            # which breaks VCR cassette matching.
+            end = pd.Timestamp("2026-04-05").date()
+            three_days_ago = end - pd.Timedelta(days=3)
+
+            df_1 = self.iso.get_lmp(start=three_days_ago, end=end, market=market)
+            df_2 = self.iso.get_lmp(date=(three_days_ago, end), market=market)
+
+            self._check_lmp_columns(df_1, market)
+            assert df_1.equals(df_2)
 
     @pytest.mark.parametrize(
         "market",
