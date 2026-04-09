@@ -182,11 +182,14 @@ class TestPJM(BaseTestISO):
         ],
     )
     def test_get_lmp_no_data(self, date: pd.Timestamp):
-        with pytest.raises(NoDataFoundException):
-            self.iso.get_lmp(
-                date=date,
-                market="REAL_TIME_5_MIN",
-            )
+        with pjm_vcr.use_cassette(
+            f"test_get_lmp_no_data_{date.strftime('%Y-%m-%d')}.yaml"
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_lmp(
+                    date=date,
+                    market="REAL_TIME_5_MIN",
+                )
 
     @pytest.mark.integration
     @pytest.mark.parametrize(

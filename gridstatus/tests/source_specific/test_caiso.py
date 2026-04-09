@@ -1112,11 +1112,14 @@ class TestCAISO(BaseTestISO):
 
         # Change in url format on this date
         date_with_new_format = pd.Timestamp("2025-01-13")
-        df = self.iso.get_curtailed_non_operational_generator_report(
-            date=date_with_new_format,
-        )
-        assert df.shape[0] > 0
-        assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailed_non_operational_generator_report_new_format_{date_with_new_format.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_curtailed_non_operational_generator_report(
+                date=date_with_new_format,
+            )
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
 
     """get_tie_flows_real_time"""
 
@@ -1951,8 +1954,11 @@ class TestCAISO(BaseTestISO):
         """Test that NoDataFoundException includes start and end dates in the message."""
         future_date = "2050-01-01"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_hasp_15_min(future_date)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_hasp_15_min_no_data_exception_2050-01-01.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_hasp_15_min(future_date)
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1963,8 +1969,11 @@ class TestCAISO(BaseTestISO):
         future_start = "2050-01-01T00:00:00Z"
         future_end = "2050-01-01T00:00:05Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_hasp_15_min(future_start, future_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_hasp_15_min_no_data_exception_with_end_date.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_hasp_15_min(future_start, future_end)
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1976,8 +1985,13 @@ class TestCAISO(BaseTestISO):
         old_start = "2000-01-01T00:00:00Z"
         old_end = "2000-01-01T00:00:05Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_scheduling_point_tie_real_time_5_min(old_start, old_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_scheduling_point_tie_rt5_no_data_exception.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_scheduling_point_tie_real_time_5_min(
+                    old_start, old_end
+                )
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1990,8 +2004,13 @@ class TestCAISO(BaseTestISO):
         old_start = "2000-01-01T00:00:00Z"
         old_end = "2000-01-01T00:00:15Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_scheduling_point_tie_real_time_15_min(old_start, old_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_scheduling_point_tie_rt15_no_data_exception.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_scheduling_point_tie_real_time_15_min(
+                    old_start, old_end
+                )
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -2004,8 +2023,13 @@ class TestCAISO(BaseTestISO):
         old_start = "2000-01-01T00:00:00Z"
         old_end = "2000-01-01T01:00:00Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(old_start, old_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_scheduling_point_tie_dah_no_data_exception.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                    old_start, old_end
+                )
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)

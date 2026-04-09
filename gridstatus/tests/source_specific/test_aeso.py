@@ -23,7 +23,12 @@ api_vcr = setup_vcr(
 class TestAESO(TestHelperMixin):
     @classmethod
     def setup_class(cls):
-        cls.iso = AESO(api_key=os.getenv("AESO_API_KEY"))
+        # Use a dummy API key in CI playback mode (record_mode=none) so the
+        # class can be constructed without real credentials.
+        api_key = os.getenv("AESO_API_KEY") or (
+            "DUMMY_KEY_FOR_VCR_PLAYBACK" if RECORD_MODE == "none" else None
+        )
+        cls.iso = AESO(api_key=api_key)
 
     def _check_supply_and_demand(self, df: pd.DataFrame) -> None:
         expected_columns = list(SUPPLY_DEMAND_COLUMN_MAPPING.values())

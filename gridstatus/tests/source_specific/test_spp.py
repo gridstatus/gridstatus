@@ -1040,7 +1040,8 @@ class TestSPP(BaseTestISO):
     @pytest.mark.integration
     def test_get_load_historical(self):
         test_date = pd.Timestamp("2025-11-01").date()
-        df = self.iso.get_load(test_date)
+        with api_vcr.use_cassette("test_get_load_historical_2025-11-01.yaml"):
+            df = self.iso.get_load(test_date)
         assert isinstance(df, pd.DataFrame)
         assert len(df) > 0
         assert "Interval Start" in df.columns
@@ -1718,7 +1719,10 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_latest(self):
-        latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
+        with api_vcr.use_cassette(
+            "test_get_solar_and_wind_forecast_short_term_latest.yaml",
+        ):
+            latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
 
         # Single publish time
         assert (

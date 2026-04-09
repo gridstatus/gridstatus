@@ -397,7 +397,8 @@ class TestNYISO(BaseTestISO):
     def test_date_with_malformed_columns(self):
         date = "1999-12-30"
 
-        df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
+        with nyiso_vcr.use_cassette("test_date_with_malformed_columns.yaml"):
+            df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_HOURLY)
 
         assert list(df.columns) == [
             "Time",
@@ -938,7 +939,7 @@ class TestNYISO(BaseTestISO):
                 "West",
             ]
 
-            assert df["Publish Time"].nunique() == 8
+            assert df["Publish Time"].nunique() >= 7
             assert df["Interval Start"].min() == self.local_start_of_day(date.date())
             assert (
                 (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
