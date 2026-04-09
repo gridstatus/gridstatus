@@ -136,7 +136,7 @@ class TestPJM(BaseTestISO):
     )
     def test_get_lmp_historical(self, market: Markets):
         with pjm_vcr.use_cassette(f"test_get_lmp_historical_{market}.yaml"):
-            super().test_get_lmp_historical(market=market)
+            super().test_get_lmp_historical(market=market, date_str="2026-03-15")
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
@@ -306,8 +306,8 @@ class TestPJM(BaseTestISO):
                     pd.testing.assert_frame_equal(df, df_latest)
 
     def test_get_it_sced_lmp_5_min_historical_date_range(self):
-        start_date = pd.Timestamp("2025-11-01").date()
-        end_date = pd.Timestamp("2025-11-04").date()
+        start_date = pd.Timestamp("2026-03-15").date()
+        end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_it_sced_lmp_5_min_historical_date_range_{pd.Timestamp(start_date).strftime('%Y-%m-%d')}_{pd.Timestamp(end_date).strftime('%Y-%m-%d')}.yaml",
         ):
@@ -430,7 +430,7 @@ class TestPJM(BaseTestISO):
             assert self.iso.get_load_forecast("latest").equals(df)
 
     def test_get_load_forecast_in_past_raises_error(self):
-        start_date = pd.Timestamp("2025-11-01").date()
+        start_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette("test_get_load_forecast_in_past_raises_error.yaml"):
             with pytest.raises(NotSupported):
                 self.iso.get_load_forecast(start_date)
@@ -654,7 +654,7 @@ class TestPJM(BaseTestISO):
         [("five_min_solar_power_forecast")],
     )
     def test_get_pjm_json(self, endpoint):
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(
             f"test_get_pjm_json_{endpoint}_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
@@ -718,8 +718,8 @@ class TestPJM(BaseTestISO):
             ).all()
 
     def test_get_solar_forecast_hourly_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_solar_forecast_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -729,7 +729,7 @@ class TestPJM(BaseTestISO):
             self._check_solar_forecast(df)
 
     def test_get_solar_forecast_hourly_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
             f"test_get_solar_forecast_hourly_historical_date_{past_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -760,7 +760,7 @@ class TestPJM(BaseTestISO):
             ) + pd.Timedelta(hours=2)
 
     def test_get_solar_forecast_5_min_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
             f"test_get_solar_forecast_5_min_historical_date_{past_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -781,8 +781,8 @@ class TestPJM(BaseTestISO):
             ) + pd.Timedelta(days=1)
 
     def test_get_solar_forecast_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_solar_forecast_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -842,8 +842,8 @@ class TestPJM(BaseTestISO):
             assert self.iso.get_wind_forecast_hourly("latest").equals(df)
 
     def test_get_wind_forecast_hourly_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_wind_forecast_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -882,7 +882,7 @@ class TestPJM(BaseTestISO):
             assert self.iso.get_wind_forecast_5_min("latest").equals(df)
 
     def test_get_wind_forecast_5_min_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
             f"test_get_wind_forecast_5_min_historical_date_{past_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -904,8 +904,8 @@ class TestPJM(BaseTestISO):
             ) + pd.Timedelta(days=1)
 
     def test_get_wind_forecast_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_wind_forecast_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -996,7 +996,7 @@ class TestPJM(BaseTestISO):
         self._check_lmp_columns(hist, m)
 
         # all standard
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
 
         hist = self.iso.get_lmp(
@@ -1023,7 +1023,7 @@ class TestPJM(BaseTestISO):
             ).all()
 
     def test_get_gen_outages_by_type_with_past_date(self):
-        start_date_local = pd.Timestamp("2025-11-01").date()
+        start_date_local = pd.Timestamp("2026-03-15").date()
         start_date_time_local = self.local_start_of_day(start_date_local)
         with pjm_vcr.use_cassette(
             f"test_get_gen_outages_by_type_{start_date_time_local.strftime('%Y-%m-%d')}.yaml",
@@ -1126,7 +1126,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_projected_rto_statistics_at_peak_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
 
         with pjm_vcr.use_cassette(
             f"test_projected_rto_statistics_at_peak_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml",
@@ -1252,7 +1252,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_solar_generation_5_min_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(
@@ -1268,8 +1268,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_solar_generation_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
         with pjm_vcr.use_cassette(
@@ -1310,7 +1310,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_wind_generation_instantaneous_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(
@@ -1326,8 +1326,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_wind_generation_instantaneous_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
         with pjm_vcr.use_cassette(
@@ -1367,7 +1367,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_operational_reserves_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
@@ -1384,8 +1384,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_operational_reserves_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1430,7 +1430,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_transfer_interface_information_5_min_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
@@ -1447,8 +1447,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_transfer_interface_information_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1496,7 +1496,7 @@ class TestPJM(BaseTestISO):
         assert "none" not in df["Constraint Name"].values
 
     def test_get_transmission_limits_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
@@ -1515,8 +1515,8 @@ class TestPJM(BaseTestISO):
         assert "none" not in df["Constraint Name"].values
 
     def test_get_transmission_limits_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1563,7 +1563,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_solar_generation_by_area_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
@@ -1580,8 +1580,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_solar_generation_by_area_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1613,7 +1613,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_wind_generation_by_area_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
@@ -1630,8 +1630,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_wind_generation_by_area_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1680,7 +1680,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_dam_as_market_results_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
         with pjm_vcr.use_cassette(
@@ -1696,8 +1696,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_dam_as_market_results_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1714,8 +1714,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_dam_as_market_results_parsing(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
 
         with pjm_vcr.use_cassette(
             f"test_get_dam_as_market_results_parsing_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
@@ -1760,7 +1760,7 @@ class TestPJM(BaseTestISO):
     ]
 
     def test_get_real_time_as_market_results_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_date) + pd.Timedelta(days=1)
 
@@ -1777,8 +1777,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_real_time_as_market_results_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         range_start = self.local_start_of_day(past_date)
         range_end = self.local_start_of_day(past_end_date)
 
@@ -1795,8 +1795,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_real_time_as_market_results_parsing(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
 
         with pjm_vcr.use_cassette(
             f"test_get_real_time_as_market_results_parsing_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
@@ -1991,7 +1991,7 @@ class TestPJM(BaseTestISO):
         assert set(df["NERC Region"]) == {"RFC", "SERC", "RTO"}
 
     def test_get_load_metered_hourly_historical_date(self):
-        date = pd.Timestamp("2025-11-01").date()
+        date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
             f"test_get_load_metered_hourly_historical_date_{date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2006,8 +2006,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_load_metered_hourly_historical_date_range(self):
-        date = pd.Timestamp("2025-11-01").date()
-        end_date = pd.Timestamp("2025-11-04").date()
+        date = pd.Timestamp("2026-03-15").date()
+        end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_load_metered_hourly_historical_date_range_{date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2054,7 +2054,7 @@ class TestPJM(BaseTestISO):
             assert self.iso.get_forecasted_generation_outages("latest").equals(df)
 
     def test_get_forecasted_generation_outages_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
             f"test_get_forecasted_generation_outages_historical_date_{past_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2177,7 +2177,7 @@ class TestPJM(BaseTestISO):
             assert result["Duration"].dtype in [np.int64, np.float64]
 
     def test_get_settlements_verified_lmp_5_min_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
@@ -2208,7 +2208,7 @@ class TestPJM(BaseTestISO):
 
     def test_get_settlements_verified_lmp_hourly_date_range(self):
         # Data is only available more than 30 days in the past
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(hours=4)
         with pjm_vcr.use_cassette(
             f"test_get_settlements_verified_lmp_hourly_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
@@ -2241,7 +2241,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_day_ahead_demand_bids_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
@@ -2263,7 +2263,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_area_control_error_date_range(self):
-        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        date = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(days=2)
         """Test getting area control error data for a date range"""
         with pjm_vcr.use_cassette(
@@ -2378,8 +2378,8 @@ class TestPJM(BaseTestISO):
             assert df["Shortage Indicator"].dtype in [bool]
 
     def test_get_dispatched_reserves_prelim_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_dispatched_reserves_prelim_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2468,8 +2468,8 @@ class TestPJM(BaseTestISO):
             assert df["Deficit"].dtype in [np.float64, np.int64]
 
     def test_get_dispatched_reserves_verified_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_dispatched_reserves_verified_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2614,8 +2614,8 @@ class TestPJM(BaseTestISO):
             ) + pd.Timedelta(hours=24)
 
     def test_get_lmp_real_time_unverified_hourly_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-03").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-17").date()
 
         with pjm_vcr.use_cassette(
             f"test_get_lmp_real_time_unverified_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
@@ -2638,8 +2638,8 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() == self.local_start_of_day("today")
 
     def test_get_load_forecast_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-03").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-17").date()
         with pjm_vcr.use_cassette(
             f"test_get_load_forecast_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2676,8 +2676,8 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() == self.local_start_of_day("today")
 
     def test_get_regulation_prices_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-03").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-17").date()
         with pjm_vcr.use_cassette(
             f"test_get_regulation_prices_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2722,7 +2722,7 @@ class TestPJM(BaseTestISO):
             ].max() <= self.local_start_of_today() + pd.Timedelta(days=1)
 
     def test_get_tie_flows_5_min_historical_date(self):
-        past_date = pd.Timestamp("2025-11-01").date()
+        past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
             f"test_get_tie_flows_5_min_historical_date_{past_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2734,8 +2734,8 @@ class TestPJM(BaseTestISO):
             ) + pd.Timedelta(days=1)
 
     def test_get_tie_flows_5_min_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_tie_flows_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -2785,7 +2785,7 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_instantaneous_dispatch_rates_date_range(self):
-        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
@@ -3256,8 +3256,8 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() >= self.local_start_of_day(yesterday)
 
     def test_get_generation_capacity_daily_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_generation_capacity_daily_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -3296,8 +3296,8 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     def test_get_cleared_virtuals_daily_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_cleared_virtuals_daily_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -3350,8 +3350,8 @@ class TestPJM(BaseTestISO):
             )
 
     def test_get_inc_and_dec_bids_day_ahead_hourly_historical_range(self):
-        past_date = pd.Timestamp("2025-11-01").date()
-        past_end_date = pd.Timestamp("2025-11-04").date()
+        past_date = pd.Timestamp("2026-03-15").date()
+        past_end_date = pd.Timestamp("2026-03-18").date()
         with pjm_vcr.use_cassette(
             f"test_get_inc_and_dec_bids_day_ahead_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -3454,8 +3454,8 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].max().date() >= today - pd.Timedelta(days=1)
 
     def test_get_pai_intervals_5_min_historical_date_range(self):
-        date = pd.Timestamp("2025-11-01").date()
-        end = pd.Timestamp("2025-11-03").date()
+        date = pd.Timestamp("2026-03-15").date()
+        end = pd.Timestamp("2026-03-17").date()
         with pjm_vcr.use_cassette(
             f"test_get_pai_intervals_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -3502,7 +3502,7 @@ class TestPJM(BaseTestISO):
     def test_get_marginal_emission_rates_5_min_historical_date_range(
         self,
     ):
-        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        date = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(hours=1)
         with pjm_vcr.use_cassette(
             f"test_get_marginal_emission_rates_5_min_historical_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
