@@ -19,9 +19,14 @@ pjm_vcr = setup_vcr(
     record_mode=RECORD_MODE,
 )
 
+# Fall back to a dummy key when PJM_API_KEY is unset so module collection
+# works in CI without requiring the real key. Tests that hit the live API
+# are marked @pytest.mark.integration and filtered out by `make test-unit`.
+_PJM_API_KEY = os.getenv("PJM_API_KEY") or "DUMMY_KEY_FOR_VCR_PLAYBACK"
+
 
 class TestPJM(BaseTestISO):
-    iso = PJM()
+    iso = PJM(api_key=_PJM_API_KEY)
 
     test_dates = [
         ("2023-11-05", "2023-11-07"),

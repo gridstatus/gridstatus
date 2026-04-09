@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import pytest
 
@@ -11,7 +13,20 @@ api_vcr = setup_vcr(
     record_mode=RECORD_MODE,
 )
 
-all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE(), IESO()]
+# Fall back to a dummy PJM key when PJM_API_KEY is unset so module collection
+# works in CI without requiring the real key.
+_PJM_API_KEY = os.getenv("PJM_API_KEY") or "DUMMY_KEY_FOR_VCR_PLAYBACK"
+
+all_isos = [
+    MISO(),
+    CAISO(),
+    PJM(api_key=_PJM_API_KEY),
+    Ercot(),
+    SPP(),
+    NYISO(),
+    ISONE(),
+    IESO(),
+]
 
 """
 Legacy gridstatus tests file

@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import pandas as pd
 import pytest
@@ -42,7 +43,17 @@ class TestErcotAPI(TestHelperMixin):
     def setup_class(cls):
         # https://docs.pytest.org/en/stable/how-to/xunit_setup.html
         # Runs before all tests in this class
-        cls.iso = ErcotAPI(sleep_seconds=3, max_retries=5)
+        # Fall back to dummy credentials in CI playback mode so the class can
+        # be constructed without real ERCOT API credentials. Tests that hit
+        # the live API are marked @pytest.mark.integration.
+        kwargs = {"sleep_seconds": 3, "max_retries": 5}
+        if not os.getenv("ERCOT_API_USERNAME") and RECORD_MODE == "none":
+            kwargs.update(
+                username="DUMMY_USERNAME_FOR_VCR_PLAYBACK",
+                password="DUMMY_PASSWORD_FOR_VCR_PLAYBACK",
+                public_subscription_key="DUMMY_KEY_FOR_VCR_PLAYBACK",
+            )
+        cls.iso = ErcotAPI(**kwargs)
 
     """utils"""
 

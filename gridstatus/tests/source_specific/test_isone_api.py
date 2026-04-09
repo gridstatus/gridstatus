@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -50,6 +52,17 @@ LMP_COLUMNS = [
 
 class TestISONEAPI(TestHelperMixin):
     def setup_class(cls):
+        # Set dummy credentials in CI playback mode so ISONEAPI can be
+        # constructed without real credentials. ISONEAPI reads creds from
+        # env vars only, so we have to set them rather than passing kwargs.
+        # Tests that hit the live API are marked @pytest.mark.integration.
+        if not os.getenv("ISONE_API_USERNAME") and RECORD_MODE == "none":
+            os.environ.setdefault(
+                "ISONE_API_USERNAME", "DUMMY_USERNAME_FOR_VCR_PLAYBACK"
+            )
+            os.environ.setdefault(
+                "ISONE_API_PASSWORD", "DUMMY_PASSWORD_FOR_VCR_PLAYBACK"
+            )
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
 
     def test_class_init(self):
