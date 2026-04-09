@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from gridstatus import CAISO, Markets
-from gridstatus.base import NoDataFoundException
+from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.caiso.caiso import _collapse_group_to_array
 from gridstatus.caiso.caiso_constants import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -2037,6 +2037,114 @@ class TestCAISO(BaseTestISO):
         assert old_start in str(exc_info.value)
         assert old_end in str(exc_info.value)
         assert "Day Ahead Hourly" in str(exc_info.value)
+
+    _DAILY_ENERGY_STORAGE_CASSETTE = "test_daily_energy_storage_report_2026_04_06.yaml"
+    _DAILY_ENERGY_STORAGE_HISTORICAL_DATE = "2026-04-06"
+
+    _DAILY_ENERGY_STORAGE_METHODS = (
+        "get_storage_awards_fmm",
+        "get_storage_awards_ifm",
+        "get_storage_awards_rtd",
+        "get_storage_energy_awards_ruc",
+        "get_storage_energy_bids_fmm",
+        "get_storage_energy_bids_ifm",
+        "get_storage_soc_fmm",
+        "get_storage_soc_hourly",
+        "get_storage_soc_rtd",
+    )
+
+    @staticmethod
+    def _assert_daily_energy_storage_frame(method_name: str, df: pd.DataFrame) -> None:
+        if method_name == "get_storage_awards_fmm":
+            assert df.shape == (960, 5)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Product",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_awards_ifm":
+            assert df.shape == (240, 5)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Product",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_awards_rtd":
+            assert df.shape == (576, 4)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_energy_awards_ruc":
+            assert df.shape == (576, 4)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_energy_bids_fmm":
+            assert df.shape == (4608, 6)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Bid Range",
+                "Operation",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_energy_bids_ifm":
+            assert df.shape == (1152, 6)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Bid Range",
+                "Operation",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_soc_fmm":
+            assert df.shape == (288, 3)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "SOC",
+            }
+        elif method_name == "get_storage_soc_hourly":
+            assert df.shape == (576, 4)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "SOC",
+                "Schedule",
+            ]
+        elif method_name == "get_storage_soc_rtd":
+            assert df.shape == (288, 3)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "SOC",
+            }
+        else:
+            raise AssertionError(f"unknown method {method_name!r}")
+
+    @pytest.mark.parametrize("method_name", _DAILY_ENERGY_STORAGE_METHODS)
+    def test_daily_energy_storage_reports(self, method_name: str) -> None:
+        with caiso_vcr.use_cassette(self._DAILY_ENERGY_STORAGE_CASSETTE):
+            df = getattr(self.iso, method_name)(
+                self._DAILY_ENERGY_STORAGE_HISTORICAL_DATE,
+            )
+        self._assert_daily_energy_storage_frame(method_name, df)
+
+    def test_daily_energy_storage_latest_not_supported(self) -> None:
+        with pytest.raises(NotSupported):
+            self.iso.get_storage_awards_fmm("latest")
 
 
 NOMOGRAM_GROUP_COLS = [

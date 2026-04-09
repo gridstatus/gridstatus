@@ -57,6 +57,7 @@ from gridstatus.ercot_60d_utils import (
     _categorize_strings,
     extract_curve,
     process_as_offer_curves,
+    process_sced_resource_as_offers,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -4037,6 +4038,242 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
     if SCED_RESOURCE_AS_OFFERS_KEY in df_dict:
         resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
         assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+
+
+def _make_sced_resource_as_offers_df(rows):
+    """Build a DataFrame matching the raw SCED Resource AS Offers schema.
+
+    Accepts dicts with explicit values. Missing PRICE/QUANTITY columns
+    default to 0 (affected-period format) or can be set to np.nan by the
+    caller (corrected-period format).
+    """
+    as_suffixes = ["URS", "DRS", "RRSPF", "RRSUF", "RRSFF", "NS", "ECRS"]
+    n_blocks = 6
+    all_cols = ["SCED Timestamp", "Resource Name"]
+    for i in range(1, n_blocks + 1):
+        for suffix in as_suffixes:
+            all_cols.append(f"PRICE{i}_{suffix}")
+        all_cols.append(f"QUANTITY_MW{i}")
+
+    data = []
+    for row in rows:
+        record = {col: 0 for col in all_cols}
+        record.update(row)
+        data.append(record)
+    return pd.DataFrame(data, columns=all_cols)
+
+
+# fmt: off
+# Actual rows from ERCOT 60-Day SCED Resource AS Offers, OD 2026-01-15
+# (affected period: nulls converted to zeros)
+_AEEC_ANTLP_3_ONRES_AFFECTED = {
+    "SCED Timestamp": "2026-01-15 00:00:18",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 24.0, "QUANTITY_MW2": 9.8, "QUANTITY_MW3": 24.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 54.0,
+    "PRICE1_URS": 7.50, "PRICE2_URS": 0.0, "PRICE3_URS": 0.0,
+    "PRICE4_URS": 0.0, "PRICE5_URS": 0.0, "PRICE6_URS": 1423.91,
+    "PRICE1_DRS": 0.0, "PRICE2_DRS": 0.0, "PRICE3_DRS": 0.0,
+    "PRICE4_DRS": 0.0, "PRICE5_DRS": 0.0, "PRICE6_DRS": 0.0,
+    "PRICE1_RRSPF": 0.0, "PRICE2_RRSPF": 8.0, "PRICE3_RRSPF": 0.0,
+    "PRICE4_RRSPF": 0.0, "PRICE5_RRSPF": 0.0, "PRICE6_RRSPF": 974.41,
+    "PRICE1_RRSUF": 0.0, "PRICE2_RRSUF": 0.0, "PRICE3_RRSUF": 0.0,
+    "PRICE4_RRSUF": 0.0, "PRICE5_RRSUF": 0.0, "PRICE6_RRSUF": 974.41,
+    "PRICE1_RRSFF": 0.0, "PRICE2_RRSFF": 0.0, "PRICE3_RRSFF": 0.0,
+    "PRICE4_RRSFF": 0.0, "PRICE5_RRSFF": 0.0, "PRICE6_RRSFF": 974.41,
+    "PRICE1_NS": 0.0, "PRICE2_NS": 0.0, "PRICE3_NS": 8.0,
+    "PRICE4_NS": 0.0, "PRICE5_NS": 0.0, "PRICE6_NS": 172.32,
+    "PRICE1_ECRS": 0.0, "PRICE2_ECRS": 0.0, "PRICE3_ECRS": 0.0,
+    "PRICE4_ECRS": 0.0, "PRICE5_ECRS": 0.0, "PRICE6_ECRS": 974.41,
+}
+_AEEC_ANTLP_3_REGDN_AFFECTED = {
+    "SCED Timestamp": "2026-01-15 00:00:18",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 24.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 54.0,
+    "PRICE1_URS": 0.0, "PRICE2_URS": 0.0, "PRICE3_URS": 0.0,
+    "PRICE4_URS": 0.0, "PRICE5_URS": 0.0, "PRICE6_URS": 0.0,
+    "PRICE1_DRS": 10.0, "PRICE2_DRS": 0.0, "PRICE3_DRS": 0.0,
+    "PRICE4_DRS": 0.0, "PRICE5_DRS": 0.0, "PRICE6_DRS": 1999.99,
+    "PRICE1_RRSPF": 0.0, "PRICE2_RRSPF": 0.0, "PRICE3_RRSPF": 0.0,
+    "PRICE4_RRSPF": 0.0, "PRICE5_RRSPF": 0.0, "PRICE6_RRSPF": 0.0,
+    "PRICE1_RRSUF": 0.0, "PRICE2_RRSUF": 0.0, "PRICE3_RRSUF": 0.0,
+    "PRICE4_RRSUF": 0.0, "PRICE5_RRSUF": 0.0, "PRICE6_RRSUF": 0.0,
+    "PRICE1_RRSFF": 0.0, "PRICE2_RRSFF": 0.0, "PRICE3_RRSFF": 0.0,
+    "PRICE4_RRSFF": 0.0, "PRICE5_RRSFF": 0.0, "PRICE6_RRSFF": 0.0,
+    "PRICE1_NS": 0.0, "PRICE2_NS": 0.0, "PRICE3_NS": 0.0,
+    "PRICE4_NS": 0.0, "PRICE5_NS": 0.0, "PRICE6_NS": 0.0,
+    "PRICE1_ECRS": 0.0, "PRICE2_ECRS": 0.0, "PRICE3_ECRS": 0.0,
+    "PRICE4_ECRS": 0.0, "PRICE5_ECRS": 0.0, "PRICE6_ECRS": 0.0,
+}
+_AEEC_ANTLP_3_OFFNS_AFFECTED = {
+    "SCED Timestamp": "2026-01-15 00:00:18",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 54.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 54.0,
+    "PRICE1_URS": 0.0, "PRICE2_URS": 0.0, "PRICE3_URS": 0.0,
+    "PRICE4_URS": 0.0, "PRICE5_URS": 0.0, "PRICE6_URS": 0.0,
+    "PRICE1_DRS": 0.0, "PRICE2_DRS": 0.0, "PRICE3_DRS": 0.0,
+    "PRICE4_DRS": 0.0, "PRICE5_DRS": 0.0, "PRICE6_DRS": 0.0,
+    "PRICE1_RRSPF": 0.0, "PRICE2_RRSPF": 0.0, "PRICE3_RRSPF": 0.0,
+    "PRICE4_RRSPF": 0.0, "PRICE5_RRSPF": 0.0, "PRICE6_RRSPF": 0.0,
+    "PRICE1_RRSUF": 0.0, "PRICE2_RRSUF": 0.0, "PRICE3_RRSUF": 0.0,
+    "PRICE4_RRSUF": 0.0, "PRICE5_RRSUF": 0.0, "PRICE6_RRSUF": 0.0,
+    "PRICE1_RRSFF": 0.0, "PRICE2_RRSFF": 0.0, "PRICE3_RRSFF": 0.0,
+    "PRICE4_RRSFF": 0.0, "PRICE5_RRSFF": 0.0, "PRICE6_RRSFF": 0.0,
+    "PRICE1_NS": 8.0, "PRICE2_NS": 0.0, "PRICE3_NS": 0.0,
+    "PRICE4_NS": 0.0, "PRICE5_NS": 0.0, "PRICE6_NS": 172.32,
+    "PRICE1_ECRS": 0.0, "PRICE2_ECRS": 0.0, "PRICE3_ECRS": 0.0,
+    "PRICE4_ECRS": 0.0, "PRICE5_ECRS": 0.0, "PRICE6_ECRS": 0.0,
+}
+
+# Same resource from OD 2026-02-03 (corrected period: proper nulls)
+_N = np.nan
+_AEEC_ANTLP_3_ONRES_CORRECTED = {
+    "SCED Timestamp": "2026-02-03 00:00:23",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 16.0, "QUANTITY_MW2": 6.2, "QUANTITY_MW3": 16.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 36.0,
+    "PRICE1_URS": 7.50, "PRICE2_URS": _N, "PRICE3_URS": _N,
+    "PRICE4_URS": _N, "PRICE5_URS": _N, "PRICE6_URS": 1420.8,
+    "PRICE1_DRS": _N, "PRICE2_DRS": _N, "PRICE3_DRS": _N,
+    "PRICE4_DRS": _N, "PRICE5_DRS": _N, "PRICE6_DRS": _N,
+    "PRICE1_RRSPF": _N, "PRICE2_RRSPF": 8.0, "PRICE3_RRSPF": _N,
+    "PRICE4_RRSPF": _N, "PRICE5_RRSPF": _N, "PRICE6_RRSPF": 742.99,
+    "PRICE1_RRSUF": _N, "PRICE2_RRSUF": _N, "PRICE3_RRSUF": _N,
+    "PRICE4_RRSUF": _N, "PRICE5_RRSUF": _N, "PRICE6_RRSUF": 742.99,
+    "PRICE1_RRSFF": _N, "PRICE2_RRSFF": _N, "PRICE3_RRSFF": _N,
+    "PRICE4_RRSFF": _N, "PRICE5_RRSFF": _N, "PRICE6_RRSFF": 742.99,
+    "PRICE1_NS": _N, "PRICE2_NS": _N, "PRICE3_NS": 8.0,
+    "PRICE4_NS": _N, "PRICE5_NS": _N, "PRICE6_NS": 183.16,
+    "PRICE1_ECRS": _N, "PRICE2_ECRS": _N, "PRICE3_ECRS": _N,
+    "PRICE4_ECRS": _N, "PRICE5_ECRS": _N, "PRICE6_ECRS": 742.99,
+}
+_AEEC_ANTLP_3_REGDN_CORRECTED = {
+    "SCED Timestamp": "2026-02-03 00:00:23",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 16.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 36.0,
+    "PRICE1_URS": _N, "PRICE2_URS": _N, "PRICE3_URS": _N,
+    "PRICE4_URS": _N, "PRICE5_URS": _N, "PRICE6_URS": _N,
+    "PRICE1_DRS": 10.0, "PRICE2_DRS": _N, "PRICE3_DRS": _N,
+    "PRICE4_DRS": _N, "PRICE5_DRS": _N, "PRICE6_DRS": 1999.99,
+    "PRICE1_RRSPF": _N, "PRICE2_RRSPF": _N, "PRICE3_RRSPF": _N,
+    "PRICE4_RRSPF": _N, "PRICE5_RRSPF": _N, "PRICE6_RRSPF": _N,
+    "PRICE1_RRSUF": _N, "PRICE2_RRSUF": _N, "PRICE3_RRSUF": _N,
+    "PRICE4_RRSUF": _N, "PRICE5_RRSUF": _N, "PRICE6_RRSUF": _N,
+    "PRICE1_RRSFF": _N, "PRICE2_RRSFF": _N, "PRICE3_RRSFF": _N,
+    "PRICE4_RRSFF": _N, "PRICE5_RRSFF": _N, "PRICE6_RRSFF": _N,
+    "PRICE1_NS": _N, "PRICE2_NS": _N, "PRICE3_NS": _N,
+    "PRICE4_NS": _N, "PRICE5_NS": _N, "PRICE6_NS": _N,
+    "PRICE1_ECRS": _N, "PRICE2_ECRS": _N, "PRICE3_ECRS": _N,
+    "PRICE4_ECRS": _N, "PRICE5_ECRS": _N, "PRICE6_ECRS": _N,
+}
+_AEEC_ANTLP_3_OFFNS_CORRECTED = {
+    "SCED Timestamp": "2026-02-03 00:00:23",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 36.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 36.0,
+    "PRICE1_URS": _N, "PRICE2_URS": _N, "PRICE3_URS": _N,
+    "PRICE4_URS": _N, "PRICE5_URS": _N, "PRICE6_URS": _N,
+    "PRICE1_DRS": _N, "PRICE2_DRS": _N, "PRICE3_DRS": _N,
+    "PRICE4_DRS": _N, "PRICE5_DRS": _N, "PRICE6_DRS": _N,
+    "PRICE1_RRSPF": _N, "PRICE2_RRSPF": _N, "PRICE3_RRSPF": _N,
+    "PRICE4_RRSPF": _N, "PRICE5_RRSPF": _N, "PRICE6_RRSPF": _N,
+    "PRICE1_RRSUF": _N, "PRICE2_RRSUF": _N, "PRICE3_RRSUF": _N,
+    "PRICE4_RRSUF": _N, "PRICE5_RRSUF": _N, "PRICE6_RRSUF": _N,
+    "PRICE1_RRSFF": _N, "PRICE2_RRSFF": _N, "PRICE3_RRSFF": _N,
+    "PRICE4_RRSFF": _N, "PRICE5_RRSFF": _N, "PRICE6_RRSFF": _N,
+    "PRICE1_NS": 8.0, "PRICE2_NS": _N, "PRICE3_NS": _N,
+    "PRICE4_NS": _N, "PRICE5_NS": _N, "PRICE6_NS": 183.16,
+    "PRICE1_ECRS": _N, "PRICE2_ECRS": _N, "PRICE3_ECRS": _N,
+    "PRICE4_ECRS": _N, "PRICE5_ECRS": _N, "PRICE6_ECRS": _N,
+}
+# fmt: on
+
+
+class TestProcessScedResourceAsOffers:
+    """Tests for process_sced_resource_as_offers curve type detection.
+
+    ERCOT notice M-B040326-01: corrected files use NaN instead of zero
+    for empty AS Sub-Type Offer Prices. These tests use actual rows from
+    AEEC_ANTLP_3 on OD 2026-01-15 (affected) and OD 2026-02-03 (corrected)
+    to verify curve type classification works with both formats.
+    """
+
+    def test_online_with_zeros(self):
+        """Affected AEEC_ANTLP_3 ONRES row: zeros in inactive AS types."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_AFFECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_online_with_nans(self):
+        """Corrected AEEC_ANTLP_3 ONRES row: NaN in inactive AS types."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_regulation_down_with_zeros(self):
+        """Affected AEEC_ANTLP_3 REGDN row: zeros in all non-DRS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_REGDN_AFFECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Regulation Down"
+
+    def test_regulation_down_with_nans(self):
+        """Corrected AEEC_ANTLP_3 REGDN row: NaN in all non-DRS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_REGDN_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Regulation Down"
+
+    def test_offline_with_zeros(self):
+        """Affected AEEC_ANTLP_3 OFFNS row: zeros in all non-NS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_OFFNS_AFFECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Offline"
+
+    def test_offline_with_nans(self):
+        """Corrected AEEC_ANTLP_3 OFFNS row: NaN in all non-NS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_OFFNS_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Offline"
+
+    def test_three_rows_per_resource_with_nans(self):
+        """Corrected AEEC_ANTLP_3: all 3 rows classified correctly."""
+        df = _make_sced_resource_as_offers_df(
+            [
+                _AEEC_ANTLP_3_ONRES_CORRECTED,
+                _AEEC_ANTLP_3_REGDN_CORRECTED,
+                _AEEC_ANTLP_3_OFFNS_CORRECTED,
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == [
+            "Online",
+            "Regulation Down",
+            "Offline",
+        ]
+
+    def test_corrected_curves_exclude_nan_blocks(self):
+        """Corrected ONRES row: only blocks with real prices appear in curves."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+
+        # URS has prices in blocks 1 (7.50) and 6 (1420.8)
+        urs_curve = result["URS Offer Curve"].iloc[0]
+        assert urs_curve == [[16.0, 7.5], [36.0, 1420.8]]
+
+        # RRSPF has prices in blocks 2 (8.0) and 6 (742.99)
+        rrspf_curve = result["RRSPFR Offer Curve"].iloc[0]
+        assert rrspf_curve == [[6.2, 8.0], [36.0, 742.99]]
+
+        # DRS is entirely NaN — should be None
+        assert result["DRS Offer Curve"].iloc[0] is None
+
+    def test_output_columns(self):
+        """Verify processed output has the standard column set."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
 def check_60_day_dam_disclosure(df_dict):
