@@ -154,7 +154,7 @@ def _long_energy_awards(
         return pd.DataFrame(columns=cols)
     starts, ends = _interval_index(report_start, n, minutes)
     if product is not None:
-        s_rows = pd.DataFrame(
+        standalone_rows = pd.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
@@ -163,7 +163,7 @@ def _long_energy_awards(
                 "MW": values_standalone[:n],
             },
         )
-        h_rows = pd.DataFrame(
+        hybrid_rows = pd.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
@@ -173,7 +173,7 @@ def _long_energy_awards(
             },
         )
     else:
-        s_rows = pd.DataFrame(
+        standalone_rows = pd.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
@@ -181,7 +181,7 @@ def _long_energy_awards(
                 "MW": values_standalone[:n],
             },
         )
-        h_rows = pd.DataFrame(
+        hybrid_rows = pd.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
@@ -189,7 +189,7 @@ def _long_energy_awards(
                 "MW": values_hybrid[:n],
             },
         )
-    return pd.concat([s_rows, h_rows], ignore_index=True)
+    return pd.concat([standalone_rows, hybrid_rows], ignore_index=True)
 
 
 def _long_as_awards(
@@ -380,12 +380,16 @@ def build_storage_awards_fmm(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
-    e_s = _downsample_5min_to_15min(_parse_js_array(html, "tot_energy_rtpd"))
-    e_h = _downsample_5min_to_15min(_parse_js_array(html, "tot_energy_hybrid_rtpd"))
+    energy_standalone = _downsample_5min_to_15min(
+        _parse_js_array(html, "tot_energy_rtpd"),
+    )
+    energy_hybrid = _downsample_5min_to_15min(
+        _parse_js_array(html, "tot_energy_hybrid_rtpd"),
+    )
     energy = _long_energy_awards(
         report_start,
-        e_s,
-        e_h,
+        energy_standalone,
+        energy_hybrid,
         15,
         "Energy",
     )
@@ -420,12 +424,16 @@ def build_storage_awards_ifm(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
-    e_s = _downsample_5min_to_60min(_parse_js_array(html, "tot_energy_ifm"))
-    e_h = _downsample_5min_to_60min(_parse_js_array(html, "tot_energy_hybrid_ifm"))
+    energy_standalone = _downsample_5min_to_60min(
+        _parse_js_array(html, "tot_energy_ifm"),
+    )
+    energy_hybrid = _downsample_5min_to_60min(
+        _parse_js_array(html, "tot_energy_hybrid_ifm"),
+    )
     energy = _long_energy_awards(
         report_start,
-        e_s,
-        e_h,
+        energy_standalone,
+        energy_hybrid,
         60,
         "Energy",
     )
@@ -460,10 +468,12 @@ def build_storage_awards_rtd(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
+    energy_standalone = _parse_js_array(html, "tot_energy_rtd")
+    energy_hybrid = _parse_js_array(html, "tot_energy_hybrid_rtd")
     return _long_energy_awards(
         report_start,
-        _parse_js_array(html, "tot_energy_rtd"),
-        _parse_js_array(html, "tot_energy_hybrid_rtd"),
+        energy_standalone,
+        energy_hybrid,
         5,
         product=None,
     ).sort_values(["Interval Start", "Type"])
@@ -473,10 +483,12 @@ def build_storage_energy_awards_ruc(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
+    energy_standalone = _parse_js_array(html, "tot_energy_ruc")
+    energy_hybrid = _parse_js_array(html, "tot_energy_hybrid_ruc")
     return _long_energy_awards(
         report_start,
-        _parse_js_array(html, "tot_energy_ruc"),
-        _parse_js_array(html, "tot_energy_hybrid_ruc"),
+        energy_standalone,
+        energy_hybrid,
         5,
         product=None,
     ).sort_values(["Interval Start", "Type"])
@@ -486,9 +498,9 @@ def build_storage_soc_hourly(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
-    ifm = _parse_js_array(html, "tot_charge_ifm")
-    ruc = _parse_js_array(html, "tot_charge_ruc")
-    n = min(len(ifm), len(ruc))
+    ifm_soc_series = _parse_js_array(html, "tot_charge_ifm")
+    ruc_soc_series = _parse_js_array(html, "tot_charge_ruc")
+    n = min(len(ifm_soc_series), len(ruc_soc_series))
     if n == 0:
         return pd.DataFrame(
             columns=[
@@ -503,7 +515,7 @@ def build_storage_soc_hourly(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "SOC": ifm[:n],
+            "SOC": ifm_soc_series[:n],
             "Schedule": "IFM",
         },
     )
@@ -511,7 +523,7 @@ def build_storage_soc_hourly(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "SOC": ruc[:n],
+            "SOC": ruc_soc_series[:n],
             "Schedule": "RUC",
         },
     )
@@ -524,8 +536,8 @@ def build_storage_soc_fmm(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
-    s = _parse_js_array(html, "tot_charge_rtpd")
-    n = len(s)
+    standalone_soc_series = _parse_js_array(html, "tot_charge_rtpd")
+    n = len(standalone_soc_series)
     if n == 0:
         return pd.DataFrame(
             columns=[
@@ -539,7 +551,7 @@ def build_storage_soc_fmm(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "SOC": s,
+            "SOC": standalone_soc_series,
         },
     ).sort_values(["Interval Start"])
 
@@ -548,8 +560,8 @@ def build_storage_soc_rtd(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
-    s = _parse_js_array(html, "tot_charge_rtd")
-    n = len(s)
+    standalone_soc_series = _parse_js_array(html, "tot_charge_rtd")
+    n = len(standalone_soc_series)
     if n == 0:
         return pd.DataFrame(
             columns=[
@@ -563,7 +575,7 @@ def build_storage_soc_rtd(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "SOC": s,
+            "SOC": standalone_soc_series,
         },
     ).sort_values(["Interval Start"])
 

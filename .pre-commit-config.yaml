@@ -35,6 +35,8 @@ repos:
     hooks:
       - id: mypy
         args: ["--config-file=pyproject.toml"]
+        additional_dependencies:
+          - types-requests~=2.32
         exclude: >
           (?x)^(
             docs/.*|
