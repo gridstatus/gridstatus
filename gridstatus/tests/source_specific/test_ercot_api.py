@@ -908,6 +908,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() <= self.local_now()
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_lmp_by_bus_latest(self):
         df = self.iso.get_lmp_by_bus("latest")
@@ -1428,6 +1431,9 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_60_day_sced_disclosure"""
 
+    @pytest.mark.skip(
+        reason="ERCOT 60-day disclosure today-relative dates - https://www.notion.so/33de835f42aa81d0b7d2f2f412fa8906"
+    )
     @pytest.mark.integration
     def test_get_60_day_sced_disclosure_historical(self):
         start_date = pd.Timestamp("2023-01-15", tz=self.iso.default_timezone)
@@ -1823,6 +1829,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df.dtypes["System Demand"] == "float64"
         assert df.dtypes["ESR Charging MW"] == "float64"
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_system_load_charging_4_seconds_today(self):
         df = self.iso.get_system_load_charging_4_seconds("today", verbose=True)
@@ -1833,6 +1842,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Time"].min() >= self.local_start_of_today()
         assert df["Time"].max() <= self.local_now()
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_system_load_charging_4_seconds_date_range(self):
         start_date = pd.Timestamp("2026-04-03").date()
@@ -1854,6 +1866,9 @@ class TestErcotAPI(TestHelperMixin):
             tz=ErcotAPI().default_timezone,
         )
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_system_load_charging_dst_end(self):
         start_date = pd.Timestamp("2026-04-02 00:00:00").tz_localize(

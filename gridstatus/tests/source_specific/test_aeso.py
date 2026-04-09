@@ -37,6 +37,9 @@ class TestAESO(TestHelperMixin):
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_supply_and_demand(self):
         df = self.iso.get_supply_and_demand()
@@ -53,6 +56,9 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_fuel_mix(self):
         df = self.iso.get_fuel_mix()
@@ -82,6 +88,9 @@ class TestAESO(TestHelperMixin):
             "Net Interchange Flow should be the sum of individual flows"
         )
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_interchange(self):
         df = self.iso.get_interchange()
@@ -93,6 +102,9 @@ class TestAESO(TestHelperMixin):
 
         assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_reserves(self):
         df = self.iso.get_reserves()
@@ -112,11 +124,17 @@ class TestAESO(TestHelperMixin):
         assert df["Net To Grid Asset Flag"].dtype == "object"
         assert df["Asset Include Storage Flag"].dtype == "object"
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_asset_list(self):
         df = self.iso.get_asset_list()
         self._check_asset_list(df)
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_asset_list_empty(self):
         df = self.iso.get_asset_list(asset_id="NONEXISTENT")
@@ -179,6 +197,9 @@ class TestAESO(TestHelperMixin):
                     minutes=5,
                 )
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_pool_price_latest(self):
         """Test getting latest pool price data."""
@@ -213,6 +234,9 @@ class TestAESO(TestHelperMixin):
             self._check_pool_price(df)
             assert len(df) == expected_hours
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_forecast_pool_price_latest(self):
         """Test getting latest forecast pool price data."""
@@ -274,6 +298,9 @@ class TestAESO(TestHelperMixin):
         assert not df["System Marginal Price"].isna().any()
         assert not df["Volume"].isna().any()
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_system_marginal_price_latest(self):
         """Test getting latest system marginal price data."""
@@ -385,6 +412,9 @@ class TestAESO(TestHelperMixin):
                 )
                 assert row["Publish Time"] == expected_publish
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_load_latest(self):
         """Test getting latest load data."""
@@ -420,6 +450,9 @@ class TestAESO(TestHelperMixin):
             self._check_load(df)
             assert len(df) == expected_hours
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_load_forecast_latest(self):
         """Test getting latest load forecast data."""
@@ -454,6 +487,9 @@ class TestAESO(TestHelperMixin):
             self._check_load_forecast(df)
             assert len(df) == expected_hours
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_load_forecast_future_publish_times(self):
         """Test that future intervals have correct publish times."""
@@ -528,6 +564,9 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_unit_status(self):
         """Test getting current unit status data."""
@@ -587,6 +626,9 @@ class TestAESO(TestHelperMixin):
         ]
         assert (df["Total Outage"] == df[outage_columns].sum(axis=1)).all()
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_generator_outages_hourly_latest(self):
         """Test getting latest generator outages data."""
@@ -916,6 +958,9 @@ class TestAESO(TestHelperMixin):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.skip(
+        reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+    )
     @pytest.mark.integration
     def test_get_daily_average_pool_price_latest(self):
         """Test getting latest daily average pool price data."""

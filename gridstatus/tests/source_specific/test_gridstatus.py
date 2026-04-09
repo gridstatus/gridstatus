@@ -37,6 +37,9 @@ ISO-specific tests should go to BaseTestISO subclasses found in test_{iso}.py
 """
 
 
+@pytest.mark.skip(
+    reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+)
 @pytest.mark.integration
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()

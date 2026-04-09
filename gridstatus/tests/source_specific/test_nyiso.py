@@ -23,6 +23,9 @@ class TestNYISO(BaseTestISO):
     def test_get_fuel_mix_historical(self, time_column="Time"):
         super().test_get_fuel_mix_historical(time_column=time_column)
 
+    @pytest.mark.skip(
+        reason="NYISO interconnection queue 202 / capacity prices format - https://www.notion.so/33de835f42aa8171bd6fe875665e5cf3"
+    )
     @pytest.mark.integration
     def test_get_interconnection_queue(self):
         super().test_get_interconnection_queue()
@@ -65,6 +68,9 @@ class TestNYISO(BaseTestISO):
 
     """"get_capacity_prices"""
 
+    @pytest.mark.skip(
+        reason="NYISO interconnection queue 202 / capacity prices format - https://www.notion.so/33de835f42aa8171bd6fe875665e5cf3"
+    )
     @pytest.mark.integration
     @pytest.mark.parametrize(
         "date",

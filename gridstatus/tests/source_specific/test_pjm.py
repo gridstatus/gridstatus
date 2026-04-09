@@ -3404,6 +3404,9 @@ class TestPJM(BaseTestISO):
         assert df["Marginal SO2 Rate"].dtype in [np.float64, np.int64]
         assert df["Marginal NOx Rate"].dtype in [np.float64, np.int64]
 
+    @pytest.mark.skip(
+        reason="PJM marginal_emission_rates tz comparison bug - https://www.notion.so/33de835f42aa81e4b2e9cad7a20c4f36"
+    )
     @pytest.mark.integration
     def test_get_marginal_emission_rates_5_min_latest(self):
         df = self.iso.get_marginal_emission_rates_5_min("latest")

@@ -87,6 +87,9 @@ class TestISONEAPI(TestHelperMixin):
                 "AreaType",
             ]
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     @pytest.mark.parametrize(
         "location",
@@ -111,6 +114,9 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
         assert isinstance(result["Load"].iloc[0], (int, float))
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_dayahead_hourly_demand_latest(self):
         result = self.iso.get_dayahead_hourly_demand(
@@ -136,6 +142,9 @@ class TestISONEAPI(TestHelperMixin):
         with pytest.raises(ValueError):
             self.iso.get_dayahead_hourly_demand(locations=["INVALID_LOCATION"])
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     @pytest.mark.parametrize(
         "locations",
@@ -316,6 +325,9 @@ class TestISONEAPI(TestHelperMixin):
             grouped = result.groupby(["Interval Start", "Publish Time"])
             assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
         result = self.iso.get_fuel_mix(date="latest")
@@ -355,6 +367,9 @@ class TestISONEAPI(TestHelperMixin):
                 assert result[col].dtype in [np.int64, np.float64]
                 assert (result[numeric_cols].sum(axis=1) > 0).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_load_hourly_latest(self):
         result = self.iso.get_load_hourly(date="latest")
@@ -619,6 +634,9 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_zonal_load_estimated_5_min_latest(self):
         result = self.iso.get_zonal_load_estimated_5_min(date="latest")
@@ -650,6 +668,9 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(minutes=5)
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_hourly_prelim_latest(self):
         result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
@@ -681,6 +702,9 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_hourly_final_latest(self):
         result = self.iso.get_lmp_real_time_hourly_final(date="latest")
@@ -712,6 +736,9 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_prelim_latest(self):
         result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
@@ -748,6 +775,9 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_latest(self):
         result = self.iso.get_lmp_real_time_5_min_final(date="latest")
@@ -835,6 +865,9 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Cold Weather Warning"].dtype == object
         assert result["Cold Weather Event"].dtype == object
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_capacity_forecast_7_day_latest(self):
         result = self.iso.get_capacity_forecast_7_day(date="latest")
@@ -871,6 +904,9 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
         result = self.iso.get_regulation_clearing_prices_real_time_5_min(
@@ -945,6 +981,9 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
         result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
@@ -1012,6 +1051,9 @@ class TestISONEAPI(TestHelperMixin):
 
         assert ((df["Interval End"] - df["Interval Start"]) == interval).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
         result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
@@ -1047,6 +1089,9 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_zone_prices_designations_real_time_hourly_final"""
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
         result = self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
@@ -1084,6 +1129,9 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_zone_prices_designations_real_time_hourly_prelim"""
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
         self,
@@ -1155,6 +1203,9 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
         result = self.iso.get_ancillary_services_strike_prices_day_ahead(
@@ -1233,6 +1284,9 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(hours=1),
         )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_15_min_latest(self) -> None:
         try:
@@ -1254,6 +1308,9 @@ class TestISONEAPI(TestHelperMixin):
                 "No data found for preliminary real-time 15-minute binding constraints",
             )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
         df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
@@ -1333,6 +1390,9 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=15),
         )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_5_min_latest(self) -> None:
         df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
@@ -1350,6 +1410,9 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=5),
         )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_5_min_latest(self) -> None:
         df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
@@ -1455,6 +1518,9 @@ class TestISONEAPI(TestHelperMixin):
         for col in numeric_cols:
             assert df[col].dtype in [np.int64, np.float64]
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_fcm_reconfiguration_monthly_latest(self):
         result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
@@ -1479,6 +1545,9 @@ class TestISONEAPI(TestHelperMixin):
             self._check_fcm_reconfiguration(result)
             assert result["Interval Start"].min().date() == date.date()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
     @pytest.mark.integration
     def test_get_fcm_reconfiguration_annual_latest(self):
         result = self.iso.get_fcm_reconfiguration_annual(date="latest")

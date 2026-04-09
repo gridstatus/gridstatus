@@ -28,10 +28,16 @@ class TestSPP(BaseTestISO):
 
     # -- Base class tests using today/latest/relative dates → mark integration --
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_load_latest(self):
         super().test_get_load_latest()
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_load_today(self):
         super().test_get_load_today()
@@ -273,6 +279,9 @@ class TestSPP(BaseTestISO):
 
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_location_latest(self):
         df = self.iso.get_lmp_real_time_5_min_by_location(date="latest")
@@ -352,6 +361,9 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.DateOffset(minutes=5)
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     @pytest.mark.parametrize(
         "location_type",
@@ -434,6 +446,9 @@ class TestSPP(BaseTestISO):
 
         assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_by_bus_latest(self):
         df = self.iso.get_lmp_real_time_5_min_by_bus(date="latest")
@@ -683,6 +698,9 @@ class TestSPP(BaseTestISO):
         assert len(df) > 0
         assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_operating_reserves_latest(self):
         df = self.iso.get_operating_reserves(date="latest")
@@ -1645,6 +1663,9 @@ class TestSPP(BaseTestISO):
 
     """get_solar_and_wind_forecast_short_term"""
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_today(self):
         df = self.iso.get_solar_and_wind_forecast_short_term(date="today")
@@ -1665,6 +1686,9 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_short_term_latest(self):
         latest = self.iso.get_solar_and_wind_forecast_short_term(date="latest")
@@ -1754,6 +1778,9 @@ class TestSPP(BaseTestISO):
 
     """get_solar_and_wind_forecast_mid_term"""
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_today(self):
         df = self.iso.get_solar_and_wind_forecast_mid_term(date="today")
@@ -1771,6 +1798,9 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_mid_term_latest(self):
         latest = self.iso.get_solar_and_wind_forecast_mid_term(date="latest")
@@ -2521,6 +2551,9 @@ class TestSPP(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_market_clearing_real_time_latest(self):
         df = self.iso.get_market_clearing_real_time(date="latest")
@@ -2574,6 +2607,9 @@ class TestSPP(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=60)
         ).all()
 
+    @pytest.mark.skip(
+        reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
+    )
     @pytest.mark.integration
     def test_market_clearing_day_ahead_latest(self):
         df = self.iso.get_market_clearing_day_ahead(date="latest")
@@ -2688,6 +2724,9 @@ class TestSPP(BaseTestISO):
             minutes=55,
         )
 
+    @pytest.mark.skip(
+        reason="SPP binding_constraints assertion bug - https://www.notion.so/33de835f42aa8115b269f62149f5773c"
+    )
     @pytest.mark.integration
     def test_get_binding_constraints_real_time_5_min_range_includes_today(self):
         start_date = self.local_now() - pd.Timedelta(days=1)

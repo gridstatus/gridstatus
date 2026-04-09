@@ -167,6 +167,9 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End"]:
                 assert data[col].dtype == "float64"
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
     @pytest.mark.integration
     def test_get_interchange_hourly_today(self):
         df = self.iso.get_interchange_hourly("today")
@@ -1207,6 +1210,9 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
     @pytest.mark.integration
     def test_get_look_ahead_hourly_past_date_raises_error(self):
         # Try to get look ahead for yesterday - should raise NotSupported

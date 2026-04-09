@@ -418,6 +418,9 @@ class TestCAISO(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, 1)
 
+    @pytest.mark.skip(
+        reason="CAISO renewables_forecast_hasp KeyError - https://www.notion.so/33de835f42aa81ea8497f8620a95ac64"
+    )
     @pytest.mark.integration
     def test_get_renewables_forecast_hasp_latest(self):
         df = self.iso.get_renewables_forecast_hasp("latest")

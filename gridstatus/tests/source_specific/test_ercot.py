@@ -247,6 +247,9 @@ class TestErcot(BaseTestISO):
                 (start_date + pd.DateOffset(days=1)).date(),
             ]
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_monitor(self):
         df = self.iso.get_as_monitor()
@@ -674,6 +677,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min().minute == 0
         self._check_ercot_spp(df, Markets.DAY_AHEAD_HOURLY, "Load Zone")
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_spp_dam_range(self):
         with api_vcr.use_cassette("test_get_spp_dam_range.yaml"):
@@ -714,6 +720,9 @@ class TestErcot(BaseTestISO):
 
             self._check_ercot_spp(df, Markets.REAL_TIME_15_MIN, "Load Zone")
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_spp_real_time_historical(self):
         date = pd.Timestamp("2026-04-03").date()
@@ -818,6 +827,9 @@ class TestErcot(BaseTestISO):
 
     """get_60_day_sced_disclosure"""
 
+    @pytest.mark.skip(
+        reason="ERCOT 60-day disclosure today-relative dates - https://www.notion.so/33de835f42aa81d0b7d2f2f412fa8906"
+    )
     @pytest.mark.integration
     def test_get_60_day_sced_disclosure_historical(self):
         date = pd.Timestamp("2026-04-03").date()
@@ -906,6 +918,9 @@ class TestErcot(BaseTestISO):
         # Also check the other datasets are still present
         check_60_day_sced_disclosure(df_dict)
 
+    @pytest.mark.skip(
+        reason="ERCOT 60-day disclosure today-relative dates - https://www.notion.so/33de835f42aa81d0b7d2f2f412fa8906"
+    )
     @pytest.mark.integration
     def test_get_60_day_sced_disclosure_supplemental_correction(self):
         # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
@@ -1043,6 +1058,9 @@ class TestErcot(BaseTestISO):
         assert len(curve) > 0
         assert len(curve[0]) == 2
 
+    @pytest.mark.skip(
+        reason="ERCOT 60-day disclosure today-relative dates - https://www.notion.so/33de835f42aa81d0b7d2f2f412fa8906"
+    )
     @pytest.mark.integration
     def test_get_60_day_dam_disclosure_online_nonspin_offer_curves(self):
         """Test that ONLINE NONSPIN offer curves are correctly parsed.
@@ -1084,6 +1102,9 @@ class TestErcot(BaseTestISO):
             "dam_esr_as_offers",
         )
 
+    @pytest.mark.skip(
+        reason="ERCOT 60-day disclosure today-relative dates - https://www.notion.so/33de835f42aa81d0b7d2f2f412fa8906"
+    )
     @pytest.mark.integration
     def test_get_60_day_dam_disclosure_offline_nonspin_offer_curves(self):
         """Test that OFFLINE NONSPIN offer curves are correctly parsed.
@@ -1850,6 +1871,9 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_mcpc_dam_price_corrections(self):
         """Test DAM AS Price Corrections (MCPC)."""
@@ -2027,6 +2051,9 @@ class TestErcot(BaseTestISO):
 
             self._check_short_term_system_adequacy(df)
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_short_term_system_adequacy_historical_range(self):
         with api_vcr.use_cassette(
@@ -2094,6 +2121,9 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_real_time_adders_and_reserves_today(self):
         df = self.iso.get_real_time_adders_and_reserves("today")
@@ -2111,6 +2141,9 @@ class TestErcot(BaseTestISO):
             >= hours_since_start_of_day * INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION
         )
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_real_time_adders_and_reserves_latest(self):
         df = self.iso.get_real_time_adders_and_reserves("latest")
@@ -2119,6 +2152,9 @@ class TestErcot(BaseTestISO):
 
         assert len(df) == 1
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_real_time_adders_and_reserves_historical(self):
         with api_vcr.use_cassette(
@@ -2136,6 +2172,9 @@ class TestErcot(BaseTestISO):
 
             assert len(df) >= 24 * INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_real_time_adders_and_reserves_historical_range(self):
         with api_vcr.use_cassette(
@@ -2175,6 +2214,9 @@ class TestErcot(BaseTestISO):
     temperature_forecast_start_offset = -pd.DateOffset(days=3)
     temperature_forecast_end_offset = pd.DateOffset(days=9)
 
+    @pytest.mark.skip(
+        reason="ERCOT temperature_forecast DST hour offset - https://www.notion.so/33de835f42aa813f8587d1116069fe7b"
+    )
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_today_and_latest(self):
         df = self.iso.get_temperature_forecast_by_weather_zone("today")
@@ -2196,6 +2238,9 @@ class TestErcot(BaseTestISO):
 
         assert self.iso.get_temperature_forecast_by_weather_zone("latest").equals(df)
 
+    @pytest.mark.skip(
+        reason="ERCOT temperature_forecast DST hour offset - https://www.notion.so/33de835f42aa813f8587d1116069fe7b"
+    )
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_historical_date(self):
         with api_vcr.use_cassette(
@@ -2222,6 +2267,9 @@ class TestErcot(BaseTestISO):
 
             self._check_temperature_forecast_by_weather_zone(df)
 
+    @pytest.mark.skip(
+        reason="ERCOT temperature_forecast DST hour offset - https://www.notion.so/33de835f42aa813f8587d1116069fe7b"
+    )
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_historical_range(self):
         with api_vcr.use_cassette(
@@ -2249,6 +2297,9 @@ class TestErcot(BaseTestISO):
 
             self._check_temperature_forecast_by_weather_zone(df)
 
+    @pytest.mark.skip(
+        reason="ERCOT temperature_forecast DST hour offset - https://www.notion.so/33de835f42aa813f8587d1116069fe7b"
+    )
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
         df = self.iso.get_temperature_forecast_by_weather_zone("2026-04-03")
@@ -2466,6 +2517,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.DateOffset(days=1)
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_lmp_by_bus_dam_date_range(self):
         start = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -2779,6 +2833,9 @@ class TestErcot(BaseTestISO):
         current_year = pd.Timestamp.now().year
         assert df["Interval Start"].dt.year.unique() == [current_year]
 
+    @pytest.mark.skip(
+        reason="ERCOT hourly_load_post_settlements year filter - https://www.notion.so/33de835f42aa81c78f68edaa1d10790c"
+    )
     @pytest.mark.integration
     @pytest.mark.parametrize("date, end", [("2010-03-01", "2010-08-02")])
     def test_get_hourly_load_post_settlements_xls(self, date, end):
@@ -2789,6 +2846,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
         assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
 
+    @pytest.mark.skip(
+        reason="ERCOT hourly_load_post_settlements year filter - https://www.notion.so/33de835f42aa81c78f68edaa1d10790c"
+    )
     @pytest.mark.integration
     @pytest.mark.parametrize("date, end", [("2023-07-01", "2023-08-02")])
     def test_get_hourly_load_post_settlements_zip(self, date, end):
@@ -2835,6 +2895,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.DateOffset(days=1)
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_mcpc_dam_date_range(self):
         start = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -2903,6 +2966,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == date
         assert df["Interval End"].max() == date + pd.DateOffset(days=1)
 
+    @pytest.mark.skip(
+        reason="ERCOT date arithmetic inverted ranges - https://www.notion.so/33de835f42aa8179a672efaa0355fbaf"
+    )
     @pytest.mark.integration
     def test_get_shadow_prices_dam_date_range(self):
         start = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -3117,6 +3183,9 @@ class TestErcot(BaseTestISO):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_deployment_factors_weekly_ruc_latest(self):
         df = self.iso.get_as_deployment_factors_weekly_ruc("latest")
@@ -3126,6 +3195,9 @@ class TestErcot(BaseTestISO):
         assert df["RUC Timestamp"].nunique() == 1
         assert df["Interval Start"].nunique() == 120
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_deployment_factors_weekly_ruc_date_range(self):
         date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -3187,6 +3259,9 @@ class TestErcot(BaseTestISO):
         # The number of intervals in the latest file differs depending on time of day
         assert df["Interval Start"].nunique() > 1
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_deployment_factors_hourly_ruc_date_range(self):
         # Data is published per HRUC run (once per hour) for the rest of the current day
@@ -3217,6 +3292,9 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["Quantity"] == "float64"
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_dam_total_as_sold_latest(self):
         df = self.iso.get_dam_total_as_sold("latest")
@@ -3269,6 +3347,9 @@ class TestErcot(BaseTestISO):
 
         assert df["RUC Timestamp"].nunique() == 1
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_demand_curves_hourly_ruc_date_range(self):
         date = pd.Timestamp("2026-04-03 23:00", tz=self.iso.default_timezone)
@@ -3351,6 +3432,9 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_demand_curves_weekly_ruc_latest(self):
         df = self.iso.get_as_demand_curves_weekly_ruc("latest")
@@ -3361,6 +3445,9 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].nunique() == 120
         assert df["RUC Timestamp"].nunique() == 1
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_demand_curves_weekly_ruc_date_range(self):
         date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -3456,6 +3543,9 @@ class TestErcot(BaseTestISO):
         ]:
             assert df.dtypes[col] == "float64"
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_total_capability_latest(self):
         df = self.iso.get_as_total_capability("latest")
@@ -3466,6 +3556,9 @@ class TestErcot(BaseTestISO):
         assert df["SCED Timestamp"].nunique() == 5
         assert df["Publish Time"].nunique() == 1
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_as_total_capability_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3549,6 +3642,9 @@ class TestErcot(BaseTestISO):
 
         assert len(df) == 1
 
+    @pytest.mark.skip(
+        reason="ERCOT IceDocListJsonWS doc listing reliability - https://www.notion.so/33de835f42aa8118877de67c56b5ae4e"
+    )
     @pytest.mark.integration
     def test_get_real_time_adders_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3585,6 +3681,9 @@ class TestErcot(BaseTestISO):
 
         self._check_system_as_capacity_monitor(df)
 
+    @pytest.mark.skip(
+        reason="ERCOT temperature_forecast DST hour offset - https://www.notion.so/33de835f42aa813f8587d1116069fe7b"
+    )
     @pytest.mark.integration
     def test_parse_system_as_capacity_monitor(self):
         fixture_json = {

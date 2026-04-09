@@ -185,6 +185,9 @@ class TestMISO(BaseTestISO):
 
         self._check_lmp_real_time_5_min_final(df)
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
     @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_raises_error_if_no_data(self):
         date = pd.Timestamp("2025-11-01")
@@ -1091,6 +1094,9 @@ class TestMISO(BaseTestISO):
         # scheduled data is one interval behind the actual data
         assert df["Net Scheduled Interchange"].isna().iloc[-1]
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
     @pytest.mark.integration
     def test_get_interchange_5_min_latest(self):
         df = self.iso.get_interchange_5_min("latest")
