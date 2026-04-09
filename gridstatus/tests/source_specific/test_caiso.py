@@ -2024,7 +2024,7 @@ class TestCAISO(BaseTestISO):
                 "SOC",
             }
         elif method_name == "get_storage_soc_hourly":
-            assert df.shape == (576, 4)
+            assert df.shape == (48, 4)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -2052,6 +2052,31 @@ class TestCAISO(BaseTestISO):
     def test_daily_energy_storage_latest_not_supported(self) -> None:
         with pytest.raises(NotSupported):
             self.iso.get_storage_awards_fmm("latest")
+
+    def test_build_storage_soc_hourly_collapses_forward_filled_five_minute_arrays(
+        self,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        ifm: list[float] = []
+        ruc: list[float] = []
+        for h in range(24):
+            ifm.extend([float(h * 100)] * 12)
+            ruc.extend([float(h * 100 + 1)] * 12)
+        html = (
+            "<html><script>var tot_charge_ifm = "
+            + str(ifm)
+            + "; var tot_charge_ruc = "
+            + str(ruc)
+            + ";</script></html>"
+        )
+        report_start = pd.Timestamp("2026-04-06", tz="US/Pacific")
+        df = daily_energy_storage.build_storage_soc_hourly(html, report_start)
+        assert df.shape == (48, 4)
+        ifm_df = df.loc[df["Schedule"] == "IFM"].sort_values("Interval Start")
+        assert len(ifm_df) == 24
+        deltas = ifm_df["Interval Start"].diff().dropna()
+        assert (deltas == pd.Timedelta(hours=1)).all()
 
 
 NOMOGRAM_GROUP_COLS = [

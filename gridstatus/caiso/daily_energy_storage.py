@@ -498,10 +498,18 @@ def build_storage_soc_hourly(
     html: str,
     report_start: pd.Timestamp,
 ) -> pd.DataFrame:
+    """Hourly IFM and RUC SOC from ``tot_charge_ifm`` and ``tot_charge_ruc``.
+
+    The HTML arrays use a 5-minute index (typically 288 points) but IFM and
+    RUC repeat one SOC per clock hour across twelve consecutive slots. One value
+    per hour is taken (the first slot of each hour) and intervals use a
+    one-hour frequency.
+    """
     ifm_soc_series = _parse_js_array(html, "tot_charge_ifm")
     ruc_soc_series = _parse_js_array(html, "tot_charge_ruc")
-    n = min(len(ifm_soc_series), len(ruc_soc_series))
-    if n == 0:
+    n_pairs = min(len(ifm_soc_series), len(ruc_soc_series))
+    n_hours = n_pairs // 12
+    if n_hours == 0:
         return pd.DataFrame(
             columns=[
                 "Interval Start",
@@ -510,12 +518,14 @@ def build_storage_soc_hourly(
                 "Schedule",
             ],
         )
-    starts, ends = _interval_index(report_start, n, 5)
+    ifm_vals = [ifm_soc_series[i * 12] for i in range(n_hours)]
+    ruc_vals = [ruc_soc_series[i * 12] for i in range(n_hours)]
+    starts, ends = _interval_index(report_start, n_hours, 60)
     df_ifm = pd.DataFrame(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "SOC": ifm_soc_series[:n],
+            "SOC": ifm_vals,
             "Schedule": "IFM",
         },
     )
@@ -523,7 +533,7 @@ def build_storage_soc_hourly(
         {
             "Interval Start": starts,
             "Interval End": ends,
-            "SOC": ruc_soc_series[:n],
+            "SOC": ruc_vals,
             "Schedule": "RUC",
         },
     )

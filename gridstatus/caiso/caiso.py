@@ -3173,7 +3173,7 @@ class CAISO(ISOBase):
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Hourly state of charge by IFM vs RUC schedule (5-minute series)."""
+        """Hourly IFM and RUC state of charge (see ``build_storage_soc_hourly``)."""
         html, rs = daily_energy_storage.load_daily_energy_storage_report(
             date=date,
             tz=self.default_timezone,
