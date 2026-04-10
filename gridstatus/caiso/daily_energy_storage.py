@@ -1,8 +1,9 @@
 """Parse CAISO Daily Energy Storage HTML reports.
 
 Each report embeds chart series as JavaScript array literals assigned to named
-variables (for example ``tot_energy_rtd``). Values are coerced to floats; string
-sentinels such as ``"NA"`` become null. Timestamps are not embedded in the arrays. We align values to clock time by index
+variables (for example ``tot_energy_rtd``). Values are coerced to integers when
+whole, else floats, so Postgres ``integer`` ``mw`` columns accept COPY output;
+string sentinels such as ``"NA"`` become null. Timestamps are not embedded in the arrays. We align values to clock time by index
 from the report operating day start in Pacific time; see ``_interval_index``.
 """
 
@@ -99,17 +100,23 @@ def _extract_js_array_literal(html: str, var_name: str) -> str | None:
     return None
 
 
-def _coerce_chart_numeric_element(value: Any) -> float | None:
+def _storage_mw_numeric_from_float(x: float) -> int | float:
+    if x.is_integer():
+        return int(x)
+    return x
+
+
+def _coerce_chart_numeric_element(value: Any) -> int | float | None:
     if value is None:
         return None
     if isinstance(value, bool):
-        return float(value)
+        return int(value)
     if isinstance(value, int):
-        return float(value)
+        return value
     if isinstance(value, float):
         if value != value:
             return None
-        return value
+        return _storage_mw_numeric_from_float(value)
     if isinstance(value, str):
         stripped = value.strip()
         if stripped == "":
@@ -118,9 +125,12 @@ def _coerce_chart_numeric_element(value: Any) -> float | None:
         if upper in ("NA", "N/A", "NULL", "-", "--", ".", ".."):
             return None
         try:
-            return float(stripped.replace(",", ""))
+            parsed = float(stripped.replace(",", ""))
         except ValueError:
             return None
+        if parsed != parsed:
+            return None
+        return _storage_mw_numeric_from_float(parsed)
     return None
 
 
@@ -391,7 +401,11 @@ def _downsample_5min_to_15min(values: list[Any]) -> list[Any]:
         if not present:
             out.append(None)
         else:
-            out.append(sum(present) / len(present))
+            avg = sum(present) / len(present)
+            if isinstance(avg, float) and avg.is_integer():
+                out.append(int(avg))
+            else:
+                out.append(avg)
     return out
 
 
@@ -405,7 +419,11 @@ def _downsample_5min_to_60min(values: list[Any]) -> list[Any]:
         if not present:
             out.append(None)
         else:
-            out.append(sum(present) / len(present))
+            avg = sum(present) / len(present)
+            if isinstance(avg, float) and avg.is_integer():
+                out.append(int(avg))
+            else:
+                out.append(avg)
     return out
 
 
