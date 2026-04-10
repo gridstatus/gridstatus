@@ -2708,9 +2708,14 @@ class SPP(ISOBase):
 
         # Historical data: download monthly CSV
         month_str = start.strftime("%b%Y")  # e.g., "Apr2015"
+        # Starting March 2026, files use "TieFlows_SPP_" prefix
+        if start >= pd.Timestamp("2026-03-01"):
+            filename = f"TieFlows_SPP_{month_str}.csv"
+        else:
+            filename = f"TieFlows_{month_str}.csv"
         url = (
             f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
-            f"?path=/TieFlows_{month_str}.csv"
+            f"?path=/{filename}"
         )
 
         logger.info(f"Downloading {url}")

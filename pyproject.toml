@@ -62,6 +62,7 @@ dev = [
     "notebook ~=7.4",
     "jupyterlab >=4.4.8,<5",
     "mypy ~=1.15",
+    "types-requests ~=2.32",
     "time-machine ~=2.16",
     "tornado >=6.5.5,<7",
     "jinja2 ~=3.1",

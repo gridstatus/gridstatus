@@ -1413,12 +1413,15 @@ def process_sced_resource_as_offers(
     ns_cols = [c for c in price_cols if c.endswith("_NS")]
     non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
 
-    has_drs = (df[drs_cols] != 0).any(axis=1)
-    has_non_drs = (df[non_drs_cols] != 0).any(axis=1)
-    has_ns = (df[ns_cols] != 0).any(axis=1)
+    # Use fillna(0) so that NaN values are treated as "no value" (same as zero).
+    # ERCOT corrected files (April 4, 2026+) use NaN instead of zero for empty
+    # AS Sub-Type Offer Prices (see ERCOT notice M-B040326-01).
+    has_drs = (df[drs_cols].fillna(0) != 0).any(axis=1)
+    has_non_drs = (df[non_drs_cols].fillna(0) != 0).any(axis=1)
+    has_ns = (df[ns_cols].fillna(0) != 0).any(axis=1)
 
     non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
-    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols] != 0).any(axis=1)
+    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols].fillna(0) != 0).any(axis=1)
 
     df["Curve Type"] = "unknown"
     df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
