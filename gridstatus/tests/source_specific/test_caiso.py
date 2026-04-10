@@ -2078,6 +2078,22 @@ class TestCAISO(BaseTestISO):
         deltas = ifm_df["Interval Start"].diff().dropna()
         assert (deltas == pd.Timedelta(hours=1)).all()
 
+    def test_daily_energy_storage_coerces_na_string_in_rtd_energy_arrays(
+        self,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        html = (
+            '<html><script>var tot_energy_rtd = [1, "NA", 3]; '
+            "var tot_energy_hybrid_rtd = [4, 5, 6];</script></html>"
+        )
+        report_start = pd.Timestamp("2026-04-06", tz="US/Pacific")
+        df = daily_energy_storage.build_storage_awards_rtd(html, report_start)
+        standalone = df.loc[df["Type"] == "Standalone"].sort_values("Interval Start")
+        assert pd.isna(standalone["MW"].iloc[1])
+        assert standalone["MW"].iloc[0] == 1.0
+        assert standalone["MW"].iloc[2] == 3.0
+
 
 NOMOGRAM_GROUP_COLS = [
     "Interval Start",

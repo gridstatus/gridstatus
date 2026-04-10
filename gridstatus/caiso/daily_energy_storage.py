@@ -1,8 +1,8 @@
 """Parse CAISO Daily Energy Storage HTML reports.
 
 Each report embeds chart series as JavaScript array literals assigned to named
-variables (for example ``tot_energy_rtd``). The arrays contain numeric values
-only; they do not include timestamps. We align values to clock time by index
+variables (for example ``tot_energy_rtd``). Values are coerced to floats; string
+sentinels such as ``"NA"`` become null. Timestamps are not embedded in the arrays. We align values to clock time by index
 from the report operating day start in Pacific time; see ``_interval_index``.
 """
 
@@ -99,6 +99,31 @@ def _extract_js_array_literal(html: str, var_name: str) -> str | None:
     return None
 
 
+def _coerce_chart_numeric_element(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, int):
+        return float(value)
+    if isinstance(value, float):
+        if value != value:
+            return None
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped == "":
+            return None
+        upper = stripped.upper()
+        if upper in ("NA", "N/A", "NULL", "-", "--", ".", ".."):
+            return None
+        try:
+            return float(stripped.replace(",", ""))
+        except ValueError:
+            return None
+    return None
+
+
 def _parse_js_array(html: str, var_name: str) -> list[Any]:
     # Example: literal ``[1334, 1098]`` becomes ``list[Any]`` of ints; parse errors -> [].
     array_text = _extract_js_array_literal(html, var_name)
@@ -109,7 +134,7 @@ def _parse_js_array(html: str, var_name: str) -> list[Any]:
     except (SyntaxError, ValueError):
         return []
     if isinstance(parsed_value, list):
-        return parsed_value
+        return [_coerce_chart_numeric_element(v) for v in parsed_value]
     return []
 
 
@@ -362,7 +387,11 @@ def _downsample_5min_to_15min(values: list[Any]) -> list[Any]:
     out: list[Any] = []
     for i in range(0, len(values), 3):
         chunk = values[i : i + 3]
-        out.append(sum(chunk) / len(chunk))
+        present = [x for x in chunk if x is not None]
+        if not present:
+            out.append(None)
+        else:
+            out.append(sum(present) / len(present))
     return out
 
 
@@ -372,7 +401,11 @@ def _downsample_5min_to_60min(values: list[Any]) -> list[Any]:
     out: list[Any] = []
     for i in range(0, len(values), 12):
         chunk = values[i : i + 12]
-        out.append(sum(chunk) / len(chunk))
+        present = [x for x in chunk if x is not None]
+        if not present:
+            out.append(None)
+        else:
+            out.append(sum(present) / len(present))
     return out
 
 
