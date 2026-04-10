@@ -15,6 +15,7 @@ import pandas as pd
 import requests
 
 from gridstatus import utils
+from gridstatus.base import NotSupported
 from gridstatus.gs_logging import logger
 
 
@@ -30,6 +31,10 @@ def load_daily_energy_storage_report(
     tz: str,
     verbose: bool = False,
 ) -> tuple[str, pd.Timestamp]:
+    if isinstance(date, str) and date.lower() in ("latest", "today"):
+        raise NotSupported(
+            "Daily energy storage reports are only available for historical dates",
+        )
     html = _fetch_daily_energy_storage_html(date, tz, verbose)
     report_start = _report_day_start(date, tz)
     return html, report_start

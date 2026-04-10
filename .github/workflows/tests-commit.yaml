@@ -26,16 +26,3 @@ jobs:
         run: uv sync
       - name: Run base tests
         run: make test-base
-
-  # TODO: Currently even fixtured tests run in integration mode until we pull the fixtures from s3
-#   test-unit:
-#     needs: [test-base]
-#     runs-on: ubuntu-latest
-#     strategy:
-#       fail-fast: false
-#       matrix:
-#         python-version: ["3.11"]
-#     steps:
-#       - uses: actions/checkout@v3
-#       - name: Run unit tests
-#         run: make test-unit

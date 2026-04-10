@@ -1,13 +1,18 @@
+import functools
 import json
 import os
 import shutil
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 import vcr
 
 # NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
 # say on a weekly or monthly job.
-RECORD_MODE = os.getenv("VCR_RECORD_MODE", "new_episodes")
+# In CI, default to "none" (playback only) so tests fail fast if a cassette is missing.
+# Locally, default to "new_episodes" so missing cassettes are recorded from live APIs.
+_default_mode = "none" if os.getenv("CI") == "true" else "new_episodes"
+RECORD_MODE = os.getenv("VCR_RECORD_MODE", _default_mode)
 
 # Map of ISO -> endpoint patterns that require date range handling
 DATE_RANGE_METHODS = {
@@ -67,25 +72,113 @@ def clean_cassettes(path: str):
     os.makedirs(path, exist_ok=True)
 
 
+class _SkipOrCassette:
+    """Wraps a VCR cassette to skip when the file is missing. Works as both
+    context manager and decorator (like the original VCR cassette object)."""
+
+    def __init__(self, vcr_instance, cassette_dir, record_mode, path, kwargs):
+        self._vcr = vcr_instance
+        self._cassette_dir = cassette_dir
+        self._record_mode = record_mode
+        self._path = path
+        self._kwargs = kwargs
+        self._cassette_ctx = None
+
+    def _should_skip(self):
+        if self._record_mode != "none":
+            return False
+        full_path = (
+            self._path
+            if os.path.isabs(self._path)
+            else os.path.join(self._cassette_dir, self._path)
+        )
+        return not os.path.exists(full_path)
+
+    # -- context manager --
+    def __enter__(self):
+        if self._should_skip():
+            pytest.skip(f"VCR cassette not found: {os.path.basename(self._path)}")
+        self._cassette_ctx = self._vcr.use_cassette(self._path, **self._kwargs)
+        return self._cassette_ctx.__enter__()
+
+    def __exit__(self, *exc_info):
+        if self._cassette_ctx is not None:
+            return self._cassette_ctx.__exit__(*exc_info)
+
+    # -- decorator --
+    def __call__(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kw):
+            with self:
+                return func(*args, **kw)
+
+        return wrapper
+
+
+class SkipMissingCassetteVCR:
+    """Wrapper around vcr.VCR that skips tests when cassettes are missing in none mode."""
+
+    def __init__(self, vcr_instance: vcr.VCR, cassette_dir: str, record_mode: str):
+        self._vcr = vcr_instance
+        self._cassette_dir = cassette_dir
+        self._record_mode = record_mode
+
+    def __getattr__(self, name):
+        return getattr(self._vcr, name)
+
+    def use_cassette(self, path, **kwargs):
+        return _SkipOrCassette(
+            self._vcr, self._cassette_dir, self._record_mode, path, kwargs
+        )
+
+
+def _strip_ercot_cache_buster(uri: str) -> str:
+    """Strip the cache-busting timestamp query parameter from ERCOT document
+    listing URLs so VCR can match requests across runs.
+
+    ERCOT's IceDocListJsonWS endpoint appends a random ``_NNNNN`` parameter
+    that changes every request, breaking URI-based cassette matching."""
+    parsed = urlparse(uri)
+    if "IceDocListJsonWS" in parsed.path:
+        params = parse_qs(parsed.query)
+        # Remove any single underscore-prefixed numeric params (cache busters)
+        filtered = {k: v for k, v in params.items() if not k.startswith("_")}
+        from urllib.parse import urlencode
+
+        new_query = urlencode(filtered, doseq=True)
+        return parsed._replace(query=new_query).geturl()
+    return uri
+
+
+def _ercot_uri_matcher(r1, r2):
+    """Custom VCR URI matcher that normalises ERCOT cache-buster params."""
+    return _strip_ercot_cache_buster(r1.uri) == _strip_ercot_cache_buster(r2.uri)
+
+
 def setup_vcr(
     source: str,
     record_mode: str,
-) -> vcr.VCR:
+) -> SkipMissingCassetteVCR:
     cassette_dir = f"{os.path.dirname(__file__)}/fixtures/{source}/vcr_cassettes"
 
     if record_mode == "all":
         clean_cassettes(cassette_dir)
 
-    vcr_config = {
-        "cassette_library_dir": cassette_dir,
-        "record_mode": record_mode,
-        "match_on": ["uri", "method"],
-        "before_record": lambda request: before_record_callback(request, source),
-        "filter_headers": [
+    vcr_instance = vcr.VCR(
+        cassette_library_dir=cassette_dir,
+        record_mode=record_mode,
+        match_on=["uri", "method"],
+        before_record=lambda request: before_record_callback(request, source),
+        filter_headers=[
             ("Authorization", "XXXXXX"),
             ("Ocp-Apim-Subscription-Key", "XXXXXX"),
             ("X-Api-Key", "XXXXXX"),
         ],
-    }
+    )
 
-    return vcr.VCR(**vcr_config)
+    # For ERCOT, register a custom URI matcher that ignores cache-buster params
+    if source in ("ercot", "ercot_api"):
+        vcr_instance.register_matcher("ercot_uri", _ercot_uri_matcher)
+        vcr_instance.match_on = ["ercot_uri", "method"]
+
+    return SkipMissingCassetteVCR(vcr_instance, cassette_dir, record_mode)

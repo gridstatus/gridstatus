@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import pytest
 
@@ -11,7 +13,20 @@ api_vcr = setup_vcr(
     record_mode=RECORD_MODE,
 )
 
-all_isos = [MISO(), CAISO(), PJM(), Ercot(), SPP(), NYISO(), ISONE(), IESO()]
+# Fall back to a dummy PJM key when PJM_API_KEY is unset so module collection
+# works in CI without requiring the real key.
+_PJM_API_KEY = os.getenv("PJM_API_KEY") or "DUMMY_KEY_FOR_VCR_PLAYBACK"
+
+all_isos = [
+    MISO(),
+    CAISO(),
+    PJM(api_key=_PJM_API_KEY),
+    Ercot(),
+    SPP(),
+    NYISO(),
+    ISONE(),
+    IESO(),
+]
 
 """
 Legacy gridstatus tests file
@@ -22,6 +37,9 @@ ISO-specific tests should go to BaseTestISO subclasses found in test_{iso}.py
 """
 
 
+@pytest.mark.skip(
+    reason="AESO API credentials revoked / 401 - https://www.notion.so/33de835f42aa81d699e4c0e82dd008e1"
+)
 @pytest.mark.integration
 def test_make_lmp_availability_df():
     gridstatus.utils.make_lmp_availability_table()
@@ -41,6 +59,7 @@ def test_get_iso_invalid():
         gridstatus.get_iso("ISO DOESNT EXIST")
 
 
+@pytest.mark.integration
 def test_handle_date_today_tz():
     # make sure it returns a stamp
     # with the correct timezone

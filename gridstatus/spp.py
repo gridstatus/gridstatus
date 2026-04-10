@@ -2733,6 +2733,7 @@ class SPP(ISOBase):
         df = df.rename(
             columns={
                 "GMTTIME": "GMTTime",
+                "#GMTTIME": "GMTTime",
                 "SPP_NSI": "SPP NSI",
                 "SPP_NAI": "SPP NAI",
             },
@@ -2807,6 +2808,7 @@ class SPP(ISOBase):
         df = df.rename(
             columns={
                 "GMTTIME": "GMTTime",
+                "#GMTTIME": "GMTTime",
                 "SPP_NSI": "SWPW NSI",
                 "SPP_NAI": "SWPW NAI",
             },

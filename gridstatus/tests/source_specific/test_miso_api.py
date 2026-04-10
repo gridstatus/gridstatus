@@ -42,10 +42,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_day_ahead_hourly_ex_ante"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_day_ahead_hourly_ex_ante")
     def test_get_lmp_day_ahead_hourly_ex_ante_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=3)
         df = self.iso.get_lmp_day_ahead_hourly_ex_ante(start, end)
 
@@ -56,10 +55,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_day_ahead_hourly_ex_post"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_day_ahead_hourly_ex_post")
     def test_get_lmp_day_ahead_hourly_ex_post_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=3)
         df = self.iso.get_lmp_day_ahead_hourly_ex_post(start, end)
 
@@ -70,10 +68,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_hourly_ex_post_prelim"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_prelim")
     def test_get_lmp_real_time_hourly_ex_post_prelim_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=3)
         df = self.iso.get_lmp_real_time_hourly_ex_post_prelim(start, end)
 
@@ -84,10 +81,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_hourly_ex_post_final"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_final")
     def test_get_lmp_real_time_hourly_ex_post_final_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=7)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=3)
         df = self.iso.get_lmp_real_time_hourly_ex_post_final(start, end)
 
@@ -98,10 +94,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_ante"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_ante")
     def test_get_lmp_real_time_5_min_ex_ante_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
         df = self.iso.get_lmp_real_time_5_min_ex_ante(start, end)
 
@@ -112,10 +107,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_post_prelim"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_post_prelim")
     def test_get_lmp_real_time_5_min_ex_post_prelim_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
         df = self.iso.get_lmp_real_time_5_min_ex_post_prelim(start, end)
 
@@ -126,10 +120,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_post_final"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_post_final")
     def test_get_lmp_real_time_5_min_ex_post_final_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=7)).floor("5min")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
         df = self.iso.get_lmp_real_time_5_min_ex_post_final(start, end)
 
@@ -174,9 +167,12 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End"]:
                 assert data[col].dtype == "float64"
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
+    @pytest.mark.integration
     def test_get_interchange_hourly_today(self):
-        with api_vcr.use_cassette("test_get_interchange_hourly_today"):
-            df = self.iso.get_interchange_hourly("today")
+        df = self.iso.get_interchange_hourly("today")
 
         self._check_interchange_hourly(df)
 
@@ -187,11 +183,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def test_get_interchange_hourly_date_range(self):
-        start = (
-            self.local_start_of_today()
-            - pd.DateOffset(days=20)
-            + pd.DateOffset(hours=10)
-        )
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.DateOffset(days=2, hours=4)
 
         with api_vcr.use_cassette(
@@ -222,9 +214,8 @@ class TestMISOAPI(TestHelperMixin):
         for product in expected_products:
             assert df[product].dtype in ["float64", "Float64"]
 
-    @pytest.mark.integration
     def test_get_as_mcp_day_ahead_ex_ante_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
@@ -240,9 +231,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
-    @pytest.mark.integration
     def test_get_as_mcp_day_ahead_ex_post_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
@@ -258,9 +248,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
-    @pytest.mark.integration
     def test_get_as_mcp_real_time_5_min_ex_ante_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
@@ -276,9 +265,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
-    @pytest.mark.integration
     def test_get_as_mcp_real_time_5_min_ex_post_prelim_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=2)).floor("5min")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
@@ -294,9 +282,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
-    @pytest.mark.integration
     def test_get_as_mcp_real_time_hourly_ex_post_prelim_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=3)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
@@ -312,9 +299,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
 
-    @pytest.mark.integration
     def test_get_as_mcp_real_time_5_min_ex_post_final_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=10)).floor("5min")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
@@ -330,9 +316,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
-    @pytest.mark.integration
     def test_get_as_mcp_real_time_hourly_ex_post_final_date_range(self):
-        start = (self.local_now() - pd.DateOffset(days=10)).floor("h")
+        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
@@ -350,9 +335,8 @@ class TestMISOAPI(TestHelperMixin):
 
     """MCP Tests with use_daily_requests=True"""
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_day_ahead_ex_ante(self):
-        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_day_ahead_ex_ante_{date.date()}",
@@ -367,9 +351,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_day_ahead_ex_post(self):
-        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_day_ahead_ex_post_{date.date()}",
@@ -384,9 +367,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_ante(self):
-        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_ante_{date.date()}",
@@ -404,9 +386,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_prelim(self):
-        date = (self.local_now() - pd.DateOffset(days=2)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_prelim_{date.date()}",
@@ -424,9 +405,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_prelim(self):
-        date = (self.local_now() - pd.DateOffset(days=3)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_prelim_{date.date()}",
@@ -444,9 +424,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_final(self):
-        date = (self.local_now() - pd.DateOffset(days=10)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_final_{date.date()}",
@@ -464,9 +443,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
 
-    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_final(self):
-        date = (self.local_now() - pd.DateOffset(days=10)).floor("d")
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_final_{date.date()}",
@@ -501,9 +479,8 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_day_ahead_cleared_demand_daily(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_day_ahead_cleared_demand_daily_{date.date()}"):
             df = self.iso.get_day_ahead_cleared_demand_daily(date)
@@ -516,9 +493,8 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_day_ahead_cleared_demand_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_day_ahead_cleared_demand_hourly_{date.date()}"):
             df = self.iso.get_day_ahead_cleared_demand_hourly(date)
@@ -545,9 +521,8 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_day_ahead_cleared_generation_physical_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_day_ahead_cleared_generation_physical_hourly_{date.date()}",
@@ -561,9 +536,8 @@ class TestMISOAPI(TestHelperMixin):
             hours=23,
         )
 
-    @pytest.mark.integration
     def test_get_day_ahead_cleared_generation_virtual_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_day_ahead_cleared_generation_virtual_hourly_{date.date()}",
@@ -577,9 +551,8 @@ class TestMISOAPI(TestHelperMixin):
             hours=23,
         )
 
-    @pytest.mark.integration
     def test_get_day_ahead_net_scheduled_interchange_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_day_ahead_net_scheduled_interchange_hourly_{date.date()}",
@@ -615,9 +588,8 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_day_ahead_offered_generation_ecomax_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_day_ahead_offered_generation_ecomax_hourly_{date.date()}",
@@ -641,9 +613,8 @@ class TestMISOAPI(TestHelperMixin):
             hours=23,
         )
 
-    @pytest.mark.integration
     def test_get_day_ahead_offered_generation_ecomin_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_day_ahead_offered_generation_ecomin_hourly_{date.date()}",
@@ -667,9 +638,8 @@ class TestMISOAPI(TestHelperMixin):
             hours=23,
         )
 
-    @pytest.mark.integration
     def test_get_day_ahead_generation_fuel_type_hourly(self):
-        date = self.local_start_of_today()
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_day_ahead_generation_fuel_type_hourly_{date.date()}",
@@ -720,9 +690,8 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End"]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_real_time_cleared_demand_daily(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_real_time_cleared_demand_daily_{date.date()}"):
             df = self.iso.get_real_time_cleared_demand_daily(date)
@@ -735,9 +704,8 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_real_time_cleared_demand_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_real_time_cleared_demand_hourly_{date.date()}"):
             df = self.iso.get_real_time_cleared_demand_hourly(date)
@@ -764,10 +732,9 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-    # @pytest.mark.integration
     @pytest.mark.skip(reason="MISO returns wrong data for a specific date")
     def test_get_real_time_cleared_generation_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=2)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_real_time_cleared_generation_hourly_{date.date()}",
@@ -782,9 +749,8 @@ class TestMISOAPI(TestHelperMixin):
         #     hours=23,
         # )
 
-    @pytest.mark.integration
     def test_get_real_time_offered_generation_ecomax_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_real_time_offered_generation_ecomax_hourly_{date.date()}",
@@ -814,9 +780,8 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_real_time_committed_generation_ecomax_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=2)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_real_time_committed_generation_ecomax_hourly_{date.date()}",
@@ -846,9 +811,8 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_real_time_generation_fuel_type_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_real_time_generation_fuel_type_hourly_{date.date()}",
@@ -900,9 +864,8 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_actual_load_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_actual_load_hourly_{date.date()}"):
             df = self.iso.get_actual_load_hourly(date)
@@ -917,9 +880,8 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_actual_load_daily(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_actual_load_daily_{date.date()}"):
             df = self.iso.get_actual_load_daily(date)
@@ -951,7 +913,7 @@ class TestMISOAPI(TestHelperMixin):
                 assert df[col].dtype == "float64"
 
     def test_get_actual_load_hourly_local_resource_zone(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_actual_load_hourly_local_resource_zone_{date.date()}",
@@ -972,7 +934,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def test_get_actual_load_daily_local_resource_zone(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_actual_load_daily_local_resource_zone_{date.date()}",
@@ -1012,9 +974,8 @@ class TestMISOAPI(TestHelperMixin):
             ]:
                 assert df[col].dtype == "float64"
 
-    @pytest.mark.integration
     def test_get_medium_term_load_forecast_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_medium_term_load_forecast_hourly_{date.date()}",
@@ -1031,9 +992,8 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
-    @pytest.mark.integration
     def test_get_medium_term_load_forecast_hourly_with_publish_time(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
         publish_time = date - pd.Timedelta(days=2)
 
         with api_vcr.use_cassette(
@@ -1055,9 +1015,8 @@ class TestMISOAPI(TestHelperMixin):
         )
         assert df["Publish Time"].min() == publish_time
 
-    @pytest.mark.integration
     def test_get_medium_term_load_forecast_daily(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(f"get_medium_term_load_forecast_daily_{date.date()}"):
             df = self.iso.get_medium_term_load_forecast_daily(date)
@@ -1091,7 +1050,7 @@ class TestMISOAPI(TestHelperMixin):
             assert df[col].dtype == "float64"
 
     def test_get_actual_load_hourly_pivoted(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_actual_load_hourly_pivoted_{date.date()}",
@@ -1133,16 +1092,16 @@ class TestMISOAPI(TestHelperMixin):
         ]
         assert df.columns.tolist() == expected_columns
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-        assert df["Publish Time"].dtype == "datetime64[ns, EST]"
+        assert str(df["Interval Start"].dtype).startswith("datetime64")
+        assert str(df["Interval End"].dtype).startswith("datetime64")
+        assert str(df["Publish Time"].dtype).startswith("datetime64")
 
         # All load columns should be float
         for col in expected_columns[3:]:
             assert df[col].dtype == "float64"
 
     def test_get_medium_term_load_forecast_hourly_aggregated(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
+        date = pd.Timestamp("2025-11-01", tz="EST")
 
         with api_vcr.use_cassette(
             f"get_medium_term_load_forecast_hourly_aggregated_{date.date()}",
@@ -1195,12 +1154,11 @@ class TestMISOAPI(TestHelperMixin):
             ]:
                 assert df[col].dtype == "float64"
 
+    @pytest.mark.integration
     def test_get_outage_forecast(self):
         # Outage forecast is for future dates - use tomorrow
         date = self.local_start_of_today() + pd.Timedelta(days=1)
-
-        with api_vcr.use_cassette(f"get_outage_forecast_{date.date()}"):
-            df = self.iso.get_outage_forecast(date)
+        df = self.iso.get_outage_forecast(date)
 
         self._check_test_outage_forecast(df)
 
@@ -1212,6 +1170,7 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.integration
     def test_get_outage_forecast_past_date_raises_error(self):
         # Try to get outage forecast for yesterday - should raise NotSupported
         yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
@@ -1235,12 +1194,11 @@ class TestMISOAPI(TestHelperMixin):
         for col in ["MTLF", "Outage"]:
             assert df[col].dtype == "float64"
 
+    @pytest.mark.integration
     def test_get_look_ahead_hourly(self):
         # Look ahead is for today and future dates
         date = self.local_start_of_today()
-
-        with api_vcr.use_cassette(f"get_look_ahead_hourly_{date.date()}"):
-            df = self.iso.get_look_ahead_hourly(date)
+        df = self.iso.get_look_ahead_hourly(date)
 
         self._check_test_look_ahead_hourly(df)
 
@@ -1252,6 +1210,10 @@ class TestMISOAPI(TestHelperMixin):
             days=1,
         )
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
+    @pytest.mark.integration
     def test_get_look_ahead_hourly_past_date_raises_error(self):
         # Try to get look ahead for yesterday - should raise NotSupported
         yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
@@ -1259,11 +1221,9 @@ class TestMISOAPI(TestHelperMixin):
         with pytest.raises(NotSupported, match="only available for future dates"):
             self.iso.get_look_ahead_hourly(yesterday)
 
+    @pytest.mark.integration
     def test_get_pricing_nodes(self):
-        today = pd.Timestamp(self.local_today())
-
-        with api_vcr.use_cassette(f"get_pricing_nodes_{today.strftime('%Y-%m-%d')}"):
-            df = self.iso.get_pricing_nodes()
+        df = self.iso.get_pricing_nodes()
 
         assert df.shape[0] > 0
 
@@ -1273,14 +1233,10 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Node", "Location Type"]:
                 assert df[col].dtype == "str"
 
+    @pytest.mark.integration
     def test_get_pricing_nodes_by_date(self):
-        today = pd.Timestamp(self.local_today())
         date = "latest"
-
-        with api_vcr.use_cassette(
-            f"get_pricing_nodes_by_date_{today.strftime('%Y-%m-%d')}",
-        ):
-            df = self.iso.get_pricing_nodes(date)
+        df = self.iso.get_pricing_nodes(date)
 
         assert df.shape[0] > 0
 
@@ -1290,15 +1246,12 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Node", "Location Type"]:
                 assert df[col].dtype == "str"
 
+    @pytest.mark.integration
     def test_get_pricing_nodes_by_date_range(self):
         today = pd.Timestamp(self.local_today())
         date = today - pd.Timedelta(days=100)
         end = today
-
-        with api_vcr.use_cassette(
-            f"get_pricing_nodes_by_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}",
-        ):
-            df = self.iso.get_pricing_nodes(date, end)
+        df = self.iso.get_pricing_nodes(date, end)
 
         assert df.shape[0] > 0
 

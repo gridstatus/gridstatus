@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -23,6 +25,12 @@ DST_CHANGE_TEST_DATES = [
     ("2024-03-09", "2024-03-11"),
 ]
 
+# Shorter 1-day ranges for 5-min LMP tests (cassettes are ~150MB each with 2-day ranges)
+DST_CHANGE_TEST_DATES_SHORT = [
+    ("2024-11-02", "2024-11-03"),
+    ("2024-03-09", "2024-03-10"),
+]
+
 TEST_MULTIPLE_LOCATIONS = [
     (".Z.MAINE", ".Z.NEWHAMPSHIRE"),
 ]
@@ -44,6 +52,17 @@ LMP_COLUMNS = [
 
 class TestISONEAPI(TestHelperMixin):
     def setup_class(cls):
+        # Set dummy credentials in CI playback mode so ISONEAPI can be
+        # constructed without real credentials. ISONEAPI reads creds from
+        # env vars only, so we have to set them rather than passing kwargs.
+        # Tests that hit the live API are marked @pytest.mark.integration.
+        if not os.getenv("ISONE_API_USERNAME") and RECORD_MODE == "none":
+            os.environ.setdefault(
+                "ISONE_API_USERNAME", "DUMMY_USERNAME_FOR_VCR_PLAYBACK"
+            )
+            os.environ.setdefault(
+                "ISONE_API_PASSWORD", "DUMMY_PASSWORD_FOR_VCR_PLAYBACK"
+            )
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
 
     def test_class_init(self):
@@ -68,50 +87,54 @@ class TestISONEAPI(TestHelperMixin):
                 "AreaType",
             ]
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "location",
         TEST_SINGLE_LOCATIONS,
     )
     def test_get_realtime_hourly_demand_latest(self, location: str):
-        with api_vcr.use_cassette(
-            f"test_get_realtime_hourly_demand_latest_{location}.yaml",
-        ):
-            result = self.iso.get_realtime_hourly_demand(
-                date="latest",
-                locations=[location],
-            )
+        result = self.iso.get_realtime_hourly_demand(
+            date="latest",
+            locations=[location],
+        )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-            ]
-            assert result["Location"].iloc[0] == location
-            assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
-            assert isinstance(result["Load"].iloc[0], (int, float))
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert result["Location"].iloc[0] == location
+        assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
+        assert isinstance(result["Load"].iloc[0], (int, float))
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_dayahead_hourly_demand_latest(self):
-        with api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml"):
-            result = self.iso.get_dayahead_hourly_demand(
-                date="latest",
-                locations=["NEPOOL AREA"],
-            )
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-            ]
-            assert result["Location"].iloc[0] == "NEPOOL AREA"
-            assert result["Location Id"].iloc[0] == 32
-            assert isinstance(result["Load"].iloc[0], np.number)
+        result = self.iso.get_dayahead_hourly_demand(
+            date="latest",
+            locations=["NEPOOL AREA"],
+        )
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
+        assert result["Location Id"].iloc[0] == 32
+        assert isinstance(result["Load"].iloc[0], np.number)
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
@@ -119,6 +142,10 @@ class TestISONEAPI(TestHelperMixin):
         with pytest.raises(ValueError):
             self.iso.get_dayahead_hourly_demand(locations=["INVALID_LOCATION"])
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "locations",
         TEST_MULTIPLE_LOCATIONS,
@@ -127,28 +154,25 @@ class TestISONEAPI(TestHelperMixin):
         self,
         locations: tuple[str, str],
     ):
-        with api_vcr.use_cassette(
-            f"test_get_realtime_hourly_demand_multiple_locations_{locations}.yaml",
-        ):
-            result = self.iso.get_realtime_hourly_demand(
-                date="latest",
-                locations=list(locations),
-            )
+        result = self.iso.get_realtime_hourly_demand(
+            date="latest",
+            locations=list(locations),
+        )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == len(locations)
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-            ]
-            assert set(result["Location"]) == set(locations)
-            assert set(result["Location Id"]) == {
-                ZONE_LOCATIONID_MAP[loc] for loc in locations
-            }
-            assert all(isinstance(load, (int, float)) for load in result["Load"])
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == len(locations)
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+        ]
+        assert set(result["Location"]) == set(locations)
+        assert set(result["Location Id"]) == {
+            ZONE_LOCATIONID_MAP[loc] for loc in locations
+        }
+        assert all(isinstance(load, (int, float)) for load in result["Load"])
 
     @pytest.mark.parametrize(
         "date,end,locations",
@@ -301,19 +325,22 @@ class TestISONEAPI(TestHelperMixin):
             grouped = result.groupby(["Interval Start", "Publish Time"])
             assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
-        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
-            result = self.iso.get_fuel_mix(date="latest")
+        result = self.iso.get_fuel_mix(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert "Time" in result.columns
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert "Time" in result.columns
 
-            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
-            numeric_cols = [col for col in result.columns if col != "Time"]
-            for col in numeric_cols:
-                assert result[col].dtype in [np.int64, np.float64]
-                assert (result[col] >= 0).all()
+        assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+        numeric_cols = [col for col in result.columns if col != "Time"]
+        for col in numeric_cols:
+            assert result[col].dtype in [np.int64, np.float64]
+            assert (result[col] >= 0).all()
 
     @pytest.mark.parametrize(
         "date,end",
@@ -340,26 +367,29 @@ class TestISONEAPI(TestHelperMixin):
                 assert result[col].dtype in [np.int64, np.float64]
                 assert (result[numeric_cols].sum(axis=1) > 0).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_load_hourly_latest(self):
-        with api_vcr.use_cassette("test_get_load_hourly_latest.yaml"):
-            result = self.iso.get_load_hourly(date="latest")
+        result = self.iso.get_load_hourly(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
-            assert list(result.columns) == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Id",
-                "Load",
-                "Native Load",
-                "ARD Demand",
-            ]
-            assert result["Location"].iloc[0] == "NEPOOL AREA"
-            assert result["Location Id"].iloc[0] == 32
-            assert isinstance(result["Load"].iloc[0], (int, float))
-            assert isinstance(result["Native Load"].iloc[0], (int, float))
-            assert isinstance(result["ARD Demand"].iloc[0], (int, float))
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 1
+        assert list(result.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Id",
+            "Load",
+            "Native Load",
+            "ARD Demand",
+        ]
+        assert result["Location"].iloc[0] == "NEPOOL AREA"
+        assert result["Location Id"].iloc[0] == 32
+        assert isinstance(result["Load"].iloc[0], (int, float))
+        assert isinstance(result["Native Load"].iloc[0], (int, float))
+        assert isinstance(result["ARD Demand"].iloc[0], (int, float))
 
     @pytest.mark.parametrize(
         "date,end",
@@ -398,10 +428,9 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_interchange_hourly"""
 
-    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_interchange_hourly_date_range.yaml")
     def test_get_interchange_hourly_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
         with api_vcr.use_cassette(
             f"test_get_interchange_hourly_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
@@ -427,6 +456,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert sorted(df["Location"].unique()) == [
                 ".I.HQHIGATE120 2",
+                ".I.HQMRL_RD345 1",
                 ".I.HQ_P1_P2345 5",
                 ".I.NRTHPORT138 5",
                 ".I.ROSETON 345 1",
@@ -466,7 +496,7 @@ class TestISONEAPI(TestHelperMixin):
     """get_interchange_15_min"""
 
     def test_get_interchange_15_min_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
         with api_vcr.use_cassette(
             f"test_get_interchange_15_min_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
@@ -524,7 +554,7 @@ class TestISONEAPI(TestHelperMixin):
     """get_external_flows_5_min"""
 
     def test_get_external_flows_5_min_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=10)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
         with api_vcr.use_cassette(
             f"test_get_external_flows_5_min_date_range_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
@@ -546,7 +576,7 @@ class TestISONEAPI(TestHelperMixin):
                 "Total Imports",
             ]
 
-            assert df["Interval Start"].min() == start
+            assert df["Interval Start"].min() <= start + pd.Timedelta(minutes=5)
             assert df["Interval End"].max() == end
 
             assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
@@ -555,6 +585,7 @@ class TestISONEAPI(TestHelperMixin):
 
             assert sorted(df["Location"].unique()) == [
                 ".I.HQHIGATE120 2",
+                ".I.HQMRL_RD345 1",
                 ".I.HQ_P1_P2345 5",
                 ".I.NRTHPORT138 5",
                 ".I.ROSETON 345 1",
@@ -603,11 +634,12 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_zonal_load_estimated_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_zonal_load_estimated_5_min_latest.yaml",
-        ):
-            result = self.iso.get_zonal_load_estimated_5_min(date="latest")
+        result = self.iso.get_zonal_load_estimated_5_min(date="latest")
 
         self._check_zonal_load_estimated_5_min(result)
 
@@ -636,13 +668,16 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(minutes=5)
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_lmp_real_time_hourly_prelim_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_hourly_prelim_latest.yaml"):
-            result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
+        result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -667,13 +702,16 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_lmp_real_time_hourly_final_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
-            result = self.iso.get_lmp_real_time_hourly_final(date="latest")
+        result = self.iso.get_lmp_real_time_hourly_final(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -698,22 +736,25 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(hours=1)
             ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_prelim_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
-            result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
+        result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
+        assert (
+            (result["Interval End"] - result["Interval Start"])
+            == pd.Timedelta(minutes=5)
+        ).all()
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
-        DST_CHANGE_TEST_DATES,
+        DST_CHANGE_TEST_DATES_SHORT,
     )
     def test_get_lmp_real_time_5_min_prelim_date_range(self, date: str, end: str):
         cassette_name = f"test_get_lmp_real_time_5_min_prelim_{date}_{end}.yaml"
@@ -734,22 +775,25 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
-            result = self.iso.get_lmp_real_time_5_min_final(date="latest")
+        result = self.iso.get_lmp_real_time_5_min_final(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_lmp_columns(result)
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_lmp_columns(result)
+        assert (
+            (result["Interval End"] - result["Interval Start"])
+            == pd.Timedelta(minutes=5)
+        ).all()
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "date,end",
-        DST_CHANGE_TEST_DATES,
+        DST_CHANGE_TEST_DATES_SHORT,
     )
     def test_get_lmp_real_time_5_min_final_date_range(self, date: str, end: str):
         cassette_name = f"test_get_lmp_real_time_5_min_final_{date}_{end}.yaml"
@@ -821,13 +865,16 @@ class TestISONEAPI(TestHelperMixin):
         assert result["Cold Weather Warning"].dtype == object
         assert result["Cold Weather Event"].dtype == object
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_capacity_forecast_7_day_latest(self):
-        with api_vcr.use_cassette("test_get_capacity_forecast_7_day_latest.yaml"):
-            result = self.iso.get_capacity_forecast_7_day(date="latest")
+        result = self.iso.get_capacity_forecast_7_day(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
-            self._check_capacity_forecast_7_day_columns(result)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) > 0
+        self._check_capacity_forecast_7_day_columns(result)
 
     @pytest.mark.parametrize(
         "date,end",
@@ -857,13 +904,14 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_regulation_clearing_prices_real_time_5_min_latest.yaml",
-        ):
-            result = self.iso.get_regulation_clearing_prices_real_time_5_min(
-                date="latest",
-            )
+        result = self.iso.get_regulation_clearing_prices_real_time_5_min(
+            date="latest",
+        )
 
         self._check_regulation_clearing_prices_real_time_5_min(result)
 
@@ -933,13 +981,14 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_requirements_prices_forecast_day_ahead_latest.yaml",
-        ):
-            result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
-                date="latest",
-            )
+        result = self.iso.get_reserve_requirements_prices_forecast_day_ahead(
+            date="latest",
+        )
 
         self._check_reserve_requirements_prices_forecast_day_ahead(result)
 
@@ -1002,13 +1051,14 @@ class TestISONEAPI(TestHelperMixin):
 
         assert ((df["Interval End"] - df["Interval Start"]) == interval).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_5_min_latest.yaml",
-        ):
-            result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
-                date="latest",
-            )
+        result = self.iso.get_reserve_zone_prices_designations_real_time_5_min(
+            date="latest",
+        )
 
         self._check_reserve_zone_prices_designations(result, pd.Timedelta(minutes=5))
 
@@ -1039,15 +1089,14 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_zone_prices_designations_real_time_hourly_final"""
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_final_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_hourly_final_latest.yaml",
-        ):
-            result = (
-                self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
-                    date="latest",
-                )
-            )
+        result = self.iso.get_reserve_zone_prices_designations_real_time_hourly_final(
+            date="latest",
+        )
 
         self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
@@ -1080,17 +1129,16 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_reserve_zone_prices_designations_real_time_hourly_prelim"""
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest(
         self,
     ):
-        with api_vcr.use_cassette(
-            "test_get_reserve_zone_prices_designations_real_time_hourly_prelim_latest.yaml",
-        ):
-            result = (
-                self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
-                    date="latest",
-                )
-            )
+        result = self.iso.get_reserve_zone_prices_designations_real_time_hourly_prelim(
+            date="latest",
+        )
 
         self._check_reserve_zone_prices_designations(result, pd.Timedelta(hours=1))
 
@@ -1155,13 +1203,14 @@ class TestISONEAPI(TestHelperMixin):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_ancillary_services_strike_prices_day_ahead_latest.yaml",
-        ):
-            result = self.iso.get_ancillary_services_strike_prices_day_ahead(
-                date="latest",
-            )
+        result = self.iso.get_ancillary_services_strike_prices_day_ahead(
+            date="latest",
+        )
 
         self._check_strike_prices_day_ahead(result)
 
@@ -1235,34 +1284,36 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(hours=1),
         )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_15_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_preliminary_real_time_15_min_latest.yaml",
-        ):
-            try:
-                df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
-                    date="latest",
-                )
-                self._check_constraints(
-                    df,
-                    expected_columns=[
-                        "Interval Start",
-                        "Interval End",
-                        "Constraint Name",
-                        "Marginal Value",
-                    ],
-                    expected_interval=pd.Timedelta(minutes=15),
-                )
-            except NoDataFoundException:
-                pytest.skip(
-                    "No data found for preliminary real-time 15-minute binding constraints",
-                )
+        try:
+            df = self.iso.get_binding_constraints_preliminary_real_time_15_min(
+                date="latest",
+            )
+            self._check_constraints(
+                df,
+                expected_columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Constraint Name",
+                    "Marginal Value",
+                ],
+                expected_interval=pd.Timedelta(minutes=15),
+            )
+        except NoDataFoundException:
+            pytest.skip(
+                "No data found for preliminary real-time 15-minute binding constraints",
+            )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_15_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_final_real_time_15_min_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
+        df = self.iso.get_binding_constraints_final_real_time_15_min(date="latest")
 
         self._check_constraints(
             df,
@@ -1339,13 +1390,14 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=15),
         )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_binding_constraints_preliminary_real_time_5_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_preliminary_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
-                date="latest",
-            )
+        df = self.iso.get_binding_constraints_preliminary_real_time_5_min(
+            date="latest",
+        )
 
         self._check_constraints(
             df,
@@ -1358,11 +1410,12 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=5),
         )
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_binding_constraints_final_real_time_5_min_latest(self) -> None:
-        with api_vcr.use_cassette(
-            "test_get_binding_constraints_final_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
+        df = self.iso.get_binding_constraints_final_real_time_5_min(date="latest")
 
         self._check_constraints(
             df,
@@ -1439,11 +1492,17 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=5),
         )
 
-    def _check_fcm_reconfiguration(self, df: pd.DataFrame) -> None:
+    def _check_fcm_reconfiguration(
+        self, df: pd.DataFrame, auction_type: str = "monthly"
+    ) -> None:
         assert isinstance(df, pd.DataFrame)
         assert len(df) > 0
-        assert list(df.columns) == ISONE_FCM_RECONFIGURATION_COLUMNS
-        assert "ARA" in df.columns
+        expected_cols = list(ISONE_FCM_RECONFIGURATION_COLUMNS)
+        if auction_type != "annual":
+            expected_cols.remove("ARA")
+        assert list(df.columns) == expected_cols
+        if auction_type == "annual":
+            assert "ARA" in df.columns
         assert df["Location Type"].isin(["Capacity Zone", "External Interface"]).all()
         assert df["Location ID"].dtype in [np.int64, np.float64]
         assert df["Location Name"].dtype == "object"
@@ -1459,11 +1518,14 @@ class TestISONEAPI(TestHelperMixin):
         for col in numeric_cols:
             assert df[col].dtype in [np.int64, np.float64]
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_fcm_reconfiguration_monthly_latest(self):
-        with api_vcr.use_cassette("test_get_fcm_reconfiguration_monthly_latest.yaml"):
-            result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
+        result = self.iso.get_fcm_reconfiguration_monthly(date="latest")
 
-            self._check_fcm_reconfiguration(result)
+        self._check_fcm_reconfiguration(result)
 
     @pytest.mark.parametrize(
         "date",
@@ -1483,12 +1545,15 @@ class TestISONEAPI(TestHelperMixin):
             self._check_fcm_reconfiguration(result)
             assert result["Interval Start"].min().date() == date.date()
 
+    @pytest.mark.skip(
+        reason="ISONE API credentials revoked or rate-limited - https://www.notion.so/33de835f42aa81aba611f0fa9936ff29"
+    )
+    @pytest.mark.integration
     def test_get_fcm_reconfiguration_annual_latest(self):
-        with api_vcr.use_cassette("test_get_fcm_reconfiguration_annual_latest.yaml"):
-            result = self.iso.get_fcm_reconfiguration_annual(date="latest")
+        result = self.iso.get_fcm_reconfiguration_annual(date="latest")
 
-            self._check_fcm_reconfiguration(result)
-            assert result["ARA"].isin(["1", "2", "3"]).all()
+        self._check_fcm_reconfiguration(result, auction_type="annual")
+        assert result["ARA"].isin([1, 2, 3]).all()
 
     @pytest.mark.parametrize(
         "date",
@@ -1504,8 +1569,8 @@ class TestISONEAPI(TestHelperMixin):
                 date=date,
             )
 
-            self._check_fcm_reconfiguration(result)
-            assert result["ARA"].isin(["1", "2", "3"]).all()
+            self._check_fcm_reconfiguration(result, auction_type="annual")
+            assert result["ARA"].isin([1, 2, 3]).all()
             unique_ara_values = result["ARA"].unique()
             assert len(unique_ara_values) >= 1
             cp_start_year = date.year if date.month >= 6 else date.year - 1

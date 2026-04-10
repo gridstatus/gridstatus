@@ -6,9 +6,10 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --durations=25
+PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 0 --durations=25
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not integration"
+UNIT_NOT_SLOW := -m "not integration and not slow"
 
 .PHONY: test-base
 test-base:
@@ -16,47 +17,47 @@ test-base:
 
 .PHONY: test-aeso
 test-aeso:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_aeso.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_aeso.py
 
 .PHONY: test-caiso
 test-caiso:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_caiso.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_caiso.py
 
 .PHONY: test-ercot
 test-ercot:
-	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
+	$(PYTEST_CMD) $(UNIT_NOT_SLOW) gridstatus/tests/source_specific/test_ercot.py gridstatus/tests/source_specific/test_ercot_api.py
 
 .PHONY: test-isone
 test-isone:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_isone.py gridstatus/tests/source_specific/test_isone_api.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_isone.py gridstatus/tests/source_specific/test_isone_api.py
 
 .PHONY: test-miso
 test-miso:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_miso.py gridstatus/tests/source_specific/test_miso_api.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_miso.py gridstatus/tests/source_specific/test_miso_api.py
 
 .PHONY: test-nyiso
 test-nyiso:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_nyiso.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_nyiso.py
 
 .PHONY: test-pjm
 test-pjm:
-	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
+	$(PYTEST_CMD) $(UNIT_NOT_SLOW) gridstatus/tests/source_specific/test_pjm.py
 
 .PHONY: test-spp
 test-spp:
-	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_spp.py
+	$(PYTEST_CMD) $(UNIT_NOT_SLOW) gridstatus/tests/source_specific/test_spp.py
 
 .PHONY: test-eia
 test-eia:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_eia.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_eia.py
 
 .PHONY: test-ieso
 test-ieso:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ieso.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_ieso.py
 
 .PHONY: test-misc
 test-misc:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py
+	$(PYTEST_CMD) $(UNIT_ONLY) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py
 
 .PHONY: test-cov
 test-cov:
@@ -91,6 +92,25 @@ ifeq ($(market),ercot)
 	uv run pytest -vvv gridstatus/tests/source_specific/test_$(market).py::TestErcot::$(test)
 else
 	uv run pytest -vvv gridstatus/tests/source_specific/test_$(market).py::Test$(shell echo $(market) | tr '[:lower:]' '[:upper:]')::$(test)
+endif
+
+.PHONY: fixtures-download
+fixtures-download:
+	uv run python scripts/fixtures.py download
+
+.PHONY: fixtures-download-iso
+fixtures-download-iso:
+ifndef iso
+	$(error iso parameter is required. Usage: make fixtures-download-iso iso=caiso)
+endif
+	uv run python scripts/fixtures.py download --iso $(iso)
+
+.PHONY: fixtures-upload
+fixtures-upload:
+ifndef iso
+	uv run python scripts/fixtures.py upload
+else
+	uv run python scripts/fixtures.py upload --iso $(iso)
 endif
 
 .PHONY: installdeps-dev
