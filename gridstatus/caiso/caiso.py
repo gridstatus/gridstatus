@@ -364,7 +364,7 @@ class CAISO(ISOBase):
 
         retry_num = 0
         while retry_num < max_retries:
-            r = requests.get(url, verify=False)
+            r = requests.get(url, verify=True)
 
             if r.status_code == 200:
                 break
@@ -1648,8 +1648,14 @@ class CAISO(ISOBase):
 
         logger.info(f"Fetching {url}")
 
+        response = requests.get(url)
+        response.raise_for_status()
+
         # Only want the "GPI_Fuel_Region" sheet
-        return pd.read_excel(url, sheet_name="GPI_Fuel_Region").rename(
+        return pd.read_excel(
+            io.BytesIO(response.content),
+            sheet_name="GPI_Fuel_Region",
+        ).rename(
             columns={
                 "Fuel Region": "Fuel Region Id",
                 "Cap & Trade Credit": "Cap and Trade Credit",
