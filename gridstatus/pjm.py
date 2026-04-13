@@ -4,6 +4,7 @@ import os
 import random
 import time
 import warnings
+import xml.etree.ElementTree as ET
 from typing import BinaryIO
 
 import pandas as pd
@@ -70,6 +71,10 @@ class PJM(ISOBase):
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
+
+    EMERGENCY_POSTINGS_XML_DEFAULT_URL = (
+        "https://www.pjm.com/-/media/DotCom/etools/emerg-procedures/epsample.xml"
+    )
 
     def __init__(
         self,
@@ -3789,6 +3794,140 @@ class PJM(ISOBase):
             .sort_values("Interval Start")
             .reset_index(drop=True)
         )
+
+    @staticmethod
+    def _emergency_xml_local_name(tag: str) -> str:
+        if "}" in tag:
+            return tag.split("}", 1)[1]
+        return tag
+
+    def _emergency_child_text(self, parent: ET.Element, name: str) -> str | None:
+        for child in parent:
+            if self._emergency_xml_local_name(child.tag) == name:
+                return child.text
+        return None
+
+    def _emergency_region_names(self, parent: ET.Element) -> list[str | None]:
+        names: list[str | None] = []
+        for child in parent:
+            if self._emergency_xml_local_name(child.tag) != "Region":
+                continue
+            rn = self._emergency_child_text(child, "regionName")
+            names.append(rn)
+        return names if names else [None]
+
+    def _parse_emergency_procedures_xml(self, xml_bytes: bytes) -> pd.DataFrame:
+        root = ET.fromstring(xml_bytes)
+        rows: list[dict] = []
+        for elem in root.iter():
+            if self._emergency_xml_local_name(elem.tag) != "EmergencyMessage":
+                continue
+
+            mid = self._emergency_child_text(elem, "messageId")
+            if mid is None:
+                continue
+
+            msg_type = self._emergency_child_text(elem, "messageType")
+            priority = self._emergency_child_text(elem, "priority")
+            body = self._emergency_child_text(elem, "message")
+            posted = self._emergency_child_text(elem, "postedTimestamp")
+            canceled = self._emergency_child_text(elem, "canceledTimestamp")
+            eff_start = self._emergency_child_text(elem, "effectiveStartTime")
+            if eff_start is None:
+                eff_start = self._emergency_child_text(elem, "applicableStartTime")
+            if eff_start is None:
+                continue
+            eff_end = self._emergency_child_text(elem, "effectiveEndTime")
+            if eff_end is None:
+                eff_end = self._emergency_child_text(elem, "applicableEndTime")
+
+            region_names = self._emergency_region_names(elem)
+
+            for rn in region_names:
+                rows.append(
+                    {
+                        "Message ID": int(mid.strip()),
+                        "Message Type": msg_type,
+                        "Priority": priority,
+                        "Emergency Message": body,
+                        "Region": rn,
+                        "Interval Start": eff_start,
+                        "Interval End": eff_end,
+                        "Publish Time": posted,
+                        "Canceled Time": canceled,
+                    },
+                )
+
+        if not rows:
+            raise NoDataFoundException("No emergency procedure messages found in XML")
+
+        df = pd.DataFrame(rows)
+
+        df["Interval Start"] = pd.to_datetime(
+            df["Interval Start"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Publish Time"] = pd.to_datetime(df["Publish Time"], utc=True).dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Canceled Time"] = pd.to_datetime(
+            df["Canceled Time"],
+            utc=True,
+        ).dt.tz_convert(
+            self.default_timezone,
+        )
+
+        df = df.sort_values(["Interval Start", "Message ID", "Region"]).reset_index(
+            drop=True,
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Message ID",
+                "Priority",
+                "Message Type",
+                "Region",
+                "Emergency Message",
+                "Publish Time",
+                "Canceled Time",
+            ]
+        ]
+
+    def parse_emergency_procedures_xml(self, xml_bytes: bytes) -> pd.DataFrame:
+        return self._parse_emergency_procedures_xml(xml_bytes)
+
+    def get_emergency_postings(self, verbose: bool = False) -> pd.DataFrame:
+        """
+        Retrieves PJM emergency procedure postings from the XML feed.
+
+        ``PJM_EMERGENCY_POSTINGS_XML_URL`` overrides the default URL (PJM's public
+        sample XML). ``PJM_EMERGENCY_POSTINGS_COOKIE`` may be set to the full
+        ``Cookie`` header value when the feed requires a browser session.
+        """
+        url = (
+            os.getenv("PJM_EMERGENCY_POSTINGS_XML_URL")
+            or self.EMERGENCY_POSTINGS_XML_DEFAULT_URL
+        )
+        headers: dict[str, str] = {}
+        cookie_header = os.getenv("PJM_EMERGENCY_POSTINGS_COOKIE")
+        if cookie_header:
+            headers["Cookie"] = cookie_header
+        logger.info(f"Requesting emergency postings XML from {url}...")
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+        return self._parse_emergency_procedures_xml(response.content)
 
     @support_date_range(frequency=None)
     def get_pai_intervals_5_min(

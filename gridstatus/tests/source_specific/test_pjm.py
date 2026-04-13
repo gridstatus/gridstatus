@@ -3311,6 +3311,95 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_sync_reserve_events()
             self._check_sync_reserve_events(df)
 
+    """get_emergency_postings"""
+
+    expected_emergency_postings_cols = [
+        "Interval Start",
+        "Interval End",
+        "Message ID",
+        "Priority",
+        "Message Type",
+        "Region",
+        "Emergency Message",
+        "Publish Time",
+        "Canceled Time",
+    ]
+
+    def test_get_emergency_postings_parses_xml(self, monkeypatch):
+        monkeypatch.delenv("PJM_EMERGENCY_POSTINGS_COOKIE", raising=False)
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<EmergencyProcedures xmlns="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<EmergencyMessage>
+<messageId>1</messageId>
+<messageType>Test</messageType>
+<postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
+<priority>Warning</priority>
+<message>Hello</message>
+<effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
+<effectiveEndTime>2016-07-06T04:18Z</effectiveEndTime>
+<Region><regionName>AEP</regionName><regionType>Control Area</regionType></Region>
+</EmergencyMessage>
+</EmergencyProcedures>"""
+        mock_resp = mock.Mock()
+        mock_resp.content = xml
+        mock_resp.raise_for_status = mock.Mock()
+        with mock.patch("gridstatus.pjm.requests.get", return_value=mock_resp):
+            df = self.iso.get_emergency_postings()
+
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 1
+        assert df["Region"].iloc[0] == "AEP"
+        assert df["Message Type"].iloc[0] == "Test"
+        assert df["Priority"].iloc[0] == "Warning"
+        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
+
+    def test_get_emergency_postings_sends_cookie_header(self, monkeypatch):
+        monkeypatch.setenv("PJM_EMERGENCY_POSTINGS_COOKIE", "JSESSIONID=example")
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<EmergencyProcedures xmlns="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<EmergencyMessage>
+<messageId>1</messageId>
+<messageType>Test</messageType>
+<postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
+<priority>Warning</priority>
+<message>Hello</message>
+<effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
+<Region><regionName>AEP</regionName></Region>
+</EmergencyMessage>
+</EmergencyProcedures>"""
+        mock_resp = mock.Mock()
+        mock_resp.content = xml
+        mock_resp.raise_for_status = mock.Mock()
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_resp,
+        ) as mock_get:
+            self.iso.get_emergency_postings()
+
+        assert mock_get.call_args.kwargs["headers"]["Cookie"] == "JSESSIONID=example"
+
+    def test_parse_emergency_procedures_xml(self):
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<EmergencyProcedures xmlns="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<EmergencyMessage>
+<messageId>1</messageId>
+<messageType>Test</messageType>
+<postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
+<priority>Warning</priority>
+<message>Hello</message>
+<effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
+<effectiveEndTime>2016-07-06T04:18Z</effectiveEndTime>
+<Region><regionName>AEP</regionName><regionType>Control Area</regionType></Region>
+</EmergencyMessage>
+</EmergencyProcedures>"""
+        df = self.iso.parse_emergency_procedures_xml(xml)
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 1
+        assert df["Region"].iloc[0] == "AEP"
+
     """get_voltage_limits"""
 
     def _check_voltage_limits(self, df):
