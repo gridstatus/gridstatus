@@ -10,6 +10,7 @@ from typing import BinaryIO
 import pandas as pd
 import requests
 import tqdm
+from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
@@ -72,8 +73,8 @@ class PJM(ISOBase):
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
 
-    EMERGENCY_POSTINGS_XML_DEFAULT_URL = (
-        "https://www.pjm.com/-/media/DotCom/etools/emerg-procedures/epsample.xml"
+    EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL = (
+        "https://emergencyprocedures.pjm.com/ep/pages/dashboard.jsf"
     )
 
     def __init__(
@@ -3866,21 +3867,19 @@ class PJM(ISOBase):
         df["Interval Start"] = pd.to_datetime(
             df["Interval Start"],
             utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
-        )
-        df["Interval End"] = pd.to_datetime(df["Interval End"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
-        df["Publish Time"] = pd.to_datetime(df["Publish Time"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = pd.to_datetime(
+            df["Interval End"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Publish Time"] = pd.to_datetime(
+            df["Publish Time"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
         df["Canceled Time"] = pd.to_datetime(
             df["Canceled Time"],
             utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
-        )
+        ).dt.tz_convert(self.default_timezone)
 
         df = df.sort_values(["Interval Start", "Message ID", "Region"]).reset_index(
             drop=True,
@@ -3900,34 +3899,63 @@ class PJM(ISOBase):
             ]
         ]
 
-    def parse_emergency_procedures_xml(self, xml_bytes: bytes) -> pd.DataFrame:
-        return self._parse_emergency_procedures_xml(xml_bytes)
+    def _fetch_emergency_xml(self, url: str) -> bytes:
+        session = requests.Session()
+        session.headers["User-Agent"] = "Mozilla/5.0 (compatible; gridstatus)"
 
-    def get_emergency_postings(self, verbose: bool = False) -> pd.DataFrame:
-        """
-        Retrieves PJM emergency procedure postings from the XML feed.
+        logger.info(f"GET emergency postings dashboard from {url}...")
+        page = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        page.raise_for_status()
 
-        ``PJM_EMERGENCY_POSTINGS_XML_URL`` overrides the default URL (PJM's public
-        sample XML). ``PJM_EMERGENCY_POSTINGS_COOKIE`` may be set to the full
-        ``Cookie`` header value when the feed requires a browser session.
-        """
-        url = (
-            os.getenv("PJM_EMERGENCY_POSTINGS_XML_URL")
-            or self.EMERGENCY_POSTINGS_XML_DEFAULT_URL
-        )
-        headers: dict[str, str] = {}
-        cookie_header = os.getenv("PJM_EMERGENCY_POSTINGS_COOKIE")
-        if cookie_header:
-            headers["Cookie"] = cookie_header
-        logger.info(f"Requesting emergency postings XML from {url}...")
-        response = requests.get(
+        soup = BeautifulSoup(page.content, "lxml")
+        vs_input = soup.select_one('input[name="javax.faces.ViewState"]')
+        if vs_input is None:
+            raise NoDataFoundException(
+                "Could not find javax.faces.ViewState in dashboard HTML.",
+            )
+        view_state: str = vs_input["value"]
+
+        logger.info("POST XML export (frmButtons:lnkDownload)...")
+        xml_resp = session.post(
             url,
-            headers=headers,
+            data={
+                "frmButtons": "frmButtons",
+                "frmButtons:lnkDownload": "frmButtons:lnkDownload",
+                "javax.faces.ViewState": view_state,
+            },
+            headers={
+                "Referer": url,
+                "Origin": "https://emergencyprocedures.pjm.com",
+            },
             timeout=REQUEST_TIMEOUT,
             allow_redirects=True,
         )
-        response.raise_for_status()
-        return self._parse_emergency_procedures_xml(response.content)
+        xml_resp.raise_for_status()
+
+        content_type = xml_resp.headers.get("Content-Type", "")
+        if "xml" not in content_type:
+            raise NoDataFoundException(
+                f"Expected XML response but got Content-Type: {content_type}",
+            )
+
+        return xml_resp.content
+
+    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
+        """
+        Retrieves PJM emergency procedure postings by triggering the public
+        "Export To XML" button on the guest dashboard.
+
+        Two-step flow (no credentials required):
+          1. GET the guest dashboard to obtain a session cookie and JSF ViewState.
+          2. POST ``frmButtons:lnkDownload`` to download the XML export.
+
+        The XML contains richer data than the HTML table: Publish Time,
+        Canceled Time, proper UTC start/end timestamps, and individual Region
+        elements (one DataFrame row per message-region pair).
+        """
+        fetch_url = url or self.EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
+        xml_bytes = self._fetch_emergency_xml(fetch_url)
+        return self._parse_emergency_procedures_xml(xml_bytes)
 
     @support_date_range(frequency=None)
     def get_pai_intervals_5_min(

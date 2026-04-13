@@ -3325,10 +3325,14 @@ class TestPJM(BaseTestISO):
         "Canceled Time",
     ]
 
-    def test_get_emergency_postings_parses_xml(self, monkeypatch):
-        monkeypatch.delenv("PJM_EMERGENCY_POSTINGS_COOKIE", raising=False)
-        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
-<EmergencyProcedures xmlns="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+    SAMPLE_DASHBOARD_HTML = (
+        b"<html><body><form>"
+        b'<input name="javax.faces.ViewState" value="123:456" />'
+        b"</form></body></html>"
+    )
+
+    SAMPLE_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns2:EmergencyProcedures xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
 <EmergencyMessage>
 <messageId>1</messageId>
 <messageType>Test</messageType>
@@ -3339,12 +3343,35 @@ class TestPJM(BaseTestISO):
 <effectiveEndTime>2016-07-06T04:18Z</effectiveEndTime>
 <Region><regionName>AEP</regionName><regionType>Control Area</regionType></Region>
 </EmergencyMessage>
-</EmergencyProcedures>"""
-        mock_resp = mock.Mock()
-        mock_resp.content = xml
-        mock_resp.raise_for_status = mock.Mock()
-        with mock.patch("gridstatus.pjm.requests.get", return_value=mock_resp):
-            df = self.iso.get_emergency_postings()
+</ns2:EmergencyProcedures>"""
+
+    def _mock_session_for_xml_export(self, dashboard_html, xml_bytes):
+        mock_page = mock.Mock()
+        mock_page.content = dashboard_html
+        mock_page.status_code = 200
+        mock_page.raise_for_status = mock.Mock()
+
+        mock_xml = mock.Mock()
+        mock_xml.content = xml_bytes
+        mock_xml.status_code = 200
+        mock_xml.headers = {"Content-Type": "application/xml"}
+        mock_xml.raise_for_status = mock.Mock()
+
+        mock_session = mock.Mock()
+        mock_session.headers = {}
+        mock_session.get.return_value = mock_page
+        mock_session.post.return_value = mock_xml
+        return mock_session
+
+    def test_get_emergency_postings_xml_export(self):
+        mock_session = self._mock_session_for_xml_export(
+            self.SAMPLE_DASHBOARD_HTML,
+            self.SAMPLE_XML,
+        )
+        with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
+            df = self.iso.get_emergency_postings(
+                url="https://example.test/dashboard.jsf",
+            )
 
         assert df.columns.tolist() == self.expected_emergency_postings_cols
         assert len(df) == 1
@@ -3354,51 +3381,51 @@ class TestPJM(BaseTestISO):
         assert df["Priority"].iloc[0] == "Warning"
         assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
         assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
+        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
 
-    def test_get_emergency_postings_sends_cookie_header(self, monkeypatch):
-        monkeypatch.setenv("PJM_EMERGENCY_POSTINGS_COOKIE", "JSESSIONID=example")
+    def test_get_emergency_postings_xml_export_multi_region(self):
         xml = b"""<?xml version="1.0" encoding="UTF-8"?>
-<EmergencyProcedures xmlns="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<ns2:EmergencyProcedures xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
 <EmergencyMessage>
-<messageId>1</messageId>
-<messageType>Test</messageType>
-<postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
-<priority>Warning</priority>
-<message>Hello</message>
-<effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
-<Region><regionName>AEP</regionName></Region>
+<messageId>99</messageId>
+<messageType>Hot Weather Alert</messageType>
+<postedTimestamp>2026-04-13T12:00Z</postedTimestamp>
+<priority>Alert</priority>
+<message>Body</message>
+<effectiveStartTime>2026-04-13T12:00Z</effectiveStartTime>
+<applicableEndTime>2026-04-17T03:59Z</applicableEndTime>
+<Region><regionName>SOUTHERN</regionName></Region>
+<Region><regionName>MIDATL</regionName></Region>
 </EmergencyMessage>
-</EmergencyProcedures>"""
-        mock_resp = mock.Mock()
-        mock_resp.content = xml
-        mock_resp.raise_for_status = mock.Mock()
-        with mock.patch(
-            "gridstatus.pjm.requests.get",
-            return_value=mock_resp,
-        ) as mock_get:
-            self.iso.get_emergency_postings()
+</ns2:EmergencyProcedures>"""
+        mock_session = self._mock_session_for_xml_export(
+            self.SAMPLE_DASHBOARD_HTML,
+            xml,
+        )
+        with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
+            df = self.iso.get_emergency_postings(
+                url="https://example.test/dashboard.jsf",
+            )
 
-        assert mock_get.call_args.kwargs["headers"]["Cookie"] == "JSESSIONID=example"
+        assert len(df) == 2
+        assert set(df["Region"]) == {"SOUTHERN", "MIDATL"}
+        assert df["Message ID"].iloc[0] == 99
 
-    def test_parse_emergency_procedures_xml(self):
-        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
-<EmergencyProcedures xmlns="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
-<EmergencyMessage>
-<messageId>1</messageId>
-<messageType>Test</messageType>
-<postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
-<priority>Warning</priority>
-<message>Hello</message>
-<effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
-<effectiveEndTime>2016-07-06T04:18Z</effectiveEndTime>
-<Region><regionName>AEP</regionName><regionType>Control Area</regionType></Region>
-</EmergencyMessage>
-</EmergencyProcedures>"""
-        df = self.iso.parse_emergency_procedures_xml(xml)
-        assert df.columns.tolist() == self.expected_emergency_postings_cols
-        assert len(df) == 1
-        assert df["Message ID"].iloc[0] == 1
-        assert df["Region"].iloc[0] == "AEP"
+    def test_get_emergency_postings_posts_viewstate(self):
+        mock_session = self._mock_session_for_xml_export(
+            self.SAMPLE_DASHBOARD_HTML,
+            self.SAMPLE_XML,
+        )
+        with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
+            self.iso.get_emergency_postings(url="https://example.test/dashboard.jsf")
+
+        post_call = mock_session.post.call_args
+        assert post_call.kwargs["data"]["javax.faces.ViewState"] == "123:456"
+        assert (
+            post_call.kwargs["data"]["frmButtons:lnkDownload"]
+            == "frmButtons:lnkDownload"
+        )
 
     """get_voltage_limits"""
 
