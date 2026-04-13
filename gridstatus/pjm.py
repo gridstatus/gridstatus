@@ -23,6 +23,7 @@ from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 from gridstatus.pjm_constants import (
     DEFAULT_RETRIES,
+    EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
     HUB_NODE_IDS,
     LOCATION_TYPES,
     PRICE_NODE_IDS,
@@ -72,10 +73,6 @@ class PJM(ISOBase):
     load_forecast_endpoint_name = "load_frcstd_7_day"
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
-
-    EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL = (
-        "https://emergencyprocedures.pjm.com/ep/pages/dashboard.jsf"
-    )
 
     def __init__(
         self,
@@ -3796,108 +3793,22 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-    @staticmethod
-    def _emergency_xml_local_name(tag: str) -> str:
-        if "}" in tag:
-            return tag.split("}", 1)[1]
-        return tag
+    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
+        """
+        Retrieves PJM emergency procedure postings by triggering the public
+        "Export To XML" button on the guest dashboard.
 
-    def _emergency_child_text(self, parent: ET.Element, name: str) -> str | None:
-        for child in parent:
-            if self._emergency_xml_local_name(child.tag) == name:
-                return child.text
-        return None
+        Two-step flow (no credentials required):
+          1. GET the guest dashboard to obtain a session cookie and JSF ViewState.
+          2. POST ``frmButtons:lnkDownload`` to download the XML export.
 
-    def _emergency_region_names(self, parent: ET.Element) -> list[str | None]:
-        names: list[str | None] = []
-        for child in parent:
-            if self._emergency_xml_local_name(child.tag) != "Region":
-                continue
-            rn = self._emergency_child_text(child, "regionName")
-            names.append(rn)
-        return names if names else [None]
-
-    def _parse_emergency_procedures_xml(self, xml_bytes: bytes) -> pd.DataFrame:
-        root = ET.fromstring(xml_bytes)
-        rows: list[dict] = []
-        for elem in root.iter():
-            if self._emergency_xml_local_name(elem.tag) != "EmergencyMessage":
-                continue
-
-            mid = self._emergency_child_text(elem, "messageId")
-            if mid is None:
-                continue
-
-            msg_type = self._emergency_child_text(elem, "messageType")
-            priority = self._emergency_child_text(elem, "priority")
-            body = self._emergency_child_text(elem, "message")
-            posted = self._emergency_child_text(elem, "postedTimestamp")
-            canceled = self._emergency_child_text(elem, "canceledTimestamp")
-            eff_start = self._emergency_child_text(elem, "effectiveStartTime")
-            if eff_start is None:
-                eff_start = self._emergency_child_text(elem, "applicableStartTime")
-            if eff_start is None:
-                continue
-            eff_end = self._emergency_child_text(elem, "effectiveEndTime")
-            if eff_end is None:
-                eff_end = self._emergency_child_text(elem, "applicableEndTime")
-
-            region_names = self._emergency_region_names(elem)
-
-            for rn in region_names:
-                rows.append(
-                    {
-                        "Message ID": int(mid.strip()),
-                        "Message Type": msg_type,
-                        "Priority": priority,
-                        "Emergency Message": body,
-                        "Region": rn,
-                        "Interval Start": eff_start,
-                        "Interval End": eff_end,
-                        "Publish Time": posted,
-                        "Canceled Time": canceled,
-                    },
-                )
-
-        if not rows:
-            raise NoDataFoundException("No emergency procedure messages found in XML")
-
-        df = pd.DataFrame(rows)
-
-        df["Interval Start"] = pd.to_datetime(
-            df["Interval Start"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = pd.to_datetime(
-            df["Interval End"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Publish Time"] = pd.to_datetime(
-            df["Publish Time"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Canceled Time"] = pd.to_datetime(
-            df["Canceled Time"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
-        df = df.sort_values(["Interval Start", "Message ID", "Region"]).reset_index(
-            drop=True,
-        )
-
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Message ID",
-                "Priority",
-                "Message Type",
-                "Region",
-                "Emergency Message",
-                "Publish Time",
-                "Canceled Time",
-            ]
-        ]
+        The XML contains Publish Time, Canceled Time, proper UTC start/end
+        timestamps, and individual Region elements (one DataFrame row per
+        message-region pair).
+        """
+        fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
+        xml_bytes = self._fetch_emergency_xml(fetch_url)
+        return self._parse_emergency_xml(xml_bytes)
 
     def _fetch_emergency_xml(self, url: str) -> bytes:
         session = requests.Session()
@@ -3940,22 +3851,70 @@ class PJM(ISOBase):
 
         return xml_resp.content
 
-    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
-        """
-        Retrieves PJM emergency procedure postings by triggering the public
-        "Export To XML" button on the guest dashboard.
+    def _parse_emergency_xml(self, xml_bytes: bytes) -> pd.DataFrame:
+        root = ET.fromstring(xml_bytes)
+        rows: list[dict] = []
+        for msg in root.iter("EmergencyMessage"):
+            mid = msg.findtext("messageId")
+            if mid is None:
+                continue
 
-        Two-step flow (no credentials required):
-          1. GET the guest dashboard to obtain a session cookie and JSF ViewState.
-          2. POST ``frmButtons:lnkDownload`` to download the XML export.
+            eff_start = msg.findtext("effectiveStartTime") or msg.findtext(
+                "applicableStartTime",
+            )
+            if eff_start is None:
+                continue
 
-        The XML contains richer data than the HTML table: Publish Time,
-        Canceled Time, proper UTC start/end timestamps, and individual Region
-        elements (one DataFrame row per message-region pair).
-        """
-        fetch_url = url or self.EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
-        xml_bytes = self._fetch_emergency_xml(fetch_url)
-        return self._parse_emergency_procedures_xml(xml_bytes)
+            eff_end = msg.findtext("effectiveEndTime") or msg.findtext(
+                "applicableEndTime",
+            )
+
+            regions = msg.findall("Region")
+            region_names = (
+                [r.findtext("regionName") for r in regions] if regions else [None]
+            )
+
+            for rn in region_names:
+                rows.append(
+                    {
+                        "Message ID": int(mid.strip()),
+                        "Message Type": msg.findtext("messageType"),
+                        "Priority": msg.findtext("priority"),
+                        "Emergency Message": msg.findtext("message"),
+                        "Region": rn,
+                        "Interval Start": eff_start,
+                        "Interval End": eff_end,
+                        "Publish Time": msg.findtext("postedTimestamp"),
+                        "Canceled Time": msg.findtext("canceledTimestamp"),
+                    },
+                )
+
+        if not rows:
+            raise NoDataFoundException("No emergency procedure messages found in XML")
+
+        df = pd.DataFrame(rows)
+        for col in ("Interval Start", "Interval End", "Publish Time", "Canceled Time"):
+            df[col] = pd.to_datetime(df[col], utc=True).dt.tz_convert(
+                self.default_timezone,
+            )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Message ID",
+                    "Priority",
+                    "Message Type",
+                    "Region",
+                    "Emergency Message",
+                    "Publish Time",
+                    "Canceled Time",
+                ]
+            ]
+            .sort_values(["Interval Start", "Message ID", "Region"])
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency=None)
     def get_pai_intervals_5_min(
