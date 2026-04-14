@@ -3859,16 +3859,6 @@ class PJM(ISOBase):
             if mid is None:
                 continue
 
-            eff_start = msg.findtext("effectiveStartTime") or msg.findtext(
-                "applicableStartTime",
-            )
-            if eff_start is None:
-                continue
-
-            eff_end = msg.findtext("effectiveEndTime") or msg.findtext(
-                "applicableEndTime",
-            )
-
             regions = msg.findall("Region")
             region_names = (
                 [r.findtext("regionName") for r in regions] if regions else [None]
@@ -3882,8 +3872,10 @@ class PJM(ISOBase):
                         "Priority": msg.findtext("priority"),
                         "Emergency Message": msg.findtext("message"),
                         "Region": rn,
-                        "Interval Start": eff_start,
-                        "Interval End": eff_end,
+                        "Effective Start": msg.findtext("effectiveStartTime"),
+                        "Effective End": msg.findtext("effectiveEndTime"),
+                        "Applicable Start": msg.findtext("applicableStartTime"),
+                        "Applicable End": msg.findtext("applicableEndTime"),
                         "Publish Time": msg.findtext("postedTimestamp"),
                         "Canceled Time": msg.findtext("canceledTimestamp"),
                     },
@@ -3893,7 +3885,14 @@ class PJM(ISOBase):
             raise NoDataFoundException("No emergency procedure messages found in XML")
 
         df = pd.DataFrame(rows)
-        for col in ("Interval Start", "Interval End", "Publish Time", "Canceled Time"):
+        for col in (
+            "Effective Start",
+            "Effective End",
+            "Applicable Start",
+            "Applicable End",
+            "Publish Time",
+            "Canceled Time",
+        ):
             df[col] = pd.to_datetime(df[col], utc=True).dt.tz_convert(
                 self.default_timezone,
             )
@@ -3901,18 +3900,20 @@ class PJM(ISOBase):
         return (
             df[
                 [
-                    "Interval Start",
-                    "Interval End",
                     "Message ID",
-                    "Priority",
                     "Message Type",
+                    "Priority",
                     "Region",
-                    "Emergency Message",
+                    "Effective Start",
+                    "Effective End",
+                    "Applicable Start",
+                    "Applicable End",
                     "Publish Time",
                     "Canceled Time",
+                    "Emergency Message",
                 ]
             ]
-            .sort_values(["Interval Start", "Message ID", "Region"])
+            .sort_values(["Effective Start", "Message ID", "Region"])
             .reset_index(drop=True)
         )
 

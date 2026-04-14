@@ -3314,15 +3314,17 @@ class TestPJM(BaseTestISO):
     """get_emergency_postings"""
 
     expected_emergency_postings_cols = [
-        "Interval Start",
-        "Interval End",
         "Message ID",
-        "Priority",
         "Message Type",
+        "Priority",
         "Region",
-        "Emergency Message",
+        "Effective Start",
+        "Effective End",
+        "Applicable Start",
+        "Applicable End",
         "Publish Time",
         "Canceled Time",
+        "Emergency Message",
     ]
 
     SAMPLE_DASHBOARD_HTML = (
@@ -3341,6 +3343,8 @@ class TestPJM(BaseTestISO):
 <message>Hello</message>
 <effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
 <effectiveEndTime>2016-07-06T04:18Z</effectiveEndTime>
+<applicableStartTime>2016-07-06T08:00Z</applicableStartTime>
+<applicableEndTime>2016-07-07T03:59Z</applicableEndTime>
 <Region><regionName>AEP</regionName><regionType>Control Area</regionType></Region>
 </EmergencyMessage>
 </ns2:EmergencyProcedures>"""
@@ -3379,9 +3383,11 @@ class TestPJM(BaseTestISO):
         assert df["Region"].iloc[0] == "AEP"
         assert df["Message Type"].iloc[0] == "Test"
         assert df["Priority"].iloc[0] == "Warning"
-        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
-        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
+        assert isinstance(df["Effective Start"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Effective Start"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Effective End"].dtype, pd.DatetimeTZDtype)
+        assert isinstance(df["Applicable Start"].dtype, pd.DatetimeTZDtype)
+        assert isinstance(df["Applicable End"].dtype, pd.DatetimeTZDtype)
         assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
 
     def test_get_emergency_postings_xml_export_multi_region(self):
@@ -3394,6 +3400,8 @@ class TestPJM(BaseTestISO):
 <priority>Alert</priority>
 <message>Body</message>
 <effectiveStartTime>2026-04-13T12:00Z</effectiveStartTime>
+<effectiveEndTime>2026-04-17T03:59Z</effectiveEndTime>
+<applicableStartTime>2026-04-13T14:00Z</applicableStartTime>
 <applicableEndTime>2026-04-17T03:59Z</applicableEndTime>
 <Region><regionName>SOUTHERN</regionName></Region>
 <Region><regionName>MIDATL</regionName></Region>
