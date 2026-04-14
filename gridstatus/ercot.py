@@ -3272,7 +3272,7 @@ class Ercot(ISOBase):
         Scrapes the HTML table at
         https://www.ercot.com/services/comm/mkt_notices/opsmessages
 
-        Returns one row per message with Publish Time, Notice, Type, and Status.
+        Returns one row per message with Time, Notice, Type, and Status.
         The page shows a rolling window of recent messages (roughly one month).
         """
         url = self.OPERATIONS_MESSAGES_URL
@@ -3281,22 +3281,22 @@ class Ercot(ISOBase):
         dfs = pd.read_html(url, match="Date & Time")
         df = dfs[0]
 
-        df = df.rename(columns={"Date & Time": "Publish Time"})
+        df = df.rename(columns={"Date & Time": "Time"})
 
-        df["Publish Time"] = pd.to_datetime(df["Publish Time"])
+        df["Time"] = pd.to_datetime(df["Time"])
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
 
-        df["Publish Time"] = df["Publish Time"].dt.tz_localize(
+        df["Time"] = df["Time"].dt.tz_localize(
             self.default_timezone,
             ambiguous=ambiguous,
             nonexistent="shift_forward",
         )
 
         return (
-            df[["Publish Time", "Notice", "Type", "Status"]]
-            .sort_values("Publish Time")
+            df[["Time", "Notice", "Type", "Status"]]
+            .sort_values("Time")
             .reset_index(drop=True)
         )
 

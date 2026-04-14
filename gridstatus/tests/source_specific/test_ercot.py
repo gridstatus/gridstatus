@@ -257,7 +257,7 @@ class TestErcot(BaseTestISO):
     """get_operations_messages"""
 
     expected_operations_messages_cols = [
-        "Publish Time",
+        "Time",
         "Notice",
         "Type",
         "Status",
@@ -293,20 +293,20 @@ class TestErcot(BaseTestISO):
 
         assert df.columns.tolist() == self.expected_operations_messages_cols
         assert len(df) == 2
-        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Publish Time"].dt.tz) == str(self.iso.default_timezone)
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Time"].dt.tz) == str(self.iso.default_timezone)
         assert df["Notice"].iloc[0] is not None
         assert df["Type"].iloc[0] == "Operational Information"
         assert set(df["Status"]) == {"Active", "Cancelled"}
 
-    def test_get_operations_messages_sorted_by_publish_time(self):
+    def test_get_operations_messages_sorted_by_time(self):
         with mock.patch(
             "gridstatus.ercot.pd.read_html",
             return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
         ):
             df = self.iso.get_operations_messages()
 
-        assert df["Publish Time"].is_monotonic_increasing
+        assert df["Time"].is_monotonic_increasing
 
     def test_get_operations_messages_single_row(self):
         single_row_df = pd.DataFrame(
