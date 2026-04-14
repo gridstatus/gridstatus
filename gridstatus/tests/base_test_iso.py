@@ -1,6 +1,6 @@
 import pandas as pd
 import pytest
-from pandas.core.dtypes.common import is_numeric_dtype
+from pandas.api.types import is_numeric_dtype
 
 import gridstatus
 from gridstatus.base import GridStatus, _interconnection_columns

@@ -941,7 +941,7 @@ class MISOAPI:
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = pd.Timestamp.today(tz=self.default_timezone).floor(
+            date = pd.Timestamp.now(tz=self.default_timezone).floor(
                 "d",
             ) - pd.Timedelta(days=1)  # Yesterday
 
@@ -1008,7 +1008,7 @@ class MISOAPI:
             "get_real_time_cleared_generation_hourly is not ready for use yet.",
         )
         if date == "latest":
-            date = pd.Timestamp.today(tz=self.default_timezone).floor(
+            date = pd.Timestamp.now(tz=self.default_timezone).floor(
                 "d",
             ) - pd.Timedelta(days=1)  # Yesterday
 

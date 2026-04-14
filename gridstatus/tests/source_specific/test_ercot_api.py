@@ -1536,7 +1536,7 @@ class TestErcotAPI(TestHelperMixin):
         We are also testing here that datetime objects are correctly parsed into
             the desired date string format that the operatingDayFrom parameter expects.
         """
-        two_days_ago = pd.Timestamp.utcnow() - pd.DateOffset(days=2)
+        two_days_ago = pd.Timestamp.now("UTC") - pd.DateOffset(days=2)
         actual_by_wzn_endpoint = "/np6-345-cd/act_sys_load_by_wzn"
         two_days_actual_by_wzn = self.iso.hit_ercot_api(
             actual_by_wzn_endpoint,

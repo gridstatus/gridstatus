@@ -100,9 +100,9 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=5),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=2),
             ),
         ],
@@ -118,9 +118,9 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=5),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=2),
             ),
         ],
@@ -136,9 +136,9 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=3),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=1),
             ),
         ],
@@ -154,9 +154,9 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=3),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=1),
             ),
         ],
@@ -172,9 +172,9 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=3),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
+                pd.Timestamp.now(tz=iso.default_timezone).normalize()
                 - pd.Timedelta(days=1),
             ),
         ],
@@ -1090,8 +1090,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_tie_flows_real_time("latest")
             self._check_tie_flows_real_time(df)
 
-            assert df["Interval Start"].min() == pd.Timestamp.utcnow().round("5min")
-            assert df["Interval End"].max() == pd.Timestamp.utcnow().round(
+            assert df["Interval Start"].min() == pd.Timestamp.now("UTC").round("5min")
+            assert df["Interval End"].max() == pd.Timestamp.now("UTC").round(
                 "5min",
             ) + pd.Timedelta(minutes=5)
 

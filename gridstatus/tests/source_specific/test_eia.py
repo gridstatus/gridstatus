@@ -168,7 +168,7 @@ def test_rto_region_subba_data():
 def test_fuel_type():
     eia = gridstatus.EIA()
 
-    start = (pd.Timestamp.utcnow() - pd.Timedelta(days=2)).normalize()
+    start = (pd.Timestamp.now("UTC") - pd.Timedelta(days=2)).normalize()
     end = start + pd.Timedelta(days=1)
 
     # dataset that doesnt have a handler yet
@@ -454,7 +454,7 @@ def _check_generators_data(
 def test_get_generators_relative_date():
     # The files for the most recent month are generally available 24-26 days
     # after the end of the month.
-    date = pd.Timestamp.utcnow() - pd.DateOffset(days=60)
+    date = pd.Timestamp.now("UTC") - pd.DateOffset(days=60)
 
     with api_vcr.use_cassette(f"test_get_generators_relative_date_{date.date()}"):
         data = EIA().get_generators(date)

@@ -27,10 +27,11 @@ central_timezone = "America/Chicago"
 def test_is_today():
     # Mock a time where the EST date is different from the UTC date
     with time_machine.travel("2024-01-01T02:00:00Z", tick=False):
-        utc_start_of_day = pd.Timestamp.utcnow().normalize()
+        utc_start_of_day = pd.Timestamp.now("UTC").normalize()
 
         assert (
-            pd.Timestamp.utcnow().date() != pd.Timestamp.now(tz=eastern_timezone).date()
+            pd.Timestamp.now("UTC").date()
+            != pd.Timestamp.now(tz=eastern_timezone).date()
         )
 
         # Because is_today converts the timestamp into the timezone provided,
@@ -66,10 +67,11 @@ def test_is_today():
 
     # Mock a time where the EST date is the same as the UTC date
     with time_machine.travel("2024-01-01T12:00:00Z", tick=False):
-        utc_start_of_day = pd.Timestamp.utcnow().normalize()
+        utc_start_of_day = pd.Timestamp.now("UTC").normalize()
 
         assert (
-            pd.Timestamp.utcnow().date() == pd.Timestamp.now(tz=eastern_timezone).date()
+            pd.Timestamp.now("UTC").date()
+            == pd.Timestamp.now(tz=eastern_timezone).date()
         )
 
         # Yesterday in EST
@@ -98,7 +100,7 @@ def test_is_today():
 
 def test_is_yesterday():
     with time_machine.travel("2024-01-01T02:00:00Z", tick=False):
-        start_of_utc_yesterday = pd.Timestamp.utcnow().normalize() - pd.DateOffset(
+        start_of_utc_yesterday = pd.Timestamp.now("UTC").normalize() - pd.DateOffset(
             days=1,
         )
 
@@ -125,7 +127,7 @@ def test_is_yesterday():
         )
 
     with time_machine.travel("2024-01-01T12:00:00Z", tick=False):
-        start_of_utc_yesterday = pd.Timestamp.utcnow().normalize() - pd.DateOffset(
+        start_of_utc_yesterday = pd.Timestamp.now("UTC").normalize() - pd.DateOffset(
             days=1,
         )
 

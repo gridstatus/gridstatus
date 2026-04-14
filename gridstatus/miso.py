@@ -209,7 +209,7 @@ class MISO(ISOBase):
         https://docs.misoenergy.org/marketreports/YYYYMMDD_df_al.xls
         """
         if date == "latest":
-            yesterday = pd.Timestamp.today() - pd.Timedelta(days=1)
+            yesterday = pd.Timestamp.now() - pd.Timedelta(days=1)
             return self.get_zonal_load_hourly(date=yesterday, verbose=verbose)
 
         if date.year < 2023:

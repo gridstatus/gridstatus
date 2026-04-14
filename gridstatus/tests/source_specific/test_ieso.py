@@ -4,7 +4,7 @@ from xml.etree import ElementTree
 import numpy as np
 import pandas as pd
 import pytest
-from pandas.core.dtypes.common import is_numeric_dtype
+from pandas.api.types import is_numeric_dtype
 
 from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
@@ -2384,7 +2384,7 @@ class TestIESO(BaseTestISO):
         assert (data["Interval Start"].dt.date == today.date()).all()
 
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
-        start_date = (pd.Timestamp.utcnow() - pd.DateOffset(days=3)).normalize()
+        start_date = (pd.Timestamp.now("UTC") - pd.DateOffset(days=3)).normalize()
         end_date = start_date + pd.DateOffset(days=1)
 
         with file_vcr.use_cassette(

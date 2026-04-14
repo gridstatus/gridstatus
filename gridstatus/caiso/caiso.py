@@ -2154,7 +2154,7 @@ class CAISO(ISOBase):
             pd.DataFrame: A DataFrame of real time tie flow data
         """
         if date == "latest":
-            date = pd.Timestamp.utcnow().round("5min")
+            date = pd.Timestamp.now("UTC").round("5min")
             end = date + pd.Timedelta(minutes=5)
 
         df = self.get_oasis_dataset(
@@ -2174,7 +2174,7 @@ class CAISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            date = pd.Timestamp.utcnow().round("15min")
+            date = pd.Timestamp.now("UTC").round("15min")
             end = date + pd.Timedelta(minutes=15)
 
         df = self.get_oasis_dataset(
