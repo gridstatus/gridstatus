@@ -3396,7 +3396,7 @@ class Ercot(ISOBase):
         logger.info(
             f"Querying Wayback Machine CDX for snapshots from {from_ts} to {to_ts}",
         )
-        resp = requests.get(self.WAYBACK_CDX_URL, params=params, timeout=30)
+        resp = requests.get(self.WAYBACK_CDX_URL, params=params, timeout=60)
         resp.raise_for_status()
 
         data = resp.json()

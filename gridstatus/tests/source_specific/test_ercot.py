@@ -412,6 +412,22 @@ class TestErcot(BaseTestISO):
         assert len(df) == 1
         assert df["Notice"].iloc[0] == "In range"
 
+    def test_get_operations_messages_historical_wayback(self):
+        with api_vcr.use_cassette(
+            "test_get_operations_messages_historical_wayback.yaml",
+        ):
+            df = self.iso.get_operations_messages(
+                date="2026-01-01",
+                end="2026-01-15",
+            )
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert len(df) > 0
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert df["Time"].min() >= pd.Timestamp("2026-01-01", tz="US/Central")
+        assert df["Time"].max() < pd.Timestamp("2026-01-15", tz="US/Central")
+        assert df["Time"].is_monotonic_increasing
+        assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
+
     @pytest.mark.integration
     def test_get_energy_storage_resources(self):
         df = self.iso.get_energy_storage_resources()
