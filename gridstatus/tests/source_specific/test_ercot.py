@@ -1,6 +1,7 @@
 import datetime
 from io import StringIO
 from typing import Dict
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -252,6 +253,79 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_real_time_system_conditions()
         assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
+
+    """get_operations_messages"""
+
+    expected_operations_messages_cols = [
+        "Publish Time",
+        "Notice",
+        "Type",
+        "Status",
+    ]
+
+    SAMPLE_OPS_MESSAGES_DF = pd.DataFrame(
+        {
+            "Date & Time": [
+                "Apr 14, 2026 2:23:50 AM",
+                "Apr 14, 2026 12:04:02 AM",
+            ],
+            "Notice": [
+                "ERCOT has cancelled the following notice: Railroad DC Tie derated.",
+                "No sudden loss of generation greater than 450 MW occurred.",
+            ],
+            "Type": [
+                "Operational Information",
+                "Operational Information",
+            ],
+            "Status": [
+                "Cancelled",
+                "Active",
+            ],
+        },
+    )
+
+    def test_get_operations_messages(self):
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert len(df) == 2
+        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Publish Time"].dt.tz) == str(self.iso.default_timezone)
+        assert df["Notice"].iloc[0] is not None
+        assert df["Type"].iloc[0] == "Operational Information"
+        assert set(df["Status"]) == {"Active", "Cancelled"}
+
+    def test_get_operations_messages_sorted_by_publish_time(self):
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert df["Publish Time"].is_monotonic_increasing
+
+    def test_get_operations_messages_single_row(self):
+        single_row_df = pd.DataFrame(
+            {
+                "Date & Time": ["Mar 10, 2026 9:00:00 AM"],
+                "Notice": ["Advisory issued due to tool unavailability."],
+                "Type": ["Advisory"],
+                "Status": ["Active"],
+            },
+        )
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[single_row_df],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert len(df) == 1
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert df["Type"].iloc[0] == "Advisory"
 
     @pytest.mark.integration
     def test_get_energy_storage_resources(self):

@@ -3259,6 +3259,47 @@ class Ercot(ISOBase):
 
         return df
 
+    OPERATIONS_MESSAGES_URL = (
+        "https://www.ercot.com/services/comm/mkt_notices/opsmessages"
+    )
+
+    def get_operations_messages(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get operations messages from the ERCOT control room.
+
+        Scrapes the HTML table at
+        https://www.ercot.com/services/comm/mkt_notices/opsmessages
+
+        Returns one row per message with Publish Time, Notice, Type, and Status.
+        The page shows a rolling window of recent messages (roughly one month).
+        """
+        url = self.OPERATIONS_MESSAGES_URL
+        logger.info(f"Getting operations messages from {url}")
+
+        dfs = pd.read_html(url, header=0)
+        df = dfs[0]
+
+        df = df.rename(columns={"Date & Time": "Publish Time"})
+
+        df["Publish Time"] = pd.to_datetime(df["Publish Time"])
+
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
+
+        df["Publish Time"] = df["Publish Time"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=ambiguous,
+            nonexistent="shift_forward",
+        )
+
+        return (
+            df[["Publish Time", "Notice", "Type", "Status"]]
+            .sort_values("Publish Time")
+            .reset_index(drop=True)
+        )
+
     def get_real_time_system_conditions(
         self,
         date: str = "latest",
