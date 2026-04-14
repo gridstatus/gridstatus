@@ -2053,6 +2053,23 @@ class TestCAISO(BaseTestISO):
         with pytest.raises(NotSupported):
             self.iso.get_storage_awards_fmm("latest")
 
+    def test_daily_energy_storage_parse_and_downsample_coerce_na_strings(self) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        html = (
+            '<html><script>var tot_energy_rtpd = [1, 2, "NA", 4, 5, 6];</script></html>'
+        )
+        parsed = daily_energy_storage._parse_js_array(html, "tot_energy_rtpd")
+        assert len(parsed) == 6
+        assert parsed[0] == 1.0
+        assert parsed[1] == 2.0
+        assert pd.isna(parsed[2])
+        assert parsed[3] == 4.0
+        down = daily_energy_storage._downsample_5min_to_15min(parsed)
+        assert len(down) == 2
+        assert down[0] == (1.0 + 2.0) / 2.0
+        assert down[1] == (4.0 + 5.0 + 6.0) / 3.0
+
     def test_build_storage_soc_hourly_collapses_forward_filled_five_minute_arrays(
         self,
     ) -> None:

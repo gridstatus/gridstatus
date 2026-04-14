@@ -9,6 +9,7 @@ from the report operating day start in Pacific time; see ``_interval_index``.
 from __future__ import annotations
 
 import ast
+import math
 from typing import Any
 
 import pandas as pd
@@ -99,8 +100,42 @@ def _extract_js_array_literal(html: str, var_name: str) -> str | None:
     return None
 
 
-def _parse_js_array(html: str, var_name: str) -> list[Any]:
-    # Example: literal ``[1334, 1098]`` becomes ``list[Any]`` of ints; parse errors -> [].
+def _coerce_chart_element(v: Any) -> float:
+    if isinstance(v, bool):
+        return float(v)
+    if isinstance(v, int):
+        return float(v)
+    if isinstance(v, float):
+        if math.isnan(v) or math.isinf(v):
+            return float("nan")
+        return v
+    if isinstance(v, str):
+        t = v.strip()
+        if not t or t.upper() in {"NA", "N/A", "NAN", "NULL", "NONE", "-", "—"}:
+            return float("nan")
+        try:
+            return float(t)
+        except ValueError:
+            return float("nan")
+    if v is None:
+        return float("nan")
+    try:
+        x = float(v)
+        if math.isnan(x) or math.isinf(x):
+            return float("nan")
+        return x
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _finite_mean(chunk: list[float]) -> float:
+    finite = [x for x in chunk if not math.isnan(x)]
+    if not finite:
+        return float("nan")
+    return sum(finite) / len(finite)
+
+
+def _parse_js_array(html: str, var_name: str) -> list[float]:
     array_text = _extract_js_array_literal(html, var_name)
     if array_text is None:
         return []
@@ -109,7 +144,7 @@ def _parse_js_array(html: str, var_name: str) -> list[Any]:
     except (SyntaxError, ValueError):
         return []
     if isinstance(parsed_value, list):
-        return parsed_value
+        return [_coerce_chart_element(x) for x in parsed_value]
     return []
 
 
@@ -356,23 +391,23 @@ def _bid_stack_to_df(
     return pd.concat(rows, ignore_index=True)
 
 
-def _downsample_5min_to_15min(values: list[Any]) -> list[Any]:
+def _downsample_5min_to_15min(values: list[float]) -> list[float]:
     if len(values) % 3 != 0 or len(values) == 0:
-        return values
-    out: list[Any] = []
+        return list(values)
+    out: list[float] = []
     for i in range(0, len(values), 3):
         chunk = values[i : i + 3]
-        out.append(sum(chunk) / len(chunk))
+        out.append(_finite_mean(chunk))
     return out
 
 
-def _downsample_5min_to_60min(values: list[Any]) -> list[Any]:
+def _downsample_5min_to_60min(values: list[float]) -> list[float]:
     if len(values) % 12 != 0 or len(values) == 0:
-        return values
-    out: list[Any] = []
+        return list(values)
+    out: list[float] = []
     for i in range(0, len(values), 12):
         chunk = values[i : i + 12]
-        out.append(sum(chunk) / len(chunk))
+        out.append(_finite_mean(chunk))
     return out
 
 
