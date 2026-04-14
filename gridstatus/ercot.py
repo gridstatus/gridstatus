@@ -3278,7 +3278,7 @@ class Ercot(ISOBase):
         url = self.OPERATIONS_MESSAGES_URL
         logger.info(f"Getting operations messages from {url}")
 
-        dfs = pd.read_html(url, header=0)
+        dfs = pd.read_html(url, match="Date & Time")
         df = dfs[0]
 
         df = df.rename(columns={"Date & Time": "Publish Time"})
