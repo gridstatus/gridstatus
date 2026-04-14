@@ -3262,28 +3262,101 @@ class Ercot(ISOBase):
     OPERATIONS_MESSAGES_URL = (
         "https://www.ercot.com/services/comm/mkt_notices/opsmessages"
     )
+    WAYBACK_CDX_URL = "https://web.archive.org/cdx/search/cdx"
+    WAYBACK_SNAP_URL = "https://web.archive.org/web/{timestamp}/{url}"
 
     def get_operations_messages(
         self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get operations messages from the ERCOT control room.
 
-        Scrapes the HTML table at
+        When called without date arguments, scrapes the live page at
         https://www.ercot.com/services/comm/mkt_notices/opsmessages
+        which shows a rolling window of recent messages (~one month).
 
-        Returns one row per message with Time, Notice, Type, and Status.
-        The page shows a rolling window of recent messages (roughly one month).
+        When called with a date (and optional end), fetches historical
+        snapshots from the Wayback Machine covering the requested range,
+        deduplicates, and filters to the requested window.
+
+        Arguments:
+            date: Start date for historical query, or None for latest.
+            end: End date for historical query. Defaults to date + 1 month.
+            verbose: Print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns Time, Notice, Type, Status.
         """
-        url = self.OPERATIONS_MESSAGES_URL
+        if date is None:
+            return self._fetch_operations_messages_from_url(
+                self.OPERATIONS_MESSAGES_URL,
+                verbose=verbose,
+            )
+
+        date = utils._handle_date(date, tz=self.default_timezone)
+        if end is None:
+            end = date + pd.DateOffset(months=1)
+        else:
+            end = utils._handle_date(end, tz=self.default_timezone)
+
+        snapshots = self._get_wayback_snapshots(
+            start=date - pd.DateOffset(months=1),
+            end=end + pd.DateOffset(months=1),
+            verbose=verbose,
+        )
+
+        if not snapshots:
+            raise NoDataFoundException(
+                f"No Wayback Machine snapshots found for {date} to {end}",
+            )
+
+        frames: list[pd.DataFrame] = []
+        for ts in snapshots:
+            snap_url = self.WAYBACK_SNAP_URL.format(
+                timestamp=ts,
+                url=self.OPERATIONS_MESSAGES_URL,
+            )
+            try:
+                df = self._fetch_operations_messages_from_url(
+                    snap_url,
+                    verbose=verbose,
+                )
+                frames.append(df)
+            except Exception as e:
+                logger.warning(f"Skipping snapshot {ts}: {e}")
+
+        if not frames:
+            raise NoDataFoundException(
+                f"Could not parse any snapshots for {date} to {end}",
+            )
+
+        combined = pd.concat(frames, ignore_index=True)
+        combined = combined.drop_duplicates(
+            subset=["Time", "Notice"],
+        )
+        combined = combined[(combined["Time"] >= date) & (combined["Time"] < end)]
+
+        return (
+            combined[["Time", "Notice", "Type", "Status"]]
+            .sort_values("Time")
+            .reset_index(drop=True)
+        )
+
+    def _fetch_operations_messages_from_url(
+        self,
+        url: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Parse the operations messages HTML table from a URL (live or Wayback)."""
         logger.info(f"Getting operations messages from {url}")
 
         dfs = pd.read_html(url, match="Date & Time")
         df = dfs[0]
 
         df = df.rename(columns={"Date & Time": "Time"})
-
-        df["Time"] = pd.to_datetime(df["Time"])
+        df["Time"] = pd.to_datetime(df["Time"], format="%b %d, %Y %I:%M:%S %p")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
@@ -3299,6 +3372,40 @@ class Ercot(ISOBase):
             .sort_values("Time")
             .reset_index(drop=True)
         )
+
+    def _get_wayback_snapshots(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        verbose: bool = False,
+    ) -> list[str]:
+        """Query the Wayback Machine CDX API for snapshot timestamps."""
+        from_ts = start.strftime("%Y%m%d")
+        to_ts = end.strftime("%Y%m%d")
+
+        params = {
+            "url": self.OPERATIONS_MESSAGES_URL,
+            "output": "json",
+            "fl": "timestamp,statuscode",
+            "filter": "statuscode:200",
+            "collapse": "timestamp:8",
+            "from": from_ts,
+            "to": to_ts,
+        }
+
+        logger.info(
+            f"Querying Wayback Machine CDX for snapshots from {from_ts} to {to_ts}",
+        )
+        resp = requests.get(self.WAYBACK_CDX_URL, params=params, timeout=30)
+        resp.raise_for_status()
+
+        data = resp.json()
+        if len(data) <= 1:
+            return []
+
+        timestamps = [row[0] for row in data[1:]]
+        logger.info(f"Found {len(timestamps)} Wayback snapshots")
+        return timestamps
 
     def get_real_time_system_conditions(
         self,
