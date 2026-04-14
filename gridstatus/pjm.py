@@ -3901,14 +3901,14 @@ class PJM(ISOBase):
             df[
                 [
                     "Message ID",
+                    "Applicable Start",
+                    "Applicable End",
+                    "Publish Time",
                     "Message Type",
                     "Priority",
                     "Region",
                     "Effective Start",
                     "Effective End",
-                    "Applicable Start",
-                    "Applicable End",
-                    "Publish Time",
                     "Canceled Time",
                     "Emergency Message",
                 ]

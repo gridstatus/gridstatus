@@ -3315,14 +3315,14 @@ class TestPJM(BaseTestISO):
 
     expected_emergency_postings_cols = [
         "Message ID",
+        "Applicable Start",
+        "Applicable End",
+        "Publish Time",
         "Message Type",
         "Priority",
         "Region",
         "Effective Start",
         "Effective End",
-        "Applicable Start",
-        "Applicable End",
-        "Publish Time",
         "Canceled Time",
         "Emergency Message",
     ]
