@@ -2123,8 +2123,17 @@ class TestCAISO(BaseTestISO):
             "https://www.caiso.com/documents/daily-energy-storage-report-may-8-2025.html",
         ]
 
+    @pytest.mark.parametrize(
+        ("report_date", "compact_document_name"),
+        [
+            ("2024-01-31", "dailyenergystoragereportjan31-2024.html"),
+            ("2022-08-31", "dailyenergystoragereportaug31-2022.html"),
+        ],
+    )
     def test_daily_energy_storage_fetch_uses_compact_dailyenergystoragereport_slug(
         self,
+        report_date: str,
+        compact_document_name: str,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         from gridstatus.caiso import daily_energy_storage
@@ -2138,7 +2147,7 @@ class TestCAISO(BaseTestISO):
 
         def fake_get(url: str, timeout: int) -> FakeResponse:
             requested_urls.append(url)
-            if "dailyenergystoragereportjan31-2024.html" in url:
+            if compact_document_name in url:
                 return FakeResponse(
                     200,
                     b"<html><script>var tot_charge_rtd = [1];</script></html>",
@@ -2147,14 +2156,13 @@ class TestCAISO(BaseTestISO):
 
         monkeypatch.setattr(daily_energy_storage.requests, "get", fake_get)
         html = daily_energy_storage._fetch_daily_energy_storage_html(
-            "2024-01-31",
+            report_date,
             tz="US/Pacific",
             verbose=False,
         )
         assert "tot_charge_rtd" in html
         assert (
-            "https://www.caiso.com/documents/dailyenergystoragereportjan31-2024.html"
-            in requested_urls
+            f"https://www.caiso.com/documents/{compact_document_name}" in requested_urls
         )
 
     def test_daily_energy_storage_parse_and_downsample_coerce_na_strings(self) -> None:
