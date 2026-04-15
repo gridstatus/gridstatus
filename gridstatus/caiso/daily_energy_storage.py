@@ -42,30 +42,31 @@ def _fetch_daily_energy_storage_html(
     verbose: bool = False,
 ) -> str:
     day = _report_day_start(date, tz)
-    slug = day.strftime("%b-%d-%Y").lower()
-    primary_url = (
-        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug}.html"
-    )
-    if verbose:
-        logger.info(f"Fetching URL: {primary_url}")
-    response = requests.get(primary_url, timeout=60)
-    if response.status_code != 200:
-        corrected_url = (
-            f"https://www.caiso.com/documents/"
-            f"daily-energy-storage-report-{slug}-corrected.html"
-        )
+    slug_standard = day.strftime("%b-%d-%Y").lower()
+    slug_legacy = day.strftime("%b-%d%Y").lower()
+    candidate_urls = [
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}-corrected.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}-corrected.html",
+    ]
+    response = None
+    for url in candidate_urls:
         if verbose:
-            logger.info(f"Fetching URL: {corrected_url}")
-        response = requests.get(corrected_url, timeout=60)
-    if response.status_code != 200:
+            logger.info(f"Fetching URL: {url}")
+        response = requests.get(url, timeout=60)
+        if response.status_code == 200:
+            body: bytes = response.content
+            return body.decode("utf-8")
+    if response is None or response.status_code != 200:
         from gridstatus.base import NoDataFoundException
 
+        status_code = response.status_code if response is not None else "no response"
         raise NoDataFoundException(
             f"No Daily Energy Storage report for {day.strftime('%Y-%m-%d')}: "
-            f"HTTP {response.status_code}",
+            f"HTTP {status_code}",
         )
-    body: bytes = response.content
-    return body.decode("utf-8")
+    raise RuntimeError("unreachable")
 
 
 def _extract_js_array_literal(html: str, var_name: str) -> str | None:
