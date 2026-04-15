@@ -46,6 +46,7 @@ def _fetch_daily_energy_storage_html(
     slug_no_zero_day = f"{day.strftime('%b').lower()}-{day.day}-{day.year}"
     slug_legacy = day.strftime("%b-%d%Y").lower()
     slug_legacy_day_no_pad = f"{day.strftime('%b').lower()}-{day.day}{day.year}"
+    slug_compact_day_padded = f"dailyenergystoragereport{day.strftime('%b').lower()}{day.strftime('%d')}-{day.year}"
     slug_compact = (
         f"dailyenergystoragereport{day.strftime('%b').lower()}{day.day}-{day.year}"
     )
@@ -58,6 +59,8 @@ def _fetch_daily_energy_storage_html(
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}-corrected.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy_day_no_pad}.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy_day_no_pad}-corrected.html",
+        f"https://www.caiso.com/documents/{slug_compact_day_padded}.html",
+        f"https://www.caiso.com/documents/{slug_compact_day_padded}-corrected.html",
         f"https://www.caiso.com/documents/{slug_compact}.html",
         f"https://www.caiso.com/documents/{slug_compact}-corrected.html",
     ]

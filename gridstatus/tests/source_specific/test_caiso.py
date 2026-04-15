@@ -2162,6 +2162,7 @@ class TestCAISO(BaseTestISO):
         [
             ("2024-01-31", "dailyenergystoragereportjan31-2024.html"),
             ("2022-08-31", "dailyenergystoragereportaug31-2022.html"),
+            ("2022-08-01", "dailyenergystoragereportaug01-2022.html"),
         ],
     )
     def test_daily_energy_storage_fetch_uses_compact_dailyenergystoragereport_slug(
