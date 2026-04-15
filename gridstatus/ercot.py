@@ -3360,7 +3360,13 @@ class Ercot(ISOBase):
             dfs = pd.read_html(url, match="Date")
         df = dfs[0]
 
-        df = df.rename(columns={"Date & Time": "Time", "Date": "Time"})
+        df = df.rename(
+            columns={
+                "Date & Time": "Time",
+                "Date": "Time",
+                "Message": "Notice",
+            },
+        )
         df["Time"] = pd.to_datetime(df["Time"], format="mixed")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
@@ -3372,11 +3378,10 @@ class Ercot(ISOBase):
             nonexistent="shift_forward",
         )
 
-        return (
-            df[["Time", "Notice", "Type", "Status"]]
-            .sort_values("Time")
-            .reset_index(drop=True)
-        )
+        expected_cols = ["Time", "Notice", "Type", "Status"]
+        available_cols = [c for c in expected_cols if c in df.columns]
+
+        return df[available_cols].sort_values("Time").reset_index(drop=True)
 
     def _get_wayback_snapshots(
         self,
