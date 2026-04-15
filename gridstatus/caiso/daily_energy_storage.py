@@ -43,15 +43,22 @@ def _fetch_daily_energy_storage_html(
 ) -> str:
     day = _report_day_start(date, tz)
     slug_standard = day.strftime("%b-%d-%Y").lower()
+    slug_no_zero_day = f"{day.strftime('%b').lower()}-{day.day}-{day.year}"
     slug_legacy = day.strftime("%b-%d%Y").lower()
     candidate_urls = [
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}-corrected.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_no_zero_day}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_no_zero_day}-corrected.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}-corrected.html",
     ]
     response = None
+    seen_urls: set[str] = set()
     for url in candidate_urls:
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
         if verbose:
             logger.info(f"Fetching URL: {url}")
         response = requests.get(url, timeout=60)

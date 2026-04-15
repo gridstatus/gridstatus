@@ -2088,6 +2088,41 @@ class TestCAISO(BaseTestISO):
             "https://www.caiso.com/documents/daily-energy-storage-report-may-302024.html",
         ]
 
+    def test_daily_energy_storage_fetch_uses_no_zero_day_slug_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        requested_urls: list[str] = []
+
+        class FakeResponse:
+            def __init__(self, status_code: int, content: bytes) -> None:
+                self.status_code = status_code
+                self.content = content
+
+        def fake_get(url: str, timeout: int) -> FakeResponse:
+            requested_urls.append(url)
+            if "daily-energy-storage-report-may-8-2025.html" in url:
+                return FakeResponse(
+                    200,
+                    b"<html><script>var tot_charge_rtd = [1];</script></html>",
+                )
+            return FakeResponse(404, b"")
+
+        monkeypatch.setattr(daily_energy_storage.requests, "get", fake_get)
+        html = daily_energy_storage._fetch_daily_energy_storage_html(
+            "2025-05-08",
+            tz="US/Pacific",
+            verbose=False,
+        )
+        assert "tot_charge_rtd" in html
+        assert requested_urls[:3] == [
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-08-2025.html",
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-08-2025-corrected.html",
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-8-2025.html",
+        ]
+
     def test_daily_energy_storage_parse_and_downsample_coerce_na_strings(self) -> None:
         from gridstatus.caiso import daily_energy_storage
 
