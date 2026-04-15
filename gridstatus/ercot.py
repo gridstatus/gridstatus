@@ -3313,7 +3313,9 @@ class Ercot(ISOBase):
             )
 
         frames: list[pd.DataFrame] = []
-        for ts in snapshots:
+        for i, ts in enumerate(snapshots):
+            if i > 0:
+                time.sleep(2)
             snap_url = self.WAYBACK_SNAP_URL.format(
                 timestamp=ts,
                 url=self.OPERATIONS_MESSAGES_URL,
@@ -3396,8 +3398,26 @@ class Ercot(ISOBase):
         logger.info(
             f"Querying Wayback Machine CDX for snapshots from {from_ts} to {to_ts}",
         )
-        resp = requests.get(self.WAYBACK_CDX_URL, params=params, timeout=60)
-        resp.raise_for_status()
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    self.WAYBACK_CDX_URL,
+                    params=params,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                break
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt == max_retries - 1:
+                    raise
+                wait = 2 ** (attempt + 1)
+                logger.warning(
+                    f"Wayback CDX request failed (attempt {attempt + 1}/"
+                    f"{max_retries}), retrying in {wait}s: {e}",
+                )
+                time.sleep(wait)
 
         data = resp.json()
         if len(data) <= 1:
