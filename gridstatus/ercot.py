@@ -3354,11 +3354,14 @@ class Ercot(ISOBase):
         """Parse the operations messages HTML table from a URL (live or Wayback)."""
         logger.info(f"Getting operations messages from {url}")
 
-        dfs = pd.read_html(url, match="Date & Time")
+        try:
+            dfs = pd.read_html(url, match="Date & Time")
+        except ValueError:
+            dfs = pd.read_html(url, match="Date")
         df = dfs[0]
 
-        df = df.rename(columns={"Date & Time": "Time"})
-        df["Time"] = pd.to_datetime(df["Time"], format="%b %d, %Y %I:%M:%S %p")
+        df = df.rename(columns={"Date & Time": "Time", "Date": "Time"})
+        df["Time"] = pd.to_datetime(df["Time"], format="mixed")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
