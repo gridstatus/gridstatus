@@ -45,6 +45,9 @@ def _fetch_daily_energy_storage_html(
     slug_standard = day.strftime("%b-%d-%Y").lower()
     slug_no_zero_day = f"{day.strftime('%b').lower()}-{day.day}-{day.year}"
     slug_legacy = day.strftime("%b-%d%Y").lower()
+    slug_compact = (
+        f"dailyenergystoragereport{day.strftime('%b').lower()}{day.day}-{day.year}"
+    )
     candidate_urls = [
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}-corrected.html",
@@ -52,6 +55,8 @@ def _fetch_daily_energy_storage_html(
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_no_zero_day}-corrected.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}.html",
         f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}-corrected.html",
+        f"https://www.caiso.com/documents/{slug_compact}.html",
+        f"https://www.caiso.com/documents/{slug_compact}-corrected.html",
     ]
     response = None
     seen_urls: set[str] = set()
