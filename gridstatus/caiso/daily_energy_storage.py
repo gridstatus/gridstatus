@@ -9,6 +9,7 @@ from the report operating day start in Pacific time; see ``_interval_index``.
 from __future__ import annotations
 
 import ast
+import math
 from typing import Any
 
 import pandas as pd
@@ -41,30 +42,49 @@ def _fetch_daily_energy_storage_html(
     verbose: bool = False,
 ) -> str:
     day = _report_day_start(date, tz)
-    slug = day.strftime("%b-%d-%Y").lower()
-    primary_url = (
-        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug}.html"
+    slug_standard = day.strftime("%b-%d-%Y").lower()
+    slug_no_zero_day = f"{day.strftime('%b').lower()}-{day.day}-{day.year}"
+    slug_legacy = day.strftime("%b-%d%Y").lower()
+    slug_legacy_day_no_pad = f"{day.strftime('%b').lower()}-{day.day}{day.year}"
+    slug_compact_day_padded = f"dailyenergystoragereport{day.strftime('%b').lower()}{day.strftime('%d')}-{day.year}"
+    slug_compact = (
+        f"dailyenergystoragereport{day.strftime('%b').lower()}{day.day}-{day.year}"
     )
-    if verbose:
-        logger.info(f"Fetching URL: {primary_url}")
-    response = requests.get(primary_url, timeout=60)
-    if response.status_code != 200:
-        corrected_url = (
-            f"https://www.caiso.com/documents/"
-            f"daily-energy-storage-report-{slug}-corrected.html"
-        )
+    candidate_urls = [
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_standard}-corrected.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_no_zero_day}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_no_zero_day}-corrected.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy}-corrected.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy_day_no_pad}.html",
+        f"https://www.caiso.com/documents/daily-energy-storage-report-{slug_legacy_day_no_pad}-corrected.html",
+        f"https://www.caiso.com/documents/{slug_compact_day_padded}.html",
+        f"https://www.caiso.com/documents/{slug_compact_day_padded}-corrected.html",
+        f"https://www.caiso.com/documents/{slug_compact}.html",
+        f"https://www.caiso.com/documents/{slug_compact}-corrected.html",
+    ]
+    response = None
+    seen_urls: set[str] = set()
+    for url in candidate_urls:
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
         if verbose:
-            logger.info(f"Fetching URL: {corrected_url}")
-        response = requests.get(corrected_url, timeout=60)
-    if response.status_code != 200:
+            logger.info(f"Fetching URL: {url}")
+        response = requests.get(url, timeout=60)
+        if response.status_code == 200:
+            body: bytes = response.content
+            return body.decode("utf-8")
+    if response is None or response.status_code != 200:
         from gridstatus.base import NoDataFoundException
 
+        status_code = response.status_code if response is not None else "no response"
         raise NoDataFoundException(
             f"No Daily Energy Storage report for {day.strftime('%Y-%m-%d')}: "
-            f"HTTP {response.status_code}",
+            f"HTTP {status_code}",
         )
-    body: bytes = response.content
-    return body.decode("utf-8")
+    raise RuntimeError("unreachable")
 
 
 def _extract_js_array_literal(html: str, var_name: str) -> str | None:
@@ -99,8 +119,42 @@ def _extract_js_array_literal(html: str, var_name: str) -> str | None:
     return None
 
 
-def _parse_js_array(html: str, var_name: str) -> list[Any]:
-    # Example: literal ``[1334, 1098]`` becomes ``list[Any]`` of ints; parse errors -> [].
+def _coerce_chart_element(v: Any) -> float:
+    if isinstance(v, bool):
+        return float(v)
+    if isinstance(v, int):
+        return float(v)
+    if isinstance(v, float):
+        if math.isnan(v) or math.isinf(v):
+            return float("nan")
+        return v
+    if isinstance(v, str):
+        t = v.strip()
+        if not t or t.upper() in {"NA", "N/A", "NAN", "NULL", "NONE", "-", "—"}:
+            return float("nan")
+        try:
+            return float(t)
+        except ValueError:
+            return float("nan")
+    if v is None:
+        return float("nan")
+    try:
+        x = float(v)
+        if math.isnan(x) or math.isinf(x):
+            return float("nan")
+        return x
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _finite_mean(chunk: list[float]) -> float:
+    finite = [x for x in chunk if not math.isnan(x)]
+    if not finite:
+        return float("nan")
+    return sum(finite) / len(finite)
+
+
+def _parse_js_array(html: str, var_name: str) -> list[float]:
     array_text = _extract_js_array_literal(html, var_name)
     if array_text is None:
         return []
@@ -109,7 +163,7 @@ def _parse_js_array(html: str, var_name: str) -> list[Any]:
     except (SyntaxError, ValueError):
         return []
     if isinstance(parsed_value, list):
-        return parsed_value
+        return [_coerce_chart_element(x) for x in parsed_value]
     return []
 
 
@@ -356,23 +410,23 @@ def _bid_stack_to_df(
     return pd.concat(rows, ignore_index=True)
 
 
-def _downsample_5min_to_15min(values: list[Any]) -> list[Any]:
+def _downsample_5min_to_15min(values: list[float]) -> list[float]:
     if len(values) % 3 != 0 or len(values) == 0:
-        return values
-    out: list[Any] = []
+        return list(values)
+    out: list[float] = []
     for i in range(0, len(values), 3):
         chunk = values[i : i + 3]
-        out.append(sum(chunk) / len(chunk))
+        out.append(_finite_mean(chunk))
     return out
 
 
-def _downsample_5min_to_60min(values: list[Any]) -> list[Any]:
+def _downsample_5min_to_60min(values: list[float]) -> list[float]:
     if len(values) % 12 != 0 or len(values) == 0:
-        return values
-    out: list[Any] = []
+        return list(values)
+    out: list[float] = []
     for i in range(0, len(values), 12):
         chunk = values[i : i + 12]
-        out.append(sum(chunk) / len(chunk))
+        out.append(_finite_mean(chunk))
     return out
 
 
