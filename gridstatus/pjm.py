@@ -4,13 +4,11 @@ import os
 import random
 import time
 import warnings
-import xml.etree.ElementTree as ET
 from typing import BinaryIO
 
 import pandas as pd
 import requests
 import tqdm
-from bs4 import BeautifulSoup
 
 from gridstatus import utils
 from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
@@ -23,7 +21,6 @@ from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 from gridstatus.pjm_constants import (
     DEFAULT_RETRIES,
-    EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
     HUB_NODE_IDS,
     LOCATION_TYPES,
     PRICE_NODE_IDS,
@@ -3790,130 +3787,6 @@ class PJM(ISOBase):
                 ]
             ]
             .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
-
-    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
-        """
-        Retrieves PJM emergency procedure postings by triggering the public
-        "Export To XML" button on the guest dashboard.
-
-        Two-step flow (no credentials required):
-          1. GET the guest dashboard to obtain a session cookie and JSF ViewState.
-          2. POST ``frmButtons:lnkDownload`` to download the XML export.
-
-        The XML contains Publish Time, Canceled Time, proper UTC start/end
-        timestamps, and individual Region elements (one DataFrame row per
-        message-region pair).
-        """
-        fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
-        xml_bytes = self._fetch_emergency_xml(fetch_url)
-        return self._parse_emergency_xml(xml_bytes)
-
-    def _fetch_emergency_xml(self, url: str) -> bytes:
-        session = requests.Session()
-        session.headers["User-Agent"] = "Mozilla/5.0 (compatible; gridstatus)"
-
-        logger.info(f"GET emergency postings dashboard from {url}...")
-        page = session.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
-        page.raise_for_status()
-
-        soup = BeautifulSoup(page.content, "lxml")
-        vs_input = soup.select_one('input[name="javax.faces.ViewState"]')
-        if vs_input is None:
-            raise NoDataFoundException(
-                "Could not find javax.faces.ViewState in dashboard HTML.",
-            )
-        view_state: str = vs_input["value"]
-
-        logger.info("POST XML export (frmButtons:lnkDownload)...")
-        xml_resp = session.post(
-            url,
-            data={
-                "frmButtons": "frmButtons",
-                "frmButtons:lnkDownload": "frmButtons:lnkDownload",
-                "javax.faces.ViewState": view_state,
-            },
-            headers={
-                "Referer": url,
-                "Origin": "https://emergencyprocedures.pjm.com",
-            },
-            timeout=REQUEST_TIMEOUT,
-            allow_redirects=True,
-        )
-        xml_resp.raise_for_status()
-
-        content_type = xml_resp.headers.get("Content-Type", "")
-        if "xml" not in content_type:
-            raise NoDataFoundException(
-                f"Expected XML response but got Content-Type: {content_type}",
-            )
-
-        return xml_resp.content
-
-    def _parse_emergency_xml(self, xml_bytes: bytes) -> pd.DataFrame:
-        root = ET.fromstring(xml_bytes)
-        rows: list[dict] = []
-        for msg in root.iter("EmergencyMessage"):
-            mid = msg.findtext("messageId")
-            if mid is None:
-                continue
-
-            regions = msg.findall("Region")
-            region_names = (
-                [r.findtext("regionName") for r in regions] if regions else [None]
-            )
-
-            for rn in region_names:
-                rows.append(
-                    {
-                        "Message ID": int(mid.strip()),
-                        "Message Type": msg.findtext("messageType"),
-                        "Priority": msg.findtext("priority"),
-                        "Emergency Message": msg.findtext("message"),
-                        "Region": rn,
-                        "Effective Start": msg.findtext("effectiveStartTime"),
-                        "Effective End": msg.findtext("effectiveEndTime"),
-                        "Applicable Start": msg.findtext("applicableStartTime"),
-                        "Applicable End": msg.findtext("applicableEndTime"),
-                        "Publish Time": msg.findtext("postedTimestamp"),
-                        "Canceled Time": msg.findtext("canceledTimestamp"),
-                    },
-                )
-
-        if not rows:
-            raise NoDataFoundException("No emergency procedure messages found in XML")
-
-        df = pd.DataFrame(rows)
-        for col in (
-            "Effective Start",
-            "Effective End",
-            "Applicable Start",
-            "Applicable End",
-            "Publish Time",
-            "Canceled Time",
-        ):
-            df[col] = pd.to_datetime(df[col], utc=True).dt.tz_convert(
-                self.default_timezone,
-            )
-
-        return (
-            df[
-                [
-                    "Message ID",
-                    "Applicable Start",
-                    "Applicable End",
-                    "Publish Time",
-                    "Message Type",
-                    "Priority",
-                    "Region",
-                    "Effective Start",
-                    "Effective End",
-                    "Canceled Time",
-                    "Emergency Message",
-                ]
-            ]
-            .sort_values(["Effective Start", "Message ID", "Region"])
             .reset_index(drop=True)
         )
 

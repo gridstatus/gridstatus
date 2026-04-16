@@ -3379,9 +3379,11 @@ class Ercot(ISOBase):
         )
 
         expected_cols = ["Time", "Notice", "Type", "Status"]
-        available_cols = [c for c in expected_cols if c in df.columns]
+        for col in expected_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
 
-        return df[available_cols].sort_values("Time").reset_index(drop=True)
+        return df[expected_cols].sort_values("Time").reset_index(drop=True)
 
     def _get_wayback_snapshots(
         self,
