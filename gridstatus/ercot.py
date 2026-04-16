@@ -3313,7 +3313,9 @@ class Ercot(ISOBase):
             )
 
         frames: list[pd.DataFrame] = []
-        for ts in snapshots:
+        for i, ts in enumerate(snapshots):
+            if i > 0:
+                time.sleep(2)
             snap_url = self.WAYBACK_SNAP_URL.format(
                 timestamp=ts,
                 url=self.OPERATIONS_MESSAGES_URL,
@@ -3352,11 +3354,20 @@ class Ercot(ISOBase):
         """Parse the operations messages HTML table from a URL (live or Wayback)."""
         logger.info(f"Getting operations messages from {url}")
 
-        dfs = pd.read_html(url, match="Date & Time")
+        try:
+            dfs = pd.read_html(url, match="Date & Time")
+        except ValueError:
+            dfs = pd.read_html(url, match="Date")
         df = dfs[0]
 
-        df = df.rename(columns={"Date & Time": "Time"})
-        df["Time"] = pd.to_datetime(df["Time"], format="%b %d, %Y %I:%M:%S %p")
+        df = df.rename(
+            columns={
+                "Date & Time": "Time",
+                "Date": "Time",
+                "Message": "Notice",
+            },
+        )
+        df["Time"] = pd.to_datetime(df["Time"], format="mixed")
 
         now = pd.Timestamp.now(tz=self.default_timezone)
         ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
@@ -3367,11 +3378,12 @@ class Ercot(ISOBase):
             nonexistent="shift_forward",
         )
 
-        return (
-            df[["Time", "Notice", "Type", "Status"]]
-            .sort_values("Time")
-            .reset_index(drop=True)
-        )
+        expected_cols = ["Time", "Notice", "Type", "Status"]
+        for col in expected_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        return df[expected_cols].sort_values("Time").reset_index(drop=True)
 
     def _get_wayback_snapshots(
         self,
@@ -3396,8 +3408,26 @@ class Ercot(ISOBase):
         logger.info(
             f"Querying Wayback Machine CDX for snapshots from {from_ts} to {to_ts}",
         )
-        resp = requests.get(self.WAYBACK_CDX_URL, params=params, timeout=60)
-        resp.raise_for_status()
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    self.WAYBACK_CDX_URL,
+                    params=params,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                break
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt == max_retries - 1:
+                    raise
+                wait = 2 ** (attempt + 1)
+                logger.warning(
+                    f"Wayback CDX request failed (attempt {attempt + 1}/"
+                    f"{max_retries}), retrying in {wait}s: {e}",
+                )
+                time.sleep(wait)
 
         data = resp.json()
         if len(data) <= 1:
