@@ -1536,6 +1536,41 @@ class TestErcot(BaseTestISO):
 
         self._check_highest_price_as_offer_selected_sced(df)
 
+    """get_3_day_highest_price_sced"""
+
+    def _check_3_day_highest_price_sced(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Load Resource",
+            "Highest Price Dispatched by SCED",
+            "Proxy Extension",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        for col in ["QSE", "DME", "Load Resource", "Proxy Extension"]:
+            assert df.dtypes[col] == "object"
+        assert df.dtypes["Highest Price Dispatched by SCED"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
+
+    def test_get_3_day_highest_price_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_3_day_highest_price_sced_{date}.yaml",
+        ):
+            df = self.iso.get_3_day_highest_price_sced(date)
+
+        self._check_3_day_highest_price_sced(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
     """test get_as_reports"""
 
     def test_get_as_reports(self):
