@@ -446,6 +446,50 @@ class TestErcotAPI(TestHelperMixin):
             end,
         )
 
+    """get_dam_asdc_aggregated"""
+
+    # Per NP4-19-CD documentation, the dataset advertises REGDN, REGUP, RRSPF,
+    # RRSFF, RRSUF, ECRSS, and ECRSM; in practice the published files also
+    # include the pre-ECRS NSPIN and NSPNM products.
+    allowed_dam_asdc_aggregated_as_types = {
+        "REGDN",
+        "REGUP",
+        "RRSPF",
+        "RRSFF",
+        "RRSUF",
+        "ECRSS",
+        "ECRSM",
+        "NSPIN",
+        "NSPNM",
+    }
+
+    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "Price",
+            "Quantity",
+        ]
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert set(df["AS Type"].unique()).issubset(
+            self.allowed_dam_asdc_aggregated_as_types,
+        )
+
+    def test_get_dam_asdc_aggregated_historical(self):
+        date = self.local_today() - pd.Timedelta(days=10)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_dam_asdc_aggregated_historical_{date}.yaml",
+        ):
+            df = self.iso.get_dam_asdc_aggregated(date, end)
+        self._check_get_dam_asdc_aggregated(df)
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(end)
+
     """get_as_reports"""
 
     def _check_as_reports(self, df, before_full_columns=False):

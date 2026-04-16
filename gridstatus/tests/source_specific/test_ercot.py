@@ -3231,6 +3231,66 @@ class TestErcot(BaseTestISO):
             end + pd.DateOffset(days=1) - pd.Timedelta(hours=1)
         ).tz_localize(self.iso.default_timezone)
 
+    """get_dam_asdc_aggregated"""
+
+    # Per NP4-19-CD documentation, the dataset advertises REGDN, REGUP, RRSPF,
+    # RRSFF, RRSUF, ECRSS, and ECRSM; in practice the published files also
+    # include the pre-ECRS NSPIN and NSPNM products.
+    allowed_dam_asdc_aggregated_as_types = {
+        "REGDN",
+        "REGUP",
+        "RRSPF",
+        "RRSFF",
+        "RRSUF",
+        "ECRSS",
+        "ECRSM",
+        "NSPIN",
+        "NSPNM",
+    }
+
+    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "Price",
+            "Quantity",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Price"] == "float64"
+        assert df.dtypes["Quantity"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert set(df["AS Type"].unique()).issubset(
+            self.allowed_dam_asdc_aggregated_as_types,
+        )
+
+    def test_get_dam_asdc_aggregated_latest(self):
+        with api_vcr.use_cassette("test_get_dam_asdc_aggregated_latest.yaml"):
+            df = self.iso.get_dam_asdc_aggregated("latest")
+        self._check_get_dam_asdc_aggregated(df)
+
+    def test_get_dam_asdc_aggregated_date_range(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_dam_asdc_aggregated_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_dam_asdc_aggregated(date, end)
+
+        self._check_get_dam_asdc_aggregated(df)
+
+        assert df["Interval Start"].min() == date.tz_localize(
+            self.iso.default_timezone,
+        )
+        assert df["Interval End"].max() == end.tz_localize(
+            self.iso.default_timezone,
+        )
+
     """get_as_deployment_factors_projected"""
 
     def _check_as_deployment_factors_projected(self, df: pd.DataFrame):
