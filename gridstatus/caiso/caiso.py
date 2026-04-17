@@ -354,7 +354,7 @@ class CAISO(ISOBase):
         config["startdatetime"] = start
         config["enddatetime"] = end
 
-        base_url = f"http://oasis.caiso.com/oasisapi/{config.pop('path')}?"
+        base_url = f"https://oasis.caiso.com/oasisapi/{config.pop('path')}?"
 
         url = base_url + "&".join(
             [f"{k}={v}" for k, v in config.items()],
