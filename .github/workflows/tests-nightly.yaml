@@ -1,0 +1,99 @@
+name: Nightly Tests (Live Integration)
+
+# Runs the full live-integration test suite with coverage once per day at
+# midnight UTC. This was previously the test-all-coverage job in
+# tests-pr.yaml but it's too slow and depends on too many flaky live ISO
+# APIs to be a per-PR gate. Failures here are signal for follow-up tickets,
+# not blockers for individual PRs.
+#
+# Can also be triggered manually via the Actions tab (workflow_dispatch).
+
+on:
+  schedule:
+    # 00:00 UTC daily
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  test-all-coverage:
+    runs-on: ubuntu-latest
+    env:
+      EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+      PJM_API_KEY: ${{ secrets.PJM_API_KEY }}
+      ERCOT_API_USERNAME: ${{ secrets.ERCOT_API_USERNAME }}
+      ERCOT_API_PASSWORD: ${{ secrets.ERCOT_API_PASSWORD }}
+      ERCOT_PUBLIC_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_PUBLIC_API_SUBSCRIPTION_KEY }}
+      ERCOT_ESR_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_ESR_API_SUBSCRIPTION_KEY }}
+      ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
+      ISONE_API_PASSWORD: ${{ secrets.ISONE_API_PASSWORD }}
+      MISO_API_PRICING_SUBSCRIPTION_KEY: ${{ secrets.MISO_API_PRICING_SUBSCRIPTION_KEY }}
+      MISO_API_LOAD_GENERATION_AND_INTERCHANGE_SUBSCRIPTION_KEY: ${{ secrets.MISO_API_LOAD_GENERATION_AND_INTERCHANGE_SUBSCRIPTION_KEY }}
+      AESO_API_KEY: ${{ secrets.AESO_API_KEY }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install dependencies
+        run: uv sync
+      - name: Install vcrpy
+        run: uv pip install --no-deps vcrpy pytest-cov
+      - name: Generate all-fixtures hash
+        id: fixture-hash
+        run: |
+          HASH=$(uv run python scripts/fixtures.py manifest)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+      - name: Cache all VCR fixtures
+        id: vcr-cache
+        uses: actions/cache@v4
+        with:
+          path: gridstatus/tests/fixtures/
+          key: vcr-fixtures-all-${{ steps.fixture-hash.outputs.hash }}
+          restore-keys: |
+            vcr-fixtures-all-
+      - name: Download all VCR fixtures from S3
+        if: steps.vcr-cache.outputs.cache-hit != 'true'
+        run: uv run python scripts/fixtures.py download
+        continue-on-error: true
+      - name: Verify fixtures present
+        # Guards against silent CI success when cache + S3 download both fail.
+        # Counts all regular files (not just *.yaml) since some cassettes are
+        # extensionless (e.g. eia uses bare use_cassette("name") without .yaml).
+        # Stays consistent with the per-ISO check in tests-pr.yaml.
+        run: |
+          COUNT=$(find gridstatus/tests/fixtures -type f ! -name '.DS_Store' 2>/dev/null | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No VCR cassettes found — cache + S3 download both failed"
+            exit 1
+          fi
+          echo "$COUNT cassettes available"
+      - name: Run all tests with coverage
+        env:
+          # Proxy for NYISO tests (NYISO blocks GitHub Actions IPs)
+          HTTPS_PROXY: ${{ secrets.WEBSHARE_PROXY_URL }}
+          HTTP_PROXY: ${{ secrets.WEBSHARE_PROXY_URL }}
+          # Emit junit xml so the next step can confirm tests actually ran.
+          PYTEST_ADDOPTS: --junitxml=pytest-results.xml
+        run: make test-cov
+      - name: Ensure at least one test passed
+        if: always()
+        run: |
+          if [ ! -f pytest-results.xml ]; then
+            echo "::error::pytest-results.xml not found — test step did not produce results"
+            exit 1
+          fi
+          PASSED=$(python -c 'import sys, xml.etree.ElementTree as ET; r=ET.parse("pytest-results.xml").getroot(); s=r.findall(".//testsuite") or [r]; print(sum(int(x.get("tests",0)) for x in s) - sum(int(x.get("skipped",0)) for x in s) - sum(int(x.get("failures",0)) for x in s) - sum(int(x.get("errors",0)) for x in s))')
+          if [ "$PASSED" -eq 0 ]; then
+            echo "::error::Zero tests passed — likely fixture or config issue"
+            exit 1
+          fi
+          echo "$PASSED tests passed"
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ${{ github.workspace }}/coverage.xml
+          fail_ci_if_error: false
+          verbose: true

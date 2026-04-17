@@ -55,6 +55,17 @@ uv pip install --upgrade gridstatus
   - In the environment where the code is run
 
 
+## Testing
+
+Tests use [VCR.py](https://vcrpy.readthedocs.io/) to record and replay HTTP responses from ISO APIs. Recorded cassettes are stored on S3 and downloaded automatically in CI. When adding new tests that make API calls, you'll need to record cassettes locally and upload them to S3. See the [Contributing Guide](CONTRIBUTING.md#vcr-cassettes-test-fixtures) for detailed instructions.
+
+```bash
+make test-unit                        # Run unit tests (uses cached cassettes)
+make test-caiso                       # Run CAISO tests
+make fixtures-download                # Download cassettes from S3
+make fixtures-upload iso=caiso        # Upload cassettes to S3 (requires AWS creds)
+```
+
 ## Documentation and Examples
 
 To learn more, visit the [documentation](https://opensource.gridstatus.io/) and view [example notebooks](https://opensource.gridstatus.io/en/latest/Examples/caiso/index.html).

@@ -32,13 +32,68 @@ WIND_OR_SOLAR_FORECAST_LENGTH = pd.Timedelta(days=6, hours=22)
 class TestISONE(BaseTestISO):
     iso = ISONE()
 
+    # -- Base class tests using today/latest/relative dates → mark integration --
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_date_or_start(self):
+        super().test_get_fuel_mix_date_or_start()
+
+    def test_get_fuel_mix_historical(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_historical.yaml"):
+            super().test_get_fuel_mix_historical()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_historical_with_date_range(self):
+        super().test_get_fuel_mix_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+        super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_start_end_same_day(self):
+        super().test_get_fuel_mix_start_end_same_day()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_latest(self):
+        super().test_get_fuel_mix_latest()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_today(self):
+        super().test_get_fuel_mix_today()
+
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical(self):
+        super().test_get_load_forecast_historical()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical_with_date_range(self):
+        super().test_get_load_forecast_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_today(self):
+        super().test_get_load_forecast_today()
+
+    @pytest.mark.integration
+    def test_get_status_latest(self):
+        super().test_get_status_latest()
+
     """get_fuel_mix"""
 
     def test_get_fuel_mix_nov_7_2022(self):
-        data = self.iso.get_fuel_mix(date="Nov 7, 2022")
-        # make sure no nan values are returned
-        # nov 7 is a known data where nan values are returned
-        assert not data.isna().any().any()
+        with api_vcr.use_cassette("test_get_fuel_mix_nov_7_2022.yaml"):
+            data = self.iso.get_fuel_mix(date="Nov 7, 2022")
+            # make sure no nan values are returned
+            # nov 7 is a known data where nan values are returned
+            assert not data.isna().any().any()
 
     def test_fuel_mix_across_dst_transition(self):
         # these dates are across the DST transition
@@ -47,15 +102,19 @@ class TestISONE(BaseTestISO):
             pd.Timestamp("2023-11-05 06:50:00+0000", tz="UTC"),
             pd.Timestamp("2023-11-05 21:34:46.206808+0000", tz="UTC"),
         )
-        df = self.iso.get_fuel_mix(date=date)
-        self._check_fuel_mix(df)
+        with api_vcr.use_cassette("test_fuel_mix_across_dst_transition.yaml"):
+            df = self.iso.get_fuel_mix(date=date)
+            self._check_fuel_mix(df)
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
     def test_get_fuel_mix(self, date):
-        self.iso.get_fuel_mix(date=date, verbose=VERBOSE)
+        cassette_name = f"test_get_fuel_mix_{date}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            self.iso.get_fuel_mix(date=date, verbose=VERBOSE)
 
     """get_btm_solar"""
 
+    @pytest.mark.integration
     def test_get_btm_solar(self):
         df = self.iso.get_btm_solar(date="today", verbose=VERBOSE)
 
@@ -68,20 +127,21 @@ class TestISONE(BaseTestISO):
         self._check_time_columns(df, "interval")
 
     def test_get_btm_solar_range(self):
-        df = self.iso.get_btm_solar(
-            date=("April 12, 2023", "April 14, 2023"),
-            verbose=VERBOSE,
-        )
+        with api_vcr.use_cassette("test_get_btm_solar_range.yaml"):
+            df = self.iso.get_btm_solar(
+                date=("Oct 15, 2025", "Oct 17, 2025"),
+                verbose=VERBOSE,
+            )
 
-        assert df.shape[0] == df.drop_duplicates().shape[0]
+            assert df.shape[0] == df.drop_duplicates().shape[0]
 
-        assert df.columns.tolist() == [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "BTM Solar",
-        ]
-        self._check_time_columns(df, "interval")
+            assert df.columns.tolist() == [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "BTM Solar",
+            ]
+            self._check_time_columns(df, "interval")
 
     """get_lmp"""
 
@@ -89,7 +149,14 @@ class TestISONE(BaseTestISO):
         Markets.DAY_AHEAD_HOURLY,
     )
     def test_lmp_date_range(self, market):
-        super().test_lmp_date_range(market=market)
+        start = pd.Timestamp("2025-10-12", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2025-10-15", tz=self.iso.default_timezone)
+        cassette_name = f"test_lmp_date_range_{market.value.lower()}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            df_1 = self.iso.get_lmp(start=start, end=end, market=market)
+            df_2 = self.iso.get_lmp(date=(start, end), market=market)
+            self._check_lmp_columns(df_1, market)
+            assert df_1.equals(df_2)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
@@ -97,8 +164,11 @@ class TestISONE(BaseTestISO):
         Markets.REAL_TIME_HOURLY,
     )
     def test_get_lmp_historical(self, market):
-        super().test_get_lmp_historical(market=market)
+        cassette_name = f"test_get_lmp_historical_{market.value.lower()}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            super().test_get_lmp_historical(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.REAL_TIME_5_MIN,
         Markets.REAL_TIME_HOURLY,
@@ -106,6 +176,7 @@ class TestISONE(BaseTestISO):
     def test_get_lmp_latest(self, market):
         super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
@@ -123,12 +194,17 @@ class TestISONE(BaseTestISO):
         ],
     )
     def test_get_lmp_dst_boundaries(self, date, market):
-        self.iso.get_lmp(
-            date=date,
-            market=market,
-            verbose=VERBOSE,
+        cassette_name = (
+            f"test_get_lmp_dst_boundaries_{date}_{market.value.lower()}.yaml"
         )
+        with api_vcr.use_cassette(cassette_name):
+            self.iso.get_lmp(
+                date=date,
+                market=market,
+                verbose=VERBOSE,
+            )
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_no_intervals_gets_current_data(self):
         date = self.local_now() - pd.DateOffset(hours=2)
         end = date + pd.DateOffset(hours=1)
@@ -153,16 +229,21 @@ class TestISONE(BaseTestISO):
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
     def test_get_load(self, date):
-        self.iso.get_load(date=date, verbose=VERBOSE)
+        cassette_name = f"test_get_load_{date}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            self.iso.get_load(date=date, verbose=VERBOSE)
 
     """get_load_forecast"""
 
     @pytest.mark.parametrize("date", DST_BOUNDARIES)
     def test_get_load_forecast(self, date):
-        self.iso.get_load_forecast(date=date, verbose=VERBOSE)
+        cassette_name = f"test_get_load_forecast_{date}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            self.iso.get_load_forecast(date=date, verbose=VERBOSE)
 
     """get_wind_forecast"""
 
+    @pytest.mark.integration
     def test_get_wind_forecast_today(self):
         df = self.iso.get_wind_forecast(date="today", verbose=VERBOSE)
         now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
@@ -180,35 +261,39 @@ class TestISONE(BaseTestISO):
 
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
+    @pytest.mark.integration
     def test_get_wind_forecast_latest(self):
         assert self.iso.get_wind_forecast(date="latest", verbose=VERBOSE).equals(
             self.iso.get_wind_forecast(date="today", verbose=VERBOSE),
         )
 
     def test_get_wind_forecast_historical_date_range(self):
-        two_days_ago = pd.Timestamp.now(
+        start = pd.Timestamp(
+            "2025-10-15",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=2)
-        five_days_ago = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=5)
-
-        df = self.iso.get_wind_forecast(
-            date=(five_days_ago, two_days_ago),
-            verbose=VERBOSE,
         )
+        end = pd.Timestamp(
+            "2025-10-18",
+            tz=self.iso.default_timezone,
+        )
+
+        with api_vcr.use_cassette("test_get_wind_forecast_historical_date_range.yaml"):
+            df = self.iso.get_wind_forecast(
+                date=(start, end),
+                verbose=VERBOSE,
+            )
 
         assert (
             df["Publish Time"].unique()
             == [
-                five_days_ago + pd.Timedelta(hours=10),
-                five_days_ago + pd.Timedelta(days=1, hours=10),
+                start + pd.Timedelta(hours=10),
+                start + pd.Timedelta(days=1, hours=10),
                 # Wind forecast is not inclusive of the end date
-                five_days_ago + pd.Timedelta(days=2, hours=10),
+                start + pd.Timedelta(days=2, hours=10),
             ]
         ).all()
 
-        assert df["Interval Start"].min() == five_days_ago + pd.Timedelta(hours=10)
+        assert df["Interval Start"].min() == start + pd.Timedelta(hours=10)
 
         assert df["Interval Start"].max() - df[
             "Interval Start"
@@ -217,14 +302,16 @@ class TestISONE(BaseTestISO):
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
     def test_get_wind_forecast_historical_single_date(self):
-        four_days_ago = pd.Timestamp.now(
+        date = pd.Timestamp(
+            "2025-10-15",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=4)
+        )
 
-        df = self.iso.get_wind_forecast(date=four_days_ago, verbose=VERBOSE)
+        with api_vcr.use_cassette("test_get_wind_forecast_historical_single_date.yaml"):
+            df = self.iso.get_wind_forecast(date=date, verbose=VERBOSE)
 
-        assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
-        assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
+        assert df["Publish Time"].unique() == date + pd.Timedelta(hours=10)
+        assert df["Interval Start"].min() == date + pd.Timedelta(hours=10)
         assert (
             df["Interval Start"].max() - df["Interval Start"].min()
             >= WIND_OR_SOLAR_FORECAST_LENGTH
@@ -234,6 +321,7 @@ class TestISONE(BaseTestISO):
 
     """get_solar_forecast"""
 
+    @pytest.mark.integration
     def test_get_solar_forecast_today(self):
         df = self.iso.get_solar_forecast(date="today", verbose=VERBOSE)
         now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
@@ -251,35 +339,39 @@ class TestISONE(BaseTestISO):
 
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
+    @pytest.mark.integration
     def test_get_solar_forecast_latest(self):
         assert self.iso.get_solar_forecast(date="latest", verbose=VERBOSE).equals(
             self.iso.get_solar_forecast(date="today", verbose=VERBOSE),
         )
 
     def test_get_solar_forecast_historical_date_range(self):
-        two_days_ago = pd.Timestamp.now(
+        start = pd.Timestamp(
+            "2025-10-15",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=2)
-        five_days_ago = pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=5)
-
-        df = self.iso.get_solar_forecast(
-            date=(five_days_ago, two_days_ago),
-            verbose=VERBOSE,
         )
+        end = pd.Timestamp(
+            "2025-10-18",
+            tz=self.iso.default_timezone,
+        )
+
+        with api_vcr.use_cassette("test_get_solar_forecast_historical_date_range.yaml"):
+            df = self.iso.get_solar_forecast(
+                date=(start, end),
+                verbose=VERBOSE,
+            )
 
         assert (
             df["Publish Time"].unique()
             == [
-                five_days_ago + pd.Timedelta(hours=10),
-                five_days_ago + pd.Timedelta(days=1, hours=10),
+                start + pd.Timedelta(hours=10),
+                start + pd.Timedelta(days=1, hours=10),
                 # Solar forecast is not inclusive of the end date
-                five_days_ago + pd.Timedelta(days=2, hours=10),
+                start + pd.Timedelta(days=2, hours=10),
             ]
         ).all()
 
-        assert df["Interval Start"].min() == five_days_ago + pd.Timedelta(hours=10)
+        assert df["Interval Start"].min() == start + pd.Timedelta(hours=10)
 
         assert df["Interval Start"].max() - df[
             "Interval Start"
@@ -288,14 +380,18 @@ class TestISONE(BaseTestISO):
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
     def test_get_solar_forecast_historical_single_date(self):
-        four_days_ago = pd.Timestamp.now(
+        date = pd.Timestamp(
+            "2025-10-15",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=4)
+        )
 
-        df = self.iso.get_solar_forecast(date=four_days_ago, verbose=VERBOSE)
+        with api_vcr.use_cassette(
+            "test_get_solar_forecast_historical_single_date.yaml"
+        ):
+            df = self.iso.get_solar_forecast(date=date, verbose=VERBOSE)
 
-        assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
-        assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
+        assert df["Publish Time"].unique() == date + pd.Timedelta(hours=10)
+        assert df["Interval Start"].min() == date + pd.Timedelta(hours=10)
 
         assert (
             df["Interval Start"].max() - df["Interval Start"].min()
@@ -310,6 +406,7 @@ class TestISONE(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_historical()
 
+    @pytest.mark.integration
     def test_get_storage_today(self):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
@@ -445,9 +542,10 @@ class TestISONE(BaseTestISO):
     ):
         # Test date range - decorator calls function once per day and concatenates results
         # So we should get data for all days in the range (inclusive of end date)
-        start = pd.Timestamp.now(
+        start = pd.Timestamp(
+            "2025-10-15",
             tz=self.iso.default_timezone,
-        ).normalize() - pd.Timedelta(days=5)
+        )
         end = start + pd.Timedelta(days=1)
 
         cassette_name = f"test_get_reserve_zone_prices_designations_real_time_5_min_final_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}"
@@ -489,16 +587,11 @@ class TestISONE(BaseTestISO):
             # Use DateOffset to account for DST switch
         ) + pd.DateOffset(days=1, minutes=-5)
 
+    @pytest.mark.integration
     def test_get_reserve_zone_prices_designations_real_time_5_min_final_latest(self):
-        # Test the "latest" option
-        cassette_name = (
-            "test_get_reserve_zone_prices_designations_real_time_5_min_final_latest"
+        df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
+            date="latest",
+            verbose=VERBOSE,
         )
 
-        with api_vcr.use_cassette(cassette_name):
-            df = self.iso.get_reserve_zone_prices_designations_real_time_5_min_final(
-                date="latest",
-                verbose=VERBOSE,
-            )
-
-            self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+        self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)

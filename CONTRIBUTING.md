@@ -114,6 +114,78 @@ All pull requests will be reviewed by one of our maintainers before being merged
 
 We may ask for additional changes or clarification before merging a pull request.
 
+## VCR Cassettes (Test Fixtures)
+
+Tests that make HTTP requests to ISO APIs use [VCR.py](https://vcrpy.readthedocs.io/) to record and replay responses. Recorded responses ("cassettes") are stored on S3 and cached in GitHub Actions so CI tests run without live API access.
+
+### How It Works
+
+- **In CI** (`VCR_RECORD_MODE=none`): tests play back cassettes from S3. If a cassette is missing, the test is skipped automatically.
+- **Locally** (`VCR_RECORD_MODE=new_episodes`): missing cassettes are recorded from live API calls. Existing cassettes are replayed.
+- Tests marked `@pytest.mark.integration` are excluded from CI test-iso jobs (they require live API access or use relative dates like "today"/"latest").
+
+### Adding a New Test with a VCR Cassette
+
+1. **Write your test** using the VCR wrapper for your ISO:
+
+```python
+# At the top of the test file, the VCR instance is already set up:
+# api_vcr = setup_vcr(source="caiso", record_mode=RECORD_MODE)
+
+def test_get_my_new_dataset(self):
+    date = pd.Timestamp("2026-03-15")  # Use a fixed, recent date
+    with api_vcr.use_cassette("test_get_my_new_dataset_2026-03-15.yaml"):
+        df = self.iso.get_my_new_dataset(date)
+    assert df.shape[0] > 0
+```
+
+2. **Record the cassette locally** — run the test with your API credentials in `.env`:
+
+```bash
+uv run pytest -s -vv -k "test_get_my_new_dataset" gridstatus/tests/source_specific/test_<iso>.py
+```
+
+3. **Verify the cassette is clean** — `make fixtures-upload` scans every cassette for `code: 4xx`/`code: 5xx` responses and refuses to upload if any are found. You can also scan manually:
+
+```bash
+grep "code: [45]" gridstatus/tests/fixtures/<iso>/vcr_cassettes/test_get_my_new_dataset_2026-03-15.yaml
+# Should return nothing
+```
+
+4. **Upload to S3** — requires AWS credentials:
+
+```bash
+make fixtures-upload iso=<iso>
+# Override the 4xx/5xx safety scan if you really need to:
+make fixtures-upload iso=<iso> force=1
+```
+
+5. **Commit and push** — the cassette files are NOT committed to git. CI downloads them from S3 (with GHA caching).
+
+### Important Guidelines
+
+- **Use fixed dates** — never use `"today"`, `"latest"`, or `pd.Timestamp.now()` in VCR-wrapped tests. These generate different URLs each run, breaking cassette matching.
+- **Use recent dates** — ISO APIs typically expire data after 30-90 days. Use dates within the last few weeks.
+- **Don't upload error cassettes** — if the API returned 4xx/5xx errors, delete the cassette and re-record.
+- **Mark live-only tests as integration** — if a test inherently needs live data (e.g., uses relative dates, or the API uses cache-busting params), add `@pytest.mark.integration`.
+- **Cassette naming** — use descriptive names including the date: `test_get_lmp_historical_2026-03-15.yaml`.
+
+### Makefile Targets
+
+```bash
+make fixtures-download               # Download all fixtures from S3
+make fixtures-download-iso iso=caiso  # Download fixtures for one ISO
+make fixtures-upload                  # Upload all fixtures to S3
+make fixtures-upload iso=caiso        # Upload fixtures for one ISO
+```
+
+### Key Files
+
+- `gridstatus/tests/vcr_utils.py` — VCR configuration, record mode logic, custom matchers
+- `gridstatus/tests/fixtures/<iso>/vcr_cassettes/` — local cassette storage (gitignored)
+- `scripts/fixtures.py` — S3 sync script (`ISO_FIXTURE_MAP` is the source of truth for ISO→fixture directory mapping)
+- `.github/workflows/tests-pr.yaml` — CI workflow that downloads fixtures from S3 with GHA caching
+
 ## CI/CD
 
 When you submit a PR, the following actions are automatically performed

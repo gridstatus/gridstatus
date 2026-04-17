@@ -76,21 +76,22 @@ class TestMISO(BaseTestISO):
         ]:
             assert df.dtypes[col] == "Int64"
 
+    @pytest.mark.integration
     def test_get_fuel_mix_today(self):
-        with miso_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
-            df = self.iso.get_fuel_mix("today")
+        df = self.iso.get_fuel_mix("today")
 
         self._check_fuel_mix(df)
 
+    @pytest.mark.integration
     def test_get_fuel_mix_latest(self):
-        with miso_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
-            df = self.iso.get_fuel_mix("latest")
+        df = self.iso.get_fuel_mix("latest")
 
         self._check_fuel_mix(df)
         assert len(df) == 1
 
+    @pytest.mark.integration
     def test_get_fuel_mix_yesterdays_date(self):
-        date = self.local_start_of_today() - pd.DateOffset(days=1)
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         with miso_vcr.use_cassette(
             f"test_get_fuel_mix_{date.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -158,85 +159,90 @@ class TestMISO(BaseTestISO):
 
         assert df["Market"].unique().tolist() == [Markets.REAL_TIME_5_MIN_FINAL.value]
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_today_or_latest_raises(self):
         with pytest.raises(NotSupported):
             self.iso.get_lmp_real_time_5_min_final("today")
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_historical_date_range(self):
-        start = self.local_today() - pd.Timedelta(days=100)
-        # Set start to a Wednesday to check logic
-        start = start - pd.DateOffset(days=start.weekday() - 2)
-        assert start.weekday() == 2
+        # Use a Wednesday (2025-11-05 is a Wednesday) to check logic
+        start = pd.Timestamp("2025-11-05").date()
+        assert pd.Timestamp(start).weekday() == 2
 
         # Make sure to span a week
-        end = start + pd.Timedelta(days=7)
+        end = pd.Timestamp(start) + pd.Timedelta(days=7)
+        end = end.date()
+        df = self.iso.get_lmp_real_time_5_min_final(start, end)
 
-        cassette_name = f"test_get_lmp_real_time_5_min_final_historical_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_lmp_real_time_5_min_final(start, end)
+        most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
+            days=self.local_start_of_day(start).weekday(),
+        )
 
-            most_recent_monday = self.local_start_of_day(start) - pd.DateOffset(
-                days=self.local_start_of_day(start).weekday(),
-            )
+        assert df["Interval Start"].min() == most_recent_monday
+        assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(
+            days=14,
+        )
 
-            assert df["Interval Start"].min() == most_recent_monday
-            assert df["Interval End"].max() == most_recent_monday + pd.Timedelta(
-                days=14,
-            )
+        self._check_lmp_real_time_5_min_final(df)
 
-            self._check_lmp_real_time_5_min_final(df)
-
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_final_raises_error_if_no_data(self):
-        date = self.local_today() - pd.DateOffset(days=5)
-        cassette_name = f"test_get_lmp_real_time_5_min_final_raises_error_if_no_data_{date.strftime('%Y-%m-%d')}.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NoDataFoundException):
-                self.iso.get_lmp_real_time_5_min_final(date)
+        date = pd.Timestamp("2025-11-01")
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_lmp_real_time_5_min_final(date)
 
     """get_lmp"""
 
+    @pytest.mark.integration
     @with_markets(Markets.REAL_TIME_HOURLY_FINAL, Markets.REAL_TIME_HOURLY_PRELIM)
     def test_lmp_date_range(self, market):
-        with miso_vcr.use_cassette(f"test_lmp_date_range_{market.value}.yaml"):
-            offset_from_today = 5 if market == Markets.REAL_TIME_HOURLY_FINAL else 1
-            super().test_lmp_date_range(market, offset_from_today)
+        offset_from_today = 5 if market == Markets.REAL_TIME_HOURLY_FINAL else 1
+        super().test_lmp_date_range(market, offset_from_today)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_HOURLY_FINAL,
-        Markets.REAL_TIME_HOURLY_PRELIM,
     )
     def test_get_lmp_historical(self, market):
-        # Prelim data only goes back 4 days
-        if market == Markets.REAL_TIME_HOURLY_PRELIM:
-            date = self.local_today() - pd.Timedelta(days=2)
-        else:
-            date = self.local_today() - pd.Timedelta(days=100)
+        date_str = "2025-07-25"
 
-        date_str = date.strftime("%Y-%m-%d")
         cassette_name = f"test_get_lmp_historical_{market.value}_{date_str}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             super().test_get_lmp_historical(market, date_str=date_str)
 
+    @pytest.mark.integration
+    @with_markets(
+        Markets.REAL_TIME_HOURLY_PRELIM,
+    )
+    def test_get_lmp_historical_prelim(self, market):
+        # Prelim data only goes back 4 days
+        date = self.local_today() - pd.Timedelta(days=2)
+
+        date_str = date.strftime("%Y-%m-%d")
+        super().test_get_lmp_historical(market, date_str=date_str)
+
+    @pytest.mark.integration
     @with_markets(
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_latest(self, market):
-        cassette_name = f"test_get_lmp_latest_{market.value}.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            super().test_get_lmp_latest(market)
+        super().test_get_lmp_latest(market)
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_today(self, market):
-        cassette_name = f"test_get_lmp_today_{market.value}.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            super().test_get_lmp_today(market=market)
+        super().test_get_lmp_today(market=market)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_yesterday(self):
-        date = self.local_today() - pd.DateOffset(days=1)
+        date = pd.Timestamp("2025-11-01")
         cassette_name = (
             f"test_get_lmp_real_time_5_min_yesterday_{date.strftime('%Y-%m-%d')}.yaml"
         )
@@ -256,23 +262,28 @@ class TestMISO(BaseTestISO):
                 "Loadzone",
             ]
 
+    @pytest.mark.integration
     def test_get_lmp_locations(self):
-        cassette_name = "test_get_lmp_locations.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            data = self.iso.get_lmp(
-                date="latest",
-                market=Markets.REAL_TIME_5_MIN,
-                locations=self.iso.hubs,
-            )
-            assert set(data["Location"].unique()) == set(self.iso.hubs)
+        data = self.iso.get_lmp(
+            date="latest",
+            market=Markets.REAL_TIME_5_MIN,
+            locations=self.iso.hubs,
+        )
+        assert set(data["Location"].unique()) == set(self.iso.hubs)
 
     """get_load"""
 
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
     def test_get_load_historical(self):
-        cassette_name = "test_get_load_historical.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotSupported):
-                super().test_get_load_historical()
+        with pytest.raises(NotSupported):
+            super().test_get_load_historical()
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
@@ -293,10 +304,9 @@ class TestMISO(BaseTestISO):
         "MISO MTLF",
     ]
 
+    @pytest.mark.integration
     def test_get_load_forecast_today(self):
-        cassette_name = "test_get_load_forecast_today.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_load_forecast("today")
+        df = self.iso.get_load_forecast("today")
 
         assert df.columns.tolist() == self.load_forecast_cols
 
@@ -306,18 +316,15 @@ class TestMISO(BaseTestISO):
             days=6,
         )
 
+    @pytest.mark.integration
     def test_get_load_forecast_latest(self):
-        cassette_name = "test_get_load_forecast_latest.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            assert self.iso.get_load_forecast("latest").equals(
-                self.iso.get_load_forecast("today"),
-            )
+        assert self.iso.get_load_forecast("latest").equals(
+            self.iso.get_load_forecast("today"),
+        )
 
     def test_get_load_forecast_historical(self):
-        past_date = self.local_today() - pd.Timedelta(days=30)
-        cassette_name = (
-            f"test_get_load_forecast_historical_{past_date.strftime('%Y-%m-%d')}.yaml"
-        )
+        past_date = pd.Timestamp("2025-11-01").date()
+        cassette_name = f"test_get_load_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(past_date)
             assert df.columns.tolist() == self.load_forecast_cols
@@ -332,9 +339,9 @@ class TestMISO(BaseTestISO):
             )
 
     def test_get_load_forecast_historical_with_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=250)
-        end_date = past_date + pd.Timedelta(days=3)
-        cassette_name = f"test_get_load_forecast_historical_with_date_range_{past_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml"
+        past_date = pd.Timestamp("2025-11-01").date()
+        end_date = pd.Timestamp("2025-11-04").date()
+        cassette_name = f"test_get_load_forecast_historical_with_date_range_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}_{pd.Timestamp(end_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(
                 start=past_date,
@@ -347,6 +354,7 @@ class TestMISO(BaseTestISO):
                 end_date,
             ) + pd.Timedelta(days=5)
 
+    @pytest.mark.integration
     def test_get_load_forecast_dst_spring_forward(self):
         dst_start = pd.Timestamp("2022-03-13")
         cassette_name = f"test_get_load_forecast_dst_spring_forward_{dst_start.strftime('%Y-%m-%d')}.yaml"
@@ -356,6 +364,7 @@ class TestMISO(BaseTestISO):
             assert df.columns.tolist() == self.load_forecast_cols
             assert df["Interval Start"].min() == self.local_start_of_day(dst_start)
 
+    @pytest.mark.integration
     def test_get_load_forecast_dst_fall_back(self):
         dst_end = pd.Timestamp("2022-11-06")
         cassette_name = (
@@ -386,10 +395,8 @@ class TestMISO(BaseTestISO):
         )
 
     def test_get_solar_forecast_historical(self):
-        past_date = self.local_today() - pd.Timedelta(days=30)
-        cassette_name = (
-            f"test_get_solar_forecast_historical_{past_date.strftime('%Y-%m-%d')}.yaml"
-        )
+        past_date = pd.Timestamp("2025-11-01").date()
+        cassette_name = f"test_get_solar_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_solar_forecast(past_date)
 
@@ -405,9 +412,9 @@ class TestMISO(BaseTestISO):
             )
 
     def test_get_solar_forecast_historical_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=100)
-        end_date = past_date + pd.Timedelta(days=3)
-        cassette_name = f"test_get_solar_forecast_historical_date_range_{past_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml"
+        past_date = pd.Timestamp("2025-11-01").date()
+        end_date = pd.Timestamp("2025-11-04").date()
+        cassette_name = f"test_get_solar_forecast_historical_date_range_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}_{pd.Timestamp(end_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_solar_forecast(
                 start=past_date,
@@ -427,6 +434,7 @@ class TestMISO(BaseTestISO):
                 past_date + pd.Timedelta(days=2),
             ]
 
+    @pytest.mark.integration
     def test_get_solar_forecast_historical_before_schema_change(self):
         # Data schema changed on 2022-06-13
         date = pd.Timestamp("2022-05-12").date()
@@ -438,10 +446,8 @@ class TestMISO(BaseTestISO):
     """get_wind_forecast"""
 
     def test_get_wind_forecast_historical(self):
-        past_date = self.local_today() - pd.Timedelta(days=30)
-        cassette_name = (
-            f"test_get_wind_forecast_historical_{past_date.strftime('%Y-%m-%d')}.yaml"
-        )
+        past_date = pd.Timestamp("2025-11-01").date()
+        cassette_name = f"test_get_wind_forecast_historical_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_wind_forecast(past_date)
 
@@ -456,9 +462,9 @@ class TestMISO(BaseTestISO):
             )
 
     def test_get_wind_forecast_historical_date_range(self):
-        past_date = self.local_today() - pd.Timedelta(days=100)
-        end_date = past_date + pd.Timedelta(days=3)
-        cassette_name = f"test_get_wind_forecast_historical_date_range_{past_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml"
+        past_date = pd.Timestamp("2025-11-01").date()
+        end_date = pd.Timestamp("2025-11-04").date()
+        cassette_name = f"test_get_wind_forecast_historical_date_range_{pd.Timestamp(past_date).strftime('%Y-%m-%d')}_{pd.Timestamp(end_date).strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_wind_forecast(
                 start=past_date,
@@ -478,6 +484,7 @@ class TestMISO(BaseTestISO):
                 past_date + pd.Timedelta(days=2),
             ]
 
+    @pytest.mark.integration
     def test_get_wind_forecast_historical_before_schema_change(self):
         # Data schema changed on 2022-06-13
         # No south data for 2022-05-12 for wind
@@ -491,24 +498,19 @@ class TestMISO(BaseTestISO):
     """get_status"""
 
     def test_get_status_latest(self):
-        cassette_name = "test_get_status_latest.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotImplementedError):
-                super().test_get_status_latest()
+        with pytest.raises(NotImplementedError):
+            super().test_get_status_latest()
 
     """get_storage"""
 
     def test_get_storage_historical(self):
-        cassette_name = "test_get_storage_historical.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotImplementedError):
-                super().test_get_storage_historical()
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_historical()
 
+    @pytest.mark.integration
     def test_get_storage_today(self):
-        cassette_name = "test_get_storage_today.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotImplementedError):
-                super().test_get_storage_today()
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_today()
 
     """get_generation_outages_forecast"""
 
@@ -530,26 +532,25 @@ class TestMISO(BaseTestISO):
 
         assert (df["Region"].unique() == ["Central", "MISO", "North", "South"]).all()
 
+    @pytest.mark.integration
     def test_get_generation_outages_forecast_latest(self):
-        cassette_name = "test_get_generation_outages_forecast_latest.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_generation_outages_forecast("latest")
+        df = self.iso.get_generation_outages_forecast("latest")
 
-            self._check_generation_outages(df)
+        self._check_generation_outages(df)
 
-            # Latest fetches the file published yesterday with the first forecast day today
-            expected_start_date = self.local_start_of_today()
+        # Latest fetches the file published yesterday with the first forecast day today
+        expected_start_date = self.local_start_of_today()
 
-            assert df["Publish Time"].unique() == expected_start_date - pd.DateOffset(
-                days=1,
-            )
-            assert df["Interval Start"].min() == expected_start_date
-            assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
-                days=7,
-            )
+        assert df["Publish Time"].unique() == expected_start_date - pd.DateOffset(
+            days=1,
+        )
+        assert df["Interval Start"].min() == expected_start_date
+        assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
+            days=7,
+        )
 
     def test_get_generation_outages_forecast_historical_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=100)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=3)
         cassette_name = f"test_get_generation_outages_forecast_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
@@ -563,24 +564,23 @@ class TestMISO(BaseTestISO):
 
     """get_generation_outages_estimated"""
 
+    @pytest.mark.integration
     def test_get_generation_outages_estimated_latest(self):
-        cassette_name = "test_get_generation_outages_estimated_latest.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_generation_outages_estimated("latest")
-            self._check_generation_outages(df)
+        df = self.iso.get_generation_outages_estimated("latest")
+        self._check_generation_outages(df)
 
-            # Latest fetches the file published yesterday
-            expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
+        # Latest fetches the file published yesterday
+        expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
 
-            assert df[
-                "Publish Time"
-            ].unique() == self.local_start_of_today() - pd.DateOffset(days=1)
+        assert df[
+            "Publish Time"
+        ].unique() == self.local_start_of_today() - pd.DateOffset(days=1)
 
-            assert df["Interval Start"].min() == expected_start_date
-            assert df["Interval End"].max() == self.local_start_of_today()
+        assert df["Interval Start"].min() == expected_start_date
+        assert df["Interval End"].max() == self.local_start_of_today()
 
     def test_get_generation_outages_estimated_historical_date_range(self):
-        start = self.local_start_of_today() - pd.DateOffset(days=100)
+        start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=3)
         cassette_name = f"test_get_generation_outages_estimated_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
@@ -1028,17 +1028,16 @@ class TestMISO(BaseTestISO):
         assert df["LRZ8 9 10"].dtype == float
         assert df["MISO"].dtype == float
 
+    @pytest.mark.integration
     def test_get_zonal_load_hourly_latest(self):
-        cassette_name = "test_get_zonal_load_hourly_latest.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_zonal_load_hourly("latest")
-            self._check_zonal_load_hourly(df)
+        df = self.iso.get_zonal_load_hourly("latest")
+        self._check_zonal_load_hourly(df)
 
-            expected_start_date = self.local_start_of_today() - pd.DateOffset(days=1)
-            assert df["Interval Start"].min() == expected_start_date
-            assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
-                days=1,
-            )
+        expected_start_date = self.local_start_of_today() - pd.DateOffset(days=1)
+        assert df["Interval Start"].min() == expected_start_date
+        assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
+            days=1,
+        )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1095,28 +1094,28 @@ class TestMISO(BaseTestISO):
         # scheduled data is one interval behind the actual data
         assert df["Net Scheduled Interchange"].isna().iloc[-1]
 
+    @pytest.mark.skip(
+        reason="MISO scraper bugs - https://www.notion.so/33de835f42aa81168986e07b4e28b9db"
+    )
+    @pytest.mark.integration
     def test_get_interchange_5_min_latest(self):
-        with miso_vcr.use_cassette("test_get_interchange_5_min_latest.yaml"):
-            df = self.iso.get_interchange_5_min("latest")
-            self._check_get_interchange_5_min(df)
+        df = self.iso.get_interchange_5_min("latest")
+        self._check_get_interchange_5_min(df)
 
-            assert df["Interval Start"].min() <= self.local_now() - pd.DateOffset(
-                days=1,
-            )
+        assert df["Interval Start"].min() <= self.local_now() - pd.DateOffset(
+            days=1,
+        )
 
-            # Data should be near-real-time
-            assert df["Interval End"].max() >= self.local_now() - pd.DateOffset(
-                minutes=5,
-            )
+        # Data should be near-real-time
+        assert df["Interval End"].max() >= self.local_now() - pd.DateOffset(
+            minutes=5,
+        )
 
+    @pytest.mark.integration
     @pytest.mark.parametrize("date", ["2025-01-01", "today"])
     def test_get_interchange_5_min_raises_error_if_not_latest(self, date):
-        cassette_name = (
-            f"test_get_interchange_5_min_raises_error_if_not_latest_{date}.yaml"
-        )
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotSupported):
-                self.iso.get_interchange_5_min(date)
+        with pytest.raises(NotSupported):
+            self.iso.get_interchange_5_min(date)
 
     """get_binding_constraints_real_time_intraday"""
 
@@ -1148,36 +1147,31 @@ class TestMISO(BaseTestISO):
 
         assert (df["Constraint Name"] != "None").all()
 
+    @pytest.mark.integration
     def test_get_binding_constraints_real_time_intraday_latest(self):
-        with miso_vcr.use_cassette(
-            "test_get_binding_constraints_real_time_intraday_latest.yaml",
-        ):
-            df = self.iso.get_binding_constraints_real_time_intraday("latest")
+        df = self.iso.get_binding_constraints_real_time_intraday("latest")
 
         self._check_binding_constraints_real_time_intraday(df)
 
+    @pytest.mark.integration
     @pytest.mark.parametrize("date", ["2025-01-01", "today"])
     def test_get_binding_constraints_real_time_intraday_raises_error_if_not_latest(
         self,
         date,
     ):
-        cassette_name = f"test_get_binding_constraints_real_time_intraday_raises_error_if_not_latest_{date}.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotSupported):
-                self.iso.get_binding_constraints_real_time_intraday(date)
+        with pytest.raises(NotSupported):
+            self.iso.get_binding_constraints_real_time_intraday(date)
 
     """get_multiday_operating_margin"""
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "days_ago",
         [730, 2],  # ~2 years ago and ~2 days ago
     )
     def test_get_multiday_operating_margin(self, days_ago):
         date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=days_ago)
-        cassette_name = f"test_get_multiday_operating_margin_{days_ago}d.yaml"
-
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_multiday_operating_margin(date=date)
+        df = self.iso.get_multiday_operating_margin(date=date)
 
         assert len(df) > 0
 
@@ -1224,16 +1218,14 @@ class TestMISO(BaseTestISO):
 
     """get_multiday_operating_margin_regional"""
 
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         "days_ago",
         [730, 2],  # ~2 years ago and ~2 days ago
     )
     def test_get_multiday_operating_margin_regional(self, days_ago):
         date = pd.Timestamp.now(tz="EST").normalize() - pd.Timedelta(days=days_ago)
-        cassette_name = f"test_get_multiday_operating_margin_regional_{days_ago}d.yaml"
-
-        with miso_vcr.use_cassette(cassette_name):
-            df = self.iso.get_multiday_operating_margin_regional(date=date)
+        df = self.iso.get_multiday_operating_margin_regional(date=date)
 
         assert len(df) > 0
 

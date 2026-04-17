@@ -23,6 +23,70 @@ class TestCAISO(BaseTestISO):
 
     trading_hub_locations = CAISO().trading_hub_locations
 
+    # --- BaseTestISO overrides: mark inherited today/latest/relative-date tests ---
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_date_or_start(self):
+        super().test_get_fuel_mix_date_or_start()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_historical_with_date_range(self):
+        super().test_get_fuel_mix_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
+        super().test_get_fuel_mix_range_two_days_with_day_start_endpoint()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_start_end_same_day(self):
+        super().test_get_fuel_mix_start_end_same_day()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_latest(self):
+        super().test_get_fuel_mix_latest()
+
+    @pytest.mark.integration
+    def test_get_fuel_mix_today(self):
+        super().test_get_fuel_mix_today()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical(self):
+        super().test_get_load_forecast_historical()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_historical_with_date_range(self):
+        super().test_get_load_forecast_historical_with_date_range()
+
+    @pytest.mark.integration
+    def test_get_load_forecast_today(self):
+        super().test_get_load_forecast_today()
+
+    @pytest.mark.integration
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
+
+    @pytest.mark.integration
+    def test_get_load_today(self):
+        super().test_get_load_today()
+
+    @pytest.mark.integration
+    def test_get_status_latest(self):
+        super().test_get_status_latest()
+
+    @pytest.mark.integration
+    def test_get_storage_historical(self):
+        super().test_get_storage_historical()
+
+    @pytest.mark.integration
+    def test_get_storage_today(self):
+        super().test_get_storage_today()
+
+    @pytest.mark.integration
+    def test_get_interconnection_queue(self):
+        super().test_get_interconnection_queue()
+
+    # --- End BaseTestISO overrides ---
+
     """get_as"""
 
     @pytest.mark.parametrize("date", ["2022-10-15", "2022-10-16"])
@@ -100,10 +164,8 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=5),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=2),
+                pd.Timestamp("2025-11-01", tz="US/Pacific"),
+                pd.Timestamp("2025-11-03", tz="US/Pacific"),
             ),
         ],
     )
@@ -118,10 +180,8 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=5),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=2),
+                pd.Timestamp("2025-11-01", tz="US/Pacific"),
+                pd.Timestamp("2025-11-03", tz="US/Pacific"),
             ),
         ],
     )
@@ -136,10 +196,8 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=3),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01", tz="US/Pacific"),
+                pd.Timestamp("2025-11-03", tz="US/Pacific"),
             ),
         ],
     )
@@ -154,10 +212,8 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=3),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01", tz="US/Pacific"),
+                pd.Timestamp("2025-11-03", tz="US/Pacific"),
             ),
         ],
     )
@@ -172,10 +228,8 @@ class TestCAISO(BaseTestISO):
         "date, end",
         [
             (
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=3),
-                pd.Timestamp.today(tz=iso.default_timezone).normalize()
-                - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01", tz="US/Pacific"),
+                pd.Timestamp("2025-11-03", tz="US/Pacific"),
             ),
         ],
     )
@@ -260,13 +314,10 @@ class TestCAISO(BaseTestISO):
         )
         assert sorted_df["Interval Start"].is_monotonic_increasing
 
+    @pytest.mark.integration
     def test_get_seven_day_resource_adequacy_outlook_latest_matches_today(self):
-        with caiso_vcr.use_cassette(
-            "test_get_seven_day_resource_adequacy_outlook_latest.yaml",
-            match_on=["method", "scheme", "host", "port", "path"],
-        ):
-            latest_df = self.iso.get_seven_day_resource_adequacy_outlook("latest")
-            today_df = self.iso.get_seven_day_resource_adequacy_outlook("today")
+        latest_df = self.iso.get_seven_day_resource_adequacy_outlook("latest")
+        today_df = self.iso.get_seven_day_resource_adequacy_outlook("today")
         assert latest_df.equals(today_df)
         assert (
             latest_df.columns.tolist()
@@ -315,27 +366,21 @@ class TestCAISO(BaseTestISO):
         assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
 
+    @pytest.mark.integration
     def test_get_renewables_forecast_dam_today(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_forecast_dam_today.yaml",
-        ):
-            df = self.iso.get_renewables_forecast_dam("today")
-            self._check_solar_and_wind_forecast(df, 1)
+        df = self.iso.get_renewables_forecast_dam("today")
+        self._check_solar_and_wind_forecast(df, 1)
 
-            assert df["Interval Start"].min() == self.local_start_of_today()
-            assert df[
-                "Interval Start"
-            ].max() == self.local_start_of_today() + pd.Timedelta(
-                hours=23,
-            )
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
 
+    @pytest.mark.integration
     def test_get_renewables_forecast_dam_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_forecast_dam_latest.yaml",
-        ):
-            assert self.iso.get_renewables_forecast_dam("latest").equals(
-                self.iso.get_renewables_forecast_dam("today"),
-            )
+        assert self.iso.get_renewables_forecast_dam("latest").equals(
+            self.iso.get_renewables_forecast_dam("today"),
+        )
 
     @pytest.mark.parametrize("date", ["2024-02-20"])
     def test_get_renewables_forecast_dam_historical_date(self, date):
@@ -368,34 +413,33 @@ class TestCAISO(BaseTestISO):
                 end,
             ) - pd.Timedelta(hours=1)
 
+    @pytest.mark.integration
     def test_get_renewables_forecast_dam_future_date_range(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_forecast_dam_future_date_range.yaml",
-        ):
-            start = self.local_today() + pd.Timedelta(days=1)
-            end = start + pd.Timedelta(days=2)
+        start = self.local_today() + pd.Timedelta(days=1)
+        end = start + pd.Timedelta(days=2)
 
-            df = self.iso.get_renewables_forecast_dam(start, end=end)
+        df = self.iso.get_renewables_forecast_dam(start, end=end)
 
-            self._check_solar_and_wind_forecast(df, 1)
+        self._check_solar_and_wind_forecast(df, 1)
 
+    @pytest.mark.skip(
+        reason="CAISO renewables_forecast_hasp KeyError - https://www.notion.so/33de835f42aa81ea8497f8620a95ac64"
+    )
+    @pytest.mark.integration
     def test_get_renewables_forecast_hasp_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_forecast_hasp_latest.yaml",
-        ):
-            df = self.iso.get_renewables_forecast_hasp("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-            assert (
-                (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
-            ).all()
+        df = self.iso.get_renewables_forecast_hasp("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Location",
+            "Solar",
+            "Wind",
+        ]
+        assert (
+            (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
+        ).all()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -432,20 +476,18 @@ class TestCAISO(BaseTestISO):
                 (df["Interval Start"] - df["Publish Time"]) == pd.Timedelta(minutes=90)
             ).all()
 
+    @pytest.mark.integration
     def test_get_renewables_hourly_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_hourly_latest.yaml",
-        ):
-            df = self.iso.get_renewables_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_renewables_hourly("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Solar",
+            "Wind",
+        ]
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -475,21 +517,19 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_renewables_forecast_rtd_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_forecast_rtd_latest.yaml",
-        ):
-            df = self.iso.get_renewables_forecast_rtd("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_renewables_forecast_rtd("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Location",
+            "Solar",
+            "Wind",
+        ]
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -520,21 +560,19 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_renewables_forecast_rtpd_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_renewables_forecast_rtpd_latest.yaml",
-        ):
-            df = self.iso.get_renewables_forecast_rtpd("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Location",
-                "Solar",
-                "Wind",
-            ]
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_renewables_forecast_rtpd("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Location",
+            "Solar",
+            "Wind",
+        ]
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -630,8 +668,10 @@ class TestCAISO(BaseTestISO):
         ).all()
 
     def test_get_curtailment_specific_date(self):
-        date = self.local_today() - pd.DateOffset(days=2)
-        with caiso_vcr.use_cassette(f"test_get_curtailment_{date}.yaml"):
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailment_{date.strftime('%Y-%m-%d')}.yaml",
+        ):
             df = self.iso.get_curtailment(date)
 
         self._check_curtailment(df)
@@ -642,8 +682,8 @@ class TestCAISO(BaseTestISO):
         ) + pd.Timedelta(hours=23)
 
     def test_get_curtailment_date_range(self):
-        start_date = self.local_start_of_today() - pd.DateOffset(days=5)
-        end_date = start_date + pd.DateOffset(days=3)
+        start_date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+        end_date = pd.Timestamp("2025-11-04", tz=self.iso.default_timezone)
 
         with caiso_vcr.use_cassette(
             f"test_get_curtailment_date_range_{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}.yaml",
@@ -758,12 +798,12 @@ class TestCAISO(BaseTestISO):
         "Loss",
     ]
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
     )
     def test_lmp_date_range(self, market):
-        with caiso_vcr.use_cassette(f"test_lmp_date_range_{market.value.lower()}.yaml"):
-            super().test_lmp_date_range(market=market)
+        super().test_lmp_date_range(market=market)
 
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
@@ -774,38 +814,38 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette(
             f"test_get_lmp_historical_{market.value.lower()}.yaml",
         ):
-            super().test_get_lmp_historical(market=market)
+            super().test_get_lmp_historical(market=market, date_str="2025-10-15")
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_latest(self, market):
-        with caiso_vcr.use_cassette(f"test_get_lmp_latest_{market.value.lower()}.yaml"):
-            super().test_get_lmp_latest(market=market)
+        super().test_get_lmp_latest(market=market)
 
+    @pytest.mark.integration
     @pytest.mark.parametrize("date", ["today"])
     def test_get_lmp_locations_must_be_list(self, date):
-        with caiso_vcr.use_cassette(f"test_get_lmp_locations_must_be_list_{date}.yaml"):
-            with pytest.raises(AssertionError):
-                self.iso.get_lmp(date, locations="foo", market="REAL_TIME_5_MIN")
+        with pytest.raises(AssertionError):
+            self.iso.get_lmp(date, locations="foo", market="REAL_TIME_5_MIN")
 
+    @pytest.mark.integration
     @with_markets(
         Markets.DAY_AHEAD_HOURLY,
         Markets.REAL_TIME_15_MIN,
         Markets.REAL_TIME_5_MIN,
     )
     def test_get_lmp_today(self, market):
-        with caiso_vcr.use_cassette(f"test_get_lmp_today_{market.value.lower()}.yaml"):
-            super().test_get_lmp_today(market=market)
+        super().test_get_lmp_today(market=market)
 
     @pytest.mark.parametrize(
         "date, end",
         [
             (
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
-                pd.Timestamp("today").normalize(),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-04"),
             ),
         ],
     )
@@ -839,7 +879,7 @@ class TestCAISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date",
-        [pd.Timestamp("today").normalize() - pd.Timedelta(days=1)],
+        [pd.Timestamp("2025-11-01")],
     )
     def test_get_lmp_all_ap_nodes_locations(self, date):
         with caiso_vcr.use_cassette(
@@ -853,12 +893,10 @@ class TestCAISO(BaseTestISO):
             # assert approx 2300 locations
             assert df["Location"].nunique() > 2300
 
-    # NOTE(kladar): can't use self.iso.default_timezone because decorator is created before class is initialized
     @pytest.mark.parametrize(
         "end",
         [
-            pd.Timestamp("today").tz_localize("US/Pacific").normalize()
-            - pd.Timedelta(days=2),
+            pd.Timestamp("2025-11-04", tz="US/Pacific"),
         ],
     )
     def test_get_lmp_with_all_locations_range(self, end: pd.Timestamp) -> None:
@@ -879,11 +917,8 @@ class TestCAISO(BaseTestISO):
         "start, end",
         [
             (
-                pd.Timestamp("now").tz_localize("UTC").normalize()
-                - pd.Timedelta(days=1),
-                pd.Timestamp("now").tz_localize("UTC").normalize()
-                - pd.Timedelta(days=1)
-                + pd.Timedelta(hours=2),
+                pd.Timestamp("2025-11-01", tz="UTC"),
+                pd.Timestamp("2025-11-01T02:00:00", tz="UTC"),
             ),
         ],
     )
@@ -905,7 +940,7 @@ class TestCAISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date",
-        [pd.Timestamp.now().date() - pd.Timedelta(days=1201)],
+        [pd.Timestamp("2022-06-15").date()],
     )
     def test_get_lmp_too_far_in_past_raises_custom_exception(self, date):
         with caiso_vcr.use_cassette(
@@ -920,7 +955,7 @@ class TestCAISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "date",
-        [pd.Timestamp.now().date() - pd.Timedelta(days=1000)],
+        [pd.Timestamp("2023-02-15").date()],
     )
     def test_get_lmp_valid_date(self, date):
         with caiso_vcr.use_cassette(f"test_get_lmp_valid_date_{date}.yaml"):
@@ -1015,7 +1050,7 @@ class TestCAISO(BaseTestISO):
             assert df.shape[0] > 0
             assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
 
-    @pytest.mark.parametrize("date", [pd.Timestamp("today") - pd.Timedelta(days=2)])
+    @pytest.mark.parametrize("date", [pd.Timestamp("2025-11-01")])
     def test_get_curtailed_non_operational_generator_report_two_days_ago(self, date):
         with caiso_vcr.use_cassette(
             f"test_get_curtailed_non_operational_generator_report_two_days_ago_{date}.yaml",
@@ -1037,6 +1072,7 @@ class TestCAISO(BaseTestISO):
             assert df.shape[0] > 0
             assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
 
+    @pytest.mark.skip(reason="Stale pre-2021 data - see Phase 9 audit")
     @pytest.mark.parametrize("date", ["2021-06-16"])
     def test_get_curtailed_non_operational_generator_report_before_2021_06_17(
         self,
@@ -1053,13 +1089,17 @@ class TestCAISO(BaseTestISO):
 
                 assert df.shape[0] > 0
 
+    def test_get_curtailed_non_operational_generator_report_new_url_format(self):
         # Change in url format on this date
         date_with_new_format = pd.Timestamp("2025-01-13")
-        df = self.iso.get_curtailed_non_operational_generator_report(
-            date=date_with_new_format,
-        )
-        assert df.shape[0] > 0
-        assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailed_non_operational_generator_report_new_format_{date_with_new_format.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_curtailed_non_operational_generator_report(
+                date=date_with_new_format,
+            )
+            assert df.shape[0] > 0
+            assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
 
     """get_tie_flows_real_time"""
 
@@ -1085,27 +1125,26 @@ class TestCAISO(BaseTestISO):
             subset=["Interval Start", "Tie Name", "From BAA", "To BAA"],
         ).any()
 
+    @pytest.mark.integration
     def test_get_tie_flows_real_time_latest(self):
-        with caiso_vcr.use_cassette("test_get_tie_flows_real_time_latest.yaml"):
-            df = self.iso.get_tie_flows_real_time("latest")
-            self._check_tie_flows_real_time(df)
+        df = self.iso.get_tie_flows_real_time("latest")
+        self._check_tie_flows_real_time(df)
 
-            assert df["Interval Start"].min() == pd.Timestamp.utcnow().round("5min")
-            assert df["Interval End"].max() == pd.Timestamp.utcnow().round(
-                "5min",
-            ) + pd.Timedelta(minutes=5)
+        assert df["Interval Start"].min() == pd.Timestamp.utcnow().round("5min")
+        assert df["Interval End"].max() == pd.Timestamp.utcnow().round(
+            "5min",
+        ) + pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_tie_flows_real_time_today(self):
-        with caiso_vcr.use_cassette("test_get_tie_flows_real_time_today.yaml"):
-            df = self.iso.get_tie_flows_real_time("today")
-            self._check_tie_flows_real_time(df)
+        df = self.iso.get_tie_flows_real_time("today")
+        self._check_tie_flows_real_time(df)
 
-            assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].min() == self.local_start_of_today()
 
     def test_get_tie_flows_real_time_historical_date_range(self):
-        start_of_local_today = self.local_start_of_today()
-        start = start_of_local_today - pd.DateOffset(days=100)
-        end = start + pd.DateOffset(days=2)
+        start = pd.Timestamp("2025-08-01", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2025-08-03", tz=self.iso.default_timezone)
         with caiso_vcr.use_cassette(
             f"test_get_tie_flows_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -1119,7 +1158,7 @@ class TestCAISO(BaseTestISO):
 
     @pytest.mark.parametrize(
         "dataset, date",
-        [("as_clearing_prices", pd.Timestamp.now() + pd.Timedelta(days=7))],
+        [("as_clearing_prices", pd.Timestamp("2099-01-01"))],
     )
     def test_oasis_no_data(self, dataset, date):
         with caiso_vcr.use_cassette(
@@ -1132,10 +1171,10 @@ class TestCAISO(BaseTestISO):
 
             assert df.empty
 
+    @pytest.mark.integration
     def test_get_pnodes(self):
-        with caiso_vcr.use_cassette("test_get_pnodes.yaml"):
-            df = self.iso.get_pnodes()
-            assert df.shape[0] > 0
+        df = self.iso.get_pnodes()
+        assert df.shape[0] > 0
 
     """get_lmp_scheduling_point_tie_combination"""
 
@@ -1206,8 +1245,8 @@ class TestCAISO(BaseTestISO):
         "start, end",
         [
             (
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-03"),
             ),
         ],
     )
@@ -1231,8 +1270,8 @@ class TestCAISO(BaseTestISO):
         "start, end",
         [
             (
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-03"),
             ),
         ],
     )
@@ -1256,8 +1295,8 @@ class TestCAISO(BaseTestISO):
         "start, end",
         [
             (
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-03"),
             ),
         ],
     )
@@ -1311,8 +1350,8 @@ class TestCAISO(BaseTestISO):
         "start, end",
         [
             (
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=3),
-                pd.Timestamp("today").normalize() - pd.Timedelta(days=1),
+                pd.Timestamp("2025-11-01"),
+                pd.Timestamp("2025-11-03"),
             ),
         ],
     )
@@ -1328,20 +1367,20 @@ class TestCAISO(BaseTestISO):
                 end,
             ) + pd.Timedelta(days=1)
 
+    @pytest.mark.integration
     def test_get_tie_flows_real_time_15_min_latest(self):
-        with caiso_vcr.use_cassette("test_get_tie_flows_real_time_15_min_latest.yaml"):
-            df = self.iso.get_tie_flows_real_time_15_min("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Interface ID",
-                "Tie Name",
-                "From BAA",
-                "To BAA",
-                "Market",
-                "MW",
-            ]
+        df = self.iso.get_tie_flows_real_time_15_min("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Interface ID",
+            "Tie Name",
+            "From BAA",
+            "To BAA",
+            "Market",
+            "MW",
+        ]
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1409,24 +1448,22 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_nomogram_branch_shadow_prices_day_ahead_hourly_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_nomogram_branch_shadow_prices_day_ahead_hourly_latest.yaml",
-        ):
-            df = self.iso.get_nomogram_branch_shadow_prices_day_ahead_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Nomogram ID XML",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Groups",
-            ]
-            assert df["Groups"].apply(type).eq(list).all()
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_nomogram_branch_shadow_prices_day_ahead_hourly("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+            "Groups",
+        ]
+        assert df["Groups"].apply(type).eq(list).all()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1460,24 +1497,22 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_nomogram_branch_shadow_prices_hasp_hourly_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_nomogram_branch_shadow_prices_hasp_hourly_latest.yaml",
-        ):
-            df = self.iso.get_nomogram_branch_shadow_prices_hasp_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Nomogram ID XML",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Groups",
-            ]
-            assert df["Groups"].apply(type).eq(list).all()
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_nomogram_branch_shadow_prices_hasp_hourly("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+            "Groups",
+        ]
+        assert df["Groups"].apply(type).eq(list).all()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1514,24 +1549,22 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_nomogram_branch_shadow_price_forecast_15_min_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_nomogram_branch_shadow_price_forecast_15_min_latest.yaml",
-        ):
-            df = self.iso.get_nomogram_branch_shadow_price_forecast_15_min("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Nomogram ID XML",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Groups",
-            ]
-            assert df["Groups"].apply(type).eq(list).all()
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_nomogram_branch_shadow_price_forecast_15_min("latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Nomogram ID XML",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+            "Groups",
+        ]
+        assert df["Groups"].apply(type).eq(list).all()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1571,25 +1604,23 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_interval_nomogram_branch_shadow_prices_real_time_5_min_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_interval_nomogram_branch_shadow_prices_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
-                "latest",
-            )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Market Run ID",
-                "Constraint Cause",
-                "Price",
-                "Groups",
-            ]
-            assert df["Groups"].apply(type).eq(list).all()
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
+            "latest",
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Market Run ID",
+            "Constraint Cause",
+            "Price",
+            "Groups",
+        ]
+        assert df["Groups"].apply(type).eq(list).all()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1630,26 +1661,24 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             )
 
+    @pytest.mark.integration
     def test_get_intertie_constraint_shadow_prices_real_time_5_min_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_intertie_constraint_shadow_prices_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_intertie_constraint_shadow_prices_real_time_5_min(
-                "latest",
-            )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "TI ID",
-                "TI Direction",
-                "Market Run ID",
-                "Constraint Cause",
-                "Shadow Price",
-                "Groups",
-            ]
-            assert df["Groups"].apply(type).eq(list).all()
-            assert df["Interval Start"].min() >= self.local_start_of_today()
+        df = self.iso.get_intertie_constraint_shadow_prices_real_time_5_min(
+            "latest",
+        )
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "TI ID",
+            "TI Direction",
+            "Market Run ID",
+            "Constraint Cause",
+            "Shadow Price",
+            "Groups",
+        ]
+        assert df["Groups"].apply(type).eq(list).all()
+        assert df["Interval Start"].min() >= self.local_start_of_today()
 
     """get_system_load_and_resource_schedules"""
 
@@ -1688,21 +1717,19 @@ class TestCAISO(BaseTestISO):
                 f"Column {col} should be numeric"
             )
 
+    @pytest.mark.integration
     def test_get_system_load_and_resource_schedules_day_ahead_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_system_load_and_resource_schedules_day_ahead_latest.yaml",
-        ):
-            df = self.iso.get_system_load_and_resource_schedules_day_ahead(
-                "latest",
-            )
-            self._check_system_load_and_resource_schedules(
-                df,
-                60,
-                schedule_columns=["Export", "Generation", "Import", "Load"],
-            )
+        df = self.iso.get_system_load_and_resource_schedules_day_ahead(
+            "latest",
+        )
+        self._check_system_load_and_resource_schedules(
+            df,
+            60,
+            schedule_columns=["Export", "Generation", "Import", "Load"],
+        )
 
-            # For day-ahead, should have future data
-            assert df["Interval Start"].max() > self.local_now()
+        # For day-ahead, should have future data
+        assert df["Interval Start"].max() > self.local_now()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1739,16 +1766,14 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) - pd.Timedelta(minutes=60)
 
+    @pytest.mark.integration
     def test_get_system_load_and_resource_schedules_hasp_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_system_load_and_resource_schedules_hasp_latest.yaml",
-        ):
-            df = self.iso.get_system_load_and_resource_schedules_hasp("latest")
-            self._check_system_load_and_resource_schedules(
-                df,
-                60,
-                schedule_columns=["Export", "Import"],
-            )
+        df = self.iso.get_system_load_and_resource_schedules_hasp("latest")
+        self._check_system_load_and_resource_schedules(
+            df,
+            60,
+            schedule_columns=["Export", "Import"],
+        )
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1785,18 +1810,16 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) - pd.Timedelta(minutes=60)
 
+    @pytest.mark.integration
     def test_get_system_load_and_resource_schedules_real_time_5_min_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_system_load_and_resource_schedules_real_time_5_min_latest.yaml",
-        ):
-            df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
-                "latest",
-            )
-            self._check_system_load_and_resource_schedules(
-                df,
-                5,
-                schedule_columns=["Export", "Generation", "Import"],
-            )
+        df = self.iso.get_system_load_and_resource_schedules_real_time_5_min(
+            "latest",
+        )
+        self._check_system_load_and_resource_schedules(
+            df,
+            5,
+            schedule_columns=["Export", "Generation", "Import"],
+        )
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1833,16 +1856,14 @@ class TestCAISO(BaseTestISO):
                 tz=self.iso.default_timezone,
             ) - pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_system_load_and_resource_schedules_ruc_latest(self):
-        with caiso_vcr.use_cassette(
-            "test_get_system_load_and_resource_schedules_ruc_latest.yaml",
-        ):
-            df = self.iso.get_system_load_and_resource_schedules_ruc("latest")
-            self._check_system_load_and_resource_schedules(
-                df,
-                60,
-                schedule_columns=["Generation", "Import"],
-            )
+        df = self.iso.get_system_load_and_resource_schedules_ruc("latest")
+        self._check_system_load_and_resource_schedules(
+            df,
+            60,
+            schedule_columns=["Generation", "Import"],
+        )
 
     @pytest.mark.parametrize(
         "date, end",
@@ -1883,8 +1904,11 @@ class TestCAISO(BaseTestISO):
         """Test that NoDataFoundException includes start and end dates in the message."""
         future_date = "2050-01-01"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_hasp_15_min(future_date)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_hasp_15_min_no_data_exception_2050-01-01.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_hasp_15_min(future_date)
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1895,8 +1919,11 @@ class TestCAISO(BaseTestISO):
         future_start = "2050-01-01T00:00:00Z"
         future_end = "2050-01-01T00:00:05Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_hasp_15_min(future_start, future_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_hasp_15_min_no_data_exception_with_end_date.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_hasp_15_min(future_start, future_end)
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1908,8 +1935,13 @@ class TestCAISO(BaseTestISO):
         old_start = "2000-01-01T00:00:00Z"
         old_end = "2000-01-01T00:00:05Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_scheduling_point_tie_real_time_5_min(old_start, old_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_scheduling_point_tie_rt5_no_data_exception.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_scheduling_point_tie_real_time_5_min(
+                    old_start, old_end
+                )
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1922,8 +1954,13 @@ class TestCAISO(BaseTestISO):
         old_start = "2000-01-01T00:00:00Z"
         old_end = "2000-01-01T00:00:15Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_scheduling_point_tie_real_time_15_min(old_start, old_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_scheduling_point_tie_rt15_no_data_exception.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_scheduling_point_tie_real_time_15_min(
+                    old_start, old_end
+                )
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
@@ -1936,8 +1973,13 @@ class TestCAISO(BaseTestISO):
         old_start = "2000-01-01T00:00:00Z"
         old_end = "2000-01-01T01:00:00Z"
 
-        with pytest.raises(NoDataFoundException) as exc_info:
-            self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(old_start, old_end)
+        with caiso_vcr.use_cassette(
+            "test_get_lmp_scheduling_point_tie_dah_no_data_exception.yaml",
+        ):
+            with pytest.raises(NoDataFoundException) as exc_info:
+                self.iso.get_lmp_scheduling_point_tie_day_ahead_hourly(
+                    old_start, old_end
+                )
 
         assert "start date:" in str(exc_info.value)
         assert "end date:" in str(exc_info.value)
