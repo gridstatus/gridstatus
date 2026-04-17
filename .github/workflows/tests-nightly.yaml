@@ -60,8 +60,11 @@ jobs:
         continue-on-error: true
       - name: Verify fixtures present
         # Guards against silent CI success when cache + S3 download both fail.
+        # Counts all regular files (not just *.yaml) since some cassettes are
+        # extensionless (e.g. eia uses bare use_cassette("name") without .yaml).
+        # Stays consistent with the per-ISO check in tests-pr.yaml.
         run: |
-          COUNT=$(find gridstatus/tests/fixtures -name '*.yaml' 2>/dev/null | wc -l)
+          COUNT=$(find gridstatus/tests/fixtures -type f ! -name '.DS_Store' 2>/dev/null | wc -l)
           if [ "$COUNT" -eq 0 ]; then
             echo "::error::No VCR cassettes found — cache + S3 download both failed"
             exit 1
