@@ -68,9 +68,10 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_hourly_ex_post_prelim"""
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_hourly_ex_post_prelim")
     def test_get_lmp_real_time_hourly_ex_post_prelim_date_range(self):
-        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
+        start = pd.Timestamp("2026-04-11 10:00", tz="EST")
         end = start + pd.Timedelta(hours=3)
         df = self.iso.get_lmp_real_time_hourly_ex_post_prelim(start, end)
 
@@ -107,9 +108,10 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_lmp_real_time_5_min_ex_post_prelim"""
 
+    @pytest.mark.integration
     @api_vcr.use_cassette("test_get_lmp_real_time_5_min_ex_post_prelim")
     def test_get_lmp_real_time_5_min_ex_post_prelim_date_range(self):
-        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
+        start = pd.Timestamp("2026-04-11 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
         df = self.iso.get_lmp_real_time_5_min_ex_post_prelim(start, end)
 
@@ -265,8 +267,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_as_mcp_real_time_5_min_ex_post_prelim_date_range(self):
-        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
+        start = pd.Timestamp("2026-04-11 10:00", tz="EST")
         end = start + pd.Timedelta(minutes=30)
 
         with api_vcr.use_cassette(
@@ -282,8 +285,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(minutes=5)
 
+    @pytest.mark.integration
     def test_get_as_mcp_real_time_hourly_ex_post_prelim_date_range(self):
-        start = pd.Timestamp("2025-11-01 10:00", tz="EST")
+        start = pd.Timestamp("2026-04-11 10:00", tz="EST")
         end = start + pd.Timedelta(hours=1)
 
         with api_vcr.use_cassette(
@@ -386,8 +390,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
 
+    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_prelim(self):
-        date = pd.Timestamp("2025-11-01", tz="EST")
+        date = pd.Timestamp("2026-04-11", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_5_min_ex_post_prelim_{date.date()}",
@@ -405,8 +410,9 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23, minutes=55)
 
+    @pytest.mark.integration
     def test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_prelim(self):
-        date = pd.Timestamp("2025-11-01", tz="EST")
+        date = pd.Timestamp("2026-04-11", tz="EST")
 
         with api_vcr.use_cassette(
             f"test_get_as_mcp_use_daily_requests_real_time_hourly_ex_post_prelim_{date.date()}",

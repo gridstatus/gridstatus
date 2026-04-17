@@ -6,16 +6,14 @@ import pytest
 import gridstatus
 from gridstatus import CAISO, IESO, ISONE, MISO, NYISO, PJM, SPP, Ercot
 from gridstatus.base import GridStatus, ISOBase
-from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+from gridstatus.tests.vcr_utils import RECORD_MODE, dummy_credential, setup_vcr
 
 api_vcr = setup_vcr(
     source="gridstatus",
     record_mode=RECORD_MODE,
 )
 
-# Fall back to a dummy PJM key when PJM_API_KEY is unset so module collection
-# works in CI without requiring the real key.
-_PJM_API_KEY = os.getenv("PJM_API_KEY") or "DUMMY_KEY_FOR_VCR_PLAYBACK"
+_PJM_API_KEY = os.getenv("PJM_API_KEY") or dummy_credential("PJM_API_KEY")
 
 all_isos = [
     MISO(),

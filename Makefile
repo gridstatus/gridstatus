@@ -108,9 +108,9 @@ endif
 .PHONY: fixtures-upload
 fixtures-upload:
 ifndef iso
-	uv run python scripts/fixtures.py upload
+	uv run python scripts/fixtures.py upload $(if $(force),--force)
 else
-	uv run python scripts/fixtures.py upload --iso $(iso)
+	uv run python scripts/fixtures.py upload --iso $(iso) $(if $(force),--force)
 endif
 
 .PHONY: installdeps-dev

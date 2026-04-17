@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 import gridstatus
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 

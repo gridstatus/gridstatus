@@ -2,17 +2,49 @@ import functools
 import json
 import os
 import shutil
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
 import vcr
 
-# NOTE(Kladar): Set VCR_RECORD_MODE to "all" to update the fixtures as an integration test,
-# say on a weekly or monthly job.
-# In CI, default to "none" (playback only) so tests fail fast if a cassette is missing.
-# Locally, default to "new_episodes" so missing cassettes are recorded from live APIs.
+# Default record mode:
+#   - GitHub Actions (and most CI providers) set CI=true, so we default to
+#     "none" — cassettes are pure playback and missing cassettes cause the
+#     test to skip via SkipMissingCassetteVCR.
+#   - Locally CI is unset, so we default to "new_episodes" — existing
+#     cassettes replay and new interactions are recorded from the live API.
+# Override with VCR_RECORD_MODE=<mode> to force a specific mode in either
+# environment (e.g. VCR_RECORD_MODE=all on a scheduled refresh job to
+# rewrite every cassette).
 _default_mode = "none" if os.getenv("CI") == "true" else "new_episodes"
 RECORD_MODE = os.getenv("VCR_RECORD_MODE", _default_mode)
+
+
+def date_range_cassette(prefix: str, start, end) -> str:
+    """Return ``{prefix}_{start:%Y-%m-%d}_{end:%Y-%m-%d}.yaml``.
+
+    Shortens the otherwise-long inline f-strings used for date-range
+    cassette names so they don't need ``# noqa: E501`` escapes. Accepts
+    anything :func:`pandas.Timestamp` can parse.
+    """
+    import pandas as pd
+
+    s = pd.Timestamp(start).strftime("%Y-%m-%d")
+    e = pd.Timestamp(end).strftime("%Y-%m-%d")
+    return f"{prefix}_{s}_{e}.yaml"
+
+
+def dummy_credential(label: str) -> str:
+    """Return a placeholder credential safe for VCR playback.
+
+    VCR strips real auth headers before writing cassettes (see
+    ``filter_headers`` in :func:`setup_vcr`), so in playback mode the
+    client only needs a non-empty credential to construct without error.
+    Tests that hit the live API must be marked ``@pytest.mark.integration``
+    so they are filtered out of the ``record_mode=none`` CI matrix.
+    """
+    return f"DUMMY_{label}_FOR_VCR_PLAYBACK"
+
 
 # Map of ISO -> endpoint patterns that require date range handling
 DATE_RANGE_METHODS = {
@@ -133,18 +165,18 @@ class SkipMissingCassetteVCR:
 
 
 def _strip_ercot_cache_buster(uri: str) -> str:
-    """Strip the cache-busting timestamp query parameter from ERCOT document
-    listing URLs so VCR can match requests across runs.
+    """Strip cache-busting query parameters that would otherwise break
+    VCR URI matching.
 
-    ERCOT's IceDocListJsonWS endpoint appends a random ``_NNNNN`` parameter
-    that changes every request, breaking URI-based cassette matching."""
+    Several of the sources we record append a random number to requests to
+    defeat caching. They show up as ``_=NNNNN`` (jQuery-style) or bare
+    ``_NNNNN`` query keys. Strip any param whose name starts with ``_`` so
+    requests across runs can match.
+    """
     parsed = urlparse(uri)
-    if "IceDocListJsonWS" in parsed.path:
-        params = parse_qs(parsed.query)
-        # Remove any single underscore-prefixed numeric params (cache busters)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    if any(k.startswith("_") for k in params):
         filtered = {k: v for k, v in params.items() if not k.startswith("_")}
-        from urllib.parse import urlencode
-
         new_query = urlencode(filtered, doseq=True)
         return parsed._replace(query=new_query).geturl()
     return uri
@@ -164,10 +196,14 @@ def setup_vcr(
     if record_mode == "all":
         clean_cassettes(cassette_dir)
 
+    # Several ISO endpoints (ERCOT's IceDocListJsonWS and public-reports, CAISO's
+    # outlook/history CSVs) append a random ``_=NNN`` cache-buster query param
+    # on every request. Use a custom URI matcher that strips any underscore-
+    # prefixed query param so cassettes replay cleanly across runs.
     vcr_instance = vcr.VCR(
         cassette_library_dir=cassette_dir,
         record_mode=record_mode,
-        match_on=["uri", "method"],
+        match_on=["ercot_uri", "method"],
         before_record=lambda request: before_record_callback(request, source),
         filter_headers=[
             ("Authorization", "XXXXXX"),
@@ -176,9 +212,6 @@ def setup_vcr(
         ],
     )
 
-    # For ERCOT, register a custom URI matcher that ignores cache-buster params
-    if source in ("ercot", "ercot_api"):
-        vcr_instance.register_matcher("ercot_uri", _ercot_uri_matcher)
-        vcr_instance.match_on = ["ercot_uri", "method"]
+    vcr_instance.register_matcher("ercot_uri", _ercot_uri_matcher)
 
     return SkipMissingCassetteVCR(vcr_instance, cassette_dir, record_mode)

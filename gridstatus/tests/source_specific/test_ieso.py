@@ -54,21 +54,21 @@ class TestIESO(BaseTestISO):
         )
 
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
-        yesterday = pd.Timestamp(
+        date = pd.Timestamp(
             "2026-03-15 01:00:00",
             tz=self.default_timezone,
         )
-        start = yesterday - pd.Timedelta(hours=3)
+        start = date - pd.Timedelta(hours=3)
 
         with file_vcr.use_cassette(
             "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
         ):
             df = self.iso.get_fuel_mix(
                 date=start,
-                end=yesterday + pd.Timedelta(minutes=1),
+                end=date + pd.Timedelta(minutes=1),
             )
 
-        assert df[TIME_COLUMN].max() >= yesterday.replace(
+        assert df[TIME_COLUMN].max() >= date.replace(
             hour=0,
             minute=0,
             second=0,
@@ -76,16 +76,16 @@ class TestIESO(BaseTestISO):
         assert df[TIME_COLUMN].min() <= start
 
     def test_get_fuel_mix_start_end_same_day(self):
-        yesterday = pd.Timestamp("2026-03-15", tz=self.default_timezone)
-        start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
-        end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
+        date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
+        start = date.replace(hour=0, minute=5, second=0, microsecond=0)
+        end = date.replace(hour=6, minute=5, second=0, microsecond=0)
 
         with file_vcr.use_cassette("test_get_fuel_mix_start_end_same_day.yaml"):
             df = self.iso.get_fuel_mix(date=start, end=end)
 
         # ignore last row, since it is sometime midnight of next day
         assert df[TIME_COLUMN].iloc[:-1].dt.date.unique().tolist() == [
-            yesterday.date(),
+            date.date(),
         ]
         self._check_fuel_mix(df)
 
@@ -199,16 +199,13 @@ class TestIESO(BaseTestISO):
         assert df.equals(self.iso.get_generator_report_hourly("latest"))
 
     def test_get_generator_report_hourly_too_far_in_past_raises_error(self):
-        with file_vcr.use_cassette(
-            "test_get_generator_report_hourly_too_far_in_past.yaml",
-        ):
-            with pytest.raises(NotSupported):
-                self.iso.get_generator_report_hourly(
-                    pd.Timestamp("2026-03-15").date()
-                    - pd.Timedelta(
-                        days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT + 1,
-                    ),
-                )
+        with pytest.raises(NotSupported):
+            self.iso.get_generator_report_hourly(
+                pd.Timestamp("2026-03-15").date()
+                - pd.Timedelta(
+                    days=MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT + 1,
+                ),
+            )
 
     @pytest.mark.integration
     def test_get_generator_report_hourly_in_future_raises_error(self):
@@ -629,6 +626,7 @@ class TestIESO(BaseTestISO):
         "date, end",
         RESOURCE_ADEQUACY_TEST_DATES,
     )
+    @pytest.mark.integration
     def test_get_all_resource_adequacy_report_date_range(self, date: str, end: str):
         with file_vcr.use_cassette(
             f"test_get_all_resource_adequacy_report_{date}_to_{end}.yaml",
@@ -658,6 +656,7 @@ class TestIESO(BaseTestISO):
         assert "ForecastDemand" in doc_body
         assert "DeliveryDate" in doc_body
 
+    @pytest.mark.integration
     @file_vcr.use_cassette("test_get_all_resource_adequacy_json.yaml")
     def test_get_all_resource_adequacy_json(self):
         date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
@@ -763,18 +762,18 @@ class TestIESO(BaseTestISO):
     """get_forecast_surplus_baseload"""
 
     def test_get_forecast_surplus_baseload_generation_single_date(self):
-        yesterday = pd.Timestamp("2026-03-15", tz=self.default_timezone)
-        today = yesterday + pd.Timedelta(days=1)
+        publish_date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
+        forecast_start_date = publish_date + pd.Timedelta(days=1)
         with file_vcr.use_cassette(
-            f"test_get_forecast_surplus_baseload_generation_{yesterday.strftime('%Y-%m-%d')}.yaml",
+            f"test_get_forecast_surplus_baseload_generation_{publish_date.strftime('%Y-%m-%d')}.yaml",
         ):
-            df = self.iso.get_forecast_surplus_baseload_generation(yesterday)
+            df = self.iso.get_forecast_surplus_baseload_generation(publish_date)
 
         assert isinstance(df, pd.DataFrame)
         self._check_forecast_surplus_baseload(df)
 
-        assert df["Interval Start"].min().date() == today.date()
-        assert df["Interval End"].max().date() == today.date() + pd.Timedelta(days=10)
+        assert df["Interval Start"].min().date() == forecast_start_date.date()
+        assert df["Interval End"].max().date() == forecast_start_date.date() + pd.Timedelta(days=10)
 
     def test_get_forecast_surplus_baseload_generation_date_range(self):
         end = pd.Timestamp("2026-03-16", tz=self.default_timezone)
@@ -1064,6 +1063,7 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (df[TIME_COLUMN].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_intertie_limits_real_time_5_min_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(hours=2)
@@ -1110,6 +1110,7 @@ class TestIESO(BaseTestISO):
         ).normalize() + pd.DateOffset(days=1)
         assert df[TIME_COLUMN].iloc[0].normalize() == tomorrow
 
+    @pytest.mark.integration
     def test_get_intertie_limits_day_ahead_hourly_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
@@ -1240,6 +1241,7 @@ class TestIESO(BaseTestISO):
             subset=["Interval Start", "Publish Time", "Location"],
         ).any()
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
@@ -1386,6 +1388,7 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_virtual_zonal_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
@@ -1552,6 +1555,7 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_intertie_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
@@ -1717,6 +1721,7 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data[TIME_COLUMN].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_lmp_predispatch_hourly_ontario_zonal_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
@@ -1787,6 +1792,7 @@ class TestIESO(BaseTestISO):
             ).any()
         )
 
+    @pytest.mark.integration
     def test_get_transmission_outages_planned_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=1)
@@ -2015,6 +2021,7 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data["Interval Start"].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_real_time_totals_historical_date_range(self):
         start_date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end_date = start_date + pd.DateOffset(days=1)
@@ -2060,6 +2067,7 @@ class TestIESO(BaseTestISO):
 
         self._check_variable_generation_forecast(df)
 
+    @pytest.mark.integration
     def test_get_solar_embedded_forecast_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
@@ -2074,6 +2082,7 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
+    @pytest.mark.integration
     def test_get_solar_embedded_forecast_all_versions(self):
         date = pd.Timestamp("2026-03-15", tz=self.default_timezone)
 
@@ -2092,6 +2101,7 @@ class TestIESO(BaseTestISO):
 
         self._check_variable_generation_forecast(df)
 
+    @pytest.mark.integration
     def test_get_wind_embedded_forecast_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
@@ -2111,6 +2121,7 @@ class TestIESO(BaseTestISO):
 
         self._check_variable_generation_forecast(df)
 
+    @pytest.mark.integration
     def test_get_wind_market_participant_forecast_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
@@ -2130,6 +2141,7 @@ class TestIESO(BaseTestISO):
 
         self._check_variable_generation_forecast(df)
 
+    @pytest.mark.integration
     def test_get_solar_market_participant_forecast_historical_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.default_timezone)
         end = start + pd.DateOffset(days=2)
@@ -2272,6 +2284,7 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         assert (data["Interval Start"].dt.date == today.date()).all()
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
         start_date = pd.Timestamp("2026-03-15")
         end_date = start_date + pd.DateOffset(days=1)

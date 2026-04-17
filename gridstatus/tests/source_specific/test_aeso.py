@@ -12,7 +12,7 @@ from gridstatus.aeso.aeso_constants import (
 )
 from gridstatus.base import NotSupported
 from gridstatus.tests.base_test_iso import TestHelperMixin
-from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+from gridstatus.tests.vcr_utils import RECORD_MODE, dummy_credential, setup_vcr
 
 api_vcr = setup_vcr(
     source="aeso",
@@ -23,10 +23,8 @@ api_vcr = setup_vcr(
 class TestAESO(TestHelperMixin):
     @classmethod
     def setup_class(cls):
-        # Use a dummy API key in CI playback mode (record_mode=none) so the
-        # class can be constructed without real credentials.
         api_key = os.getenv("AESO_API_KEY") or (
-            "DUMMY_KEY_FOR_VCR_PLAYBACK" if RECORD_MODE == "none" else None
+            dummy_credential("AESO_API_KEY") if RECORD_MODE == "none" else None
         )
         cls.iso = AESO(api_key=api_key)
 

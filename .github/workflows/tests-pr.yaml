@@ -38,6 +38,7 @@ jobs:
       ERCOT_API_USERNAME: ${{ secrets.ERCOT_API_USERNAME }}
       ERCOT_API_PASSWORD: ${{ secrets.ERCOT_API_PASSWORD }}
       ERCOT_PUBLIC_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_PUBLIC_API_SUBSCRIPTION_KEY }}
+      ERCOT_ESR_API_SUBSCRIPTION_KEY: ${{ secrets.ERCOT_ESR_API_SUBSCRIPTION_KEY }}
       MISO_API_PRICING_SUBSCRIPTION_KEY: ${{ secrets.MISO_API_PRICING_SUBSCRIPTION_KEY }}
       MISO_API_LOAD_GENERATION_AND_INTERCHANGE_SUBSCRIPTION_KEY: ${{ secrets.MISO_API_LOAD_GENERATION_AND_INTERCHANGE_SUBSCRIPTION_KEY }}
       ISONE_API_USERNAME: ${{ secrets.ISONE_API_USERNAME }}
@@ -79,12 +80,44 @@ jobs:
         if: steps.vcr-cache.outputs.cache-hit != 'true'
         run: uv run python scripts/fixtures.py download --iso ${{ matrix.iso }}
         continue-on-error: true
+      - name: Verify fixtures present
+        # Guards against silent CI success when the cache and the S3 download
+        # both fail: without cassettes, record_mode=none skips every test.
+        run: |
+          PATHS='${{ steps.fixture-paths.outputs.paths }}'
+          TOTAL=0
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            COUNT=$(find "$p" -name '*.yaml' 2>/dev/null | wc -l)
+            echo "  $p: $COUNT cassettes"
+            TOTAL=$((TOTAL + COUNT))
+          done <<< "$PATHS"
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "::error::No VCR cassettes found for ISO '${{ matrix.iso }}' — cache + S3 download both failed"
+            exit 1
+          fi
+          echo "Total: $TOTAL cassettes"
       - name: Run ISO tests
         env:
           # Proxy for NYISO tests (NYISO blocks GitHub Actions IPs)
           HTTPS_PROXY: ${{ matrix.iso == 'nyiso' && secrets.WEBSHARE_PROXY_URL || '' }}
           HTTP_PROXY: ${{ matrix.iso == 'nyiso' && secrets.WEBSHARE_PROXY_URL || '' }}
+          # Emit junit xml so the next step can confirm tests actually ran.
+          PYTEST_ADDOPTS: --junitxml=pytest-results.xml
         run: make test-${{ matrix.iso }}
+      - name: Ensure at least one test passed
+        if: always()
+        run: |
+          if [ ! -f pytest-results.xml ]; then
+            echo "::error::pytest-results.xml not found — test step did not produce results"
+            exit 1
+          fi
+          PASSED=$(python -c 'import sys, xml.etree.ElementTree as ET; r=ET.parse("pytest-results.xml").getroot(); s=r.findall(".//testsuite") or [r]; print(sum(int(x.get("tests",0)) for x in s) - sum(int(x.get("skipped",0)) for x in s) - sum(int(x.get("failures",0)) for x in s) - sum(int(x.get("errors",0)) for x in s))')
+          if [ "$PASSED" -eq 0 ]; then
+            echo "::error::Zero tests passed for ISO '${{ matrix.iso }}' — likely fixture or config issue"
+            exit 1
+          fi
+          echo "$PASSED tests passed"
 
 
 # test-all-coverage runs in .github/workflows/tests-nightly.yaml on a daily

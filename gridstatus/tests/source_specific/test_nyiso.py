@@ -6,7 +6,7 @@ import pytest
 from gridstatus import NYISO, Markets
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
-from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+from gridstatus.tests.vcr_utils import RECORD_MODE, date_range_cassette, setup_vcr
 
 nyiso_vcr = setup_vcr(
     source="nyiso",
@@ -921,7 +921,11 @@ class TestNYISO(BaseTestISO):
         end = start + pd.Timedelta(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            date_range_cassette(
+                "test_get_interface_limits_and_flows_5_min_historical_date_range",
+                start,
+                end,
+            ),
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -947,7 +951,11 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_end_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            date_range_cassette(
+                "test_get_interface_limits_and_flows_dst_end",
+                start,
+                end,
+            ),
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -973,7 +981,11 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_start_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            date_range_cassette(
+                "test_get_interface_limits_and_flows_dst_start",
+                start,
+                end,
+            ),
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1001,7 +1013,11 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            date_range_cassette(
+                "test_get_lake_erie_circulation_real_time_historical_date_range",
+                start,
+                end,
+            ),
         ):
             df = self.iso.get_lake_erie_circulation_real_time(
                 start=start,
@@ -1021,7 +1037,11 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            date_range_cassette(
+                "test_get_lake_erie_circulation_day_ahead_historical_date_range",
+                start,
+                end,
+            ),
         ):
             df = self.iso.get_lake_erie_circulation_day_ahead(
                 start=start,

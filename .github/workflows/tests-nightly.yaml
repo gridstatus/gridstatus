@@ -58,12 +58,36 @@ jobs:
         if: steps.vcr-cache.outputs.cache-hit != 'true'
         run: uv run python scripts/fixtures.py download
         continue-on-error: true
+      - name: Verify fixtures present
+        # Guards against silent CI success when cache + S3 download both fail.
+        run: |
+          COUNT=$(find gridstatus/tests/fixtures -name '*.yaml' 2>/dev/null | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No VCR cassettes found — cache + S3 download both failed"
+            exit 1
+          fi
+          echo "$COUNT cassettes available"
       - name: Run all tests with coverage
         env:
           # Proxy for NYISO tests (NYISO blocks GitHub Actions IPs)
           HTTPS_PROXY: ${{ secrets.WEBSHARE_PROXY_URL }}
           HTTP_PROXY: ${{ secrets.WEBSHARE_PROXY_URL }}
+          # Emit junit xml so the next step can confirm tests actually ran.
+          PYTEST_ADDOPTS: --junitxml=pytest-results.xml
         run: make test-cov
+      - name: Ensure at least one test passed
+        if: always()
+        run: |
+          if [ ! -f pytest-results.xml ]; then
+            echo "::error::pytest-results.xml not found — test step did not produce results"
+            exit 1
+          fi
+          PASSED=$(python -c 'import sys, xml.etree.ElementTree as ET; r=ET.parse("pytest-results.xml").getroot(); s=r.findall(".//testsuite") or [r]; print(sum(int(x.get("tests",0)) for x in s) - sum(int(x.get("skipped",0)) for x in s) - sum(int(x.get("failures",0)) for x in s) - sum(int(x.get("errors",0)) for x in s))')
+          if [ "$PASSED" -eq 0 ]; then
+            echo "::error::Zero tests passed — likely fixture or config issue"
+            exit 1
+          fi
+          echo "$PASSED tests passed"
       - name: Upload coverage
         uses: codecov/codecov-action@v3
         with:

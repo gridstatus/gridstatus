@@ -3,19 +3,23 @@
 
 Usage:
     python scripts/fixtures.py download [--iso ISO_NAME]
-    python scripts/fixtures.py upload [--iso ISO_NAME]
+    python scripts/fixtures.py upload [--iso ISO_NAME] [--force]
     python scripts/fixtures.py cache-paths [--iso ISO_NAME]
     python scripts/fixtures.py manifest [--iso ISO_NAME]
 
 Commands:
-    download     Download fixtures from S3 (public, no credentials needed)
-    upload       Upload fixtures to S3 (requires AWS credentials)
+    download     Download fixtures from S3 (public, no credentials needed).
+                 Exits non-zero if any per-source sync fails.
+    upload       Upload fixtures to S3 (requires AWS credentials). Refuses
+                 by default if any cassette contains a 4xx/5xx response;
+                 pass --force to override.
     cache-paths  Output local fixture directory paths (for GHA cache action)
     manifest     Generate SHA256 hash of S3 fixture contents (for cache key)
 
 Options:
     --iso ISO    Only operate on a specific ISO (e.g., caiso, ercot, pjm)
                  If omitted, operates on all ISOs.
+    --force      upload only: skip the 4xx/5xx cassette safety scan.
 """
 
 import argparse
@@ -93,10 +97,15 @@ def run_aws(
 
 
 def cmd_download(iso: str | None) -> None:
-    """Download fixtures from S3 (public bucket, no credentials needed)."""
+    """Download fixtures from S3 (public bucket, no credentials needed).
+
+    Exits non-zero if any per-source sync fails so CI can distinguish a
+    partial outage from a clean download.
+    """
     sources = get_fixture_dirs(iso)
     print(f"Downloading fixtures for: {', '.join(sources)}")
 
+    failed: list[str] = []
     for source in sources:
         local = local_path(source)
         os.makedirs(local, exist_ok=True)
@@ -107,15 +116,99 @@ def cmd_download(iso: str | None) -> None:
             check=False,
         )
         if result.returncode != 0:
-            print(f"  Warning: {result.stderr.strip()}", file=sys.stderr)
+            print(f"  Error: {result.stderr.strip()}", file=sys.stderr)
+            failed.append(source)
         else:
             print("  Done.")
 
+    if failed:
+        print(
+            f"\nDownload failed for {len(failed)} source(s): {', '.join(failed)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-def cmd_upload(iso: str | None) -> None:
-    """Upload fixtures to S3 (requires AWS credentials)."""
+
+# Cassette filename substrings that signal the test intentionally exercises an
+# error path (e.g. asserts NoDataFoundException). These are allowed to contain
+# 4xx/5xx responses — the error response IS the recording the test needs.
+EXPECTED_ERROR_PATTERNS: tuple[str, ...] = (
+    "_no_data",
+    "_raises_error",
+    "_too_far_in_past",
+    "_too_far_in_future",
+    "_in_past_raises",
+    "_invalid_",
+    "_not_supported",
+)
+
+
+def _is_expected_error_cassette(name: str) -> bool:
+    return any(pat in name for pat in EXPECTED_ERROR_PATTERNS)
+
+
+def _scan_cassettes_for_errors(local: str) -> list[tuple[str, str]]:
+    """Scan all .yaml cassettes under `local` for HTTP 4xx/5xx responses.
+
+    Returns a list of (cassette_path, first_matching_line). A non-empty
+    return indicates cassettes that should not be uploaded. Cassettes whose
+    filename matches EXPECTED_ERROR_PATTERNS are skipped — those tests
+    intentionally record error responses to verify the library's error path.
+    """
+    problems: list[tuple[str, str]] = []
+    for root, _dirs, files in os.walk(local):
+        for name in files:
+            if not name.endswith(".yaml"):
+                continue
+            if _is_expected_error_cassette(name):
+                continue
+            path = os.path.join(root, name)
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    for line in fh:
+                        stripped = line.strip()
+                        # VCR serialises status as "code: NNN" — flag 4xx/5xx.
+                        if stripped.startswith("code: 4") or stripped.startswith(
+                            "code: 5",
+                        ):
+                            problems.append((path, stripped))
+                            break
+            except OSError as e:
+                print(f"  Warning: could not read {path}: {e}", file=sys.stderr)
+    return problems
+
+
+def cmd_upload(iso: str | None, force: bool = False) -> None:
+    """Upload fixtures to S3 (requires AWS credentials).
+
+    Refuses to upload cassettes containing 4xx/5xx responses unless
+    ``--force`` is passed, since those will poison CI for every ISO.
+    """
     sources = get_fixture_dirs(iso)
     print(f"Uploading fixtures for: {', '.join(sources)}")
+
+    if not force:
+        all_problems: list[tuple[str, str]] = []
+        for source in sources:
+            local = local_path(source)
+            if os.path.isdir(local):
+                all_problems.extend(_scan_cassettes_for_errors(local))
+        if all_problems:
+            print(
+                f"\nRefusing to upload — {len(all_problems)} cassette(s) "
+                "contain 4xx/5xx responses:",
+                file=sys.stderr,
+            )
+            for path, line in all_problems[:20]:
+                print(f"  {path}: {line}", file=sys.stderr)
+            if len(all_problems) > 20:
+                print(f"  ... and {len(all_problems) - 20} more", file=sys.stderr)
+            print(
+                "\nDelete the bad cassettes and re-record, or pass --force to "
+                "upload anyway.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     for source in sources:
         local = local_path(source)
@@ -186,15 +279,21 @@ def main() -> None:
         default=None,
         help="Operate on a specific ISO only (e.g., caiso, ercot, pjm)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="upload: skip the 4xx/5xx cassette safety scan",
+    )
     args = parser.parse_args()
 
-    commands = {
-        "download": cmd_download,
-        "upload": cmd_upload,
-        "cache-paths": cmd_cache_paths,
-        "manifest": cmd_manifest,
-    }
-    commands[args.command](args.iso)
+    if args.command == "upload":
+        cmd_upload(args.iso, force=args.force)
+    elif args.command == "download":
+        cmd_download(args.iso)
+    elif args.command == "cache-paths":
+        cmd_cache_paths(args.iso)
+    elif args.command == "manifest":
+        cmd_manifest(args.iso)
 
 
 if __name__ == "__main__":

@@ -12,17 +12,19 @@ from gridstatus import PJM, NotSupported
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import _get_pjm_archive_date
 from gridstatus.tests.base_test_iso import BaseTestISO
-from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+from gridstatus.tests.vcr_utils import (
+    RECORD_MODE,
+    date_range_cassette,
+    dummy_credential,
+    setup_vcr,
+)
 
 pjm_vcr = setup_vcr(
     source="pjm",
     record_mode=RECORD_MODE,
 )
 
-# Fall back to a dummy key when PJM_API_KEY is unset so module collection
-# works in CI without requiring the real key. Tests that hit the live API
-# are marked @pytest.mark.integration and filtered out by `make test-unit`.
-_PJM_API_KEY = os.getenv("PJM_API_KEY") or "DUMMY_KEY_FOR_VCR_PLAYBACK"
+_PJM_API_KEY = os.getenv("PJM_API_KEY") or dummy_credential("PJM_API_KEY")
 
 
 class TestPJM(BaseTestISO):
@@ -314,6 +316,7 @@ class TestPJM(BaseTestISO):
             df_latest = self.iso.get_it_sced_lmp_5_min("latest")
             pd.testing.assert_frame_equal(df, df_latest)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_it_sced_lmp_5_min_historical_date_range(self):
         start_date = pd.Timestamp("2026-03-15").date()
         end_date = pd.Timestamp("2026-03-18").date()
@@ -436,9 +439,8 @@ class TestPJM(BaseTestISO):
 
     def test_get_load_forecast_in_past_raises_error(self):
         start_date = pd.Timestamp("2026-03-15").date()
-        with pjm_vcr.use_cassette("test_get_load_forecast_in_past_raises_error.yaml"):
-            with pytest.raises(NotSupported):
-                self.iso.get_load_forecast(start_date)
+        with pytest.raises(NotSupported):
+            self.iso.get_load_forecast(start_date)
 
     """get_load_forecast_historical"""
 
@@ -542,14 +544,11 @@ class TestPJM(BaseTestISO):
             "market": Markets.REAL_TIME_5_MIN,
         }
 
-        with pjm_vcr.use_cassette(
-            f"test_pjm_update_dates_{dates[0].strftime('%Y-%m-%d')}.yaml",
-        ):
-            new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
-            assert new_dates == [
-                pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
-            ]
+        new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
+        assert new_dates == [
+            pd.Timestamp("2018-12-31 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
+        ]
 
     @pytest.mark.parametrize(
         "dates",  # across the year change
@@ -570,17 +569,14 @@ class TestPJM(BaseTestISO):
             "market": Markets.REAL_TIME_5_MIN,
         }
 
-        with pjm_vcr.use_cassette(
-            f"test_pjm_update_dates_cross_year_with_multiple_dates_{dates[0].strftime('%Y-%m-%d')}.yaml",
-        ):
-            new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
-            assert new_dates == [
-                pd.Timestamp("2018-12-01 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
-                None,
-                pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2019-02-01 00:00:00-0500", tz="US/Eastern"),
-            ]
+        new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
+        assert new_dates == [
+            pd.Timestamp("2018-12-01 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
+            None,
+            pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2019-02-01 00:00:00-0500", tz="US/Eastern"),
+        ]
 
     @pytest.mark.parametrize(
         "dates",  # across the year change
@@ -597,23 +593,20 @@ class TestPJM(BaseTestISO):
             "market": Markets.REAL_TIME_5_MIN,
         }
 
-        with pjm_vcr.use_cassette(
-            f"test_pjm_update_dates_cross_multiple_years_{dates[0].strftime('%Y-%m-%d')}.yaml",
-        ):
-            new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
-            assert new_dates == [
-                pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2017-12-31 23:59:00-0500", tz="US/Eastern"),
-                None,
-                pd.Timestamp("2018-01-01 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
-                None,
-                pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2019-12-31 23:59:00-0500", tz="US/Eastern"),
-                None,
-                pd.Timestamp("2020-01-01 00:00:00-0500", tz="US/Eastern"),
-                pd.Timestamp("2020-02-01 00:00:00-0500", tz="US/Eastern"),
-            ]
+        new_dates = gridstatus.pjm.pjm_update_dates(dates, args_dict)
+        assert new_dates == [
+            pd.Timestamp("2017-12-01 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2017-12-31 23:59:00-0500", tz="US/Eastern"),
+            None,
+            pd.Timestamp("2018-01-01 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2018-12-31 23:59:00-0500", tz="US/Eastern"),
+            None,
+            pd.Timestamp("2019-01-01 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2019-12-31 23:59:00-0500", tz="US/Eastern"),
+            None,
+            pd.Timestamp("2020-01-01 00:00:00-0500", tz="US/Eastern"),
+            pd.Timestamp("2020-02-01 00:00:00-0500", tz="US/Eastern"),
+        ]
 
     @pytest.mark.integration
     def test_pjm_update_dates_cross_archive_date(self):
@@ -727,6 +720,7 @@ class TestPJM(BaseTestISO):
             assert not df.empty
             self._check_solar_forecast(df)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_solar_forecast_hourly_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -757,6 +751,7 @@ class TestPJM(BaseTestISO):
             tz=self.iso.default_timezone,
         ) + pd.Timedelta(hours=2)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_solar_forecast_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -778,6 +773,7 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=1)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_solar_forecast_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -834,6 +830,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_wind_forecast_hourly("latest").equals(df)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_wind_forecast_hourly_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -871,6 +868,7 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_wind_forecast_5_min("latest").equals(df)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_wind_forecast_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -893,6 +891,7 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=1)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_wind_forecast_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -1231,6 +1230,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_solar_generation_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1286,6 +1286,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_wind_generation_instantaneous_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1302,6 +1303,7 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_wind_generation_instantaneous_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -1342,6 +1344,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_operational_reserves_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1359,6 +1362,7 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_operational_reserves_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -1402,6 +1406,7 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_transfer_interface_information_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1467,6 +1472,7 @@ class TestPJM(BaseTestISO):
 
         assert "none" not in df["Constraint Name"].values
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_transmission_limits_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1837,18 +1843,15 @@ class TestPJM(BaseTestISO):
         ) + pd.Timedelta(
             days=3,
         )
-        with pjm_vcr.use_cassette(
-            f"test_get_real_time_as_market_results_invalid_dates_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        with pytest.raises(
+            ValueError,
+            match="Both start and end dates must be before",
         ):
-            with pytest.raises(
-                ValueError,
-                match="Both start and end dates must be before",
-            ):
-                self.iso.get_real_time_as_market_results(
-                    date=start,
-                    end=end,
-                    error="raise",
-                )
+            self.iso.get_real_time_as_market_results(
+                date=start,
+                end=end,
+                error="raise",
+            )
 
     """get_as_market_results_real_time_hourly"""
 
@@ -2227,6 +2230,7 @@ class TestPJM(BaseTestISO):
                 hours=1,
             )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_area_control_error_date_range(self):
         date = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(days=2)
@@ -2561,6 +2565,7 @@ class TestPJM(BaseTestISO):
             "today",
         ) + pd.Timedelta(hours=24)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_lmp_real_time_unverified_hourly_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-17").date()
@@ -2584,6 +2589,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == self.load_forecast_columns
         assert df["Interval Start"].min() == self.local_start_of_day("today")
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_load_forecast_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-17").date()
@@ -2621,6 +2627,7 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == self.regulation_prices_5_min_columns
         assert df["Interval Start"].min() == self.local_start_of_day("today")
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_regulation_prices_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-17").date()
@@ -2666,6 +2673,7 @@ class TestPJM(BaseTestISO):
             days=1
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_tie_flows_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -2678,6 +2686,7 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=1)
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_tie_flows_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -2728,12 +2737,17 @@ class TestPJM(BaseTestISO):
             <= self.local_now()
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_instantaneous_dispatch_rates_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
-            f"test_get_instantaneous_dispatch_rates_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            date_range_cassette(
+                "test_get_instantaneous_dispatch_rates_date_range",
+                start,
+                end,
+            ),
         ):
             df = self.iso.get_instantaneous_dispatch_rates(start, end)
             self._check_instantaneous_dispatch_rates(df)
@@ -3265,6 +3279,7 @@ class TestPJM(BaseTestISO):
             delayed_date.date(),
         )
 
+    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
     def test_get_inc_and_dec_bids_day_ahead_hourly_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()

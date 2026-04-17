@@ -145,7 +145,7 @@ def test_get_my_new_dataset(self):
 uv run pytest -s -vv -k "test_get_my_new_dataset" gridstatus/tests/source_specific/test_<iso>.py
 ```
 
-3. **Verify the cassette is clean** — check that it doesn't contain error responses:
+3. **Verify the cassette is clean** — `make fixtures-upload` scans every cassette for `code: 4xx`/`code: 5xx` responses and refuses to upload if any are found. You can also scan manually:
 
 ```bash
 grep "code: [45]" gridstatus/tests/fixtures/<iso>/vcr_cassettes/test_get_my_new_dataset_2026-03-15.yaml
@@ -156,6 +156,8 @@ grep "code: [45]" gridstatus/tests/fixtures/<iso>/vcr_cassettes/test_get_my_new_
 
 ```bash
 make fixtures-upload iso=<iso>
+# Override the 4xx/5xx safety scan if you really need to:
+make fixtures-upload iso=<iso> force=1
 ```
 
 5. **Commit and push** — the cassette files are NOT committed to git. CI downloads them from S3 (with GHA caching).

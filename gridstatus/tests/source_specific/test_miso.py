@@ -89,6 +89,7 @@ class TestMISO(BaseTestISO):
         self._check_fuel_mix(df)
         assert len(df) == 1
 
+    @pytest.mark.integration
     def test_get_fuel_mix_yesterdays_date(self):
         date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         with miso_vcr.use_cassette(
@@ -239,6 +240,7 @@ class TestMISO(BaseTestISO):
     def test_get_lmp_today(self, market):
         super().test_get_lmp_today(market=market)
 
+    @pytest.mark.integration
     def test_get_lmp_real_time_5_min_yesterday(self):
         date = pd.Timestamp("2025-11-01")
         cassette_name = (
@@ -280,10 +282,8 @@ class TestMISO(BaseTestISO):
         super().test_get_load_today()
 
     def test_get_load_historical(self):
-        cassette_name = "test_get_load_historical.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotSupported):
-                super().test_get_load_historical()
+        with pytest.raises(NotSupported):
+            super().test_get_load_historical()
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
@@ -354,6 +354,7 @@ class TestMISO(BaseTestISO):
                 end_date,
             ) + pd.Timedelta(days=5)
 
+    @pytest.mark.integration
     def test_get_load_forecast_dst_spring_forward(self):
         dst_start = pd.Timestamp("2022-03-13")
         cassette_name = f"test_get_load_forecast_dst_spring_forward_{dst_start.strftime('%Y-%m-%d')}.yaml"
@@ -363,6 +364,7 @@ class TestMISO(BaseTestISO):
             assert df.columns.tolist() == self.load_forecast_cols
             assert df["Interval Start"].min() == self.local_start_of_day(dst_start)
 
+    @pytest.mark.integration
     def test_get_load_forecast_dst_fall_back(self):
         dst_end = pd.Timestamp("2022-11-06")
         cassette_name = (
@@ -432,6 +434,7 @@ class TestMISO(BaseTestISO):
                 past_date + pd.Timedelta(days=2),
             ]
 
+    @pytest.mark.integration
     def test_get_solar_forecast_historical_before_schema_change(self):
         # Data schema changed on 2022-06-13
         date = pd.Timestamp("2022-05-12").date()
@@ -481,6 +484,7 @@ class TestMISO(BaseTestISO):
                 past_date + pd.Timedelta(days=2),
             ]
 
+    @pytest.mark.integration
     def test_get_wind_forecast_historical_before_schema_change(self):
         # Data schema changed on 2022-06-13
         # No south data for 2022-05-12 for wind
@@ -494,18 +498,14 @@ class TestMISO(BaseTestISO):
     """get_status"""
 
     def test_get_status_latest(self):
-        cassette_name = "test_get_status_latest.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotImplementedError):
-                super().test_get_status_latest()
+        with pytest.raises(NotImplementedError):
+            super().test_get_status_latest()
 
     """get_storage"""
 
     def test_get_storage_historical(self):
-        cassette_name = "test_get_storage_historical.yaml"
-        with miso_vcr.use_cassette(cassette_name):
-            with pytest.raises(NotImplementedError):
-                super().test_get_storage_historical()
+        with pytest.raises(NotImplementedError):
+            super().test_get_storage_historical()
 
     @pytest.mark.integration
     def test_get_storage_today(self):

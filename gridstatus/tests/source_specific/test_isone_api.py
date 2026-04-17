@@ -13,7 +13,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
-from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+from gridstatus.tests.vcr_utils import RECORD_MODE, dummy_credential, setup_vcr
 
 api_vcr = setup_vcr(
     source="isone_api",
@@ -52,16 +52,16 @@ LMP_COLUMNS = [
 
 class TestISONEAPI(TestHelperMixin):
     def setup_class(cls):
-        # Set dummy credentials in CI playback mode so ISONEAPI can be
-        # constructed without real credentials. ISONEAPI reads creds from
-        # env vars only, so we have to set them rather than passing kwargs.
-        # Tests that hit the live API are marked @pytest.mark.integration.
+        # ISONEAPI reads credentials from env vars only, so we have to set
+        # them rather than passing kwargs.
         if not os.getenv("ISONE_API_USERNAME") and RECORD_MODE == "none":
             os.environ.setdefault(
-                "ISONE_API_USERNAME", "DUMMY_USERNAME_FOR_VCR_PLAYBACK"
+                "ISONE_API_USERNAME",
+                dummy_credential("ISONE_API_USERNAME"),
             )
             os.environ.setdefault(
-                "ISONE_API_PASSWORD", "DUMMY_PASSWORD_FOR_VCR_PLAYBACK"
+                "ISONE_API_PASSWORD",
+                dummy_credential("ISONE_API_PASSWORD"),
             )
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
 
@@ -428,7 +428,6 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_interchange_hourly"""
 
-    @api_vcr.use_cassette("test_get_interchange_hourly_date_range.yaml")
     def test_get_interchange_hourly_date_range(self):
         start = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
         end = start + pd.DateOffset(days=1)
