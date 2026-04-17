@@ -19,6 +19,8 @@ class TestHelperMixin:
         ts = pd.Timestamp(date)
         if ts.tzinfo is None:
             ts = ts.tz_localize(self.iso.default_timezone)
+        else:
+            ts = ts.tz_convert(self.iso.default_timezone)
         return ts.normalize()
 
     def local_start_of_today(self):

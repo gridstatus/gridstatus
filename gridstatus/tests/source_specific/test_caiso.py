@@ -81,6 +81,10 @@ class TestCAISO(BaseTestISO):
     def test_get_storage_today(self):
         super().test_get_storage_today()
 
+    @pytest.mark.integration
+    def test_get_interconnection_queue(self):
+        super().test_get_interconnection_queue()
+
     # --- End BaseTestISO overrides ---
 
     """get_as"""
@@ -665,7 +669,9 @@ class TestCAISO(BaseTestISO):
 
     def test_get_curtailment_specific_date(self):
         date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
-        with caiso_vcr.use_cassette(f"test_get_curtailment_{date}.yaml"):
+        with caiso_vcr.use_cassette(
+            f"test_get_curtailment_{date.strftime('%Y-%m-%d')}.yaml",
+        ):
             df = self.iso.get_curtailment(date)
 
         self._check_curtailment(df)
@@ -1083,6 +1089,7 @@ class TestCAISO(BaseTestISO):
 
                 assert df.shape[0] > 0
 
+    def test_get_curtailed_non_operational_generator_report_new_url_format(self):
         # Change in url format on this date
         date_with_new_format = pd.Timestamp("2025-01-13")
         with caiso_vcr.use_cassette(

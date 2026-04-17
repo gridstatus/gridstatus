@@ -2166,7 +2166,7 @@ class TestErcot(BaseTestISO):
     @pytest.mark.integration
     def test_get_real_time_adders_and_reserves_historical(self):
         with api_vcr.use_cassette(
-            "test_get_real_time_adders_and_reserves_historical_range.yaml",
+            "test_get_real_time_adders_and_reserves_historical.yaml",
         ):
             date = pd.Timestamp("2026-04-03").date()
             df = self.iso.get_real_time_adders_and_reserves(date)

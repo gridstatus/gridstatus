@@ -6,7 +6,7 @@ clean:
 	find . -name '*~' -delete
 	find . -name '.coverage.*' -delete
 
-PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 0 --durations=25
+PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 0 --reruns-delay 3 --durations=25
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not integration"
 UNIT_NOT_SLOW := -m "not integration and not slow"
