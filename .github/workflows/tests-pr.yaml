@@ -83,16 +83,20 @@ jobs:
       - name: Verify fixtures present
         # Guards against silent CI success when the cache and the S3 download
         # both fail: without cassettes, record_mode=none skips every test.
+        # Some cassettes are extensionless (eia uses bare `use_cassette("name")`
+        # without .yaml), so count any regular file, not just *.yaml. The
+        # `misc` ISO has no VCR cassettes at all — tests in that group use the
+        # "Ensure at least one test passed" check as their only guardrail.
         run: |
           PATHS='${{ steps.fixture-paths.outputs.paths }}'
           TOTAL=0
           while IFS= read -r p; do
             [ -z "$p" ] && continue
-            COUNT=$(find "$p" -name '*.yaml' 2>/dev/null | wc -l)
+            COUNT=$(find "$p" -type f ! -name '.DS_Store' 2>/dev/null | wc -l)
             echo "  $p: $COUNT cassettes"
             TOTAL=$((TOTAL + COUNT))
           done <<< "$PATHS"
-          if [ "$TOTAL" -eq 0 ]; then
+          if [ "$TOTAL" -eq 0 ] && [ "${{ matrix.iso }}" != "misc" ]; then
             echo "::error::No VCR cassettes found for ISO '${{ matrix.iso }}' — cache + S3 download both failed"
             exit 1
           fi

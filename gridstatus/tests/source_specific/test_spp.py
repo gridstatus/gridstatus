@@ -2781,7 +2781,7 @@ class TestSPP(BaseTestISO):
             "test_get_interchange_real_time_historical.yaml",
         ):
             df = self.iso.get_interchange_real_time(
-                pd.Timestamp("2025-01-01"),
+                pd.Timestamp("2025-01-01", tz=self.iso.default_timezone),
             )
 
         self._check_interchange_real_time(df)
@@ -2795,8 +2795,8 @@ class TestSPP(BaseTestISO):
             "test_get_interchange_real_time_historical_range.yaml",
         ):
             df = self.iso.get_interchange_real_time(
-                date=pd.Timestamp("2025-01-01"),
-                end=pd.Timestamp("2025-03-01"),
+                date=pd.Timestamp("2025-01-01", tz=self.iso.default_timezone),
+                end=pd.Timestamp("2025-03-01", tz=self.iso.default_timezone),
             )
 
         self._check_interchange_real_time(df)
