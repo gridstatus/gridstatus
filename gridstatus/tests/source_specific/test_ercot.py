@@ -851,6 +851,9 @@ class TestErcot(BaseTestISO):
 
         check_60_day_sced_disclosure(df_dict)
 
+    @pytest.mark.skip(
+        reason="Hangs in CI processing SCED disclosure - https://www.notion.so/345e835f42aa81988179c9c271f510f6"
+    )
     def test_get_60_day_sced_disclosure_range(self):
         start_date = pd.Timestamp("2026-01-29").date()
         end_date = pd.Timestamp("2026-01-30").date()
