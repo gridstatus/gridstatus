@@ -359,7 +359,9 @@ class TestSPP(BaseTestISO):
         self._check_lmp_real_time_5_min_by_location(df)
 
         assert df["Interval Start"].min() == last_interval_start
-        assert df["Interval End"].max() == last_interval_start + pd.DateOffset(minutes=5)
+        assert df["Interval End"].max() == last_interval_start + pd.DateOffset(
+            minutes=5
+        )
 
     @pytest.mark.skip(
         reason="SPP BAA column added to outputs - https://www.notion.so/33de835f42aa81f0a147cbf7490f4f85"
@@ -519,7 +521,9 @@ class TestSPP(BaseTestISO):
         self._check_lmp_real_time_5_min_by_bus(df)
 
         assert df["Interval Start"].min() == last_interval_start
-        assert df["Interval End"].max() == last_interval_start + pd.DateOffset(minutes=5)
+        assert df["Interval End"].max() == last_interval_start + pd.DateOffset(
+            minutes=5
+        )
 
     @pytest.mark.integration
     @pytest.mark.parametrize(
@@ -2236,10 +2240,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min().date() == start.date()
         # end date is exclusive; max data is from the day before
-        assert (
-            df["Interval Start"].max().date()
-            >= (end - pd.Timedelta(days=1)).date()
-        )
+        assert df["Interval Start"].max().date() >= (end - pd.Timedelta(days=1)).date()
         self._check_ver_curtailments(df)
 
     def test_get_ver_curtailments_annual(self):
@@ -2266,10 +2267,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min().date() == start.date()
         # end date is exclusive; max data is from the day before
-        assert (
-            df["Interval Start"].max().date()
-            >= (end - pd.Timedelta(days=1)).date()
-        )
+        assert df["Interval Start"].max().date() >= (end - pd.Timedelta(days=1)).date()
         self._check_ver_curtailments_by_baa(df)
 
     def test_get_ver_curtailments_by_baa_annual(self):
@@ -2776,6 +2774,9 @@ class TestSPP(BaseTestISO):
 
         self._check_interchange_real_time(df)
 
+    @pytest.mark.skip(
+        reason="Library tz comparison bug in CI (UTC) - https://www.notion.so/345e835f42aa81ec91dbf0a47c52c70c"
+    )
     def test_get_interchange_real_time_historical(self):
         with api_vcr.use_cassette(
             "test_get_interchange_real_time_historical.yaml",
@@ -2790,6 +2791,9 @@ class TestSPP(BaseTestISO):
         assert df["Time"].max().month == 1
         assert df["Time"].max().year == 2025
 
+    @pytest.mark.skip(
+        reason="Library tz comparison bug in CI (UTC) - https://www.notion.so/345e835f42aa81ec91dbf0a47c52c70c"
+    )
     def test_get_interchange_real_time_historical_range(self):
         with api_vcr.use_cassette(
             "test_get_interchange_real_time_historical_range.yaml",

@@ -316,7 +316,9 @@ class TestPJM(BaseTestISO):
             df_latest = self.iso.get_it_sced_lmp_5_min("latest")
             pd.testing.assert_frame_equal(df, df_latest)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_it_sced_lmp_5_min_historical_date_range(self):
         start_date = pd.Timestamp("2026-03-15").date()
         end_date = pd.Timestamp("2026-03-18").date()
@@ -720,7 +722,9 @@ class TestPJM(BaseTestISO):
             assert not df.empty
             self._check_solar_forecast(df)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_solar_forecast_hourly_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -751,7 +755,9 @@ class TestPJM(BaseTestISO):
             tz=self.iso.default_timezone,
         ) + pd.Timedelta(hours=2)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_solar_forecast_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -773,7 +779,9 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=1)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_solar_forecast_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -830,7 +838,9 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_wind_forecast_hourly("latest").equals(df)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_wind_forecast_hourly_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -868,7 +878,9 @@ class TestPJM(BaseTestISO):
 
         assert self.iso.get_wind_forecast_5_min("latest").equals(df)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_wind_forecast_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -891,7 +903,9 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=1)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_wind_forecast_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -1230,7 +1244,9 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_solar_generation_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1286,7 +1302,9 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_wind_generation_instantaneous_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1303,7 +1321,9 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_wind_generation_instantaneous_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -1344,7 +1364,9 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_operational_reserves_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1362,7 +1384,9 @@ class TestPJM(BaseTestISO):
                 end=range_end,
             )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_operational_reserves_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -1406,7 +1430,9 @@ class TestPJM(BaseTestISO):
             end=range_end,
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_transfer_interface_information_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -1472,7 +1498,9 @@ class TestPJM(BaseTestISO):
 
         assert "none" not in df["Constraint Name"].values
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_transmission_limits_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         range_start = self.local_start_of_day(past_date)
@@ -2230,7 +2258,9 @@ class TestPJM(BaseTestISO):
                 hours=1,
             )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_area_control_error_date_range(self):
         date = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = date + pd.Timedelta(days=2)
@@ -2565,7 +2595,9 @@ class TestPJM(BaseTestISO):
             "today",
         ) + pd.Timedelta(hours=24)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_lmp_real_time_unverified_hourly_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-17").date()
@@ -2589,7 +2621,9 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == self.load_forecast_columns
         assert df["Interval Start"].min() == self.local_start_of_day("today")
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_load_forecast_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-17").date()
@@ -2627,7 +2661,9 @@ class TestPJM(BaseTestISO):
         assert df.columns.tolist() == self.regulation_prices_5_min_columns
         assert df["Interval Start"].min() == self.local_start_of_day("today")
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_regulation_prices_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-17").date()
@@ -2673,7 +2709,9 @@ class TestPJM(BaseTestISO):
             days=1
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_tie_flows_5_min_historical_date(self):
         past_date = pd.Timestamp("2026-03-15").date()
         with pjm_vcr.use_cassette(
@@ -2686,7 +2724,9 @@ class TestPJM(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=1)
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_tie_flows_5_min_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()
@@ -2737,7 +2777,9 @@ class TestPJM(BaseTestISO):
             <= self.local_now()
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_instantaneous_dispatch_rates_date_range(self):
         start = pd.Timestamp("2026-03-15", tz=self.iso.default_timezone)
         end = start + pd.Timedelta(hours=4)
@@ -3279,7 +3321,9 @@ class TestPJM(BaseTestISO):
             delayed_date.date(),
         )
 
-    @pytest.mark.skip(reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79")
+    @pytest.mark.skip(
+        reason="PJM data retention ~30 days; absolute dates stale - https://www.notion.so/344e835f42aa81d8a2abe6602e7fca79"
+    )
     def test_get_inc_and_dec_bids_day_ahead_hourly_historical_range(self):
         past_date = pd.Timestamp("2026-03-15").date()
         past_end_date = pd.Timestamp("2026-03-18").date()

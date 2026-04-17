@@ -773,7 +773,9 @@ class TestIESO(BaseTestISO):
         self._check_forecast_surplus_baseload(df)
 
         assert df["Interval Start"].min().date() == forecast_start_date.date()
-        assert df["Interval End"].max().date() == forecast_start_date.date() + pd.Timedelta(days=10)
+        assert df[
+            "Interval End"
+        ].max().date() == forecast_start_date.date() + pd.Timedelta(days=10)
 
     def test_get_forecast_surplus_baseload_generation_date_range(self):
         end = pd.Timestamp("2026-03-16", tz=self.default_timezone)

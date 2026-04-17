@@ -377,7 +377,9 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_as_prices("latest").equals(df)
 
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     def test_get_as_prices_historical_date(self):
         with api_vcr.use_cassette("test_get_as_prices_historical_date.yaml"):
             historical_date = datetime.date(2021, 3, 12)
@@ -394,7 +396,9 @@ class TestErcotAPI(TestHelperMixin):
                 days=1,
             )
 
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     def test_get_as_prices_historical_date_range(self):
         with api_vcr.use_cassette("test_get_as_prices_historical_date_range.yaml"):
             start_date = datetime.date(2021, 3, 8)
@@ -441,7 +445,9 @@ class TestErcotAPI(TestHelperMixin):
             self.local_start_of_today() + pd.DateOffset(days=2),
         ]
 
-    @pytest.mark.skip(reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886")
+    @pytest.mark.skip(
+        reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886"
+    )
     def test_get_mcpc_dam_historical_date_range(self):
         date = pd.Timestamp("2026-04-03").date()
         end = pd.Timestamp("2026-04-03").date()
@@ -565,7 +571,9 @@ class TestErcotAPI(TestHelperMixin):
 
             self._check_as_reports(df, before_full_columns=True)
 
-    @pytest.mark.skip(reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886")
+    @pytest.mark.skip(
+        reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886"
+    )
     @api_vcr.use_cassette("test_get_as_reports_full_columns_21_days_ago.yaml")
     def test_get_as_reports_full_columns(self):
         # This report ends on 2026-04-05 so we have to pin the date
@@ -574,7 +582,9 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_as_reports(df)
 
-    @pytest.mark.skip(reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886")
+    @pytest.mark.skip(
+        reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886"
+    )
     @api_vcr.use_cassette("test_get_as_reports_dst_end_2024_11_03.yaml")
     def test_get_as_reports_dst_end(self):
         df = self.iso.get_as_reports("2026-04-03")
@@ -659,7 +669,9 @@ class TestErcotAPI(TestHelperMixin):
 
             assert df["ECRS"].notna().any()
 
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     def test_get_as_plan_historical_date_range(self):
         with api_vcr.use_cassette("test_get_as_plan_historical_date_range.yaml"):
             start_date = pd.Timestamp("2026-04-03").date()
@@ -680,7 +692,9 @@ class TestErcotAPI(TestHelperMixin):
                 (start_date + pd.DateOffset(days=1)).date(),
             ]
 
-    @pytest.mark.skip(reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6")
+    @pytest.mark.skip(
+        reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6"
+    )
     def test_get_as_plan_before_ecrs(self):
         with api_vcr.use_cassette("test_get_as_plan_before_ecrs.yaml"):
             # Check that we add an ECRS column of nulls if it's not present
@@ -743,7 +757,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() <= self.local_now()
 
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     @pytest.mark.slow
     def test_get_lmp_by_settlement_point_historical_date(self):
         with api_vcr.use_cassette(
@@ -763,7 +779,9 @@ class TestErcotAPI(TestHelperMixin):
                 days=1,
             )
 
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     @pytest.mark.slow
     def test_get_lmp_by_settlement_point_historical_date_range(self):
         with api_vcr.use_cassette(
@@ -928,7 +946,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].min() >= self.local_now() - pd.Timedelta(minutes=30)
         assert df["Interval End"].max() <= self.local_now()
 
-    @pytest.mark.skip(reason="Cassette has stale/mismatched requests - https://www.notion.so/344e835f42aa81e08bdac472c9df31f5")
+    @pytest.mark.skip(
+        reason="Cassette has stale/mismatched requests - https://www.notion.so/344e835f42aa81e08bdac472c9df31f5"
+    )
     @pytest.mark.slow
     def test_get_lmp_by_bus_historical_date(self):
         with api_vcr.use_cassette("test_get_lmp_by_bus_historical_date.yaml"):
@@ -943,7 +963,9 @@ class TestErcotAPI(TestHelperMixin):
                 date,
             ) + pd.DateOffset(days=1)
 
-    @pytest.mark.skip(reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886")
+    @pytest.mark.skip(
+        reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886"
+    )
     @pytest.mark.slow
     def test_get_lmp_by_bus_historical_date_range(self):
         with api_vcr.use_cassette("test_get_lmp_by_bus_historical_date_range.yaml"):
@@ -1011,7 +1033,9 @@ class TestErcotAPI(TestHelperMixin):
                 days=1,
             )
 
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     def test_get_lmp_by_bus_dam_historical_range(self):
         with api_vcr.use_cassette("test_get_lmp_by_bus_dam_historical_range.yaml"):
             past_date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -1024,7 +1048,9 @@ class TestErcotAPI(TestHelperMixin):
             assert df["Interval Start"].min() == past_date.normalize()
             assert df["Interval End"].max() == past_end_date.normalize()
 
-    @pytest.mark.skip(reason="DST row-count assertion drift - https://www.notion.so/344e835f42aa813e8612d7923b5ee614")
+    @pytest.mark.skip(
+        reason="DST row-count assertion drift - https://www.notion.so/344e835f42aa813e8612d7923b5ee614"
+    )
     def test_get_lmp_by_bus_dam_dst_end(self):
         with api_vcr.use_cassette("test_get_lmp_by_bus_dam_dst_end.yaml"):
             date = "2026-04-03"
@@ -1040,7 +1066,9 @@ class TestErcotAPI(TestHelperMixin):
             assert "2026-04-03 01:00:00-05:00" in unique_interval_strings
             assert "2026-04-03 01:00:00-06:00" in unique_interval_strings
 
-    @pytest.mark.skip(reason="DST row-count assertion drift - https://www.notion.so/344e835f42aa813e8612d7923b5ee614")
+    @pytest.mark.skip(
+        reason="DST row-count assertion drift - https://www.notion.so/344e835f42aa813e8612d7923b5ee614"
+    )
     def test_get_lmp_by_bus_dam_dst_start(self):
         with api_vcr.use_cassette("test_get_lmp_by_bus_dam_dst_start.yaml"):
             date = "2026-04-03"
@@ -1137,7 +1165,9 @@ class TestErcotAPI(TestHelperMixin):
                 past_date.date(),
             ) + pd.Timedelta(hours=23)
 
-    @pytest.mark.skip(reason="SCED timing tolerance needed - https://www.notion.so/344e835f42aa81ab802cd3ca9e2733c8")
+    @pytest.mark.skip(
+        reason="SCED timing tolerance needed - https://www.notion.so/344e835f42aa81ab802cd3ca9e2733c8"
+    )
     def test_get_shadow_prices_dam_historical_range(self):
         with api_vcr.use_cassette("test_get_shadow_prices_dam_historical_range.yaml"):
             past_date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -1209,7 +1239,9 @@ class TestErcotAPI(TestHelperMixin):
 
         assert self.iso.get_shadow_prices_sced("latest").equals(df)
 
-    @pytest.mark.skip(reason="SCED timing tolerance needed - https://www.notion.so/344e835f42aa81ab802cd3ca9e2733c8")
+    @pytest.mark.skip(
+        reason="SCED timing tolerance needed - https://www.notion.so/344e835f42aa81ab802cd3ca9e2733c8"
+    )
     def test_get_shadow_prices_sced_historical(self):
         with api_vcr.use_cassette("test_get_shadow_prices_sced_historical.yaml"):
             past_date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -1229,7 +1261,9 @@ class TestErcotAPI(TestHelperMixin):
                 < start_of_past_date + pd.Timedelta(hours=24)
             )
 
-    @pytest.mark.skip(reason="SCED timing tolerance needed - https://www.notion.so/344e835f42aa81ab802cd3ca9e2733c8")
+    @pytest.mark.skip(
+        reason="SCED timing tolerance needed - https://www.notion.so/344e835f42aa81ab802cd3ca9e2733c8"
+    )
     def test_get_shadow_prices_sced_historical_range(self):
         with api_vcr.use_cassette("test_get_shadow_prices_sced_historical_range.yaml"):
             past_date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
@@ -1285,7 +1319,9 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Market"].unique().tolist() == ["REAL_TIME_15_MIN"]
 
-    @pytest.mark.skip(reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886")
+    @pytest.mark.skip(
+        reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886"
+    )
     @pytest.mark.slow
     def test_get_spp_real_time_15_min_historical_date_range(self):
         with api_vcr.use_cassette(
@@ -1333,7 +1369,9 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Market"].unique().tolist() == ["DAY_AHEAD_HOURLY"]
 
-    @pytest.mark.skip(reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886")
+    @pytest.mark.skip(
+        reason="Cassette deleted by --delete upload - https://www.notion.so/345e835f42aa8183b232deb6475de886"
+    )
     def test_get_spp_day_ahead_hourly_historical_date_range(self):
         with api_vcr.use_cassette(
             "test_get_spp_day_ahead_hourly_historical_date_range.yaml",
@@ -1375,7 +1413,9 @@ class TestErcotAPI(TestHelperMixin):
                 assert df["Interval Start"].min() == start_date
                 assert df["Interval End"].max() == end_date
 
-    @pytest.mark.skip(reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6")
+    @pytest.mark.skip(
+        reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6"
+    )
     def test_get_60_day_dam_disclosure_repeated_offers(self):
         """Tests a problematic date where one resource has repeated offers for a
         single service on a single interval"""
@@ -1410,7 +1450,9 @@ class TestErcotAPI(TestHelperMixin):
 
                 assert df.groupby(["Interval Start", "Resource Name"]).size().max() == 1
 
-    @pytest.mark.skip(reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6")
+    @pytest.mark.skip(
+        reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6"
+    )
     def test_get_60_day_dam_disclosure_esr(self):
         # ESR data is available starting 2026-04-06
         start_date = pd.Timestamp("2026-04-07", tz="US/Central")
@@ -1569,7 +1611,9 @@ class TestErcotAPI(TestHelperMixin):
 
     """hit_ercot_api"""
 
-    @pytest.mark.skip(reason="Row-count expectation drift - https://www.notion.so/344e835f42aa816c9139f7ad52517faf")
+    @pytest.mark.skip(
+        reason="Row-count expectation drift - https://www.notion.so/344e835f42aa816c9139f7ad52517faf"
+    )
     def test_hit_ercot_api(self):
         """
         First we test that entering a bad endpoint results in a keyerror
@@ -1698,7 +1742,9 @@ class TestErcotAPI(TestHelperMixin):
             ("2026-04-03 00:00:00", "2026-04-03 02:00:00"),
         ],
     )
-    @pytest.mark.skip(reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb")
+    @pytest.mark.skip(
+        reason="Still flaky in parallel after cache-buster matcher fix - https://www.notion.so/345e835f42aa812a960ddc6a3621a7eb"
+    )
     def test_get_indicative_lmp_by_settlement_point(self, date, end):
         with api_vcr.use_cassette(
             f"test_get_indicative_lmp_historical_{date}_{end}.yaml",
@@ -1760,7 +1806,9 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Resource Name"].dtype == object
         assert df["QSE"].dtype == object
 
-    @pytest.mark.skip(reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6")
+    @pytest.mark.skip(
+        reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6"
+    )
     def test_get_cop_adjustment_period_snapshot_60_day_date(self):
         date = pd.Timestamp("2026-04-03").date()
 
@@ -1789,7 +1837,9 @@ class TestErcotAPI(TestHelperMixin):
         ]:
             assert df[col].notnull().all()
 
-    @pytest.mark.skip(reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6")
+    @pytest.mark.skip(
+        reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6"
+    )
     def test_get_cop_adjustment_period_snapshot_60_day_historical_date_range(self):
         start_date = pd.Timestamp("2026-04-03", tz=self.iso.default_timezone)
         end_date = start_date + pd.DateOffset(days=2)
@@ -1810,7 +1860,9 @@ class TestErcotAPI(TestHelperMixin):
         # Column only present in older data. We add it as null to keep columns same
         assert df["RRS"].isnull().all()
 
-    @pytest.mark.skip(reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6")
+    @pytest.mark.skip(
+        reason="Empty archives response not handled - https://www.notion.so/344e835f42aa8141af99ccb2891378b6"
+    )
     def test_get_cop_adjustment_period_snapshot_60_day_missing_columns_are_null(self):
         # This is an early date when many columns were not present
         date = "2012-01-01"
