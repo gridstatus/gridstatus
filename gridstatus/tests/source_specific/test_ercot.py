@@ -1,6 +1,7 @@
 import datetime
 from io import StringIO
 from typing import Dict
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -252,6 +253,180 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_real_time_system_conditions()
         assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
+
+    """get_operations_messages"""
+
+    expected_operations_messages_cols = [
+        "Time",
+        "Notice",
+        "Type",
+        "Status",
+    ]
+
+    SAMPLE_OPS_MESSAGES_DF = pd.DataFrame(
+        {
+            "Date & Time": [
+                "Apr 14, 2026 2:23:50 AM",
+                "Apr 14, 2026 12:04:02 AM",
+            ],
+            "Notice": [
+                "ERCOT has cancelled the following notice: Railroad DC Tie derated.",
+                "No sudden loss of generation greater than 450 MW occurred.",
+            ],
+            "Type": [
+                "Operational Information",
+                "Operational Information",
+            ],
+            "Status": [
+                "Cancelled",
+                "Active",
+            ],
+        },
+    )
+
+    def test_get_operations_messages(self):
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert len(df) == 2
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Time"].dt.tz) == str(self.iso.default_timezone)
+        assert df["Notice"].iloc[0] is not None
+        assert df["Type"].iloc[0] == "Operational Information"
+        assert set(df["Status"]) == {"Active", "Cancelled"}
+
+    def test_get_operations_messages_sorted_by_time(self):
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_operations_messages_single_row(self):
+        single_row_df = pd.DataFrame(
+            {
+                "Date & Time": ["Mar 10, 2026 9:00:00 AM"],
+                "Notice": ["Advisory issued due to tool unavailability."],
+                "Type": ["Advisory"],
+                "Status": ["Active"],
+            },
+        )
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[single_row_df],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert len(df) == 1
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert df["Type"].iloc[0] == "Advisory"
+
+    def test_get_operations_messages_historical_deduplicates(self):
+        snap1 = pd.DataFrame(
+            {
+                "Date & Time": [
+                    "Jan 10, 2026 2:00:00 PM",
+                    "Jan 9, 2026 12:00:00 AM",
+                ],
+                "Notice": ["Msg A", "Msg B"],
+                "Type": ["Operational Information", "Operational Information"],
+                "Status": ["Active", "Active"],
+            },
+        )
+        snap2 = pd.DataFrame(
+            {
+                "Date & Time": [
+                    "Jan 15, 2026 8:00:00 AM",
+                    "Jan 10, 2026 2:00:00 PM",
+                ],
+                "Notice": ["Msg C", "Msg A"],
+                "Type": ["Advisory", "Operational Information"],
+                "Status": ["Active", "Active"],
+            },
+        )
+
+        with mock.patch(
+            "gridstatus.ercot.requests.get",
+        ) as mock_requests_get:
+            mock_cdx_resp = mock.Mock()
+            mock_cdx_resp.json.return_value = [
+                ["timestamp", "statuscode"],
+                ["20260110000000", "200"],
+                ["20260115000000", "200"],
+            ]
+            mock_cdx_resp.raise_for_status = mock.Mock()
+            mock_requests_get.return_value = mock_cdx_resp
+
+            with mock.patch(
+                "gridstatus.ercot.pd.read_html",
+                side_effect=[[snap1], [snap2]],
+            ):
+                df = self.iso.get_operations_messages(
+                    date="2026-01-01",
+                    end="2026-02-01",
+                )
+
+        assert len(df) == 3
+        assert df["Notice"].tolist() == ["Msg B", "Msg A", "Msg C"]
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_operations_messages_historical_filters_to_range(self):
+        snap = pd.DataFrame(
+            {
+                "Date & Time": [
+                    "Jan 15, 2026 8:00:00 AM",
+                    "Dec 28, 2025 3:00:00 PM",
+                ],
+                "Notice": ["In range", "Out of range"],
+                "Type": ["Operational Information", "Operational Information"],
+                "Status": ["Active", "Active"],
+            },
+        )
+
+        with mock.patch(
+            "gridstatus.ercot.requests.get",
+        ) as mock_requests_get:
+            mock_cdx_resp = mock.Mock()
+            mock_cdx_resp.json.return_value = [
+                ["timestamp", "statuscode"],
+                ["20260115000000", "200"],
+            ]
+            mock_cdx_resp.raise_for_status = mock.Mock()
+            mock_requests_get.return_value = mock_cdx_resp
+
+            with mock.patch(
+                "gridstatus.ercot.pd.read_html",
+                return_value=[snap],
+            ):
+                df = self.iso.get_operations_messages(
+                    date="2026-01-01",
+                    end="2026-02-01",
+                )
+
+        assert len(df) == 1
+        assert df["Notice"].iloc[0] == "In range"
+
+    def test_get_operations_messages_historical_wayback(self):
+        with api_vcr.use_cassette(
+            "test_get_operations_messages_historical_wayback.yaml",
+        ):
+            df = self.iso.get_operations_messages(
+                date="2026-01-01",
+                end="2026-01-15",
+            )
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert len(df) > 0
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert df["Time"].min() >= pd.Timestamp("2026-01-01", tz="US/Central")
+        assert df["Time"].max() < pd.Timestamp("2026-01-15", tz="US/Central")
+        assert df["Time"].is_monotonic_increasing
+        assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
 
     @pytest.mark.integration
     def test_get_energy_storage_resources(self):

@@ -2713,10 +2713,7 @@ class SPP(ISOBase):
             filename = f"TieFlows_SPP_{month_str}.csv"
         else:
             filename = f"TieFlows_{month_str}.csv"
-        url = (
-            f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
-            f"?path=/{filename}"
-        )
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow?path=/{filename}"
 
         logger.info(f"Downloading {url}")
         try:

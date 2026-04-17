@@ -1,6 +1,10 @@
 # PJM requires retries because the API is flaky
 DEFAULT_RETRIES: int = 3
 
+EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL: str = (
+    "https://emergencyprocedures.pjm.com/ep/pages/dashboard.jsf"
+)
+
 # Timeout for API requests in seconds (connect, read)
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 15
