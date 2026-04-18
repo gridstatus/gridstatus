@@ -238,6 +238,14 @@ RTD_INDICATIVE_REAL_TIME_MCPC_RTID = 24889
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-328-CD
 TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID = 24887
 
+# DAM Aggregated Ancillary Service Offer Curve
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
+DAM_AGGREGATED_AS_OFFER_CURVE_RTID = 12330
+
+# 3-Day Highest Price Bids Selected or Dispatched in SCED
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
+THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID = 13230
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -4801,6 +4809,73 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range("DAY_START")
+    def get_3_day_highest_price_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the bid price and name of the Load Resource submitting the
+        highest-priced bid selected or dispatched by SCED for the given
+        operating day.
+
+        Published daily, three days after the applicable operating day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
+
+        Arguments:
+            date: operating day to fetch data for.
+            end: optional end operating day for date range queries.
+            verbose: print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns: Interval Start, Interval End,
+            SCED Timestamp, QSE, DME, Load Resource,
+            Highest Price Dispatched by SCED, Proxy Extension.
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        return self._handle_3_day_highest_price_sced(df)
+
+    def _handle_3_day_highest_price_sced(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCED Time Stamp": "SCED Timestamp",
+                "Repeated Hour Flag": "RepeatedHourFlag",
+            },
+        )
+        df = self._handle_sced_timestamp(df)
+
+        df["Highest Price Dispatched by SCED"] = pd.to_numeric(
+            df["Highest Price Dispatched by SCED"],
+            errors="coerce",
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Load Resource",
+                    "Highest Price Dispatched by SCED",
+                    "Proxy Extension",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "QSE", "DME", "Load Resource"])
+            .reset_index(drop=True)
+        )
+
     def _handle_highest_price_as_offer_selected_file(
         self,
         doc: Document,
@@ -6415,6 +6490,67 @@ class Ercot(ISOBase):
             .sort_values(
                 ["Interval Start", "Publish Time", "AS Type", "Demand Curve Point"],
             )
+            .reset_index(drop=True)
+        )
+
+    # Published once per DAM run (daily, ~12-2 PM Central) for the next day's
+    # delivery date. Covers the AS types REGDN, REGUP, RRSPF, RRSFF, RRSUF,
+    # ECRSS, and ECRSM.
+    @support_date_range(frequency=None)
+    def get_dam_asdc_aggregated(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Aggregated Ancillary Service Offer Curve (NP4-19-CD).
+
+        The DAM Aggregated Ancillary Service Demand/Offer Curve contains the
+        aggregated offer curve (price/quantity pairs) per ancillary service
+        type for each hour of the next day's delivery, published once per DAM
+        run. ``date`` and ``end`` are interpreted as delivery dates; the DAM
+        runs the day before, so the underlying file is located by shifting the
+        posted-date filter back by one day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
+        """
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+                extension="csv",
+                published_after=date - pd.Timedelta(days=1),
+                published_before=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_dam_asdc_aggregated(df)
+
+    def _handle_dam_asdc_aggregated(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "AncillaryType": "AS Type",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+        df = self.parse_doc(df)
+
+        for col in ["Price", "Quantity"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "Price", "Quantity"]]
+            .sort_values(["Interval Start", "AS Type", "Price"])
             .reset_index(drop=True)
         )
 

@@ -160,6 +160,12 @@ INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub
 # https://data.ercot.com/data-product-archive/NP1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_ENDPOINT = "/np1-301/60_cop_adj_period_snapshot"
 
+# DAM Aggregated Ancillary Service Offer Curve
+# https://data.ercot.com/data-product-archive/NP4-19-CD
+# Not exposed as a delivery-date filterable public API endpoint; archive only.
+DAM_ASDC_AGGREGATED_EMIL_ID = "np4-19-cd"
+DAM_ASDC_AGGREGATED_ENDPOINT = f"/{DAM_ASDC_AGGREGATED_EMIL_ID}"
+
 ESR_ENDPOINT = "/rptesr-m/4_sec_esr_charging_mw"
 
 
@@ -793,6 +799,50 @@ class ErcotAPI:
     ) -> pd.DataFrame:
         data = self.ercot.parse_doc(data, verbose=verbose)
         return self.ercot._handle_mcpc_dam_df(data)
+
+    @support_date_range(frequency=None)
+    def get_dam_asdc_aggregated(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Aggregated Ancillary Service Offer Curve (NP4-19-CD).
+
+        Contains the aggregated offer curve (price/quantity pairs) per
+        ancillary service type for each hour of the next day's delivery,
+        published once per DAM run. Covers REGDN, REGUP, RRSPF, RRSFF, RRSUF,
+        ECRSS, and ECRSM.
+
+        This dataset is only available via the ERCOT data archive (not as a
+        delivery-date filterable public API endpoint), so the archive is
+        filtered by the DAM posted date, which runs the day before delivery.
+
+        Arguments:
+            date (str): the delivery date to fetch offer curves for. Can be
+                "latest" to fetch the next day's curves.
+            end (str, optional): the end delivery date. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns Interval Start,
+            Interval End, AS Type, Price, and Quantity.
+        """
+        if date == "latest":
+            return self.get_dam_asdc_aggregated("today", verbose=verbose)
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        # The archive filters by posted datetime, which is the day before the
+        # delivery date (DAM runs the day before), so shift back by one day.
+        data = self.get_historical_data(
+            endpoint=DAM_ASDC_AGGREGATED_ENDPOINT,
+            start_date=date - pd.Timedelta(days=1),
+            end_date=end - pd.Timedelta(days=1),
+            verbose=verbose,
+        )
+
+        return self.ercot._handle_dam_asdc_aggregated(data)
 
     @support_date_range(frequency=None)
     def get_as_reports(self, date, end=None, verbose=False):
