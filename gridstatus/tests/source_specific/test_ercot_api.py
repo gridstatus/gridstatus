@@ -6,6 +6,8 @@ import pytest
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ESR_AS_OFFERS_COLUMNS,
     DAM_ESR_AS_OFFERS_KEY,
     DAM_ESR_COLUMNS,
@@ -25,7 +27,11 @@ from gridstatus.ercot_constants import (
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.source_specific.test_ercot import (
-    TestErcot,
+    TestErcot as _ErcotChecks,
+)
+from gridstatus.tests.source_specific.test_ercot import (
+    _check_dam_as_only_awards,
+    _check_dam_as_only_offers,
     check_60_day_dam_disclosure,
     check_60_day_sced_disclosure,
     check_load_forecast_by_model,
@@ -625,7 +631,7 @@ class TestErcotAPI(TestHelperMixin):
         with api_vcr.use_cassette(f"test_get_as_reports_dam_{date}.yaml"):
             df = self.iso.get_as_reports_dam(date, verbose=True)
 
-        TestErcot()._check_as_reports_dam(df)
+        _ErcotChecks()._check_as_reports_dam(df)
 
         assert df["Interval Start"].dt.date.unique() == date.date()
 
@@ -639,7 +645,7 @@ class TestErcotAPI(TestHelperMixin):
         with api_vcr.use_cassette(f"test_get_as_reports_sced_{date}.yaml"):
             df = self.iso.get_as_reports_sced(date, verbose=True)
 
-        TestErcot()._check_as_reports_sced(df)
+        _ErcotChecks()._check_as_reports_sced(df)
 
         assert df["SCED Timestamp"].dt.date.unique() == date.date()
 
@@ -1444,6 +1450,14 @@ class TestErcotAPI(TestHelperMixin):
         dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
         assert dam_esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
         assert len(dam_esr_as_offers) > 0
+
+        # AS Only Awards/Offers (ENG-3684/ENG-3688) landed in the bundle on the
+        # same 2025-12-06 operating day as ESR, so we check them here too.
+        assert DAM_AS_ONLY_AWARDS_KEY in df_dict
+        assert DAM_AS_ONLY_OFFERS_KEY in df_dict
+
+        _check_dam_as_only_awards(df_dict[DAM_AS_ONLY_AWARDS_KEY])
+        _check_dam_as_only_offers(df_dict[DAM_AS_ONLY_OFFERS_KEY])
 
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
