@@ -6420,7 +6420,7 @@ class Ercot(ISOBase):
         results.sort(key=lambda item: item[0])
         return results
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="MONTH_START")
     def get_crr_auction_bids_offers_monthly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -6472,7 +6472,7 @@ class Ercot(ISOBase):
             ]
         ]
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="MONTH_START")
     def get_crr_base_loading_monthly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -6524,7 +6524,7 @@ class Ercot(ISOBase):
             ]
         ]
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="MONTH_START")
     def get_crr_binding_constraints_monthly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -6574,7 +6574,7 @@ class Ercot(ISOBase):
             ]
         ]
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="MONTH_START")
     def get_crr_market_results_monthly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -6634,7 +6634,7 @@ class Ercot(ISOBase):
             ]
         ]
 
-    @support_date_range(frequency=None)
+    @support_date_range(frequency="MONTH_START")
     def get_crr_source_sink_shadow_prices_monthly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
