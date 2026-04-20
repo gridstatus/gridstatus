@@ -3011,18 +3011,17 @@ class TestErcot(BaseTestISO):
         self,
         df: pd.DataFrame,
         expected_cols: list[str],
-        expected_end: pd.Timestamp | None = None,
+        expected_end: datetime.date | None = None,
     ) -> None:
         assert df.columns.tolist() == expected_cols
         assert len(df) > 0
-        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
-        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
-        expected_start = pd.Timestamp(
-            self.CRR_TEST_MONTH_START,
-            tz=self.iso.default_timezone,
-        )
+        assert df["Interval Start"].map(type).eq(datetime.date).all()
+        assert df["Interval End"].map(type).eq(datetime.date).all()
+        expected_start = pd.Timestamp(self.CRR_TEST_MONTH_START).date()
         if expected_end is None:
-            expected_end = expected_start + pd.DateOffset(months=1)
+            expected_end = (
+                pd.Timestamp(self.CRR_TEST_MONTH_START) + pd.offsets.MonthEnd(0)
+            ).date()
         assert (df["Interval Start"] == expected_start).all()
         assert (df["Interval End"] == expected_end).all()
 
@@ -3038,7 +3037,7 @@ class TestErcot(BaseTestISO):
         self._check_crr_monthly_frame(
             df,
             self.crr_auction_bids_offers_cols,
-            expected_end=pd.Timestamp("2026-04-30", tz=self.iso.default_timezone),
+            expected_end=datetime.date(2026, 4, 30),
         )
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
         assert df["Bid Type"].isin(["BUY", "SELL"]).all()
@@ -3080,7 +3079,7 @@ class TestErcot(BaseTestISO):
         self._check_crr_monthly_frame(
             df,
             self.crr_market_results_cols,
-            expected_end=pd.Timestamp("2026-04-30", tz=self.iso.default_timezone),
+            expected_end=datetime.date(2026, 4, 30),
         )
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
 
@@ -3109,13 +3108,13 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == self.crr_market_results_cols
         months = sorted(df["Interval Start"].unique())
         assert months == [
-            pd.Timestamp("2026-02-01", tz=self.iso.default_timezone),
-            pd.Timestamp("2026-03-01", tz=self.iso.default_timezone),
+            datetime.date(2026, 2, 1),
+            datetime.date(2026, 3, 1),
         ]
         end_dates = sorted(df["Interval End"].unique())
         assert end_dates == [
-            pd.Timestamp("2026-02-28", tz=self.iso.default_timezone),
-            pd.Timestamp("2026-03-31", tz=self.iso.default_timezone),
+            datetime.date(2026, 2, 28),
+            datetime.date(2026, 3, 31),
         ]
 
     """get_hourly_load_post_settlements"""
