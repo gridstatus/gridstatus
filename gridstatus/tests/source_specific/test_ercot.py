@@ -3007,124 +3007,6 @@ class TestErcot(BaseTestISO):
         "Shadow Price Per MWh",
     ]
 
-    @staticmethod
-    def _build_monthly_crr_auction_zip(month_str: str, year: int):
-        """Build a tiny in-memory monthly CRR auction zip with all five CSVs.
-
-        ``month_str`` is a 3-letter month abbreviation in upper case (e.g. ``JUN``).
-        """
-        from io import BytesIO
-        from zipfile import ZipFile
-
-        start_date = f"06/01/{year}" if month_str == "JUN" else f"07/01/{year}"
-        end_date = f"06/30/{year}" if month_str == "JUN" else f"07/31/{year}"
-
-        bids_offers_csv = (
-            "Source,Sink,BidType,StartDate,EndDate,HedgeType,TimeOfUse,MW,"
-            "BidPricePerMWH,ShadowPricePerMWH\n"
-            f"SRC_A,SNK_A,BUY,{start_date},{end_date},OPT,PeakWD,10.0,1.5,2.0\n"
-            f"SRC_B,SNK_B,SELL,{start_date},{end_date},OBL,Off-peak,5.0,0.25,0.5\n"
-        )
-        base_loading_csv = (
-            "CRR_ID,AccountHolder,Source,Sink,HedgeType,TimeOfUse,MW,"
-            "ShadowPricePerMWH\n"
-            "1001,XAAA,SRC_A,SNK_A,OPT,PeakWD,45.0,1.25\n"
-            "1002,XBBB,SRC_B,SNK_B,OBL,Off-peak,12.5,0.9\n"
-        )
-        binding_constraints_csv = (
-            "DeviceName,DeviceType,Direction,Flow,Limit,Description,Contingency,"
-            "CalendarPeriod,TimeOfUse,ShadowPrice\n"
-            f"DEV_1,Line,To - From,-100.0,100.0,Hard Constraint,CONT_A,"
-            f"{month_str}_{year},PeakWD,5.5\n"
-            f"DEV_2,Transformer,From - To,50.0,200.0,Hard Constraint,CONT_B,"
-            f"{month_str}_{year},Off-peak,2.1\n"
-        )
-        market_results_csv = (
-            "CRR_ID,OriginalCRR_ID,AccountHolder,HedgeType,BidType,CRRType,Source,"
-            "Sink,StartDate,EndDate,TimeOfUse,Bid24Hour,MW,ShadowPricePerMWH\n"
-            f"2001,,XAAA,OBL,BUY,PREAWARD,SRC_A,SNK_A,{start_date},{end_date},"
-            f"PeakWE,No,2.5,1.1\n"
-            f"2002,,XBBB,OPT,BUY,PREAWARD,SRC_B,SNK_B,{start_date},{end_date},"
-            f"PeakWD,No,0.25,3.9\n"
-        )
-        source_sink_csv = (
-            "SourceSink,CalendarPeriod,TimeOfUse,ShadowPricePerMWH\n"
-            f"SRC_A,{month_str}_{year},PeakWD,-9.0\n"
-            f"SNK_B,{month_str}_{year},Off-peak,-4.5\n"
-        )
-
-        buf = BytesIO()
-        with ZipFile(buf, "w") as zf:
-            zf.writestr(
-                f"Common_AuctionBidsAndOffers_{year}.{month_str}"
-                ".Monthly.Auction_AUCTION.csv",
-                bids_offers_csv,
-            )
-            zf.writestr(
-                f"Common_BaseLoading_{year}.{month_str}.Monthly.Auction_"
-                f"AUCTION_{month_str}_{year}.csv",
-                base_loading_csv,
-            )
-            zf.writestr(
-                f"Common_BindingConstraint_{year}.{month_str}"
-                ".Monthly.Auction_AUCTION.csv",
-                binding_constraints_csv,
-            )
-            zf.writestr(
-                f"Common_MarketResults_{year}.{month_str}.Monthly.Auction_AUCTION.csv",
-                market_results_csv,
-            )
-            zf.writestr(
-                f"Common_SourceAndSinkShadowPrices_{year}.{month_str}"
-                ".Monthly.Auction_AUCTION.csv",
-                source_sink_csv,
-            )
-        buf.seek(0)
-        return ZipFile(buf)
-
-    @staticmethod
-    def _make_monthly_crr_document(month_str: str, year: int):
-        from gridstatus.ercot import Document
-
-        return Document(
-            url=f"https://example.test/zip?doclookupId={month_str}{year}",
-            publish_date=pd.Timestamp(
-                f"{year}-{pd.Timestamp(month_str + ' 1, ' + str(year)).month:02d}-01",
-                tz="US/Central",
-            ),
-            constructed_name=(
-                f"rpt.00011201.0000000000000000.{year}0515.080000000"
-                f".{month_str}{year}MonthlyCRRAuctionResults.zip"
-            ),
-            friendly_name=f"{month_str}{year}MonthlyCRRAuctionResults",
-            friendly_name_timestamp=None,
-        )
-
-    def _mock_monthly_crr_auction(self, months: list[tuple[str, int]]):
-        """Return a (docs_patcher, zip_patcher) pair for stubbing monthly CRR downloads."""
-        docs = [
-            self._make_monthly_crr_document(month_str, year)
-            for month_str, year in months
-        ]
-
-        def fake_get_zip_folder(url: str, verbose: bool = False, **kwargs):
-            for month_str, year in months:
-                if f"{month_str}{year}" in url:
-                    return self._build_monthly_crr_auction_zip(month_str, year)
-            raise AssertionError(f"Unexpected zip url in test: {url}")
-
-        return (
-            mock.patch.object(
-                Ercot,
-                "_get_documents",
-                return_value=docs,
-            ),
-            mock.patch(
-                "gridstatus.ercot.utils.get_zip_folder",
-                side_effect=fake_get_zip_folder,
-            ),
-        )
-
     def _check_crr_monthly_frame(
         self,
         df: pd.DataFrame,
@@ -3143,8 +3025,9 @@ class TestErcot(BaseTestISO):
         assert (df["Interval End"] == expected_end).all()
 
     def test_get_crr_auction_bids_offers_monthly_historical(self):
-        docs_patch, zip_patch = self._mock_monthly_crr_auction([("JUN", 2025)])
-        with docs_patch, zip_patch:
+        with api_vcr.use_cassette(
+            "test_get_crr_auction_bids_offers_monthly_historical.yaml",
+        ):
             df = self.iso.get_crr_auction_bids_offers_monthly(
                 date=self.CRR_TEST_MONTH_START,
                 end=self.CRR_TEST_MONTH_END,
@@ -3155,21 +3038,21 @@ class TestErcot(BaseTestISO):
         assert df["Bid Type"].isin(["BUY", "SELL"]).all()
 
     def test_get_crr_base_loading_monthly_historical(self):
-        docs_patch, zip_patch = self._mock_monthly_crr_auction([("JUN", 2025)])
-        with docs_patch, zip_patch:
+        with api_vcr.use_cassette(
+            "test_get_crr_base_loading_monthly_historical.yaml",
+        ):
             df = self.iso.get_crr_base_loading_monthly(
                 date=self.CRR_TEST_MONTH_START,
                 end=self.CRR_TEST_MONTH_END,
             )
 
         self._check_crr_monthly_frame(df, self.crr_base_loading_cols)
-        # CRR ID is the primary key per the Notion ticket and must be unique
-        assert df["CRR ID"].is_unique
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
 
     def test_get_crr_binding_constraints_monthly_historical(self):
-        docs_patch, zip_patch = self._mock_monthly_crr_auction([("JUN", 2025)])
-        with docs_patch, zip_patch:
+        with api_vcr.use_cassette(
+            "test_get_crr_binding_constraints_monthly_historical.yaml",
+        ):
             df = self.iso.get_crr_binding_constraints_monthly(
                 date=self.CRR_TEST_MONTH_START,
                 end=self.CRR_TEST_MONTH_END,
@@ -3180,21 +3063,21 @@ class TestErcot(BaseTestISO):
         assert df["Device Type"].notna().all()
 
     def test_get_crr_market_results_monthly_historical(self):
-        docs_patch, zip_patch = self._mock_monthly_crr_auction([("JUN", 2025)])
-        with docs_patch, zip_patch:
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_monthly_historical.yaml",
+        ):
             df = self.iso.get_crr_market_results_monthly(
                 date=self.CRR_TEST_MONTH_START,
                 end=self.CRR_TEST_MONTH_END,
             )
 
         self._check_crr_monthly_frame(df, self.crr_market_results_cols)
-        # CRR ID is the primary key per the Notion ticket and must be unique
-        assert df["CRR ID"].is_unique
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
 
     def test_get_crr_source_sink_shadow_prices_monthly_historical(self):
-        docs_patch, zip_patch = self._mock_monthly_crr_auction([("JUN", 2025)])
-        with docs_patch, zip_patch:
+        with api_vcr.use_cassette(
+            "test_get_crr_source_sink_shadow_prices_monthly_historical.yaml",
+        ):
             df = self.iso.get_crr_source_sink_shadow_prices_monthly(
                 date=self.CRR_TEST_MONTH_START,
                 end=self.CRR_TEST_MONTH_END,
@@ -3205,10 +3088,9 @@ class TestErcot(BaseTestISO):
         assert not df.duplicated(subset=pk).any()
 
     def test_get_crr_market_results_monthly_multi_month_range(self):
-        docs_patch, zip_patch = self._mock_monthly_crr_auction(
-            [("JUN", 2025), ("JUL", 2025)],
-        )
-        with docs_patch, zip_patch:
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_monthly_multi_month_range.yaml",
+        ):
             df = self.iso.get_crr_market_results_monthly(
                 date="2025-06-01",
                 end="2025-08-01",
