@@ -3038,7 +3038,7 @@ class TestErcot(BaseTestISO):
         self._check_crr_monthly_frame(
             df,
             self.crr_auction_bids_offers_cols,
-            expected_end=pd.Timestamp("2025-06-30", tz=self.iso.default_timezone),
+            expected_end=pd.Timestamp("2026-04-30", tz=self.iso.default_timezone),
         )
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
         assert df["Bid Type"].isin(["BUY", "SELL"]).all()
@@ -3080,7 +3080,7 @@ class TestErcot(BaseTestISO):
         self._check_crr_monthly_frame(
             df,
             self.crr_market_results_cols,
-            expected_end=pd.Timestamp("2025-06-30", tz=self.iso.default_timezone),
+            expected_end=pd.Timestamp("2026-04-30", tz=self.iso.default_timezone),
         )
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
 
@@ -3102,20 +3102,20 @@ class TestErcot(BaseTestISO):
             "test_get_crr_market_results_monthly_multi_month_range.yaml",
         ):
             df = self.iso.get_crr_market_results_monthly(
-                date="2025-06-01",
-                end="2025-08-01",
+                date="2026-02-01",
+                end="2026-04-01",
             )
 
         assert df.columns.tolist() == self.crr_market_results_cols
         months = sorted(df["Interval Start"].unique())
         assert months == [
-            pd.Timestamp("2025-06-01", tz=self.iso.default_timezone),
-            pd.Timestamp("2025-07-01", tz=self.iso.default_timezone),
+            pd.Timestamp("2026-02-01", tz=self.iso.default_timezone),
+            pd.Timestamp("2026-03-01", tz=self.iso.default_timezone),
         ]
         end_dates = sorted(df["Interval End"].unique())
         assert end_dates == [
-            pd.Timestamp("2025-06-30", tz=self.iso.default_timezone),
-            pd.Timestamp("2025-07-31", tz=self.iso.default_timezone),
+            pd.Timestamp("2026-02-28", tz=self.iso.default_timezone),
+            pd.Timestamp("2026-03-31", tz=self.iso.default_timezone),
         ]
 
     """get_hourly_load_post_settlements"""
