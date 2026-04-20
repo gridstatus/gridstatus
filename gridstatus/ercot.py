@@ -187,6 +187,11 @@ DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 # https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
 
+# Monthly CRR Auction Results (bundled ZIP containing bids/offers, base loading,
+# binding constraints, market results, and source/sink shadow prices CSVs)
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+MONTHLY_CRR_AUCTION_RESULTS_RTID = 11201
+
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
 REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
 
@@ -6318,6 +6323,359 @@ class Ercot(ISOBase):
         ]
 
         return data
+
+    # Keyed by dataset, the prefix the corresponding CSV file inside a monthly
+    # CRR auction ZIP starts with.
+    _MONTHLY_CRR_AUCTION_FILE_PREFIXES = {
+        "auction_bids_offers": "Common_AuctionBidsAndOffers_",
+        "base_loading": "Common_BaseLoading_",
+        "binding_constraints": "Common_BindingConstraint_",
+        "market_results": "Common_MarketResults_",
+        "source_sink_shadow_prices": "Common_SourceAndSinkShadowPrices_",
+    }
+
+    def _parse_crr_auction_month(self, friendly_name: str) -> pd.Timestamp:
+        """Parse auction month-start (Central Time) from a CRR friendly name.
+
+        Friendly names look like ``JUN2025MonthlyCRRAuctionResults``; the first
+        3 characters are the month abbreviation and the next 4 are the year.
+        """
+        month_year = friendly_name[:7]
+        parsed = datetime.datetime.strptime(month_year, "%b%Y")
+        return pd.Timestamp(parsed).tz_localize(self.default_timezone)
+
+    def _handle_monthly_crr_auction_zip(
+        self,
+        z: ZipFile,
+    ) -> dict[str, pd.DataFrame]:
+        """Parse a monthly CRR auction zip into a dict of raw DataFrames.
+
+        The ZIP published via NP7-803-M contains one CSV per dataset:
+            - Common_AuctionBidsAndOffers_...csv
+            - Common_BaseLoading_...csv
+            - Common_BindingConstraint_...csv
+            - Common_MarketResults_...csv
+            - Common_SourceAndSinkShadowPrices_...csv
+        """
+        result: dict[str, pd.DataFrame] = {}
+        for key, prefix in self._MONTHLY_CRR_AUCTION_FILE_PREFIXES.items():
+            match = None
+            for file in z.namelist():
+                if prefix in file and file.lower().endswith(".csv"):
+                    match = file
+                    break
+            if match is not None:
+                result[key] = pd.read_csv(z.open(match))
+        return result
+
+    def _get_monthly_crr_auction_frames(
+        self,
+        dataset_key: str,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None,
+        verbose: bool = False,
+    ) -> list[tuple[pd.Timestamp, pd.DataFrame]]:
+        """Download all monthly CRR ZIPs covering [date, end) and extract frames.
+
+        The result is a list of ``(auction_month_start_central, df)`` tuples for
+        the requested ``dataset_key``. ``end`` is treated as exclusive; when
+        ``end`` is ``None`` only the month containing ``date`` is returned.
+        """
+        start_month = (
+            date.tz_convert(self.default_timezone)
+            .normalize()
+            .replace(
+                day=1,
+            )
+        )
+        if end is None:
+            end_exclusive = start_month + pd.DateOffset(months=1)
+        else:
+            end_exclusive = end.tz_convert(self.default_timezone)
+
+        docs = self._get_documents(
+            report_type_id=MONTHLY_CRR_AUCTION_RESULTS_RTID,
+            verbose=verbose,
+        )
+
+        results: list[tuple[pd.Timestamp, pd.DataFrame]] = []
+        for doc in docs:
+            try:
+                month_start = self._parse_crr_auction_month(doc.friendly_name)
+            except ValueError:
+                continue
+            if month_start < start_month or month_start >= end_exclusive:
+                continue
+            z = utils.get_zip_folder(doc.url, verbose=verbose)
+            frames = self._handle_monthly_crr_auction_zip(z)
+            if dataset_key in frames:
+                results.append((month_start, frames[dataset_key]))
+
+        if not results:
+            raise NoDataFoundException(
+                "No Monthly CRR Auction documents found for "
+                f"dataset={dataset_key}, date={date}, end={end}",
+            )
+
+        results.sort(key=lambda item: item[0])
+        return results
+
+    @support_date_range(frequency=None)
+    def get_crr_auction_bids_offers_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Bids and offers for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "auction_bids_offers",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df = df.rename(
+                columns={
+                    "BidType": "Bid Type",
+                    "HedgeType": "Hedge Type",
+                    "TimeOfUse": "Time of Use",
+                    "BidPricePerMWH": "Bid Price Per MWh",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Path",
+                "Source",
+                "Sink",
+                "Bid Type",
+                "Hedge Type",
+                "Time of Use",
+                "MW",
+                "Bid Price Per MWh",
+                "Shadow Price Per MWh",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_crr_base_loading_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Base loading for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "base_loading",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df = df.rename(
+                columns={
+                    "CRR_ID": "CRR ID",
+                    "AccountHolder": "Account Holder",
+                    "HedgeType": "Hedge Type",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "CRR ID",
+                "Account Holder",
+                "Source",
+                "Sink",
+                "Hedge Type",
+                "Time of Use",
+                "MW",
+                "Shadow Price Per MWh",
+                "Path",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_crr_binding_constraints_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Binding constraints for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "binding_constraints",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df = df.rename(
+                columns={
+                    "DeviceName": "Device Name",
+                    "DeviceType": "Device Type",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPrice": "Shadow Price",
+                },
+            )
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Device Name",
+                "Device Type",
+                "Direction",
+                "Flow",
+                "Limit",
+                "Description",
+                "Contingency",
+                "Time of Use",
+                "Shadow Price",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_crr_market_results_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Market results for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "market_results",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df = df.rename(
+                columns={
+                    "CRR_ID": "CRR ID",
+                    "OriginalCRR_ID": "Original CRR ID",
+                    "AccountHolder": "Account Holder",
+                    "HedgeType": "Hedge Type",
+                    "BidType": "Bid Type",
+                    "CRRType": "CRR Type",
+                    "TimeOfUse": "Time of Use",
+                    "Bid24Hour": "Bid 24 Hour",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "CRR ID",
+                "Original CRR ID",
+                "Account Holder",
+                "Hedge Type",
+                "Bid Type",
+                "CRR Type",
+                "Source",
+                "Sink",
+                "Time of Use",
+                "Bid 24 Hour",
+                "MW",
+                "Shadow Price Per MWh",
+                "Path",
+            ]
+        ]
+
+    @support_date_range(frequency=None)
+    def get_crr_source_sink_shadow_prices_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Source and sink shadow prices for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "source_sink_shadow_prices",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df = df.rename(
+                columns={
+                    "SourceSink": "Source Sink",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Source Sink",
+                "Time of Use",
+                "Shadow Price Per MWh",
+            ]
+        ]
 
     # Published every SCED interval
     @support_date_range(frequency=None)
