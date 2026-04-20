@@ -6439,10 +6439,16 @@ class Ercot(ISOBase):
         )
 
         all_df = []
-        for month_start, raw in frames:
+        for _month_start, raw in frames:
             df = raw.copy()
-            df["Interval Start"] = month_start
-            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df["Interval Start"] = pd.to_datetime(
+                df["StartDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["EndDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
             df = df.rename(
                 columns={
                     "BidType": "Bid Type",
@@ -6593,10 +6599,16 @@ class Ercot(ISOBase):
         )
 
         all_df = []
-        for month_start, raw in frames:
+        for _month_start, raw in frames:
             df = raw.copy()
-            df["Interval Start"] = month_start
-            df["Interval End"] = month_start + pd.DateOffset(months=1)
+            df["Interval Start"] = pd.to_datetime(
+                df["StartDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["EndDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
             df = df.rename(
                 columns={
                     "CRR_ID": "CRR ID",

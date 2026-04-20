@@ -2936,8 +2936,8 @@ class TestErcot(BaseTestISO):
 
     """get_crr_*_monthly"""
 
-    CRR_TEST_MONTH_START = "2025-06-01"
-    CRR_TEST_MONTH_END = "2025-07-01"
+    CRR_TEST_MONTH_START = "2026-04-01"
+    CRR_TEST_MONTH_END = "2026-05-01"
 
     crr_auction_bids_offers_cols = [
         "Interval Start",
@@ -3011,6 +3011,7 @@ class TestErcot(BaseTestISO):
         self,
         df: pd.DataFrame,
         expected_cols: list[str],
+        expected_end: pd.Timestamp | None = None,
     ) -> None:
         assert df.columns.tolist() == expected_cols
         assert len(df) > 0
@@ -3020,7 +3021,8 @@ class TestErcot(BaseTestISO):
             self.CRR_TEST_MONTH_START,
             tz=self.iso.default_timezone,
         )
-        expected_end = expected_start + pd.DateOffset(months=1)
+        if expected_end is None:
+            expected_end = expected_start + pd.DateOffset(months=1)
         assert (df["Interval Start"] == expected_start).all()
         assert (df["Interval End"] == expected_end).all()
 
@@ -3033,7 +3035,11 @@ class TestErcot(BaseTestISO):
                 end=self.CRR_TEST_MONTH_END,
             )
 
-        self._check_crr_monthly_frame(df, self.crr_auction_bids_offers_cols)
+        self._check_crr_monthly_frame(
+            df,
+            self.crr_auction_bids_offers_cols,
+            expected_end=pd.Timestamp("2025-06-30", tz=self.iso.default_timezone),
+        )
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
         assert df["Bid Type"].isin(["BUY", "SELL"]).all()
 
@@ -3071,7 +3077,11 @@ class TestErcot(BaseTestISO):
                 end=self.CRR_TEST_MONTH_END,
             )
 
-        self._check_crr_monthly_frame(df, self.crr_market_results_cols)
+        self._check_crr_monthly_frame(
+            df,
+            self.crr_market_results_cols,
+            expected_end=pd.Timestamp("2025-06-30", tz=self.iso.default_timezone),
+        )
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
 
     def test_get_crr_source_sink_shadow_prices_monthly_historical(self):
@@ -3101,6 +3111,11 @@ class TestErcot(BaseTestISO):
         assert months == [
             pd.Timestamp("2025-06-01", tz=self.iso.default_timezone),
             pd.Timestamp("2025-07-01", tz=self.iso.default_timezone),
+        ]
+        end_dates = sorted(df["Interval End"].unique())
+        assert end_dates == [
+            pd.Timestamp("2025-06-30", tz=self.iso.default_timezone),
+            pd.Timestamp("2025-07-31", tz=self.iso.default_timezone),
         ]
 
     """get_hourly_load_post_settlements"""
