@@ -15,6 +15,10 @@ from gridstatus.ercot import (
     parse_timestamp_from_friendly_name,
 )
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_COLUMNS,
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_COLUMNS,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ENERGY_BID_AWARDS_COLUMNS,
     DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_COLUMNS,
@@ -1214,6 +1218,14 @@ class TestErcot(BaseTestISO):
                 "Resource Name",
             ],
         ).any()
+
+        # AS Only Awards/Offers (ENG-3684/ENG-3688) landed in the bundle on the
+        # same 2025-12-06 operating day as ESR, so we check them here too.
+        assert DAM_AS_ONLY_AWARDS_KEY in df_dict
+        assert DAM_AS_ONLY_OFFERS_KEY in df_dict
+
+        _check_dam_as_only_awards(df_dict[DAM_AS_ONLY_AWARDS_KEY])
+        _check_dam_as_only_offers(df_dict[DAM_AS_ONLY_OFFERS_KEY])
 
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
@@ -4484,6 +4496,63 @@ def check_60_day_dam_disclosure(df_dict):
     assert not dam_load_resource_as_offers.duplicated(
         subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
     ).any()
+
+
+_AS_ONLY_PK = ["Interval Start", "QSE", "AS Type", "Offer ID"]
+
+
+def _check_dam_as_only_awards(df):
+    assert df.columns.tolist() == DAM_AS_ONLY_AWARDS_COLUMNS
+    assert len(df) > 0
+
+    # Hour Ending - 1 hour => exactly 1-hour intervals
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+
+    # Primary-key components non-null and unique
+    for pk_col in _AS_ONLY_PK:
+        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
+    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+
+    # All quantity/price columns parse as numeric
+    for col in [
+        "Quantity1 Award",
+        "Quantity2 Award",
+        "Quantity3 Award",
+        "Quantity4 Award",
+        "Quantity5 Award",
+        "Total Award",
+        "MCPC",
+    ]:
+        assert pd.api.types.is_numeric_dtype(df[col]), f"{col} is not numeric"
+
+    # Total Award should equal the sum of Quantity1..5 Award per row
+    quantity_cols = [f"Quantity{i} Award" for i in range(1, 6)]
+    assert np.allclose(
+        df[quantity_cols].sum(axis=1).astype(float),
+        df["Total Award"].astype(float),
+    )
+
+
+def _check_dam_as_only_offers(df):
+    assert df.columns.tolist() == DAM_AS_ONLY_OFFERS_COLUMNS
+    assert len(df) > 0
+
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+
+    for pk_col in _AS_ONLY_PK:
+        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
+    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+
+    # Every non-null Offer Curve must be a non-empty list of [mw, price] pairs
+    non_null = df["Offer Curve"].dropna()
+    assert len(non_null) > 0
+    for curve in non_null:
+        assert isinstance(curve, list) and len(curve) > 0
+        for point in curve:
+            assert len(point) == 2
+            mw, price = point
+            assert isinstance(mw, (int, float))
+            assert isinstance(price, (int, float))
 
 
 def _list_to_pg_string(lst):

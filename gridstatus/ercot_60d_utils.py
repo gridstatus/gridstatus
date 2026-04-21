@@ -34,6 +34,8 @@ DAM_PTP_OBLIGATION_OPTION_KEY = "dam_ptp_obligation_option"
 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY = "dam_ptp_obligation_option_awards"
 DAM_ESR_KEY = "dam_esr"
 DAM_ESR_AS_OFFERS_KEY = "dam_esr_as_offers"
+DAM_AS_ONLY_AWARDS_KEY = "dam_as_only_awards"
+DAM_AS_ONLY_OFFERS_KEY = "dam_as_only_offers"
 
 SCED_LOAD_RESOURCE_KEY = "sced_load_resource"
 SCED_GEN_RESOURCE_KEY = "sced_gen_resource"
@@ -233,6 +235,30 @@ DAM_ESR_COLUMNS = [
 
 # Same columns as gen/load resource AS offers
 DAM_ESR_AS_OFFERS_COLUMNS = DAM_RESOURCE_AS_OFFERS_COLUMNS[:]
+
+DAM_AS_ONLY_AWARDS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "AS Type",
+    "Offer ID",
+    "Quantity1 Award",
+    "Quantity2 Award",
+    "Quantity3 Award",
+    "Quantity4 Award",
+    "Quantity5 Award",
+    "Total Award",
+    "MCPC",
+]
+
+DAM_AS_ONLY_OFFERS_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "QSE",
+    "AS Type",
+    "Offer ID",
+    "Offer Curve",
+]
 
 SCED_GEN_RESOURCE_COLUMNS = [
     "SCED Timestamp",
@@ -1079,6 +1105,55 @@ def process_dam_ptp_obligation_option_awards(df):
 
     df = df[DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS].sort_values(
         ["Interval Start", "QSE"],
+    )
+    df = _categorize_strings(df)
+    return df
+
+
+def process_dam_as_only_awards(df):
+    df = df.rename(
+        columns={
+            "QSE Name": "QSE",
+            "Quantity1_Award": "Quantity1 Award",
+            "Quantity2_Award": "Quantity2 Award",
+            "Quantity3_Award": "Quantity3 Award",
+            "Quantity4_Award": "Quantity4 Award",
+            "Quantity5_Award": "Quantity5 Award",
+            "Total_Award": "Total Award",
+        },
+    )
+
+    for col in DAM_AS_ONLY_AWARDS_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[DAM_AS_ONLY_AWARDS_COLUMNS].sort_values(
+        ["Interval Start", "QSE", "AS Type", "Offer ID"],
+    )
+    df = _categorize_strings(df)
+    return df
+
+
+def process_dam_as_only_offers(
+    df,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+):
+    df = df.rename(columns={"QSE Name": "QSE"})
+
+    df["Offer Curve"] = extract_curve(
+        df,
+        "AS Only Offer",
+        mw_suffix=" MW",
+        price_suffix=" Price",
+        output_format=output_format,
+    )
+
+    for col in DAM_AS_ONLY_OFFERS_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df = df[DAM_AS_ONLY_OFFERS_COLUMNS].sort_values(
+        ["Interval Start", "QSE", "AS Type", "Offer ID"],
     )
     df = _categorize_strings(df)
     return df

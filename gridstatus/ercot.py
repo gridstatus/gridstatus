@@ -25,6 +25,8 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_KEY,
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
@@ -46,6 +48,8 @@ from gridstatus.ercot_60d_utils import (
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
     CurveOutputFormat,
+    process_dam_as_only_awards,
+    process_dam_as_only_offers,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -2886,6 +2890,8 @@ class Ercot(ISOBase):
         - "dam_ptp_obligation_option_awards"
         - "dam_esr" (when available, starting 2025-12-06)
         - "dam_esr_as_offers" (when available, starting 2025-12-06)
+        - "dam_as_only_awards" (when available, starting 2025-12-06)
+        - "dam_as_only_offers" (when available, starting 2025-12-06)
 
         and values as pandas.DataFrame objects
 
@@ -2951,10 +2957,13 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
-        # ESR files are optional (only available starting 2025-12-06)
+        # Optional files added to the disclosure bundle starting operating day
+        # 2025-12-06 (posted 2026-02-04).
         optional_files_prefix = {
             DAM_ESR_KEY: "60d_DAM_ESR_Data-",
             DAM_ESR_AS_OFFERS_KEY: "60d_DAM_ESR_ASOffers-",
+            DAM_AS_ONLY_AWARDS_KEY: "60d_DAM_AS_Only_Awards-",
+            DAM_AS_ONLY_OFFERS_KEY: "60d_DAM_AS_Only_Offers-",
         }
 
         files = {}
@@ -2998,6 +3007,8 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
                 DAM_ESR_KEY: process_dam_esr,
                 DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
+                DAM_AS_ONLY_AWARDS_KEY: process_dam_as_only_awards,
+                DAM_AS_ONLY_OFFERS_KEY: process_dam_as_only_offers,
             }
 
             # These process functions accept output_format for curve extraction
@@ -3009,6 +3020,7 @@ class Ercot(ISOBase):
                 DAM_GEN_RESOURCE_AS_OFFERS_KEY,
                 DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
                 DAM_ESR_AS_OFFERS_KEY,
+                DAM_AS_ONLY_OFFERS_KEY,
             }
 
             for file_name, process_func in file_to_function.items():
