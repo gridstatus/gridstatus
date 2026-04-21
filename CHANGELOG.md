@@ -1,5 +1,65 @@
 # Changelog
 
+## v0.36.0 - April 20, 2026
+
+### Additions (New Features/Datasets)
+
+#### ERCOT
+* ERCOT DAM Aggregated ASDC and 3-Day Highest Price SCED datasets in [#853](https://github.com/gridstatus/gridstatus/pull/853)
+* ERCOT Operations Messages dataset in [#849](https://github.com/gridstatus/gridstatus/pull/849)
+
+#### PJM
+* PJM Emergency Postings dataset in [#847](https://github.com/gridstatus/gridstatus/pull/847)
+
+#### CAISO
+* CAISO Daily Storage Report in [#843](https://github.com/gridstatus/gridstatus/pull/843)
+* CAISO 7-Day Resource Adequacy Outlook in [#826](https://github.com/gridstatus/gridstatus/pull/826)
+
+#### SPP / SWPW
+* SPP Load Forecast and Load Forecast By BAA in [#838](https://github.com/gridstatus/gridstatus/pull/838)
+* SPP West (SWPW) Interchange Real-Time scraper in [#834](https://github.com/gridstatus/gridstatus/pull/834)
+* SPP VER Curtailments: sum across BAAs and add `by_baa` methods in [#833](https://github.com/gridstatus/gridstatus/pull/833)
+* SPP Load and Load By BAA in [#831](https://github.com/gridstatus/gridstatus/pull/831)
+* Sum SPP and SWPW Fuel Mixes and add SPP Fuel Mix By BAA in [#832](https://github.com/gridstatus/gridstatus/pull/832)
+* SPP Interchange Real-Time scraper in [#822](https://github.com/gridstatus/gridstatus/pull/822)
+* SWPW Load in [#830](https://github.com/gridstatus/gridstatus/pull/830)
+* SPP Fuel Mix updates, SWPW Fuel Mix, and Rolling Year Support in [#829](https://github.com/gridstatus/gridstatus/pull/829)
+* SPP Hourly Load Long Format in [#823](https://github.com/gridstatus/gridstatus/pull/823)
+
+### Fixes
+
+#### ERCOT
+* ERCOT Messages fixes in [#852](https://github.com/gridstatus/gridstatus/pull/852)
+* Fix SCED Resource AS Offers parsing for NaN prices in [#840](https://github.com/gridstatus/gridstatus/pull/840)
+
+#### CAISO
+* Fix CAISO Fuel Regions in [#845](https://github.com/gridstatus/gridstatus/pull/845)
+* Fix CAISO ffill back to hourly values in [#844](https://github.com/gridstatus/gridstatus/pull/844)
+* Handle all encountered value types in CAISO Daily Storage Report in [#850](https://github.com/gridstatus/gridstatus/pull/850)
+
+#### SPP
+* Fix SPP Interchange historical file name for March 2026+ in [#835](https://github.com/gridstatus/gridstatus/pull/835)
+* SPP LMP Day Ahead Hourly updates in [#825](https://github.com/gridstatus/gridstatus/pull/825)
+* Default to 5 minutes of data for SPP real-time in [#841](https://github.com/gridstatus/gridstatus/pull/841)
+* Fill Missing BAA in SPP Short Term Load Forecast and extract filling logic to tested utility in [#837](https://github.com/gridstatus/gridstatus/pull/837)
+
+#### PJM
+* PJM Remove "latest" support in [#779](https://github.com/gridstatus/gridstatus/pull/779)
+* PJM Transmission Limits remove `none` in [#839](https://github.com/gridstatus/gridstatus/pull/839)
+
+#### AESO
+* Add request timeout to AESO `_make_request` in [#824](https://github.com/gridstatus/gridstatus/pull/824)
+
+#### IESO
+* IESO fetch with initial jitter in [#821](https://github.com/gridstatus/gridstatus/pull/821)
+
+#### ISONE
+* Remove empty contingency name columns for ISONE Binding Constraints in [#820](https://github.com/gridstatus/gridstatus/pull/820)
+
+### General Updates/Codebase Improvements
+* Bypass exponential retry when running tests in [#791](https://github.com/gridstatus/gridstatus/pull/791)
+* Update dependencies to resolve Dependabot security vulnerabilities in [#828](https://github.com/gridstatus/gridstatus/pull/828)
+
 ## v0.35.0 - March 13, 2026
 
 ### Additions (New Features/Datasets)
