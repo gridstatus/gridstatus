@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import vcr
 
@@ -67,6 +67,28 @@ def clean_cassettes(path: str):
     os.makedirs(path, exist_ok=True)
 
 
+def _strip_cache_buster_params(uri: str) -> str:
+    """Remove cache-buster query params (keys starting with ``_``) from a URI.
+
+    ERCOT's MIS listing endpoint appends a ``&_<epoch>`` query param on every
+    request, which breaks VCR URI matching during offline replay. Stripping
+    keys that start with ``_`` normalizes both the recorded and replayed URIs.
+    """
+    parsed = urlparse(uri)
+    if not parsed.query:
+        return uri
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    filtered = {k: v for k, v in params.items() if not k.startswith("_")}
+    return urlunparse(parsed._replace(query=urlencode(filtered, doseq=True)))
+
+
+def _match_uri_ignoring_cache_buster(
+    r1: vcr.request.Request,
+    r2: vcr.request.Request,
+) -> bool:
+    return _strip_cache_buster_params(r1.uri) == _strip_cache_buster_params(r2.uri)
+
+
 def setup_vcr(
     source: str,
     record_mode: str,
@@ -76,16 +98,19 @@ def setup_vcr(
     if record_mode == "all":
         clean_cassettes(cassette_dir)
 
-    vcr_config = {
-        "cassette_library_dir": cassette_dir,
-        "record_mode": record_mode,
-        "match_on": ["uri", "method"],
-        "before_record": lambda request: before_record_callback(request, source),
-        "filter_headers": [
+    vcr_instance = vcr.VCR(
+        cassette_library_dir=cassette_dir,
+        record_mode=record_mode,
+        match_on=["uri_no_cache_buster", "method"],
+        before_record=lambda request: before_record_callback(request, source),
+        filter_headers=[
             ("Authorization", "XXXXXX"),
             ("Ocp-Apim-Subscription-Key", "XXXXXX"),
             ("X-Api-Key", "XXXXXX"),
         ],
-    }
-
-    return vcr.VCR(**vcr_config)
+    )
+    vcr_instance.register_matcher(
+        "uri_no_cache_buster",
+        _match_uri_ignoring_cache_buster,
+    )
+    return vcr_instance

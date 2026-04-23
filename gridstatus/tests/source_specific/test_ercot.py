@@ -2946,6 +2946,189 @@ class TestErcot(BaseTestISO):
             end,
         ) - pd.DateOffset(hours=1)
 
+    """get_crr_*_monthly"""
+
+    CRR_TEST_MONTH_START = "2026-04-01"
+    CRR_TEST_MONTH_END = "2026-05-01"
+
+    crr_auction_bids_offers_cols = [
+        "Interval Start",
+        "Interval End",
+        "Path",
+        "Source",
+        "Sink",
+        "Bid Type",
+        "Hedge Type",
+        "Time of Use",
+        "MW",
+        "Bid Price Per MWh",
+        "Shadow Price Per MWh",
+    ]
+
+    crr_base_loading_cols = [
+        "Interval Start",
+        "Interval End",
+        "CRR ID",
+        "Account Holder",
+        "Source",
+        "Sink",
+        "Hedge Type",
+        "Time of Use",
+        "MW",
+        "Shadow Price Per MWh",
+        "Path",
+    ]
+
+    crr_binding_constraints_cols = [
+        "Interval Start",
+        "Interval End",
+        "Device Name",
+        "Device Type",
+        "Direction",
+        "Flow",
+        "Limit",
+        "Description",
+        "Contingency",
+        "Time of Use",
+        "Shadow Price",
+    ]
+
+    crr_market_results_cols = [
+        "Interval Start",
+        "Interval End",
+        "CRR ID",
+        "Original CRR ID",
+        "Account Holder",
+        "Hedge Type",
+        "Bid Type",
+        "CRR Type",
+        "Source",
+        "Sink",
+        "Time of Use",
+        "Bid 24 Hour",
+        "MW",
+        "Shadow Price Per MWh",
+        "Path",
+    ]
+
+    crr_source_sink_shadow_prices_cols = [
+        "Interval Start",
+        "Interval End",
+        "Source Sink",
+        "Time of Use",
+        "Shadow Price Per MWh",
+    ]
+
+    def _check_crr_monthly_frame(
+        self,
+        df: pd.DataFrame,
+        expected_cols: list[str],
+        expected_end: datetime.date | None = None,
+    ) -> None:
+        assert df.columns.tolist() == expected_cols
+        assert len(df) > 0
+        assert df["Interval Start"].map(type).eq(datetime.date).all()
+        assert df["Interval End"].map(type).eq(datetime.date).all()
+        expected_start = pd.Timestamp(self.CRR_TEST_MONTH_START).date()
+        if expected_end is None:
+            expected_end = (
+                pd.Timestamp(self.CRR_TEST_MONTH_START) + pd.offsets.MonthEnd(0)
+            ).date()
+        assert (df["Interval Start"] == expected_start).all()
+        assert (df["Interval End"] == expected_end).all()
+
+    def test_get_crr_auction_bids_offers_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_auction_bids_offers_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_auction_bids_offers_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(
+            df,
+            self.crr_auction_bids_offers_cols,
+            expected_end=datetime.date(2026, 4, 30),
+        )
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+        assert df["Bid Type"].isin(["BUY", "SELL"]).all()
+
+    def test_get_crr_base_loading_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_base_loading_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_base_loading_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(df, self.crr_base_loading_cols)
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+
+    def test_get_crr_binding_constraints_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_binding_constraints_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_binding_constraints_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(df, self.crr_binding_constraints_cols)
+        assert df["Direction"].notna().all()
+        assert df["Device Type"].notna().all()
+
+    def test_get_crr_market_results_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_market_results_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(
+            df,
+            self.crr_market_results_cols,
+            expected_end=datetime.date(2026, 4, 30),
+        )
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+
+    def test_get_crr_source_sink_shadow_prices_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_source_sink_shadow_prices_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_source_sink_shadow_prices_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(df, self.crr_source_sink_shadow_prices_cols)
+        pk = ["Source Sink", "Interval Start", "Time of Use"]
+        assert not df.duplicated(subset=pk).any()
+
+    def test_get_crr_market_results_monthly_multi_month_range(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_monthly_multi_month_range.yaml",
+        ):
+            df = self.iso.get_crr_market_results_monthly(
+                date="2026-02-01",
+                end="2026-04-01",
+            )
+
+        assert df.columns.tolist() == self.crr_market_results_cols
+        months = sorted(df["Interval Start"].unique())
+        assert months == [
+            datetime.date(2026, 2, 1),
+            datetime.date(2026, 3, 1),
+        ]
+        end_dates = sorted(df["Interval End"].unique())
+        assert end_dates == [
+            datetime.date(2026, 2, 28),
+            datetime.date(2026, 3, 31),
+        ]
+
     """get_hourly_load_post_settlements"""
 
     def _check_hourly_load_post_settlements(self, df):
