@@ -1548,9 +1548,9 @@ class TestErcot(BaseTestISO):
 
         self._check_highest_price_as_offer_selected_sced(df)
 
-    """get_3_day_highest_price_sced"""
+    """get_3_day_highest_price_bids_selected_sced"""
 
-    def _check_3_day_highest_price_sced(self, df: pd.DataFrame):
+    def _check_3_day_highest_price_bids_selected_sced(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -1572,15 +1572,58 @@ class TestErcot(BaseTestISO):
         ).all()
         assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
 
-    def test_get_3_day_highest_price_sced(self):
+    def test_get_3_day_highest_price_bids_selected_sced(self):
         date = self.local_start_of_today() - pd.DateOffset(days=4)
 
         with api_vcr.use_cassette(
-            f"test_get_3_day_highest_price_sced_{date}.yaml",
+            f"test_get_3_day_highest_price_bids_selected_sced_{date}.yaml",
         ):
-            df = self.iso.get_3_day_highest_price_sced(date)
+            df = self.iso.get_3_day_highest_price_bids_selected_sced(date)
 
-        self._check_3_day_highest_price_sced(df)
+        self._check_3_day_highest_price_bids_selected_sced(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
+    """get_3_day_highest_price_offered_sced"""
+
+    def _check_3_day_highest_price_offered_sced(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Generation Resource",
+            "LMP",
+            "Proxy Extension",
+            "Power Balance Penalty Flag",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        for col in [
+            "QSE",
+            "DME",
+            "Generation Resource",
+            "Proxy Extension",
+            "Power Balance Penalty Flag",
+        ]:
+            assert df.dtypes[col] == "object"
+        assert df.dtypes["LMP"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
+        assert set(df["Power Balance Penalty Flag"].unique()).issubset({"Yes", "No"})
+
+    def test_get_3_day_highest_price_offered_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_3_day_highest_price_offered_sced_{date}.yaml",
+        ):
+            df = self.iso.get_3_day_highest_price_offered_sced(date)
+
+        self._check_3_day_highest_price_offered_sced(df)
         assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
 
     """test get_as_reports"""
