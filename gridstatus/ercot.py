@@ -6530,11 +6530,11 @@ class Ercot(ISOBase):
             df["Interval Start"] = pd.to_datetime(
                 df["StartDate"],
                 format="%m/%d/%Y",
-            ).dt.date
+            ).dt.tz_localize(self.default_timezone)
             df["Interval End"] = pd.to_datetime(
                 df["EndDate"],
                 format="%m/%d/%Y",
-            ).dt.date
+            ).dt.tz_localize(self.default_timezone)
             df = df.rename(
                 columns={
                     "BidType": "Bid Type",
@@ -6585,8 +6585,8 @@ class Ercot(ISOBase):
         all_df = []
         for month_start, raw in frames:
             df = raw.copy()
-            df["Interval Start"] = month_start.date()
-            df["Interval End"] = (month_start + pd.offsets.MonthEnd(0)).date()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.offsets.MonthEnd(0)
             df = df.rename(
                 columns={
                     "CRR_ID": "CRR ID",
@@ -6641,8 +6641,12 @@ class Ercot(ISOBase):
                 df["CalendarPeriod"],
                 format="%b_%Y",
             )
-            df["Interval Start"] = calendar_start.dt.date
-            df["Interval End"] = (calendar_start + pd.offsets.MonthEnd(0)).dt.date
+            df["Interval Start"] = calendar_start.dt.tz_localize(
+                self.default_timezone,
+            )
+            df["Interval End"] = (
+                calendar_start + pd.offsets.MonthEnd(0)
+            ).dt.tz_localize(self.default_timezone)
             df = df.rename(
                 columns={
                     "DeviceName": "Device Name",
@@ -6654,6 +6658,7 @@ class Ercot(ISOBase):
             all_df.append(df)
 
         df = pd.concat(all_df, ignore_index=True)
+
         return df[
             [
                 "Interval Start",
@@ -6694,11 +6699,11 @@ class Ercot(ISOBase):
             df["Interval Start"] = pd.to_datetime(
                 df["StartDate"],
                 format="%m/%d/%Y",
-            ).dt.date
+            ).dt.tz_localize(self.default_timezone)
             df["Interval End"] = pd.to_datetime(
                 df["EndDate"],
                 format="%m/%d/%Y",
-            ).dt.date
+            ).dt.tz_localize(self.default_timezone)
             df = df.rename(
                 columns={
                     "CRR_ID": "CRR ID",
@@ -6761,8 +6766,12 @@ class Ercot(ISOBase):
                 df["CalendarPeriod"],
                 format="%b_%Y",
             )
-            df["Interval Start"] = calendar_start.dt.date
-            df["Interval End"] = (calendar_start + pd.offsets.MonthEnd(0)).dt.date
+            df["Interval Start"] = calendar_start.dt.tz_localize(
+                self.default_timezone,
+            )
+            df["Interval End"] = (
+                calendar_start + pd.offsets.MonthEnd(0)
+            ).dt.tz_localize(self.default_timezone)
             df = df.rename(
                 columns={
                     "SourceSink": "Source Sink",

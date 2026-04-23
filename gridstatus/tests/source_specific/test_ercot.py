@@ -3070,15 +3070,18 @@ class TestErcot(BaseTestISO):
     ) -> None:
         assert df.columns.tolist() == expected_cols
         assert len(df) > 0
-        assert df["Interval Start"].map(type).eq(datetime.date).all()
-        assert df["Interval End"].map(type).eq(datetime.date).all()
-        expected_start = pd.Timestamp(self.CRR_TEST_MONTH_START).date()
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert df["Interval Start"].dt.tz is not None
+        assert df["Interval End"].dt.tz is not None
+        tz = self.iso.default_timezone
+        expected_start = pd.Timestamp(self.CRR_TEST_MONTH_START, tz=tz)
         if expected_end is None:
-            expected_end = (
-                pd.Timestamp(self.CRR_TEST_MONTH_START) + pd.offsets.MonthEnd(0)
-            ).date()
+            expected_end_ts = expected_start + pd.offsets.MonthEnd(0)
+        else:
+            expected_end_ts = pd.Timestamp(expected_end, tz=tz)
         assert (df["Interval Start"] == expected_start).all()
-        assert (df["Interval End"] == expected_end).all()
+        assert (df["Interval End"] == expected_end_ts).all()
 
     def test_get_crr_auction_bids_offers_monthly_historical(self):
         with api_vcr.use_cassette(
@@ -3161,15 +3164,16 @@ class TestErcot(BaseTestISO):
             )
 
         assert df.columns.tolist() == self.crr_market_results_cols
+        tz = self.iso.default_timezone
         months = sorted(df["Interval Start"].unique())
         assert months == [
-            datetime.date(2026, 2, 1),
-            datetime.date(2026, 3, 1),
+            pd.Timestamp("2026-02-01", tz=tz),
+            pd.Timestamp("2026-03-01", tz=tz),
         ]
         end_dates = sorted(df["Interval End"].unique())
         assert end_dates == [
-            datetime.date(2026, 2, 28),
-            datetime.date(2026, 3, 31),
+            pd.Timestamp("2026-02-28", tz=tz),
+            pd.Timestamp("2026-03-31", tz=tz),
         ]
 
     """get_hourly_load_post_settlements"""
