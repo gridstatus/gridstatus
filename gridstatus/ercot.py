@@ -6584,7 +6584,7 @@ class Ercot(ISOBase):
             all_df.append(df)
 
         df = pd.concat(all_df, ignore_index=True)
-        df["Contingency"] = df["Contingency"].fillna("")
+
         return df[
             [
                 "Interval Start",
