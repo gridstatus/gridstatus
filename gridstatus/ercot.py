@@ -255,6 +255,10 @@ DAM_AGGREGATED_AS_OFFER_CURVE_RTID = 12330
 # https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
 THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID = 13230
 
+# 3-Day Highest Price Offered in SCED
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-916-ex
+THREE_DAY_HIGHEST_PRICE_OFFERED_SCED_RTID = 13029
+
 
 class ERCOTSevenDayLoadForecastReport(Enum):
     """
@@ -4827,7 +4831,7 @@ class Ercot(ISOBase):
         )
 
     @support_date_range("DAY_START")
-    def get_3_day_highest_price_sced(
+    def get_3_day_highest_price_bids_selected_sced(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -4860,9 +4864,12 @@ class Ercot(ISOBase):
         )
 
         df = self.read_doc(doc, parse=False, verbose=verbose)
-        return self._handle_3_day_highest_price_sced(df)
+        return self._handle_3_day_highest_price_bids_selected_sced(df)
 
-    def _handle_3_day_highest_price_sced(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _handle_3_day_highest_price_bids_selected_sced(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
         df = df.rename(
             columns={
                 "SCED Time Stamp": "SCED Timestamp",
@@ -4890,6 +4897,73 @@ class Ercot(ISOBase):
                 ]
             ]
             .sort_values(["SCED Timestamp", "QSE", "DME", "Load Resource"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("DAY_START")
+    def get_3_day_highest_price_offered_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the offer price and name of the Generation Resource submitting
+        the highest-priced offer selected by SCED for the given operating day.
+
+        Published daily, three days after the applicable operating day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np3-916-ex
+
+        Arguments:
+            date: operating day to fetch data for.
+            end: optional end operating day for date range queries.
+            verbose: print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns: Interval Start, Interval End,
+            SCED Timestamp, QSE, DME, Generation Resource, LMP,
+            Proxy Extension, Power Balance Penalty Flag.
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_OFFERED_SCED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        return self._handle_3_day_highest_price_offered_sced(df)
+
+    def _handle_3_day_highest_price_offered_sced(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCED Time Stamp": "SCED Timestamp",
+                "Repeated Hour Flag": "RepeatedHourFlag",
+            },
+        )
+        df = self._handle_sced_timestamp(df)
+
+        df["LMP"] = pd.to_numeric(df["LMP"], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Generation Resource",
+                    "LMP",
+                    "Proxy Extension",
+                    "Power Balance Penalty Flag",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "QSE", "DME", "Generation Resource"])
             .reset_index(drop=True)
         )
 
