@@ -2429,6 +2429,14 @@ class Ercot(ISOBase):
     SCED_SUPPLEMENTAL_CORRECTION_START = pd.Timestamp("2025-12-05").date()
     SCED_SUPPLEMENTAL_CORRECTION_END = pd.Timestamp("2025-12-20").date()
 
+    # Data dates for which SCED Resource AS Offers data from the normal
+    # disclosure file is incorrect and should be replaced with data from the
+    # supplemental file. Published on April 10, 2026. Report dates
+    # Feb 3, 2026 through April 3, 2026 correspond to data dates
+    # Dec 5, 2025 through Feb 2, 2026.
+    SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_START = pd.Timestamp("2025-12-05").date()
+    SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_END = pd.Timestamp("2026-02-02").date()
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2476,12 +2484,18 @@ class Ercot(ISOBase):
             <= date_as_date
             <= self.SCED_SUPPLEMENTAL_CORRECTION_END
         )
+        use_resource_as_offers_supplemental = (
+            self.SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_START
+            <= date_as_date
+            <= self.SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_END
+        )
 
         data = self._handle_60_day_sced_disclosure(
             z,
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction or use_sced_supplemental,
+            skip_resource_as_offers=use_resource_as_offers_supplemental,
             output_format=output_format,
         )
 
@@ -2505,6 +2519,16 @@ class Ercot(ISOBase):
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
 
+        if use_resource_as_offers_supplemental:
+            resource_as_offers = self._get_sced_resource_as_offers_supplemental_data(
+                date,
+                process=process,
+                verbose=verbose,
+                output_format=output_format,
+            )
+            if resource_as_offers is not None:
+                data[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
+
         return data
 
     def _handle_60_day_sced_disclosure(
@@ -2513,6 +2537,7 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        skip_resource_as_offers: bool = False,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Parse a 60-day SCED disclosure zip file into DataFrames.
@@ -2522,6 +2547,9 @@ class Ercot(ISOBase):
             process: If True, apply processing functions to standardize data.
             verbose: If True, print verbose output.
             skip_esr: If True, skip ESR data extraction.
+            skip_resource_as_offers: If True, skip Resource AS Offers data
+                extraction. Used when the caller will replace this dataset
+                with a supplemental file.
             output_format: Curve output format passed to process functions.
         """
         # TODO: there are other files in the zip folder
@@ -2564,7 +2592,7 @@ class Ercot(ISOBase):
         )
         resource_as_offers = (
             pd.read_csv(z.open(resource_as_offers_file))
-            if resource_as_offers_file
+            if resource_as_offers_file and not skip_resource_as_offers
             else None
         )
 
@@ -2873,6 +2901,89 @@ class Ercot(ISOBase):
             result[key] = df
 
         return result
+
+    def _get_sced_resource_as_offers_supplemental_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+    ) -> pd.DataFrame | None:
+        """Fetch SCED Resource AS Offers data from the supplemental file for
+        data dates Dec 5, 2025 through Feb 2, 2026.
+
+        The supplemental file was published on April 10, 2026 and covers
+        report dates Feb 3, 2026 through April 3, 2026. ERCOT published
+        incorrect Resource AS Offers data for those report dates in the
+        normal 60-Day SCED Disclosure zips.
+
+        Arguments:
+            date: The data date (not report date) to fetch supplemental data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
+
+        Returns:
+            DataFrame with corrected Resource AS Offers data, or None if the
+            supplemental file or the specific date's CSV is not found.
+        """
+        docs = self._get_documents(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            constructed_name_contains=(
+                "60d_SCED_Resource_AS_OFFERS_02032026_thru_04032026_SUPPLEMENTAL"
+            ),
+            verbose=verbose,
+        )
+
+        if not docs:
+            logger.warning(
+                "SCED Resource AS Offers supplemental file not found",
+            )
+            return None
+
+        doc = max(docs, key=lambda x: x.publish_date)
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+        # Files are named like: 60d_SCED_Resource_AS_OFFERS-03-FEB-26.csv
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        expected_filename = f"60d_SCED_Resource_AS_OFFERS-{date_str}.csv"
+
+        target_file = None
+        for file in z.namelist():
+            cleaned = file.replace(" ", "_")
+            if expected_filename in cleaned:
+                target_file = file
+                break
+
+        if target_file is None:
+            logger.warning(
+                "Could not find SCED Resource AS Offers supplemental file "
+                f"{expected_filename} in supplemental zip",
+            )
+            return None
+
+        if verbose:
+            logger.info(
+                f"Reading SCED Resource AS Offers supplemental data from {target_file}",
+            )
+
+        df = pd.read_csv(z.open(target_file))
+
+        # Localize SCED Timestamp (column is already named "SCED Timestamp"
+        # in the supplemental file, but rename defensively in case a future
+        # supplemental reverts to "SCED Time Stamp").
+        df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+        df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["Repeated Hour Flag"] == "N",
+        )
+
+        if process:
+            df = process_sced_resource_as_offers(df, output_format=output_format)
+
+        return df
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(
