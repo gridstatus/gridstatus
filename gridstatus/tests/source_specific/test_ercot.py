@@ -1082,7 +1082,10 @@ class TestErcot(BaseTestISO):
 
     def test_get_60_day_sced_disclosure_supplemental_correction(self):
         # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
-        # supplemental correction for ESR, Gen Resource, and Load Resource
+        # supplemental correction for ESR, Gen Resource, and Load Resource.
+        # Data dates Dec 5, 2025 - Feb 2, 2026 (report dates Feb 3 -
+        # April 3, 2026) need supplemental correction for Resource AS Offers.
+        # 2025-12-10 falls in both ranges.
         date = pd.Timestamp("2025-12-10").date()
 
         with api_vcr.use_cassette(
@@ -1095,19 +1098,23 @@ class TestErcot(BaseTestISO):
 
         check_60_day_sced_disclosure(df_dict)
 
-        # All three corrected datasets should be present
+        # All four corrected datasets should be present
         assert SCED_ESR_KEY in df_dict
         assert SCED_GEN_RESOURCE_KEY in df_dict
         assert SCED_LOAD_RESOURCE_KEY in df_dict
+        assert SCED_RESOURCE_AS_OFFERS_KEY in df_dict
 
         # Verify data is for the correct date
         esr = df_dict[SCED_ESR_KEY]
         gen = df_dict[SCED_GEN_RESOURCE_KEY]
         load = df_dict[SCED_LOAD_RESOURCE_KEY]
+        resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
 
         assert esr["SCED Timestamp"].dt.date.unique()[0] == date
         assert gen["SCED Timestamp"].dt.date.unique()[0] == date
         assert load["SCED Timestamp"].dt.date.unique()[0] == date
+        assert resource_as_offers["SCED Timestamp"].dt.date.unique()[0] == date
+        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
         # SMNE should still come from the normal disclosure
         smne = df_dict[SCED_SMNE_KEY]
