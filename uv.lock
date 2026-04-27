@@ -894,7 +894,7 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.20.3,<4" },
     { name = "frozendict", specifier = "~=2.4" },
     { name = "h11", specifier = ">=0.16.0,<1" },
-    { name = "lxml", specifier = "~=5.3" },
+    { name = "lxml", specifier = ">=5.3,<7" },
     { name = "openpyxl", specifier = "~=3.1" },
     { name = "pandas", specifier = "~=2.2" },
     { name = "pdfplumber", specifier = "~=0.11" },
