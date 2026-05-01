@@ -1378,7 +1378,10 @@ class CAISO(ISOBase):
         df = self._add_forecast_publish_time(
             df,
             current_time=current_time,
-            publish_time_offset_from_day_start=pd.Timedelta(hours=7),
+            publish_time_offset_from_day_start=pd.Timedelta(
+                hours=11,
+                minutes=5,
+            ),  # NOTE: only one day of data to go off.  We can adjust
         )
 
         return (
