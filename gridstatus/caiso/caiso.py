@@ -1331,6 +1331,69 @@ class CAISO(ISOBase):
             publish_time_offset=pd.Timedelta(minutes=22.5),
         )
 
+    def get_edam_wind_solar_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        params: dict | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead, hourly, BAA-level wind and solar forecasts for balancing
+        areas participating in the extended day-ahead market (EDAM).
+
+        Data at: http://oasis.caiso.com/mrioasis/logon.do at System Demand >
+        Wind and Solar Forecast (EDAM).
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+            params (dict | None, optional): overrides for OASIS query parameters
+                (e.g. ``{"baa_grp_id": None}`` omits ``baa_grp_id`` from the URL).
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: hourly EDAM wind and solar forecasts by BAA
+        """
+        data = self.get_oasis_dataset(
+            dataset="edam_wind_solar_forecast",
+            date=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        df = data.rename(
+            columns={
+                "BAA_GRP_ID": "BAA",
+                "SOLAR": "Solar",
+                "WIND": "Wind",
+            },
+        )
+
+        df["Solar"] = pd.to_numeric(df["Solar"], errors="coerce")
+        df["Wind"] = pd.to_numeric(df["Wind"], errors="coerce")
+
+        df["Publish Date"] = (
+            df["Interval Start"].dt.tz_convert(self.default_timezone).dt.normalize()
+            - pd.Timedelta(days=1)
+        ).dt.tz_convert("UTC")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Date",
+                    "BAA",
+                    "Solar",
+                    "Wind",
+                ]
+            ]
+            .sort_values(["Interval Start", "BAA"])
+            .reset_index(drop=True)
+        )
+
     def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
         start = utils._handle_date("today")
 
