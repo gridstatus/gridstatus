@@ -315,6 +315,37 @@ class TestCAISO(BaseTestISO):
         assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
 
+    def _check_edam_wind_solar_forecast(self, df: pd.DataFrame) -> None:
+        assert df.shape[0] > 0
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "BAA",
+            "Solar",
+            "Wind",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert isinstance(df.loc[0]["Publish Time"], pd.Timestamp)
+        assert df.loc[0]["Publish Time"].tz is not None
+
+        assert pd.api.types.is_numeric_dtype(df["Solar"])
+        assert pd.api.types.is_numeric_dtype(df["Wind"])
+
+        assert df["BAA"].notna().all()
+        assert not df.duplicated(subset=["Interval Start", "BAA"]).any()
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
     def test_get_renewables_forecast_dam_today(self):
         with caiso_vcr.use_cassette(
             "test_get_renewables_forecast_dam_today.yaml",
@@ -378,6 +409,33 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_renewables_forecast_dam(start, end=end)
 
             self._check_solar_and_wind_forecast(df, 1)
+
+    """get_edam_wind_solar_forecast"""
+
+    def test_get_edam_wind_solar_forecast_today(self):
+        with caiso_vcr.use_cassette(
+            "test_get_edam_wind_solar_forecast_today.yaml",
+        ):
+            df = self.iso.get_edam_wind_solar_forecast("today")
+        self._check_edam_wind_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_edam_wind_solar_forecast_historical_date(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_edam_wind_solar_forecast_{date}.yaml",
+        ):
+            df = self.iso.get_edam_wind_solar_forecast(date)
+        self._check_edam_wind_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
 
     def test_get_renewables_forecast_hasp_latest(self):
         with caiso_vcr.use_cassette(
