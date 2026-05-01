@@ -321,7 +321,7 @@ class TestCAISO(BaseTestISO):
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
-            "Publish Date",
+            "Publish Time",
             "BAA",
             "Solar",
             "Wind",
@@ -333,8 +333,8 @@ class TestCAISO(BaseTestISO):
             skip_column_named_time=True,
         )
 
-        assert isinstance(df.loc[0]["Publish Date"], pd.Timestamp)
-        assert df.loc[0]["Publish Date"].tz is not None
+        assert isinstance(df.loc[0]["Publish Time"], pd.Timestamp)
+        assert df.loc[0]["Publish Time"].tz is not None
 
         assert pd.api.types.is_numeric_dtype(df["Solar"])
         assert pd.api.types.is_numeric_dtype(df["Wind"])

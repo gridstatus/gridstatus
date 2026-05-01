@@ -1354,6 +1354,8 @@ class CAISO(ISOBase):
         Returns:
             pandas.DataFrame: hourly EDAM wind and solar forecasts by BAA
         """
+        current_time = pd.Timestamp.now(tz=self.default_timezone)
+
         data = self.get_oasis_dataset(
             dataset="edam_wind_solar_forecast",
             date=date,
@@ -1362,7 +1364,6 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
-
         df = data.rename(
             columns={
                 "BAA_GRP_ID": "BAA",
@@ -1374,17 +1375,18 @@ class CAISO(ISOBase):
         df["Solar"] = pd.to_numeric(df["Solar"], errors="coerce")
         df["Wind"] = pd.to_numeric(df["Wind"], errors="coerce")
 
-        df["Publish Date"] = (
-            df["Interval Start"].dt.tz_convert(self.default_timezone).dt.normalize()
-            - pd.Timedelta(days=1)
-        ).dt.tz_convert("UTC")
+        df = self._add_forecast_publish_time(
+            df,
+            current_time=current_time,
+            publish_time_offset_from_day_start=pd.Timedelta(hours=7),
+        )
 
         return (
             df[
                 [
                     "Interval Start",
                     "Interval End",
-                    "Publish Date",
+                    "Publish Time",
                     "BAA",
                     "Solar",
                     "Wind",
