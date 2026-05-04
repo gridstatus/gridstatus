@@ -1381,7 +1381,7 @@ class CAISO(ISOBase):
             publish_time_offset_from_day_start=pd.Timedelta(
                 hours=11,
                 minutes=5,
-            ),  # NOTE: only one day of data to go off.  We can adjust
+            ),
         )
 
         return (
