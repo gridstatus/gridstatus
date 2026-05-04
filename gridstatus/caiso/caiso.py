@@ -1393,16 +1393,11 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        sleep: int = 5,
-        max_retries: int = 3,
         verbose: bool = False,
     ) -> list[dict]:
         """Fetch the OASIS XML version of the EDAM Wind and Solar Forecast
         and return a list of row dicts that include the publish timestamp
         from each daily file's ``MessageHeader.TimeDate``.
-
-        Mirrors the retry-on-429 pattern of ``_get_oasis``; OASIS rate-limits
-        back-to-back requests so back-to-back daily chunks must back off.
         """
         start = utils._handle_date(date, self.default_timezone)
         if end is not None:
@@ -1416,18 +1411,10 @@ class CAISO(ISOBase):
         )
         logger.info(f"Fetching URL: {url}")
 
-        # NOTE: Rate limit gets hit quickly if pulling multiple days
-        retry_num = 0
-        while retry_num < max_retries:
-            r = requests.get(url, verify=True)
-            if r.status_code == 200:
-                break
-            retry_num += 1
-            logger.info(
-                f"Failed to get data from CAISO. Error: {r.status_code}. Retrying...{retry_num} / {max_retries}",
-            )
-            time.sleep(sleep)
-            sleep *= retry_num
+        # NOTE: OASIS rate-limits ~1 request per 5s; pace daily chunks to stay under it.
+        # Matches the _get_oasis retry-on-429 pattern
+        time.sleep(5)
+        r = requests.get(url, verify=True)
         r.raise_for_status()
 
         rows: list[dict] = []
