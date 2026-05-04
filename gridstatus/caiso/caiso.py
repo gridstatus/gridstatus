@@ -1489,37 +1489,21 @@ class CAISO(ISOBase):
             "Location Type",
         ] = "DLAP"
 
-        if market == Markets.DAY_AHEAD_HOURLY:
-            df = df[
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Market",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                    "Energy",
-                    "Congestion",
-                    "Loss",
-                ]
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+                "GHG",
             ]
-        else:
-            df = df[
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Market",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                    "Energy",
-                    "Congestion",
-                    "Loss",
-                    "GHG",
-                ]
-            ]
+        ]
 
         # data = utils.filter_lmp_locations(df, locations=location_filter)
         data = df
