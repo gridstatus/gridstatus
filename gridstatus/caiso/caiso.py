@@ -3,6 +3,7 @@ import io
 import re
 import time
 import warnings
+import xml.etree.ElementTree as ElementTree
 from typing import Literal
 from zipfile import ZipFile
 
@@ -1331,11 +1332,11 @@ class CAISO(ISOBase):
             publish_time_offset=pd.Timedelta(minutes=22.5),
         )
 
+    @support_date_range(frequency="DAY_START")
     def get_edam_wind_solar_forecast(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-        params: dict | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Day-ahead, hourly, BAA-level wind and solar forecasts for balancing
@@ -1344,44 +1345,33 @@ class CAISO(ISOBase):
         Data at: http://oasis.caiso.com/mrioasis/logon.do at Energy >
         EDAM > Wind and Solar Forecast.
 
+        Per the OASIS Publications Schedule, the report is published every
+        30 minutes between 6:00 and 10:00 AM Pacific. The Publish Time on
+        each row is the actual publish timestamp pulled from the
+        ``MessageHeader.TimeDate`` of the corresponding XML report, not a
+        derived offset.
+
         Args:
             date (str | pd.Timestamp): date to return data
             end (str | pd.Timestamp | None, optional): last date of range to return data.
-            params (dict | None, optional): overrides for OASIS query parameters
-                (e.g. ``{"baa_grp_id": None}`` omits ``baa_grp_id`` from the URL).
             verbose (bool, optional): print out url being fetched. Defaults to False.
 
         Returns:
             pandas.DataFrame: hourly EDAM wind and solar forecasts by BAA
         """
-        current_time = pd.Timestamp.now(tz=self.default_timezone)
-
-        data = self.get_oasis_dataset(
-            dataset="edam_wind_solar_forecast",
+        rows = self._fetch_edam_wind_solar_forecast_xml(
             date=date,
             end=end,
-            params=params,
             verbose=verbose,
-            raw_data=False,
         )
-        df = data.rename(
-            columns={
-                "BAA_GRP_ID": "BAA",
-                "SOLAR": "Solar",
-                "WIND": "Wind",
-            },
+        df = pd.DataFrame(rows)
+        df["Solar"] = pd.to_numeric(df["Solar"])
+        df["Wind"] = pd.to_numeric(df["Wind"])
+        df["Interval Start"] = df["Interval Start"].dt.tz_convert(
+            self.default_timezone,
         )
-
-        df["Solar"] = pd.to_numeric(df["Solar"], errors="coerce")
-        df["Wind"] = pd.to_numeric(df["Wind"], errors="coerce")
-
-        df = self._add_forecast_publish_time(
-            df,
-            current_time=current_time,
-            publish_time_offset_from_day_start=pd.Timedelta(
-                hours=11,
-                minutes=5,
-            ),
+        df["Interval End"] = df["Interval End"].dt.tz_convert(
+            self.default_timezone,
         )
 
         return (
@@ -1398,6 +1388,78 @@ class CAISO(ISOBase):
             .sort_values(["Interval Start", "BAA"])
             .reset_index(drop=True)
         )
+
+    def _fetch_edam_wind_solar_forecast_xml(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 5,
+        max_retries: int = 3,
+        verbose: bool = False,
+    ) -> list[dict]:
+        """Fetch the OASIS XML version of the EDAM Wind and Solar Forecast
+        and return a list of row dicts that include the publish timestamp
+        from each daily file's ``MessageHeader.TimeDate``.
+
+        Mirrors the retry-on-429 pattern of ``_get_oasis``; OASIS rate-limits
+        back-to-back requests so back-to-back daily chunks must back off.
+        """
+        start = utils._handle_date(date, self.default_timezone)
+        if end is not None:
+            end = utils._handle_date(end, self.default_timezone)
+        start_str, end_str = _caiso_handle_start_end(start, end)
+
+        url = (
+            "http://oasis.caiso.com/oasisapi/GroupZip"
+            f"?resultformat=5&version=1&groupid=EDAM_WND_SLR_FORECAST_GRP"
+            f"&startdatetime={start_str}&enddatetime={end_str}"
+        )
+        logger.info(f"Fetching URL: {url}")
+
+        # NOTE: Rate limit gets hit quickly if pulling multiple days
+        retry_num = 0
+        while retry_num < max_retries:
+            r = requests.get(url, verify=True)
+            if r.status_code == 200:
+                break
+            retry_num += 1
+            logger.info(
+                f"Failed to get data from CAISO. Error: {r.status_code}. Retrying...{retry_num} / {max_retries}",
+            )
+            time.sleep(sleep)
+            sleep *= retry_num
+        r.raise_for_status()
+
+        rows: list[dict] = []
+        ns = "{http://www.caiso.com/soa/EDAMWindAndSolarForecast_v1.xsd}"
+        with ZipFile(io.BytesIO(r.content)) as z:
+            for fname in z.namelist():
+                with z.open(fname) as fh:
+                    tree = ElementTree.parse(fh)
+                root = tree.getroot()
+                publish_time = pd.Timestamp(
+                    root.find(f"./{ns}MessageHeader/{ns}TimeDate").text,
+                )
+                for record in root.iter(f"{ns}REPORT_DATA"):
+                    fields = {child.tag.replace(ns, ""): child.text for child in record}
+                    rows.append(
+                        {
+                            "Interval Start": pd.to_datetime(
+                                fields["INTERVAL_START_GMT"],
+                                utc=True,
+                            ),
+                            "Interval End": pd.to_datetime(
+                                fields["INTERVAL_END_GMT"],
+                                utc=True,
+                            ),
+                            "Publish Time": publish_time,
+                            "BAA": fields["BAA_GRP_ID"],
+                            "Solar": fields["SOLAR"],
+                            "Wind": fields["WIND"],
+                        },
+                    )
+
+        return rows
 
     def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
         start = utils._handle_date("today")

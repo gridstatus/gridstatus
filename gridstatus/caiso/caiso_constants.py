@@ -162,16 +162,6 @@ OASIS_DATASET_CONFIG = {
             "max_query_frequency": "1d",
         },
     },
-    "edam_wind_solar_forecast": {
-        "query": {
-            "path": "GroupZip",
-            "resultformat": 6,
-            "version": 1,
-        },
-        "params": {
-            "groupid": "EDAM_WND_SLR_FORECAST_GRP",
-        },
-    },
     "pnode_map": {
         "query": {
             "path": "SingleZip",
