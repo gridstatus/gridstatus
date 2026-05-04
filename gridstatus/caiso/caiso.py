@@ -1341,8 +1341,8 @@ class CAISO(ISOBase):
         """Day-ahead, hourly, BAA-level wind and solar forecasts for balancing
         areas participating in the extended day-ahead market (EDAM).
 
-        Data at: http://oasis.caiso.com/mrioasis/logon.do at System Demand >
-        Wind and Solar Forecast (EDAM).
+        Data at: http://oasis.caiso.com/mrioasis/logon.do at Energy >
+        EDAM > Wind and Solar Forecast.
 
         Args:
             date (str | pd.Timestamp): date to return data
