@@ -756,6 +756,7 @@ class TestCAISO(BaseTestISO):
         "Energy",
         "Congestion",
         "Loss",
+        "GHG",
     ]
 
     @with_markets(
