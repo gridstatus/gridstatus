@@ -82,6 +82,19 @@ OASIS_DATASET_CONFIG = {
             ],
         },
     },
+    "ir_rc_prices_day_ahead_hourly": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 1,
+        },
+        "params": {
+            "groupid": "DAM_CAP_PRC_GRP",
+        },
+        "meta": {
+            "max_query_frequency": "1d",
+        },
+    },
     "fuel_prices": {
         "query": {
             "path": "SingleZip",

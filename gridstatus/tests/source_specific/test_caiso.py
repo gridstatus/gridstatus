@@ -1,4 +1,5 @@
 import math
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -52,6 +53,84 @@ class TestCAISO(BaseTestISO):
             for market in ["DAM", "RTM"]:
                 df = self.iso.get_as_procurement(date, market=market)
                 self._check_as_data(df, market)
+
+    """get_ir_rc_prices"""
+
+    IR_RC_PRICES_COLUMNS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Location",
+        "Product",
+        "MCP",
+        "Capacity",
+        "Congestion",
+        "Loss",
+    ]
+
+    def _check_ir_rc_prices(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == self.IR_RC_PRICES_COLUMNS
+        assert df.shape[0] > 0
+        assert set(df["Product"].unique()) == {"IRU", "IRD", "RCU", "RCD"}
+        interval_minutes = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        assert (interval_minutes == 60).all()
+        assert not df.duplicated(
+            subset=["Interval Start", "Location", "Product"],
+        ).any()
+        ir_loss_null = df.loc[df["Product"].isin(["IRU", "IRD"]), "Loss"].isna().all()
+        assert ir_loss_null
+
+    @pytest.fixture
+    def caiso_real_sleep(self, disable_exponential_backoff_sleep):
+        if RECORD_MODE != "all":
+            yield
+            return
+        mock.patch.stopall()
+        yield
+        for module in [
+            "gridstatus.pjm",
+            "gridstatus.ercot_api.ercot_api",
+            "gridstatus.miso_api",
+            "gridstatus.ieso",
+            "gridstatus.isone_api.isone_api",
+            "gridstatus.caiso.caiso",
+        ]:
+            patcher = mock.patch(f"{module}.time.sleep", return_value=None)
+            patcher.start()
+
+    @pytest.mark.parametrize("date", ["2026-05-01", "2026-05-02"])
+    def test_get_ir_rc_prices(self, date, caiso_real_sleep):
+        with caiso_vcr.use_cassette(f"test_get_ir_rc_prices_{date}.yaml"):
+            df = self.iso.get_ir_rc_prices(date=date)
+            self._check_ir_rc_prices(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(hours=23)
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [("2026-05-01", "2026-05-03")],
+    )
+    def test_get_ir_rc_prices_date_range(self, start, end, caiso_real_sleep):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_prices_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_ir_rc_prices(date=start, end=end, sleep=15)
+            self._check_ir_rc_prices(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(start)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                end,
+            ) - pd.Timedelta(hours=1)
+
+    def test_get_ir_rc_prices_before_publication(self, caiso_real_sleep):
+        with caiso_vcr.use_cassette(
+            "test_get_ir_rc_prices_before_publication.yaml",
+        ):
+            df = self.iso.get_ir_rc_prices(date="2026-04-15")
+            assert df.empty
 
     """get_fuel_mix"""
 
