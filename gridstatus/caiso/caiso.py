@@ -2110,6 +2110,72 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
+    def get_ir_rc_prices(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return day-ahead nodal Imbalance Reserve and Reliability Capacity prices.
+
+        The Marginal Clearing Price for Reliability Capacity (RCU/RCD) is comprised
+        of Capacity, Congestion, and Loss components, while Imbalance Reserves
+        (IRU/IRD) only have Capacity and Congestion components (Loss is NaN).
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of IR/RC prices with one row per
+            (Interval Start, Location, Product). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_prices_day_ahead_hourly",
+            start=date,
+            end=end,
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Product",
+            "MCP",
+            "Capacity",
+            "Congestion",
+            "Loss",
+        ]
+
+        df = df.rename(
+            columns={
+                "NODE": "Location",
+                "PRODUCT": "Product",
+                "MARGINAL_CLEARING_PRICE": "MCP",
+                "CAPACITY_PRICE": "Capacity",
+                "CONGESTION_PRICE": "Congestion",
+                "LOSS_PRICE": "Loss",
+            },
+        )
+
+        df = df[columns]
+
+        df = df.sort_values(
+            ["Interval Start", "Location", "Product"],
+        ).reset_index(drop=True)
+
+        return df
+
+    @support_date_range(frequency="DAY_START")
     def get_curtailed_non_operational_generator_report(
         self,
         date: str | pd.Timestamp,
