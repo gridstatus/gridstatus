@@ -2146,7 +2146,6 @@ class CAISO(ISOBase):
         )
 
         columns = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Location",
@@ -2156,9 +2155,6 @@ class CAISO(ISOBase):
             "Congestion",
             "Loss",
         ]
-
-        if df.empty:
-            return pd.DataFrame(columns=columns)
 
         df = df.rename(
             columns={
