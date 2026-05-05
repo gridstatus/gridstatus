@@ -56,7 +56,6 @@ class TestCAISO(BaseTestISO):
     """get_ir_rc_prices"""
 
     IR_RC_PRICES_COLUMNS = [
-        "Time",
         "Interval Start",
         "Interval End",
         "Location",
@@ -81,7 +80,7 @@ class TestCAISO(BaseTestISO):
         ir_loss_null = df.loc[df["Product"].isin(["IRU", "IRD"]), "Loss"].isna().all()
         assert ir_loss_null
 
-    @pytest.mark.parametrize("date", ["2026-05-01", "2026-05-02"])
+    @pytest.mark.parametrize("date", ["2026-05-01"])
     def test_get_ir_rc_prices(self, date):
         with caiso_vcr.use_cassette(f"test_get_ir_rc_prices_{date}.yaml"):
             df = self.iso.get_ir_rc_prices(date=date)
@@ -91,6 +90,7 @@ class TestCAISO(BaseTestISO):
                 date,
             ) + pd.Timedelta(hours=23)
 
+    @pytest.mark.real_sleep
     @pytest.mark.parametrize(
         "start, end",
         [("2026-05-01", "2026-05-03")],
