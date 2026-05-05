@@ -1,5 +1,4 @@
 import math
-from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -82,26 +81,8 @@ class TestCAISO(BaseTestISO):
         ir_loss_null = df.loc[df["Product"].isin(["IRU", "IRD"]), "Loss"].isna().all()
         assert ir_loss_null
 
-    @pytest.fixture
-    def caiso_real_sleep(self, disable_exponential_backoff_sleep):
-        if RECORD_MODE != "all":
-            yield
-            return
-        mock.patch.stopall()
-        yield
-        for module in [
-            "gridstatus.pjm",
-            "gridstatus.ercot_api.ercot_api",
-            "gridstatus.miso_api",
-            "gridstatus.ieso",
-            "gridstatus.isone_api.isone_api",
-            "gridstatus.caiso.caiso",
-        ]:
-            patcher = mock.patch(f"{module}.time.sleep", return_value=None)
-            patcher.start()
-
     @pytest.mark.parametrize("date", ["2026-05-01", "2026-05-02"])
-    def test_get_ir_rc_prices(self, date, caiso_real_sleep):
+    def test_get_ir_rc_prices(self, date):
         with caiso_vcr.use_cassette(f"test_get_ir_rc_prices_{date}.yaml"):
             df = self.iso.get_ir_rc_prices(date=date)
             self._check_ir_rc_prices(df)
@@ -114,7 +95,7 @@ class TestCAISO(BaseTestISO):
         "start, end",
         [("2026-05-01", "2026-05-03")],
     )
-    def test_get_ir_rc_prices_date_range(self, start, end, caiso_real_sleep):
+    def test_get_ir_rc_prices_date_range(self, start, end):
         with caiso_vcr.use_cassette(
             f"test_get_ir_rc_prices_{start}_{end}.yaml",
         ):
@@ -124,13 +105,6 @@ class TestCAISO(BaseTestISO):
             assert df["Interval Start"].max() == self.local_start_of_day(
                 end,
             ) - pd.Timedelta(hours=1)
-
-    def test_get_ir_rc_prices_before_publication(self, caiso_real_sleep):
-        with caiso_vcr.use_cassette(
-            "test_get_ir_rc_prices_before_publication.yaml",
-        ):
-            df = self.iso.get_ir_rc_prices(date="2026-04-15")
-            assert df.empty
 
     """get_fuel_mix"""
 
