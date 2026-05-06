@@ -1,6 +1,9 @@
+import datetime
 from io import StringIO
 from typing import Dict
+from unittest import mock
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -12,6 +15,10 @@ from gridstatus.ercot import (
     parse_timestamp_from_friendly_name,
 )
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_COLUMNS,
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_COLUMNS,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ENERGY_BID_AWARDS_COLUMNS,
     DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_COLUMNS,
@@ -51,6 +58,11 @@ from gridstatus.ercot_60d_utils import (
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_COLUMNS,
     SCED_SMNE_KEY,
+    CurveOutputFormat,
+    _categorize_strings,
+    extract_curve,
+    process_as_offer_curves,
+    process_sced_resource_as_offers,
 )
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -245,6 +257,180 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_real_time_system_conditions()
         assert df.shape == (1, 15)
         assert df.columns[0] == "Time"
+
+    """get_operations_messages"""
+
+    expected_operations_messages_cols = [
+        "Time",
+        "Notice",
+        "Type",
+        "Status",
+    ]
+
+    SAMPLE_OPS_MESSAGES_DF = pd.DataFrame(
+        {
+            "Date & Time": [
+                "Apr 14, 2026 2:23:50 AM",
+                "Apr 14, 2026 12:04:02 AM",
+            ],
+            "Notice": [
+                "ERCOT has cancelled the following notice: Railroad DC Tie derated.",
+                "No sudden loss of generation greater than 450 MW occurred.",
+            ],
+            "Type": [
+                "Operational Information",
+                "Operational Information",
+            ],
+            "Status": [
+                "Cancelled",
+                "Active",
+            ],
+        },
+    )
+
+    def test_get_operations_messages(self):
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert len(df) == 2
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Time"].dt.tz) == str(self.iso.default_timezone)
+        assert df["Notice"].iloc[0] is not None
+        assert df["Type"].iloc[0] == "Operational Information"
+        assert set(df["Status"]) == {"Active", "Cancelled"}
+
+    def test_get_operations_messages_sorted_by_time(self):
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_operations_messages_single_row(self):
+        single_row_df = pd.DataFrame(
+            {
+                "Date & Time": ["Mar 10, 2026 9:00:00 AM"],
+                "Notice": ["Advisory issued due to tool unavailability."],
+                "Type": ["Advisory"],
+                "Status": ["Active"],
+            },
+        )
+        with mock.patch(
+            "gridstatus.ercot.pd.read_html",
+            return_value=[single_row_df],
+        ):
+            df = self.iso.get_operations_messages()
+
+        assert len(df) == 1
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert df["Type"].iloc[0] == "Advisory"
+
+    def test_get_operations_messages_historical_deduplicates(self):
+        snap1 = pd.DataFrame(
+            {
+                "Date & Time": [
+                    "Jan 10, 2026 2:00:00 PM",
+                    "Jan 9, 2026 12:00:00 AM",
+                ],
+                "Notice": ["Msg A", "Msg B"],
+                "Type": ["Operational Information", "Operational Information"],
+                "Status": ["Active", "Active"],
+            },
+        )
+        snap2 = pd.DataFrame(
+            {
+                "Date & Time": [
+                    "Jan 15, 2026 8:00:00 AM",
+                    "Jan 10, 2026 2:00:00 PM",
+                ],
+                "Notice": ["Msg C", "Msg A"],
+                "Type": ["Advisory", "Operational Information"],
+                "Status": ["Active", "Active"],
+            },
+        )
+
+        with mock.patch(
+            "gridstatus.ercot.requests.get",
+        ) as mock_requests_get:
+            mock_cdx_resp = mock.Mock()
+            mock_cdx_resp.json.return_value = [
+                ["timestamp", "statuscode"],
+                ["20260110000000", "200"],
+                ["20260115000000", "200"],
+            ]
+            mock_cdx_resp.raise_for_status = mock.Mock()
+            mock_requests_get.return_value = mock_cdx_resp
+
+            with mock.patch(
+                "gridstatus.ercot.pd.read_html",
+                side_effect=[[snap1], [snap2]],
+            ):
+                df = self.iso.get_operations_messages(
+                    date="2026-01-01",
+                    end="2026-02-01",
+                )
+
+        assert len(df) == 3
+        assert df["Notice"].tolist() == ["Msg B", "Msg A", "Msg C"]
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_operations_messages_historical_filters_to_range(self):
+        snap = pd.DataFrame(
+            {
+                "Date & Time": [
+                    "Jan 15, 2026 8:00:00 AM",
+                    "Dec 28, 2025 3:00:00 PM",
+                ],
+                "Notice": ["In range", "Out of range"],
+                "Type": ["Operational Information", "Operational Information"],
+                "Status": ["Active", "Active"],
+            },
+        )
+
+        with mock.patch(
+            "gridstatus.ercot.requests.get",
+        ) as mock_requests_get:
+            mock_cdx_resp = mock.Mock()
+            mock_cdx_resp.json.return_value = [
+                ["timestamp", "statuscode"],
+                ["20260115000000", "200"],
+            ]
+            mock_cdx_resp.raise_for_status = mock.Mock()
+            mock_requests_get.return_value = mock_cdx_resp
+
+            with mock.patch(
+                "gridstatus.ercot.pd.read_html",
+                return_value=[snap],
+            ):
+                df = self.iso.get_operations_messages(
+                    date="2026-01-01",
+                    end="2026-02-01",
+                )
+
+        assert len(df) == 1
+        assert df["Notice"].iloc[0] == "In range"
+
+    def test_get_operations_messages_historical_wayback(self):
+        with api_vcr.use_cassette(
+            "test_get_operations_messages_historical_wayback.yaml",
+        ):
+            df = self.iso.get_operations_messages(
+                date="2026-01-01",
+                end="2026-01-15",
+            )
+        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert len(df) > 0
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert df["Time"].min() >= pd.Timestamp("2026-01-01", tz="US/Central")
+        assert df["Time"].max() < pd.Timestamp("2026-01-15", tz="US/Central")
+        assert df["Time"].is_monotonic_increasing
+        assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
 
     @pytest.mark.integration
     def test_get_energy_storage_resources(self):
@@ -896,7 +1082,10 @@ class TestErcot(BaseTestISO):
 
     def test_get_60_day_sced_disclosure_supplemental_correction(self):
         # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
-        # supplemental correction for ESR, Gen Resource, and Load Resource
+        # supplemental correction for ESR, Gen Resource, and Load Resource.
+        # Data dates Dec 5, 2025 - Feb 2, 2026 (report dates Feb 3 -
+        # April 3, 2026) need supplemental correction for Resource AS Offers.
+        # 2025-12-10 falls in both ranges.
         date = pd.Timestamp("2025-12-10").date()
 
         with api_vcr.use_cassette(
@@ -909,19 +1098,23 @@ class TestErcot(BaseTestISO):
 
         check_60_day_sced_disclosure(df_dict)
 
-        # All three corrected datasets should be present
+        # All four corrected datasets should be present
         assert SCED_ESR_KEY in df_dict
         assert SCED_GEN_RESOURCE_KEY in df_dict
         assert SCED_LOAD_RESOURCE_KEY in df_dict
+        assert SCED_RESOURCE_AS_OFFERS_KEY in df_dict
 
         # Verify data is for the correct date
         esr = df_dict[SCED_ESR_KEY]
         gen = df_dict[SCED_GEN_RESOURCE_KEY]
         load = df_dict[SCED_LOAD_RESOURCE_KEY]
+        resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
 
         assert esr["SCED Timestamp"].dt.date.unique()[0] == date
         assert gen["SCED Timestamp"].dt.date.unique()[0] == date
         assert load["SCED Timestamp"].dt.date.unique()[0] == date
+        assert resource_as_offers["SCED Timestamp"].dt.date.unique()[0] == date
+        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
         # SMNE should still come from the normal disclosure
         smne = df_dict[SCED_SMNE_KEY]
@@ -1032,6 +1225,14 @@ class TestErcot(BaseTestISO):
                 "Resource Name",
             ],
         ).any()
+
+        # AS Only Awards/Offers (ENG-3684/ENG-3688) landed in the bundle on the
+        # same 2025-12-06 operating day as ESR, so we check them here too.
+        assert DAM_AS_ONLY_AWARDS_KEY in df_dict
+        assert DAM_AS_ONLY_OFFERS_KEY in df_dict
+
+        _check_dam_as_only_awards(df_dict[DAM_AS_ONLY_AWARDS_KEY])
+        _check_dam_as_only_offers(df_dict[DAM_AS_ONLY_OFFERS_KEY])
 
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
@@ -1353,6 +1554,84 @@ class TestErcot(BaseTestISO):
         assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
 
         self._check_highest_price_as_offer_selected_sced(df)
+
+    """get_3_day_highest_price_bids_selected_sced"""
+
+    def _check_3_day_highest_price_bids_selected_sced(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Load Resource",
+            "Highest Price Dispatched by SCED",
+            "Proxy Extension",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        for col in ["QSE", "DME", "Load Resource", "Proxy Extension"]:
+            assert df.dtypes[col] == "object"
+        assert df.dtypes["Highest Price Dispatched by SCED"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
+
+    def test_get_3_day_highest_price_bids_selected_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_3_day_highest_price_bids_selected_sced_{date}.yaml",
+        ):
+            df = self.iso.get_3_day_highest_price_bids_selected_sced(date)
+
+        self._check_3_day_highest_price_bids_selected_sced(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
+    """get_3_day_highest_price_offered_sced"""
+
+    def _check_3_day_highest_price_offered_sced(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Generation Resource",
+            "LMP",
+            "Proxy Extension",
+            "Power Balance Penalty Flag",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        for col in [
+            "QSE",
+            "DME",
+            "Generation Resource",
+            "Proxy Extension",
+            "Power Balance Penalty Flag",
+        ]:
+            assert df.dtypes[col] == "object"
+        assert df.dtypes["LMP"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
+        assert set(df["Power Balance Penalty Flag"].unique()).issubset({"Yes", "No"})
+
+    def test_get_3_day_highest_price_offered_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_3_day_highest_price_offered_sced_{date}.yaml",
+        ):
+            df = self.iso.get_3_day_highest_price_offered_sced(date)
+
+        self._check_3_day_highest_price_offered_sced(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
 
     """test get_as_reports"""
 
@@ -2419,6 +2698,80 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
 
+    def test_get_lmp_settlement_point_uses_mapping(self):
+        with api_vcr.use_cassette("test_get_lmp_settlement_point_uses_mapping.yaml"):
+            df = self.iso.get_lmp(
+                date="today",
+                location_type="Settlement Point",
+                verbose=True,
+            )
+        cols = [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+        assert df.columns.tolist() == cols
+        assert df.shape[0] >= 0
+        assert df["Location Type"].notna().all()
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+
+    """get_lmp_by_bus_dam"""
+
+    expected_lmp_by_bus_dam_columns = [
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+    ]
+
+    def _check_lmp_by_bus_dam(self, df):
+        assert df.columns.tolist() == self.expected_lmp_by_bus_dam_columns
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.value).all()
+        assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
+        assert df.dtypes["LMP"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_lmp_by_bus_dam_today(self):
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_today.yaml"):
+            df = self.iso.get_lmp_by_bus_dam("today", verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_lmp_by_bus_dam_latest(self):
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_latest.yaml"):
+            df = self.iso.get_lmp_by_bus_dam("latest", verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_lmp_by_bus_dam_historical(self):
+        date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_historical.yaml"):
+            df = self.iso.get_lmp_by_bus_dam(date, verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.DateOffset(days=1)
+
+    def test_get_lmp_by_bus_dam_date_range(self):
+        start = pd.Timestamp("2026-03-04", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-03-06", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_date_range.yaml"):
+            df = self.iso.get_lmp_by_bus_dam(start, end=end, verbose=True)
+        self._check_lmp_by_bus_dam(df)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
     def test_read_docs_return_empty_df(self):
         df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
 
@@ -2676,6 +3029,193 @@ class TestErcot(BaseTestISO):
             end,
         ) - pd.DateOffset(hours=1)
 
+    """get_crr_*_monthly"""
+
+    CRR_TEST_MONTH_START = "2026-04-01"
+    CRR_TEST_MONTH_END = "2026-05-01"
+
+    crr_auction_bids_offers_cols = [
+        "Interval Start",
+        "Interval End",
+        "Path",
+        "Source",
+        "Sink",
+        "Bid Type",
+        "Hedge Type",
+        "Time of Use",
+        "MW",
+        "Bid Price Per MWh",
+        "Shadow Price Per MWh",
+    ]
+
+    crr_base_loading_cols = [
+        "Interval Start",
+        "Interval End",
+        "CRR ID",
+        "Account Holder",
+        "Source",
+        "Sink",
+        "Hedge Type",
+        "Time of Use",
+        "MW",
+        "Shadow Price Per MWh",
+        "Path",
+    ]
+
+    crr_binding_constraints_cols = [
+        "Interval Start",
+        "Interval End",
+        "Device Name",
+        "Device Type",
+        "Direction",
+        "Flow",
+        "Limit",
+        "Description",
+        "Contingency",
+        "Time of Use",
+        "Shadow Price",
+    ]
+
+    crr_market_results_cols = [
+        "Interval Start",
+        "Interval End",
+        "CRR ID",
+        "Original CRR ID",
+        "Account Holder",
+        "Hedge Type",
+        "Bid Type",
+        "CRR Type",
+        "Source",
+        "Sink",
+        "Time of Use",
+        "Bid 24 Hour",
+        "MW",
+        "Shadow Price Per MWh",
+        "Path",
+    ]
+
+    crr_source_sink_shadow_prices_cols = [
+        "Interval Start",
+        "Interval End",
+        "Source Sink",
+        "Time of Use",
+        "Shadow Price Per MWh",
+    ]
+
+    def _check_crr_monthly_frame(
+        self,
+        df: pd.DataFrame,
+        expected_cols: list[str],
+        expected_end: datetime.date | None = None,
+    ) -> None:
+        assert df.columns.tolist() == expected_cols
+        assert len(df) > 0
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert df["Interval Start"].dt.tz is not None
+        assert df["Interval End"].dt.tz is not None
+        tz = self.iso.default_timezone
+        expected_start = pd.Timestamp(self.CRR_TEST_MONTH_START, tz=tz)
+        if expected_end is None:
+            expected_end_ts = expected_start + pd.offsets.MonthEnd(0)
+        else:
+            expected_end_ts = pd.Timestamp(expected_end, tz=tz)
+        assert (df["Interval Start"] == expected_start).all()
+        assert (df["Interval End"] == expected_end_ts).all()
+
+    def test_get_crr_auction_bids_offers_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_auction_bids_offers_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_auction_bids_offers_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(
+            df,
+            self.crr_auction_bids_offers_cols,
+            expected_end=datetime.date(2026, 4, 30),
+        )
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+        assert df["Bid Type"].isin(["BUY", "SELL"]).all()
+
+    def test_get_crr_base_loading_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_base_loading_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_base_loading_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(df, self.crr_base_loading_cols)
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+
+    def test_get_crr_binding_constraints_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_binding_constraints_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_binding_constraints_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(df, self.crr_binding_constraints_cols)
+        assert df["Direction"].notna().all()
+        assert df["Device Type"].notna().all()
+
+    def test_get_crr_market_results_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_market_results_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(
+            df,
+            self.crr_market_results_cols,
+            expected_end=datetime.date(2026, 4, 30),
+        )
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+
+    def test_get_crr_source_sink_shadow_prices_monthly_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_source_sink_shadow_prices_monthly_historical.yaml",
+        ):
+            df = self.iso.get_crr_source_sink_shadow_prices_monthly(
+                date=self.CRR_TEST_MONTH_START,
+                end=self.CRR_TEST_MONTH_END,
+            )
+
+        self._check_crr_monthly_frame(df, self.crr_source_sink_shadow_prices_cols)
+        pk = ["Source Sink", "Interval Start", "Time of Use"]
+        assert not df.duplicated(subset=pk).any()
+
+    def test_get_crr_market_results_monthly_multi_month_range(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_monthly_multi_month_range.yaml",
+        ):
+            df = self.iso.get_crr_market_results_monthly(
+                date="2026-02-01",
+                end="2026-04-01",
+            )
+
+        assert df.columns.tolist() == self.crr_market_results_cols
+        tz = self.iso.default_timezone
+        months = sorted(df["Interval Start"].unique())
+        assert months == [
+            pd.Timestamp("2026-02-01", tz=tz),
+            pd.Timestamp("2026-03-01", tz=tz),
+        ]
+        end_dates = sorted(df["Interval End"].unique())
+        assert end_dates == [
+            pd.Timestamp("2026-02-28", tz=tz),
+            pd.Timestamp("2026-03-31", tz=tz),
+        ]
+
     """get_hourly_load_post_settlements"""
 
     def _check_hourly_load_post_settlements(self, df):
@@ -2749,6 +3289,119 @@ class TestErcot(BaseTestISO):
 
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
         assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
+
+    """get_mcpc_dam"""
+
+    def _check_get_mcpc_dam(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["MCPC"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        # 5 AS types * 24 hours = 120 rows per day
+        assert set(df["AS Type"].unique()) == {"ECRS", "NSPIN", "REGDN", "REGUP", "RRS"}
+
+    def test_get_mcpc_dam_today(self):
+        with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
+            df = self.iso.get_mcpc_dam("today", verbose=True)
+        self._check_get_mcpc_dam(df)
+
+    def test_get_mcpc_dam_latest(self):
+        with api_vcr.use_cassette("test_get_mcpc_dam_latest.yaml"):
+            df = self.iso.get_mcpc_dam("latest")
+        self._check_get_mcpc_dam(df)
+
+    def test_get_mcpc_dam_historical(self):
+        date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_mcpc_dam_historical.yaml"):
+            df = self.iso.get_mcpc_dam(date, verbose=True)
+        self._check_get_mcpc_dam(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.DateOffset(days=1)
+
+    def test_get_mcpc_dam_date_range(self):
+        start = pd.Timestamp("2026-03-04", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-03-06", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_mcpc_dam_date_range.yaml"):
+            df = self.iso.get_mcpc_dam(start, end=end, verbose=True)
+        self._check_get_mcpc_dam(df)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+
+    """get_shadow_prices_dam"""
+
+    expected_shadow_prices_dam_columns = [
+        "Interval Start",
+        "Interval End",
+        "Constraint ID",
+        "Constraint Name",
+        "Contingency Name",
+        "Limiting Facility",
+        "Constraint Limit",
+        "Constraint Value",
+        "Violation Amount",
+        "Shadow Price",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+    ]
+
+    def _check_shadow_prices_dam(self, df):
+        assert df.columns.tolist() == self.expected_shadow_prices_dam_columns
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert (
+            df.loc[
+                df["Contingency Name"] == "BASE CASE",
+                "Limiting Facility",
+            ]
+            .isna()
+            .all()
+        )
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "From Station",
+            "To Station",
+        ]:
+            assert df[col].dropna().str.strip().equals(df[col].dropna())
+
+    def test_get_shadow_prices_dam_today(self):
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_today.yaml"):
+            df = self.iso.get_shadow_prices_dam("today", verbose=True)
+        self._check_shadow_prices_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_shadow_prices_dam_latest(self):
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_latest.yaml"):
+            df = self.iso.get_shadow_prices_dam("latest")
+        self._check_shadow_prices_dam(df)
+        assert df.shape[0] > 0
+
+    def test_get_shadow_prices_dam_historical(self):
+        date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_historical.yaml"):
+            df = self.iso.get_shadow_prices_dam(date, verbose=True)
+        self._check_shadow_prices_dam(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval End"].max() == date + pd.DateOffset(days=1)
+
+    def test_get_shadow_prices_dam_date_range(self):
+        start = pd.Timestamp("2026-03-04", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-03-06", tz=self.iso.default_timezone)
+        with api_vcr.use_cassette("test_get_shadow_prices_dam_date_range.yaml"):
+            df = self.iso.get_shadow_prices_dam(start, end=end, verbose=True)
+        self._check_shadow_prices_dam(df)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
 
     """get_mcpc_sced"""
 
@@ -2894,6 +3547,66 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max() == (
             end + pd.DateOffset(days=1) - pd.Timedelta(hours=1)
         ).tz_localize(self.iso.default_timezone)
+
+    """get_dam_asdc_aggregated"""
+
+    # Per NP4-19-CD documentation, the dataset advertises REGDN, REGUP, RRSPF,
+    # RRSFF, RRSUF, ECRSS, and ECRSM; in practice the published files also
+    # include the pre-ECRS NSPIN and NSPNM products.
+    allowed_dam_asdc_aggregated_as_types = {
+        "REGDN",
+        "REGUP",
+        "RRSPF",
+        "RRSFF",
+        "RRSUF",
+        "ECRSS",
+        "ECRSM",
+        "NSPIN",
+        "NSPNM",
+    }
+
+    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "Price",
+            "Quantity",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Price"] == "float64"
+        assert df.dtypes["Quantity"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert set(df["AS Type"].unique()).issubset(
+            self.allowed_dam_asdc_aggregated_as_types,
+        )
+
+    def test_get_dam_asdc_aggregated_latest(self):
+        with api_vcr.use_cassette("test_get_dam_asdc_aggregated_latest.yaml"):
+            df = self.iso.get_dam_asdc_aggregated("latest")
+        self._check_get_dam_asdc_aggregated(df)
+
+    def test_get_dam_asdc_aggregated_date_range(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_dam_asdc_aggregated_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_dam_asdc_aggregated(date, end)
+
+        self._check_get_dam_asdc_aggregated(df)
+
+        assert df["Interval Start"].min() == date.tz_localize(
+            self.iso.default_timezone,
+        )
+        assert df["Interval End"].max() == end.tz_localize(
+            self.iso.default_timezone,
+        )
 
     """get_as_deployment_factors_projected"""
 
@@ -3600,6 +4313,104 @@ class TestErcot(BaseTestISO):
         assert df["PRC"].iloc[0] == 5000.0
         assert df["ORDC Online"].iloc[0] == 3500.0
 
+    """get_settlement_points_electrical_bus_mapping"""
+
+    settlement_points_electrical_bus_mapping_cols = [
+        "Publish Date",
+        "Electrical Bus",
+        "Node Name",
+        "PSSE Bus Name",
+        "Voltage Level",
+        "Substation",
+        "Settlement Load Zone",
+        "Resource Node",
+        "Hub Bus Name",
+        "Hub",
+        "PSSE Bus Number",
+    ]
+
+    def test_get_settlement_points_electrical_bus_mapping(self):
+        with api_vcr.use_cassette(
+            "test_get_settlement_points_electrical_bus_mapping.yaml",
+        ):
+            df = self.iso.get_settlement_points_electrical_bus_mapping(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
+        assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+
+    """get_ccp_resource_names"""
+
+    ccp_resource_names_cols = [
+        "Publish Date",
+        "CCP Name",
+        "Logical Resource Node Name",
+    ]
+
+    def test_get_ccp_resource_names(self):
+        with api_vcr.use_cassette("test_get_ccp_resource_names.yaml"):
+            df = self.iso.get_ccp_resource_names(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.ccp_resource_names_cols
+        assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+
+    """get_noie_mapping"""
+
+    noie_mapping_cols = [
+        "Publish Date",
+        "Physical Load",
+        "NOIE",
+        "Voltage",
+        "Substation",
+        "Electrical Bus",
+    ]
+
+    def test_get_noie_mapping(self):
+        with api_vcr.use_cassette("test_get_noie_mapping.yaml"):
+            df = self.iso.get_noie_mapping(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.noie_mapping_cols
+        assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+
+    """get_resource_node_to_unit"""
+
+    resource_node_to_unit_cols = [
+        "Publish Date",
+        "Resource Node",
+        "Unit Substation",
+        "Unit Name",
+    ]
+
+    def test_get_resource_node_to_unit(self):
+        with api_vcr.use_cassette("test_get_resource_node_to_unit.yaml"):
+            df = self.iso.get_resource_node_to_unit(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.resource_node_to_unit_cols
+        assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+
+    """get_hub_name_dc_ties"""
+
+    hub_name_dc_ties_cols = [
+        "Publish Date",
+        "Name",
+    ]
+
+    def test_get_hub_name_dc_ties(self):
+        with api_vcr.use_cassette("test_get_hub_name_dc_ties.yaml"):
+            df = self.iso.get_hub_name_dc_ties(date="latest")
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.hub_name_dc_ties_cols
+        assert df["Publish Date"].notna().all()
+        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
+        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+
 
 def check_load_forecast_by_model(df: pd.DataFrame) -> None:
     """Check load forecast by model DataFrame structure and types."""
@@ -3662,6 +4473,242 @@ def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
         assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
+def _make_sced_resource_as_offers_df(rows):
+    """Build a DataFrame matching the raw SCED Resource AS Offers schema.
+
+    Accepts dicts with explicit values. Missing PRICE/QUANTITY columns
+    default to 0 (affected-period format) or can be set to np.nan by the
+    caller (corrected-period format).
+    """
+    as_suffixes = ["URS", "DRS", "RRSPF", "RRSUF", "RRSFF", "NS", "ECRS"]
+    n_blocks = 6
+    all_cols = ["SCED Timestamp", "Resource Name"]
+    for i in range(1, n_blocks + 1):
+        for suffix in as_suffixes:
+            all_cols.append(f"PRICE{i}_{suffix}")
+        all_cols.append(f"QUANTITY_MW{i}")
+
+    data = []
+    for row in rows:
+        record = {col: 0 for col in all_cols}
+        record.update(row)
+        data.append(record)
+    return pd.DataFrame(data, columns=all_cols)
+
+
+# fmt: off
+# Actual rows from ERCOT 60-Day SCED Resource AS Offers, OD 2026-01-15
+# (affected period: nulls converted to zeros)
+_AEEC_ANTLP_3_ONRES_AFFECTED = {
+    "SCED Timestamp": "2026-01-15 00:00:18",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 24.0, "QUANTITY_MW2": 9.8, "QUANTITY_MW3": 24.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 54.0,
+    "PRICE1_URS": 7.50, "PRICE2_URS": 0.0, "PRICE3_URS": 0.0,
+    "PRICE4_URS": 0.0, "PRICE5_URS": 0.0, "PRICE6_URS": 1423.91,
+    "PRICE1_DRS": 0.0, "PRICE2_DRS": 0.0, "PRICE3_DRS": 0.0,
+    "PRICE4_DRS": 0.0, "PRICE5_DRS": 0.0, "PRICE6_DRS": 0.0,
+    "PRICE1_RRSPF": 0.0, "PRICE2_RRSPF": 8.0, "PRICE3_RRSPF": 0.0,
+    "PRICE4_RRSPF": 0.0, "PRICE5_RRSPF": 0.0, "PRICE6_RRSPF": 974.41,
+    "PRICE1_RRSUF": 0.0, "PRICE2_RRSUF": 0.0, "PRICE3_RRSUF": 0.0,
+    "PRICE4_RRSUF": 0.0, "PRICE5_RRSUF": 0.0, "PRICE6_RRSUF": 974.41,
+    "PRICE1_RRSFF": 0.0, "PRICE2_RRSFF": 0.0, "PRICE3_RRSFF": 0.0,
+    "PRICE4_RRSFF": 0.0, "PRICE5_RRSFF": 0.0, "PRICE6_RRSFF": 974.41,
+    "PRICE1_NS": 0.0, "PRICE2_NS": 0.0, "PRICE3_NS": 8.0,
+    "PRICE4_NS": 0.0, "PRICE5_NS": 0.0, "PRICE6_NS": 172.32,
+    "PRICE1_ECRS": 0.0, "PRICE2_ECRS": 0.0, "PRICE3_ECRS": 0.0,
+    "PRICE4_ECRS": 0.0, "PRICE5_ECRS": 0.0, "PRICE6_ECRS": 974.41,
+}
+_AEEC_ANTLP_3_REGDN_AFFECTED = {
+    "SCED Timestamp": "2026-01-15 00:00:18",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 24.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 54.0,
+    "PRICE1_URS": 0.0, "PRICE2_URS": 0.0, "PRICE3_URS": 0.0,
+    "PRICE4_URS": 0.0, "PRICE5_URS": 0.0, "PRICE6_URS": 0.0,
+    "PRICE1_DRS": 10.0, "PRICE2_DRS": 0.0, "PRICE3_DRS": 0.0,
+    "PRICE4_DRS": 0.0, "PRICE5_DRS": 0.0, "PRICE6_DRS": 1999.99,
+    "PRICE1_RRSPF": 0.0, "PRICE2_RRSPF": 0.0, "PRICE3_RRSPF": 0.0,
+    "PRICE4_RRSPF": 0.0, "PRICE5_RRSPF": 0.0, "PRICE6_RRSPF": 0.0,
+    "PRICE1_RRSUF": 0.0, "PRICE2_RRSUF": 0.0, "PRICE3_RRSUF": 0.0,
+    "PRICE4_RRSUF": 0.0, "PRICE5_RRSUF": 0.0, "PRICE6_RRSUF": 0.0,
+    "PRICE1_RRSFF": 0.0, "PRICE2_RRSFF": 0.0, "PRICE3_RRSFF": 0.0,
+    "PRICE4_RRSFF": 0.0, "PRICE5_RRSFF": 0.0, "PRICE6_RRSFF": 0.0,
+    "PRICE1_NS": 0.0, "PRICE2_NS": 0.0, "PRICE3_NS": 0.0,
+    "PRICE4_NS": 0.0, "PRICE5_NS": 0.0, "PRICE6_NS": 0.0,
+    "PRICE1_ECRS": 0.0, "PRICE2_ECRS": 0.0, "PRICE3_ECRS": 0.0,
+    "PRICE4_ECRS": 0.0, "PRICE5_ECRS": 0.0, "PRICE6_ECRS": 0.0,
+}
+_AEEC_ANTLP_3_OFFNS_AFFECTED = {
+    "SCED Timestamp": "2026-01-15 00:00:18",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 54.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 54.0,
+    "PRICE1_URS": 0.0, "PRICE2_URS": 0.0, "PRICE3_URS": 0.0,
+    "PRICE4_URS": 0.0, "PRICE5_URS": 0.0, "PRICE6_URS": 0.0,
+    "PRICE1_DRS": 0.0, "PRICE2_DRS": 0.0, "PRICE3_DRS": 0.0,
+    "PRICE4_DRS": 0.0, "PRICE5_DRS": 0.0, "PRICE6_DRS": 0.0,
+    "PRICE1_RRSPF": 0.0, "PRICE2_RRSPF": 0.0, "PRICE3_RRSPF": 0.0,
+    "PRICE4_RRSPF": 0.0, "PRICE5_RRSPF": 0.0, "PRICE6_RRSPF": 0.0,
+    "PRICE1_RRSUF": 0.0, "PRICE2_RRSUF": 0.0, "PRICE3_RRSUF": 0.0,
+    "PRICE4_RRSUF": 0.0, "PRICE5_RRSUF": 0.0, "PRICE6_RRSUF": 0.0,
+    "PRICE1_RRSFF": 0.0, "PRICE2_RRSFF": 0.0, "PRICE3_RRSFF": 0.0,
+    "PRICE4_RRSFF": 0.0, "PRICE5_RRSFF": 0.0, "PRICE6_RRSFF": 0.0,
+    "PRICE1_NS": 8.0, "PRICE2_NS": 0.0, "PRICE3_NS": 0.0,
+    "PRICE4_NS": 0.0, "PRICE5_NS": 0.0, "PRICE6_NS": 172.32,
+    "PRICE1_ECRS": 0.0, "PRICE2_ECRS": 0.0, "PRICE3_ECRS": 0.0,
+    "PRICE4_ECRS": 0.0, "PRICE5_ECRS": 0.0, "PRICE6_ECRS": 0.0,
+}
+
+# Same resource from OD 2026-02-03 (corrected period: proper nulls)
+_N = np.nan
+_AEEC_ANTLP_3_ONRES_CORRECTED = {
+    "SCED Timestamp": "2026-02-03 00:00:23",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 16.0, "QUANTITY_MW2": 6.2, "QUANTITY_MW3": 16.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 36.0,
+    "PRICE1_URS": 7.50, "PRICE2_URS": _N, "PRICE3_URS": _N,
+    "PRICE4_URS": _N, "PRICE5_URS": _N, "PRICE6_URS": 1420.8,
+    "PRICE1_DRS": _N, "PRICE2_DRS": _N, "PRICE3_DRS": _N,
+    "PRICE4_DRS": _N, "PRICE5_DRS": _N, "PRICE6_DRS": _N,
+    "PRICE1_RRSPF": _N, "PRICE2_RRSPF": 8.0, "PRICE3_RRSPF": _N,
+    "PRICE4_RRSPF": _N, "PRICE5_RRSPF": _N, "PRICE6_RRSPF": 742.99,
+    "PRICE1_RRSUF": _N, "PRICE2_RRSUF": _N, "PRICE3_RRSUF": _N,
+    "PRICE4_RRSUF": _N, "PRICE5_RRSUF": _N, "PRICE6_RRSUF": 742.99,
+    "PRICE1_RRSFF": _N, "PRICE2_RRSFF": _N, "PRICE3_RRSFF": _N,
+    "PRICE4_RRSFF": _N, "PRICE5_RRSFF": _N, "PRICE6_RRSFF": 742.99,
+    "PRICE1_NS": _N, "PRICE2_NS": _N, "PRICE3_NS": 8.0,
+    "PRICE4_NS": _N, "PRICE5_NS": _N, "PRICE6_NS": 183.16,
+    "PRICE1_ECRS": _N, "PRICE2_ECRS": _N, "PRICE3_ECRS": _N,
+    "PRICE4_ECRS": _N, "PRICE5_ECRS": _N, "PRICE6_ECRS": 742.99,
+}
+_AEEC_ANTLP_3_REGDN_CORRECTED = {
+    "SCED Timestamp": "2026-02-03 00:00:23",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 16.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 36.0,
+    "PRICE1_URS": _N, "PRICE2_URS": _N, "PRICE3_URS": _N,
+    "PRICE4_URS": _N, "PRICE5_URS": _N, "PRICE6_URS": _N,
+    "PRICE1_DRS": 10.0, "PRICE2_DRS": _N, "PRICE3_DRS": _N,
+    "PRICE4_DRS": _N, "PRICE5_DRS": _N, "PRICE6_DRS": 1999.99,
+    "PRICE1_RRSPF": _N, "PRICE2_RRSPF": _N, "PRICE3_RRSPF": _N,
+    "PRICE4_RRSPF": _N, "PRICE5_RRSPF": _N, "PRICE6_RRSPF": _N,
+    "PRICE1_RRSUF": _N, "PRICE2_RRSUF": _N, "PRICE3_RRSUF": _N,
+    "PRICE4_RRSUF": _N, "PRICE5_RRSUF": _N, "PRICE6_RRSUF": _N,
+    "PRICE1_RRSFF": _N, "PRICE2_RRSFF": _N, "PRICE3_RRSFF": _N,
+    "PRICE4_RRSFF": _N, "PRICE5_RRSFF": _N, "PRICE6_RRSFF": _N,
+    "PRICE1_NS": _N, "PRICE2_NS": _N, "PRICE3_NS": _N,
+    "PRICE4_NS": _N, "PRICE5_NS": _N, "PRICE6_NS": _N,
+    "PRICE1_ECRS": _N, "PRICE2_ECRS": _N, "PRICE3_ECRS": _N,
+    "PRICE4_ECRS": _N, "PRICE5_ECRS": _N, "PRICE6_ECRS": _N,
+}
+_AEEC_ANTLP_3_OFFNS_CORRECTED = {
+    "SCED Timestamp": "2026-02-03 00:00:23",
+    "Resource Name": "AEEC_ANTLP_3",
+    "QUANTITY_MW1": 36.0, "QUANTITY_MW2": 0.0, "QUANTITY_MW3": 0.0,
+    "QUANTITY_MW4": 0.0, "QUANTITY_MW5": 0.0, "QUANTITY_MW6": 36.0,
+    "PRICE1_URS": _N, "PRICE2_URS": _N, "PRICE3_URS": _N,
+    "PRICE4_URS": _N, "PRICE5_URS": _N, "PRICE6_URS": _N,
+    "PRICE1_DRS": _N, "PRICE2_DRS": _N, "PRICE3_DRS": _N,
+    "PRICE4_DRS": _N, "PRICE5_DRS": _N, "PRICE6_DRS": _N,
+    "PRICE1_RRSPF": _N, "PRICE2_RRSPF": _N, "PRICE3_RRSPF": _N,
+    "PRICE4_RRSPF": _N, "PRICE5_RRSPF": _N, "PRICE6_RRSPF": _N,
+    "PRICE1_RRSUF": _N, "PRICE2_RRSUF": _N, "PRICE3_RRSUF": _N,
+    "PRICE4_RRSUF": _N, "PRICE5_RRSUF": _N, "PRICE6_RRSUF": _N,
+    "PRICE1_RRSFF": _N, "PRICE2_RRSFF": _N, "PRICE3_RRSFF": _N,
+    "PRICE4_RRSFF": _N, "PRICE5_RRSFF": _N, "PRICE6_RRSFF": _N,
+    "PRICE1_NS": 8.0, "PRICE2_NS": _N, "PRICE3_NS": _N,
+    "PRICE4_NS": _N, "PRICE5_NS": _N, "PRICE6_NS": 183.16,
+    "PRICE1_ECRS": _N, "PRICE2_ECRS": _N, "PRICE3_ECRS": _N,
+    "PRICE4_ECRS": _N, "PRICE5_ECRS": _N, "PRICE6_ECRS": _N,
+}
+# fmt: on
+
+
+class TestProcessScedResourceAsOffers:
+    """Tests for process_sced_resource_as_offers curve type detection.
+
+    ERCOT notice M-B040326-01: corrected files use NaN instead of zero
+    for empty AS Sub-Type Offer Prices. These tests use actual rows from
+    AEEC_ANTLP_3 on OD 2026-01-15 (affected) and OD 2026-02-03 (corrected)
+    to verify curve type classification works with both formats.
+    """
+
+    def test_online_with_zeros(self):
+        """Affected AEEC_ANTLP_3 ONRES row: zeros in inactive AS types."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_AFFECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_online_with_nans(self):
+        """Corrected AEEC_ANTLP_3 ONRES row: NaN in inactive AS types."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_regulation_down_with_zeros(self):
+        """Affected AEEC_ANTLP_3 REGDN row: zeros in all non-DRS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_REGDN_AFFECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Regulation Down"
+
+    def test_regulation_down_with_nans(self):
+        """Corrected AEEC_ANTLP_3 REGDN row: NaN in all non-DRS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_REGDN_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Regulation Down"
+
+    def test_offline_with_zeros(self):
+        """Affected AEEC_ANTLP_3 OFFNS row: zeros in all non-NS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_OFFNS_AFFECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Offline"
+
+    def test_offline_with_nans(self):
+        """Corrected AEEC_ANTLP_3 OFFNS row: NaN in all non-NS columns."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_OFFNS_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result["Curve Type"].iloc[0] == "Offline"
+
+    def test_three_rows_per_resource_with_nans(self):
+        """Corrected AEEC_ANTLP_3: all 3 rows classified correctly."""
+        df = _make_sced_resource_as_offers_df(
+            [
+                _AEEC_ANTLP_3_ONRES_CORRECTED,
+                _AEEC_ANTLP_3_REGDN_CORRECTED,
+                _AEEC_ANTLP_3_OFFNS_CORRECTED,
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == [
+            "Online",
+            "Regulation Down",
+            "Offline",
+        ]
+
+    def test_corrected_curves_exclude_nan_blocks(self):
+        """Corrected ONRES row: only blocks with real prices appear in curves."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+
+        # URS has prices in blocks 1 (7.50) and 6 (1420.8)
+        urs_curve = result["URS Offer Curve"].iloc[0]
+        assert urs_curve == [[16.0, 7.5], [36.0, 1420.8]]
+
+        # RRSPF has prices in blocks 2 (8.0) and 6 (742.99)
+        rrspf_curve = result["RRSPFR Offer Curve"].iloc[0]
+        assert rrspf_curve == [[6.2, 8.0], [36.0, 742.99]]
+
+        # DRS is entirely NaN — should be None
+        assert result["DRS Offer Curve"].iloc[0] is None
+
+    def test_output_columns(self):
+        """Verify processed output has the standard column set."""
+        df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
+        result = process_sced_resource_as_offers(df)
+        assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+
+
 def check_60_day_dam_disclosure(df_dict):
     assert df_dict is not None
 
@@ -3719,3 +4766,303 @@ def check_60_day_dam_disclosure(df_dict):
     assert not dam_load_resource_as_offers.duplicated(
         subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
     ).any()
+
+
+_AS_ONLY_PK = ["Interval Start", "QSE", "AS Type", "Offer ID"]
+
+
+def _check_dam_as_only_awards(df):
+    assert df.columns.tolist() == DAM_AS_ONLY_AWARDS_COLUMNS
+    assert len(df) > 0
+
+    # Hour Ending - 1 hour => exactly 1-hour intervals
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+
+    # Primary-key components non-null and unique
+    for pk_col in _AS_ONLY_PK:
+        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
+    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+
+    # All quantity/price columns parse as numeric
+    for col in [
+        "Quantity1 Award",
+        "Quantity2 Award",
+        "Quantity3 Award",
+        "Quantity4 Award",
+        "Quantity5 Award",
+        "Total Award",
+        "MCPC",
+    ]:
+        assert pd.api.types.is_numeric_dtype(df[col]), f"{col} is not numeric"
+
+    # Total Award should equal the sum of Quantity1..5 Award per row
+    quantity_cols = [f"Quantity{i} Award" for i in range(1, 6)]
+    assert np.allclose(
+        df[quantity_cols].sum(axis=1).astype(float),
+        df["Total Award"].astype(float),
+    )
+
+
+def _check_dam_as_only_offers(df):
+    assert df.columns.tolist() == DAM_AS_ONLY_OFFERS_COLUMNS
+    assert len(df) > 0
+
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+
+    for pk_col in _AS_ONLY_PK:
+        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
+    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+
+    # Every non-null Offer Curve must be a non-empty list of [mw, price] pairs
+    non_null = df["Offer Curve"].dropna()
+    assert len(non_null) > 0
+    for curve in non_null:
+        assert isinstance(curve, list) and len(curve) > 0
+        for point in curve:
+            assert len(point) == 2
+            mw, price = point
+            assert isinstance(mw, (int, float))
+            assert isinstance(price, (int, float))
+
+
+def _list_to_pg_string(lst):
+    """Convert a list-of-lists like [[1.0, 2.0], [3.0, 4.0]] to PG array string."""
+    return str(lst).replace("[", "{").replace("]", "}").replace(" ", "")
+
+
+class TestExtractCurveFormats:
+    """Equivalence tests between list and pg_array output formats."""
+
+    def _make_auto_detect_df(self, n_rows=100, n_blocks=5, curve_name="TestCurve"):
+        """Create a synthetic DataFrame with auto-detect column naming."""
+
+        rng = np.random.default_rng(42)
+        data = {}
+        for i in range(1, n_blocks + 1):
+            data[f"{curve_name}-MW{i}"] = rng.uniform(10, 500, n_rows)
+            data[f"{curve_name}-Price{i}"] = rng.uniform(5, 100, n_rows)
+        return pd.DataFrame(data)
+
+    def _make_explicit_cols_df(self, n_rows=100, n_blocks=6):
+        """Create a synthetic DataFrame with explicit column naming (SCED-style)."""
+
+        rng = np.random.default_rng(42)
+        data = {}
+        for i in range(1, n_blocks + 1):
+            data[f"QUANTITY_MW{i}"] = rng.uniform(10, 500, n_rows)
+            data[f"PRICE{i}_URS"] = rng.uniform(5, 100, n_rows)
+        return pd.DataFrame(data)
+
+    def test_extract_curve_list_vs_pg_array_auto_detect(self):
+        """Test that pg_array output matches list output (auto-detect)."""
+        df = self._make_auto_detect_df()
+        list_result = extract_curve(
+            df,
+            curve_name="TestCurve",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df,
+            curve_name="TestCurve",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert len(list_result) == len(pg_result)
+        for i in range(len(list_result)):
+            assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def test_extract_curve_list_vs_pg_array_explicit_cols(self):
+        """Test that pg_array output matches list output (explicit columns)."""
+        df = self._make_explicit_cols_df()
+        mw_cols = [f"QUANTITY_MW{i}" for i in range(1, 7)]
+        price_cols = [f"PRICE{i}_URS" for i in range(1, 7)]
+
+        list_result = extract_curve(
+            df,
+            mw_cols=mw_cols,
+            price_cols=price_cols,
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df,
+            mw_cols=mw_cols,
+            price_cols=price_cols,
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert len(list_result) == len(pg_result)
+        for i in range(len(list_result)):
+            assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def test_extract_curve_pg_array_edge_cases(self):
+        """Test edge cases: all-NaN rows, partial NaN rows, single-block curves."""
+
+        # All-NaN row
+        df_nan = pd.DataFrame(
+            {
+                "C-MW1": [np.nan, 100.0],
+                "C-MW2": [np.nan, 200.0],
+                "C-Price1": [np.nan, 10.0],
+                "C-Price2": [np.nan, 20.0],
+            },
+        )
+        list_result = extract_curve(
+            df_nan,
+            curve_name="C",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df_nan,
+            curve_name="C",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        # All-NaN row should produce None for both formats
+        assert list_result.iloc[0] is None
+        assert pg_result.iloc[0] is None
+
+        # Valid row should match
+        assert _list_to_pg_string(list_result.iloc[1]) == pg_result.iloc[1]
+
+        # Partial NaN - only first block valid
+        df_partial = pd.DataFrame(
+            {
+                "C-MW1": [100.0],
+                "C-MW2": [np.nan],
+                "C-Price1": [10.0],
+                "C-Price2": [np.nan],
+            },
+        )
+        list_result = extract_curve(
+            df_partial,
+            curve_name="C",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df_partial,
+            curve_name="C",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+        assert _list_to_pg_string(list_result.iloc[0]) == pg_result.iloc[0]
+
+        # Single-block curve
+        df_single = pd.DataFrame({"C-MW1": [50.0, 75.0], "C-Price1": [25.0, 30.0]})
+        list_result = extract_curve(
+            df_single,
+            curve_name="C",
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = extract_curve(
+            df_single,
+            curve_name="C",
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+        for i in range(len(list_result)):
+            assert _list_to_pg_string(list_result.iloc[i]) == pg_result.iloc[i]
+
+    def _make_as_offer_curves_df(self):
+        """Create synthetic input for process_as_offer_curves."""
+        n_blocks = 3
+        services = ["RRSPFR", "REGUP"]
+        rows = []
+        for resource in ["RES_A", "RES_B"]:
+            row = {
+                "Interval Start": pd.Timestamp("2025-01-01 00:00"),
+                "Interval End": pd.Timestamp("2025-01-01 01:00"),
+                "Resource Name": resource,
+                "QSE": "QSE1",
+                "DME": "DME1",
+                "Multi-Hour Block Flag": "N",
+            }
+            for i in range(1, n_blocks + 1):
+                row[f"BLOCK INDICATOR{i}"] = "ON"
+                row[f"QUANTITY MW{i}"] = 100.0 * i
+                for svc in services:
+                    row[f"PRICE{i} {svc}"] = 10.0 * i + (0.5 if svc == "REGUP" else 0)
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def test_process_as_offer_curves_list_vs_pg_array(self):
+        """Curves from list format match pg_array_as_string when converted."""
+        df = self._make_as_offer_curves_df()
+        list_result = process_as_offer_curves(
+            df.copy(),
+            output_format=CurveOutputFormat.LIST,
+        )
+        pg_result = process_as_offer_curves(
+            df.copy(),
+            output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
+        )
+
+        assert list(list_result.columns) == list(pg_result.columns)
+        assert len(list_result) == len(pg_result)
+
+        # Non-curve columns should match
+        non_curve_cols = [
+            c for c in list_result.columns if not c.endswith("Offer Curve")
+        ]
+        for col in non_curve_cols:
+            assert list(list_result[col]) == list(pg_result[col])
+
+        # Curve columns: convert list to pg string and compare
+        curve_cols = [c for c in list_result.columns if c.endswith("Offer Curve")]
+        for col in curve_cols:
+            for i in range(len(list_result)):
+                list_val = list_result[col].iloc[i]
+                pg_val = pg_result[col].iloc[i]
+                if list_val is pd.NA:
+                    assert pg_val is pd.NA
+                else:
+                    assert _list_to_pg_string(list_val) == pg_val
+
+    def test_curve_output_format_string_compat(self):
+        """Test that raw string args still work with CurveOutputFormat comparisons."""
+        assert CurveOutputFormat.LIST == "list"
+        assert CurveOutputFormat.PG_ARRAY_AS_STRING == "pg_array_as_string"
+        assert "list" == CurveOutputFormat.LIST
+        assert "pg_array_as_string" == CurveOutputFormat.PG_ARRAY_AS_STRING
+
+
+class TestCategorizeStrings:
+    """Tests for _categorize_strings() helper."""
+
+    def test_categorize_strings_converts_object_columns(self):
+        """Non-curve object columns are converted to category dtype."""
+        df = pd.DataFrame(
+            {
+                "Resource Name": ["RES_A", "RES_B", "RES_A"],
+                "QSE": ["QSE1", "QSE2", "QSE1"],
+                "HSL": [100.0, 200.0, 150.0],
+                "SCED1 Offer Curve": [[[1, 2]], [[3, 4]], [[5, 6]]],
+                "URS Offer Curve": ["{{1,2}}", "{{3,4}}", "{{5,6}}"],
+                "Block Indicators": [["A"], ["B"], ["C"]],
+            },
+        )
+        result = _categorize_strings(df)
+
+        # String columns should be category
+        assert result["Resource Name"].dtype.name == "category"
+        assert result["QSE"].dtype.name == "category"
+
+        # Numeric column unchanged
+        assert result["HSL"].dtype == "float64"
+
+        # Curve columns should remain object
+        assert result["SCED1 Offer Curve"].dtype == "object"
+        assert result["URS Offer Curve"].dtype == "object"
+
+        # Block Indicators should remain object
+        assert result["Block Indicators"].dtype == "object"
+
+    def test_categorize_strings_no_object_columns(self):
+        """DataFrame with no object columns is returned unchanged."""
+        df = pd.DataFrame({"A": [1, 2, 3], "B": [4.0, 5.0, 6.0]})
+        result = _categorize_strings(df)
+        assert result["A"].dtype == "int64"
+        assert result["B"].dtype == "float64"
+
+    def test_categorize_strings_preserves_values(self):
+        """Category conversion preserves actual string values."""
+        df = pd.DataFrame({"Resource Name": ["RES_A", "RES_B", "RES_A"]})
+        result = _categorize_strings(df)
+        assert list(result["Resource Name"]) == ["RES_A", "RES_B", "RES_A"]

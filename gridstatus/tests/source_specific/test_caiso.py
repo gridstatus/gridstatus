@@ -1,10 +1,12 @@
 import math
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from gridstatus import CAISO, Markets
-from gridstatus.base import NoDataFoundException
+from gridstatus.base import NoDataFoundException, NotSupported
+from gridstatus.caiso.caiso import _collapse_group_to_array
 from gridstatus.caiso.caiso_constants import REAL_TIME_DISPATCH_MARKET_RUN_ID
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
@@ -50,6 +52,59 @@ class TestCAISO(BaseTestISO):
             for market in ["DAM", "RTM"]:
                 df = self.iso.get_as_procurement(date, market=market)
                 self._check_as_data(df, market)
+
+    """get_ir_rc_prices"""
+
+    IR_RC_PRICES_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Location",
+        "Product",
+        "MCP",
+        "Capacity",
+        "Congestion",
+        "Loss",
+    ]
+
+    def _check_ir_rc_prices(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == self.IR_RC_PRICES_COLUMNS
+        assert df.shape[0] > 0
+        assert set(df["Product"].unique()) == {"IRU", "IRD", "RCU", "RCD"}
+        interval_minutes = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        assert (interval_minutes == 60).all()
+        assert not df.duplicated(
+            subset=["Interval Start", "Location", "Product"],
+        ).any()
+        ir_loss_null = df.loc[df["Product"].isin(["IRU", "IRD"]), "Loss"].isna().all()
+        assert ir_loss_null
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_ir_rc_prices(self, date):
+        with caiso_vcr.use_cassette(f"test_get_ir_rc_prices_{date}.yaml"):
+            df = self.iso.get_ir_rc_prices(date=date)
+            self._check_ir_rc_prices(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(hours=23)
+
+    @pytest.mark.real_sleep
+    @pytest.mark.parametrize(
+        "start, end",
+        [("2026-05-01", "2026-05-03")],
+    )
+    def test_get_ir_rc_prices_date_range(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_prices_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_ir_rc_prices(date=start, end=end, sleep=15)
+            self._check_ir_rc_prices(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(start)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                end,
+            ) - pd.Timedelta(hours=1)
 
     """get_fuel_mix"""
 
@@ -184,6 +239,94 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_load_forecast_seven_day_ahead(date, end=end)
             self._check_load_forecast(df, expected_interval_minutes=60)
 
+    """get_seven_day_resource_adequacy_outlook"""
+
+    def _seven_day_resource_adequacy_outlook_columns(self) -> list[str]:
+        return [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Demand",
+            "Net Demand",
+            "Day Ahead Demand Forecast",
+            "Day Ahead Net Demand Forecast",
+            "Resource Adequacy Capacity Forecast",
+            "Net Resource Adequacy Capacity Forecast",
+            "Reserve Requirement",
+            "Reserve Requirement Forecast",
+            "Resource Adequacy Credits",
+        ]
+
+    @pytest.mark.parametrize("date", ["2026-03-11"])
+    def test_get_seven_day_resource_adequacy_outlook_historical(self, date: str):
+        with caiso_vcr.use_cassette(
+            f"test_get_seven_day_resource_adequacy_outlook_{date}.yaml",
+            match_on=["method", "scheme", "host", "port", "path"],
+        ):
+            df = self.iso.get_seven_day_resource_adequacy_outlook(date)
+        assert df.shape[0] > 0
+        assert (
+            df.columns.tolist() == self._seven_day_resource_adequacy_outlook_columns()
+        )
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        assert df["Publish Time"].nunique() == 1
+        expected_pub = pd.Timestamp(date, tz=self.iso.default_timezone).normalize()
+        assert (df["Publish Time"] == expected_pub).all()
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    @pytest.mark.parametrize("start, end", [("2026-03-11", "2026-03-13")])
+    def test_get_seven_day_resource_adequacy_outlook_date_range(
+        self,
+        start: str,
+        end: str,
+    ):
+        with caiso_vcr.use_cassette(
+            f"test_get_seven_day_resource_adequacy_outlook_{start}_{end}.yaml",
+            match_on=["method", "scheme", "host", "port", "path"],
+        ):
+            df = self.iso.get_seven_day_resource_adequacy_outlook(start, end=end)
+        assert df.shape[0] > 0
+        assert (
+            df.columns.tolist() == self._seven_day_resource_adequacy_outlook_columns()
+        )
+        assert df["Publish Time"].nunique() == 2
+        assert df.columns[:3].tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+        ]
+        for col in ["Interval Start", "Interval End", "Publish Time"]:
+            assert isinstance(df.loc[0][col], pd.Timestamp)
+            assert df.loc[0][col].tz is not None
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+        ).all()
+        sorted_df = df.sort_values(
+            by=["Interval Start", "Publish Time"],
+            kind="mergesort",
+        )
+        assert sorted_df["Interval Start"].is_monotonic_increasing
+
+    def test_get_seven_day_resource_adequacy_outlook_latest_matches_today(self):
+        with caiso_vcr.use_cassette(
+            "test_get_seven_day_resource_adequacy_outlook_latest.yaml",
+            match_on=["method", "scheme", "host", "port", "path"],
+        ):
+            latest_df = self.iso.get_seven_day_resource_adequacy_outlook("latest")
+            today_df = self.iso.get_seven_day_resource_adequacy_outlook("today")
+        assert latest_df.equals(today_df)
+        assert (
+            latest_df.columns.tolist()
+            == self._seven_day_resource_adequacy_outlook_columns()
+        )
+        assert (latest_df["Publish Time"] == self.local_start_of_today()).all()
+
     """get_solar_and_wind_forecast_dam"""
 
     def _check_solar_and_wind_forecast(self, df, expected_count_unique_publish_times):
@@ -224,6 +367,37 @@ class TestCAISO(BaseTestISO):
         # Make sure there are no future publish times
         assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
+
+    def _check_edam_wind_solar_forecast(self, df: pd.DataFrame) -> None:
+        assert df.shape[0] > 0
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "BAA",
+            "Solar",
+            "Wind",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert isinstance(df.loc[0]["Publish Time"], pd.Timestamp)
+        assert df.loc[0]["Publish Time"].tz is not None
+
+        assert pd.api.types.is_numeric_dtype(df["Solar"])
+        assert pd.api.types.is_numeric_dtype(df["Wind"])
+
+        assert df["BAA"].notna().all()
+        assert not df.duplicated(subset=["Interval Start", "BAA"]).any()
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
 
     def test_get_renewables_forecast_dam_today(self):
         with caiso_vcr.use_cassette(
@@ -288,6 +462,33 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_renewables_forecast_dam(start, end=end)
 
             self._check_solar_and_wind_forecast(df, 1)
+
+    """get_edam_wind_solar_forecast"""
+
+    def test_get_edam_wind_solar_forecast_today(self):
+        with caiso_vcr.use_cassette(
+            "test_get_edam_wind_solar_forecast_today.yaml",
+        ):
+            df = self.iso.get_edam_wind_solar_forecast("today")
+        self._check_edam_wind_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_edam_wind_solar_forecast_historical_date(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_edam_wind_solar_forecast_{date}.yaml",
+        ):
+            df = self.iso.get_edam_wind_solar_forecast(date)
+        self._check_edam_wind_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
 
     def test_get_renewables_forecast_hasp_latest(self):
         with caiso_vcr.use_cassette(
@@ -666,6 +867,7 @@ class TestCAISO(BaseTestISO):
         "Energy",
         "Congestion",
         "Loss",
+        "GHG",
     ]
 
     @with_markets(
@@ -1307,8 +1509,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1332,8 +1535,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1356,8 +1560,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1381,8 +1586,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1408,8 +1614,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1433,8 +1640,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1463,8 +1671,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1489,8 +1698,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1520,8 +1730,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Shadow Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1547,8 +1758,9 @@ class TestCAISO(BaseTestISO):
                 "Market Run ID",
                 "Constraint Cause",
                 "Shadow Price",
-                "Group",
+                "Groups",
             ]
+            assert df["Groups"].apply(type).eq(list).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     """get_system_load_and_resource_schedules"""
@@ -1844,3 +2056,491 @@ class TestCAISO(BaseTestISO):
         assert old_start in str(exc_info.value)
         assert old_end in str(exc_info.value)
         assert "Day Ahead Hourly" in str(exc_info.value)
+
+    _DAILY_ENERGY_STORAGE_CASSETTE = "test_daily_energy_storage_report_2026_04_06.yaml"
+    _DAILY_ENERGY_STORAGE_HISTORICAL_DATE = "2026-04-06"
+
+    _DAILY_ENERGY_STORAGE_METHODS = (
+        "get_storage_awards_fmm",
+        "get_storage_awards_ifm",
+        "get_storage_awards_rtd",
+        "get_storage_energy_awards_ruc",
+        "get_storage_energy_bids_fmm",
+        "get_storage_energy_bids_ifm",
+        "get_storage_soc_fmm",
+        "get_storage_soc_hourly",
+        "get_storage_soc_rtd",
+    )
+
+    @staticmethod
+    def _assert_daily_energy_storage_frame(method_name: str, df: pd.DataFrame) -> None:
+        if method_name == "get_storage_awards_fmm":
+            assert df.shape == (960, 5)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Product",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_awards_ifm":
+            assert df.shape == (240, 5)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Product",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_awards_rtd":
+            assert df.shape == (576, 4)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_energy_awards_ruc":
+            assert df.shape == (576, 4)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_energy_bids_fmm":
+            assert df.shape == (4608, 6)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Bid Range",
+                "Operation",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_energy_bids_ifm":
+            assert df.shape == (1152, 6)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "Bid Range",
+                "Operation",
+                "Type",
+                "MW",
+            }
+        elif method_name == "get_storage_soc_fmm":
+            assert df.shape == (288, 3)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "SOC",
+            }
+        elif method_name == "get_storage_soc_hourly":
+            assert df.shape == (48, 4)
+            assert list(df.columns) == [
+                "Interval Start",
+                "Interval End",
+                "SOC",
+                "Schedule",
+            ]
+        elif method_name == "get_storage_soc_rtd":
+            assert df.shape == (288, 3)
+            assert set(df.columns) == {
+                "Interval Start",
+                "Interval End",
+                "SOC",
+            }
+        else:
+            raise AssertionError(f"unknown method {method_name!r}")
+
+    @pytest.mark.parametrize("method_name", _DAILY_ENERGY_STORAGE_METHODS)
+    def test_daily_energy_storage_reports(self, method_name: str) -> None:
+        with caiso_vcr.use_cassette(self._DAILY_ENERGY_STORAGE_CASSETTE):
+            df = getattr(self.iso, method_name)(
+                self._DAILY_ENERGY_STORAGE_HISTORICAL_DATE,
+            )
+        self._assert_daily_energy_storage_frame(method_name, df)
+
+    def test_daily_energy_storage_latest_not_supported(self) -> None:
+        with pytest.raises(NotSupported):
+            self.iso.get_storage_awards_fmm("latest")
+
+    def test_daily_energy_storage_fetch_uses_legacy_slug_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        requested_urls: list[str] = []
+
+        class FakeResponse:
+            def __init__(self, status_code: int, content: bytes) -> None:
+                self.status_code = status_code
+                self.content = content
+
+        def fake_get(url: str, timeout: int) -> FakeResponse:
+            requested_urls.append(url)
+            if "daily-energy-storage-report-may-302024.html" in url:
+                return FakeResponse(
+                    200,
+                    b"<html><script>var tot_charge_rtd = [1];</script></html>",
+                )
+            return FakeResponse(404, b"")
+
+        monkeypatch.setattr(daily_energy_storage.requests, "get", fake_get)
+        html = daily_energy_storage._fetch_daily_energy_storage_html(
+            "2024-05-30",
+            tz="US/Pacific",
+            verbose=False,
+        )
+        assert "tot_charge_rtd" in html
+        assert requested_urls[:3] == [
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-30-2024.html",
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-30-2024-corrected.html",
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-302024.html",
+        ]
+
+    def test_daily_energy_storage_fetch_uses_no_zero_day_slug_fallback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        requested_urls: list[str] = []
+
+        class FakeResponse:
+            def __init__(self, status_code: int, content: bytes) -> None:
+                self.status_code = status_code
+                self.content = content
+
+        def fake_get(url: str, timeout: int) -> FakeResponse:
+            requested_urls.append(url)
+            if "daily-energy-storage-report-may-8-2025.html" in url:
+                return FakeResponse(
+                    200,
+                    b"<html><script>var tot_charge_rtd = [1];</script></html>",
+                )
+            return FakeResponse(404, b"")
+
+        monkeypatch.setattr(daily_energy_storage.requests, "get", fake_get)
+        html = daily_energy_storage._fetch_daily_energy_storage_html(
+            "2025-05-08",
+            tz="US/Pacific",
+            verbose=False,
+        )
+        assert "tot_charge_rtd" in html
+        assert requested_urls[:3] == [
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-08-2025.html",
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-08-2025-corrected.html",
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-8-2025.html",
+        ]
+
+    def test_daily_energy_storage_fetch_uses_legacy_slug_no_leading_zero_on_day(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        requested_urls: list[str] = []
+
+        class FakeResponse:
+            def __init__(self, status_code: int, content: bytes) -> None:
+                self.status_code = status_code
+                self.content = content
+
+        def fake_get(url: str, timeout: int) -> FakeResponse:
+            requested_urls.append(url)
+            if "daily-energy-storage-report-may-82024.html" in url:
+                return FakeResponse(
+                    200,
+                    b"<html><script>var tot_charge_rtd = [1];</script></html>",
+                )
+            return FakeResponse(404, b"")
+
+        monkeypatch.setattr(daily_energy_storage.requests, "get", fake_get)
+        html = daily_energy_storage._fetch_daily_energy_storage_html(
+            "2024-05-08",
+            tz="US/Pacific",
+            verbose=False,
+        )
+        assert "tot_charge_rtd" in html
+        assert (
+            "https://www.caiso.com/documents/daily-energy-storage-report-may-82024.html"
+            in requested_urls
+        )
+
+    @pytest.mark.parametrize(
+        ("report_date", "compact_document_name"),
+        [
+            ("2024-01-31", "dailyenergystoragereportjan31-2024.html"),
+            ("2022-08-31", "dailyenergystoragereportaug31-2022.html"),
+            ("2022-08-01", "dailyenergystoragereportaug01-2022.html"),
+        ],
+    )
+    def test_daily_energy_storage_fetch_uses_compact_dailyenergystoragereport_slug(
+        self,
+        report_date: str,
+        compact_document_name: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        requested_urls: list[str] = []
+
+        class FakeResponse:
+            def __init__(self, status_code: int, content: bytes) -> None:
+                self.status_code = status_code
+                self.content = content
+
+        def fake_get(url: str, timeout: int) -> FakeResponse:
+            requested_urls.append(url)
+            if compact_document_name in url:
+                return FakeResponse(
+                    200,
+                    b"<html><script>var tot_charge_rtd = [1];</script></html>",
+                )
+            return FakeResponse(404, b"")
+
+        monkeypatch.setattr(daily_energy_storage.requests, "get", fake_get)
+        html = daily_energy_storage._fetch_daily_energy_storage_html(
+            report_date,
+            tz="US/Pacific",
+            verbose=False,
+        )
+        assert "tot_charge_rtd" in html
+        assert (
+            f"https://www.caiso.com/documents/{compact_document_name}" in requested_urls
+        )
+
+    def test_daily_energy_storage_parse_and_downsample_coerce_na_strings(self) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        html = (
+            '<html><script>var tot_energy_rtpd = [1, 2, "NA", 4, 5, 6];</script></html>'
+        )
+        parsed = daily_energy_storage._parse_js_array(html, "tot_energy_rtpd")
+        assert len(parsed) == 6
+        assert parsed[0] == 1.0
+        assert parsed[1] == 2.0
+        assert pd.isna(parsed[2])
+        assert parsed[3] == 4.0
+        down = daily_energy_storage._downsample_5min_to_15min(parsed)
+        assert len(down) == 2
+        assert down[0] == (1.0 + 2.0) / 2.0
+        assert down[1] == (4.0 + 5.0 + 6.0) / 3.0
+
+    def test_build_storage_soc_hourly_collapses_forward_filled_five_minute_arrays(
+        self,
+    ) -> None:
+        from gridstatus.caiso import daily_energy_storage
+
+        ifm: list[float] = []
+        ruc: list[float] = []
+        for h in range(24):
+            ifm.extend([float(h * 100)] * 12)
+            ruc.extend([float(h * 100 + 1)] * 12)
+        html = (
+            "<html><script>var tot_charge_ifm = "
+            + str(ifm)
+            + "; var tot_charge_ruc = "
+            + str(ruc)
+            + ";</script></html>"
+        )
+        report_start = pd.Timestamp("2026-04-06", tz="US/Pacific")
+        df = daily_energy_storage.build_storage_soc_hourly(html, report_start)
+        assert df.shape == (48, 4)
+        ifm_df = df.loc[df["Schedule"] == "IFM"].sort_values("Interval Start")
+        assert len(ifm_df) == 24
+        deltas = ifm_df["Interval Start"].diff().dropna()
+        assert (deltas == pd.Timedelta(hours=1)).all()
+
+
+NOMOGRAM_GROUP_COLS = [
+    "Interval Start",
+    "Interval End",
+    "Location",
+    "Nomogram ID XML",
+    "Market Run ID",
+    "Constraint Cause",
+    "Price",
+]
+
+INTERTIE_GROUP_COLS = [
+    "Interval Start",
+    "Interval End",
+    "TI ID",
+    "TI Direction",
+    "Market Run ID",
+    "Constraint Cause",
+    "Shadow Price",
+]
+
+
+def _make_nomogram_rows(location, price, groups, ts="2025-01-01 08:00"):
+    """Create rows mimicking CAISO nomogram shadow price data before collapse."""
+    rows = []
+    for g in groups:
+        rows.append(
+            {
+                "Interval Start": pd.Timestamp(ts, tz="US/Pacific"),
+                "Interval End": pd.Timestamp(ts, tz="US/Pacific")
+                + pd.Timedelta(hours=1),
+                "Location": location,
+                "Nomogram ID XML": "NOM_1234",
+                "Market Run ID": "DAM",
+                "Constraint Cause": "Thermal",
+                "Price": price,
+                "Group": g,
+            },
+        )
+    return rows
+
+
+def _make_intertie_rows(ti_id, direction, shadow_price, groups, ts="2025-01-01 08:00"):
+    """Create rows mimicking CAISO intertie constraint shadow price data."""
+    rows = []
+    for g in groups:
+        rows.append(
+            {
+                "Interval Start": pd.Timestamp(ts, tz="US/Pacific"),
+                "Interval End": pd.Timestamp(ts, tz="US/Pacific")
+                + pd.Timedelta(minutes=5),
+                "TI ID": ti_id,
+                "TI Direction": direction,
+                "Market Run ID": "RTD",
+                "Constraint Cause": "Thermal",
+                "Shadow Price": shadow_price,
+                "Group": g,
+            },
+        )
+    return rows
+
+
+class TestCollapseGroupToArray:
+    """Unit tests for _collapse_group_to_array helper."""
+
+    def test_nomogram_multiple_groups_collapsed_and_sorted(self):
+        """Multiple Group rows for a single constraint collapse into a sorted list."""
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [3, 1, 5],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1, 3, 5]
+        assert "Group" not in result.columns
+
+    def test_intertie_multiple_groups_collapsed(self):
+        """Intertie constraint data collapses groups correctly."""
+        rows = _make_intertie_rows("EPE_NET_ITC", "E", -51.39, [2, 1])
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, INTERTIE_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1, 2]
+        assert result["TI ID"].iloc[0] == "EPE_NET_ITC"
+        assert result["TI Direction"].iloc[0] == "E"
+
+    def test_single_group_returns_single_element_list(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            100.0,
+            [1],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1]
+
+    def test_nan_groups_dropped(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            588.84,
+            [1, np.nan, 3],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == [1, 3]
+
+    def test_all_nan_groups_returns_empty_list(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            100.0,
+            [np.nan, np.nan],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 1
+        assert result["Groups"].iloc[0] == []
+
+    def test_float_groups_converted_to_int(self):
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            100.0,
+            [1.0, 2.0],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        groups = result["Groups"].iloc[0]
+        assert groups == [1, 2]
+        assert all(isinstance(v, int) for v in groups)
+
+    def test_distinct_constraints_stay_separate(self):
+        """Different locations produce separate rows after collapse."""
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [2, 3, 5],
+        ) + _make_nomogram_rows(
+            "30900_DELANEY_500_24156_N.GILA_500_BR_1_1",
+            45.0,
+            [1],
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 2
+        row_a = result[
+            result["Location"] == "24723_CONTROL_115_24865_TAP188_115_BR_2_1"
+        ].iloc[0]
+        row_b = result[
+            result["Location"] == "30900_DELANEY_500_24156_N.GILA_500_BR_1_1"
+        ].iloc[0]
+        assert row_a["Groups"] == [2, 3, 5]
+        assert row_b["Groups"] == [1]
+
+    def test_same_location_different_intervals_stay_separate(self):
+        """Same constraint at different intervals keeps separate rows."""
+        rows = _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [1, 2],
+            ts="2025-01-01 08:00",
+        ) + _make_nomogram_rows(
+            "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+            133.52,
+            [3, 4],
+            ts="2025-01-01 09:00",
+        )
+        df = pd.DataFrame(rows)
+        result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
+
+        assert len(result) == 2
+        row_08 = result[
+            result["Interval Start"]
+            == pd.Timestamp("2025-01-01 08:00", tz="US/Pacific")
+        ].iloc[0]
+        row_09 = result[
+            result["Interval Start"]
+            == pd.Timestamp("2025-01-01 09:00", tz="US/Pacific")
+        ].iloc[0]
+        assert row_08["Groups"] == [1, 2]
+        assert row_09["Groups"] == [3, 4]

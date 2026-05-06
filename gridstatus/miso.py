@@ -274,7 +274,16 @@ class MISO(ISOBase):
     def _get_load_forecast_file(self, date: str | pd.Timestamp) -> pd.DataFrame:
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_df_al.xls"  # noqa
         logger.info(f"Downloading hourly load and load forecast data from {url}")
-        df = pd.read_excel(url, sheet_name="Sheet1", skiprows=4, skipfooter=1)
+        # Locate the header row dynamically: MISO changed the file layout on
+        # 2026-04-27 so the headers moved from row 4 to row 6, with extra blank
+        # columns inserted from merged-cell artifacts.
+        raw = pd.read_excel(url, sheet_name="Sheet1", header=None)
+        header_row = raw.index[raw.iloc[:, 0].astype(str).str.strip() == "Market Day"][
+            0
+        ]
+        df = raw.iloc[header_row + 1 :].copy()
+        df.columns = raw.iloc[header_row].values
+        df = df.loc[:, df.columns.notna()]
         df = df.dropna(subset=["HourEnding"])
         df = df.loc[df["HourEnding"] != "HourEnding"]
         df.loc[:, "HourEnding"] = df["HourEnding"].astype(int)

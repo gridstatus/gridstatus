@@ -1,5 +1,6 @@
 import re
 import urllib
+from enum import StrEnum
 from typing import BinaryIO, Callable
 
 import pandas as pd
@@ -21,12 +22,17 @@ from gridstatus.gs_logging import logger
 # Endpoints
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
-FS_DAM_LMP_BY_LOCATION = "da-lmp-by-location"
+FS_DAM_LMP_BY_LOCATION = "da-lmp-by-settlement-location"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
 OPERATING_RESERVES = "operating-reserves"
 RTBM_MCP = "rtbm-mcp"
 DA_BINDING_CONSTRAINTS = "da-binding-constraints"
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
+
+HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
+# NOTE: Typically SWPW is ~2000-3000MW and SPP is ~20000-30000MW, so we can tell if there
+# is a load value with null BAA value, we can tell which BAA it is.
+BAA_LOAD_THRESHOLD_MW = 5000
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -111,6 +117,45 @@ LMP_HUBS_AND_INTERFACES = {
 }
 
 
+class BAAEnum(StrEnum):
+    SPP = "SPP"
+    SWPW = "SWPW"
+
+
+def fill_baa_column(df, load_col):
+    """Fill missing BAA values based on load magnitude.
+
+    If the BAA column doesn't exist, creates it. If it exists but has NaN values,
+    fills only the missing entries. Uses BAA_LOAD_THRESHOLD_MW to distinguish
+    between SWPW (small loads) and SPP (large loads).
+
+    Args:
+        df: DataFrame with a load column to use for BAA inference.
+        load_col: Name of the column containing load values.
+
+    Returns:
+        The DataFrame with BAA column filled in-place.
+    """
+    if "BAA" not in df.columns:
+        df["BAA"] = df[load_col].apply(
+            lambda x: (
+                BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value
+            ),
+        )
+    else:
+        mask = df["BAA"].isna()
+        df.loc[mask, "BAA"] = df.loc[mask, load_col].apply(
+            lambda x: (
+                BAAEnum.SWPW.value
+                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
+                else BAAEnum.SPP.value
+            ),
+        )
+    return df
+
+
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
 
@@ -141,130 +186,266 @@ class SPP(ISOBase):
     def now():
         return pd.Timestamp.now(tz=SPP.default_timezone)
 
+    @support_date_range(frequency=None)
     def get_fuel_mix(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        detailed: bool = False,
+        end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get fuel mix
+        """Get combined fuel mix summed across SPP and SWPW BAAs
 
         Args:
-            date: supports today and latest
-            detailed: if True, breaks out self scheduled and market scheduled
-
-        Note:
-            if today, returns last 2 hours of data. maybe include previous day
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
 
         Returns:
-            pd.DataFrame: fuel mix
-
+            pd.DataFrame: fuel mix summed across both BAAs
         """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=False,
+            verbose=verbose,
+            by_baa=False,
+        )
+
+    @support_date_range(frequency=None)
+    def get_fuel_mix_detailed(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get combined detailed fuel mix summed across SPP and SWPW BAAs
+
+        Breaks out self scheduled and market scheduled generation.
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+
+        Returns:
+            pd.DataFrame: detailed fuel mix summed across both BAAs
+        """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=True,
+            verbose=verbose,
+            by_baa=False,
+        )
+
+    @support_date_range(frequency=None)
+    def get_fuel_mix_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get fuel mix for both SPP and SWPW BAAs with a BAA column
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+
+        Returns:
+            pd.DataFrame: fuel mix with BAA column differentiating SPP and SWPW
+        """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=False,
+            verbose=verbose,
+            by_baa=True,
+        )
+
+    @support_date_range(frequency=None)
+    def get_fuel_mix_by_baa_detailed(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get detailed fuel mix for both SPP and SWPW BAAs with a BAA column
+
+        Breaks out self scheduled and market scheduled generation.
+
+        Args:
+            date: "latest", "today", a timestamp, or a date range tuple
+            end: optional end date for range queries
+
+        Returns:
+            pd.DataFrame: detailed fuel mix with BAA column
+        """
+        return self._get_combined_fuel_mix(
+            date=date,
+            end=end,
+            detailed=True,
+            verbose=verbose,
+            by_baa=True,
+        )
+
+    def _get_combined_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        detailed: bool = False,
+        verbose: bool = False,
+        by_baa: bool = False,
+    ) -> pd.DataFrame:
+        """Fetch fuel mix for both SPP and SWPW BAAs and combine them.
+
+        Args:
+            date: date to fetch
+            end: optional end date
+            detailed: if True, breaks out self scheduled and market scheduled
+            verbose: if True, log debug info
+            by_baa: if True, keep BAA column; if False, sum across BAAs
+
+        Returns:
+            pd.DataFrame: combined fuel mix
+        """
+        spp_df = self._get_fuel_mix(
+            date=date,
+            end=end,
+            detailed=detailed,
+            verbose=verbose,
+            baa=BAAEnum.SPP,
+        )
+        swpw_df = self._get_fuel_mix(
+            date=date,
+            end=end,
+            detailed=detailed,
+            verbose=verbose,
+            baa=BAAEnum.SWPW,
+        )
+
+        if by_baa:
+            df = pd.concat([spp_df, swpw_df], ignore_index=True)
+            df = df.sort_values(
+                ["Interval Start", "BAA"],
+                ignore_index=True,
+            )
+            return df
+
+        # Sum fuel columns across BAAs for each interval
+        time_cols = ["Interval Start", "Interval End"]
+        fuel_cols = [c for c in spp_df.columns if c not in time_cols + ["BAA"]]
+
+        spp_df = spp_df.drop(columns=["BAA"], errors="ignore")
+        swpw_df = swpw_df.drop(columns=["BAA"], errors="ignore")
+
+        df = pd.merge(
+            spp_df,
+            swpw_df,
+            on=time_cols,
+            suffixes=("_spp", "_swpw"),
+            how="outer",
+        )
+
+        for col in fuel_cols:
+            spp_col = f"{col}_spp"
+            swpw_col = f"{col}_swpw"
+            df[col] = df[spp_col].fillna(0) + df[swpw_col].fillna(0)
+            df = df.drop(columns=[spp_col, swpw_col])
+
+        df = df.sort_values("Interval Start", ignore_index=True)
+        return df
+
+    def _get_fuel_mix(
+        self,
+        date: str | pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        detailed: bool = False,
+        verbose: bool = False,
+        baa: BAAEnum = BAAEnum.SPP,
+    ) -> pd.DataFrame:
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        two_hours_ago = now - pd.Timedelta(hours=2)
+        one_year_ago = now - pd.Timedelta(days=365)
+
         if date == "latest":
-            return self.get_fuel_mix(
-                "today",
-                detailed=detailed,
-                verbose=verbose,
-            ).reset_index(drop=True)
+            file_type = "GenMix2Hour"
+        elif isinstance(date, pd.Timestamp):
+            start = date
+            if start < one_year_ago:
+                raise NotSupported(
+                    f"{baa} fuel mix data is only available for the last 365 days",
+                )
+            if start >= two_hours_ago:
+                file_type = "GenMix2Hour"
+            else:
+                file_type = "GenMix365"
+        else:
+            raise ValueError(f"Unexpected date type: {type(date)}")
 
-        if not utils.is_today(date, self.default_timezone):
-            # https://marketplace.spp.org/pages/generation-mix-historical
-            # many years of historical 5 minute data
-            raise NotSupported
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/{baa}/{file_type}_{baa}.csv"  # noqa
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/GenMix2Hour.csv"  # noqa
+        if verbose:
+            logger.info(f"Downloading fuel mix from {url}")
+
         df_raw = pd.read_csv(url)
-        historical_mix = process_gen_mix(df_raw, detailed=detailed)
+        df = process_gen_mix(df_raw, detailed=detailed)
 
-        historical_mix = historical_mix.drop(
-            columns=["Short Term Load Forecast", "Average Actual Load"],
+        df = df.drop(
+            columns=["Short Term Load Forecast", "Average Actual Load", "Time"],
             errors="ignore",
         )
 
-        return historical_mix
+        if date != "latest" and isinstance(date, pd.Timestamp):
+            df = df[df["Interval Start"] >= date]
+            if end is None:
+                end = date.normalize() + pd.Timedelta(days=1)
+            df = df[df["Interval Start"] < end]
+            df = df.reset_index(drop=True)
 
-    def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
-        """Returns load for last 24hrs in 5 minute intervals"""
-        original_date = date
+        return df
 
-        if date == "latest":
-            date = "today"
+    def get_load(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns total RTO load in 5 minute intervals from STLF data."""
+        baa_df = self.get_load_by_baa(date=date, end=end, verbose=verbose)
 
-        date = utils._handle_date(date, self.default_timezone)
+        if baa_df.empty:
+            raise NoDataFoundException(f"No load data found for date {date}")
 
-        df = self._get_load_and_forecast(verbose=verbose)
-
-        df = df.dropna(subset=["Actual Load"])
-
-        df = df.rename(columns={"Actual Load": "Load"})
-
-        df = df[["Time", "Load"]]
-        df = df.reset_index(drop=True)
-        df = add_interval(df, interval_min=5)
-
-        if original_date == "latest":
-            return df
-
-        elif utils.is_today(original_date, tz=self.default_timezone):
-            # returns two days, so make sure to only return current day's load
-            df = df[df["Time"].dt.date == date.date()].reset_index(drop=True)
-            return df
-
-        else:
-            # hourly historical zonal loads
-            # https://marketplace.spp.org/pages/hourly-load
-            # five minute actual load available here: https://portal.spp.org/pages/stlf-vs-actual#
-            raise NotSupported()
+        return (
+            baa_df.groupby(
+                ["Interval Start", "Interval End"],
+                as_index=False,
+            )["Load"]
+            .sum()
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
 
     def get_load_forecast(
         self,
-        date: str | pd.Timestamp,
-        forecast_type: str = "MID_TERM",
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Returns load forecast for next 7 days in hourly intervals
+        """Returns total RTO load forecast in hourly intervals from MTLF data."""
+        baa_df = self.get_load_forecast_by_baa(date=date, end=end, verbose=verbose)
 
-        Arguments:
-            forecast_type (str): MID_TERM is hourly for next 7 days or SHORT_TERM is
-                every five minutes for a few hours
+        if baa_df.empty:
+            raise NoDataFoundException(
+                f"No load forecast by BAA data found for date {date}",
+            )
 
-        Returns:
-            pd.DataFrame: forecast for current day
-        """
-        df = self._get_load_and_forecast(verbose=verbose)
+        summed = baa_df.groupby(
+            ["Interval Start", "Interval End", "Publish Time"],
+            as_index=False,
+        )["Load Forecast"].sum()
 
-        # gives forecast from before current day
-        # only include forecasts starting at current day
-        last_actual = df.dropna(subset=["Actual Load"])["Time"].max()
-        current_day = last_actual.replace(hour=0, minute=0)
-
-        current_day_forecast = df[df["Time"] >= current_day].copy()
-
-        # assume forecast is made at last actual
-        current_day_forecast["Forecast Time"] = last_actual
-
-        if forecast_type == "MID_TERM":
-            forecast_col = "Mid-Term Forecast"
-        elif forecast_type == "SHORT_TERM":
-            forecast_col = "Short-Term Forecast"
-        else:
-            raise RuntimeError("Invalid forecast type")
-
-        # there will be empty rows regardless of forecast type since they dont align
-        current_day_forecast = current_day_forecast.dropna(
-            subset=[forecast_col],
+        return summed.sort_values(["Interval Start", "Publish Time"]).reset_index(
+            drop=True,
         )
-
-        current_day_forecast = current_day_forecast[
-            ["Forecast Time", "Time", forecast_col]
-        ].rename({forecast_col: "Load Forecast"}, axis=1)
-
-        current_day_forecast = add_interval(
-            current_day_forecast,
-            interval_min=60,
-        )
-
-        return current_day_forecast
 
     @support_date_range("5_MIN")
     def get_load_forecast_short_term(
@@ -313,6 +494,8 @@ class SPP(ISOBase):
             drop_null_forecast_rows=drop_null_forecast_rows,
         )
 
+        fill_baa_column(df, "STLF")
+
         return df
 
     @support_date_range("HOUR_START")
@@ -355,6 +538,64 @@ class SPP(ISOBase):
         )
 
         return df
+
+    def get_load_forecast_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly load forecast by BAA from MTLF data."""
+        df = self._get_load_forecast_by_baa_raw(date=date, end=end, verbose=verbose)
+
+        if df is None or df.empty:
+            raise NoDataFoundException(
+                f"No load forecast by BAA data found for {date}",
+            )
+
+        return (
+            df.dropna(subset=["Load Forecast"])
+            .drop_duplicates(
+                subset=["Interval Start", "Interval End", "Publish Time", "BAA"],
+                keep="last",
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("HOUR_START")
+    def _get_load_forecast_by_baa_raw(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        result = self._get_mid_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            forecast_col="MTLF",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
+        fill_baa_column(df, "MTLF")
+
+        return df[
+            ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"]
+        ].rename(columns={"MTLF": "Load Forecast"})
 
     def _handle_dst_floor_date(
         self,
@@ -600,6 +841,132 @@ class SPP(ISOBase):
 
         return df
 
+    def get_load_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns actual load by BAA from short-term load forecast data."""
+        df = self._get_load_by_baa_raw(date=date, end=end, verbose=verbose)
+
+        if df is None or df.empty:
+            return pd.DataFrame(
+                columns=["Interval Start", "Interval End", "BAA", "Load"],
+            )
+
+        return (
+            df.dropna(subset=["Load"])
+            .drop_duplicates(
+                subset=["Interval Start", "Interval End", "BAA"],
+                keep="last",
+            )
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="5_MIN")
+    def _get_load_by_baa_raw(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        result = self._get_short_term_forecast_data(
+            date=date,
+            base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
+            file_prefix="OP-STLF",
+            buffer_minutes=2,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="SHORT_TERM",
+            end_time_col="GMTInterval",
+            interval_duration=pd.Timedelta(minutes=5),
+            forecast_col="STLF",
+            drop_null_forecast_rows=False,
+        )
+
+        fill_baa_column(df, "Actual")
+
+        return (
+            df[["Interval Start", "Interval End", "BAA", "Actual"]]
+            .rename(columns={"Actual": "Load"})
+            .copy()
+        )
+
+    @support_date_range("DAY_START")
+    def get_load_by_baa_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Returns hourly actual load by BAA from mid-term load forecast data."""
+
+        if date == "latest":
+            fetch_date: str | pd.Timestamp = date
+        else:
+            date_ts = utils._handle_date(date, self.default_timezone)
+            now = self.now()
+            if date_ts.normalize() == now.normalize():
+                fetch_date = now - pd.Timedelta(minutes=10)
+            else:
+                fetch_date = date_ts.normalize() + pd.Timedelta(hours=23)
+
+        result = self._get_mid_term_forecast_data(
+            date=fetch_date,
+            base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
+            file_prefix="OP-MTLF",
+            buffer_minutes=10,
+        )
+
+        if result is None:
+            return pd.DataFrame(
+                columns=["Interval Start", "Interval End", "BAA", "Load"],
+            )
+
+        df, url = result
+
+        df = self._post_process_load_forecast(
+            df,
+            url,
+            forecast_type="MID_TERM",
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+            forecast_col="MTLF",
+        )
+
+        fill_baa_column(df, "Averaged Actual")
+
+        result_df = (
+            df[["Interval Start", "Interval End", "BAA", "Averaged Actual"]]
+            .rename(columns={"Averaged Actual": "Load"})
+            .copy()
+        )
+
+        if date != "latest":
+            date_ts = utils._handle_date(date, self.default_timezone)
+            day_start = date_ts.normalize()
+            day_end = day_start + pd.Timedelta(days=1)
+            result_df = result_df[
+                (result_df["Interval Start"] >= day_start)
+                & (result_df["Interval Start"] < day_end)
+            ]
+
+        return (
+            result_df.dropna(subset=["Load"])
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
+
     def _post_process_solar_and_wind_forecast(
         self,
         df: pd.DataFrame,
@@ -679,6 +1046,15 @@ class SPP(ISOBase):
 
         return df
 
+    _ver_curtailment_numerical_cols = [
+        "Wind Redispatch Curtailments",
+        "Wind Manual Curtailments",
+        "Wind Curtailed For Energy",
+        "Solar Redispatch Curtailments",
+        "Solar Manual Curtailments",
+        "Solar Curtailed For Energy",
+    ]
+
     def _process_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(
             columns={
@@ -698,7 +1074,6 @@ class SPP(ISOBase):
         )
 
         cols = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Wind Redispatch Curtailments",
@@ -707,15 +1082,35 @@ class SPP(ISOBase):
             "Solar Redispatch Curtailments",
             "Solar Manual Curtailments",
             "Solar Curtailed For Energy",
+            "BAA",
         ]
 
         # historical data doesnt have all columns
-        for c in cols:
-            if c not in df.columns:
-                df[c] = pd.NA
+        for col in cols:
+            if col not in df.columns:
+                # Default BAA to SPP for historical data
+                df[col] = pd.NA if col != "BAA" else BAAEnum.SPP
 
         df = df[cols]
 
+        # Drop rows where all numerical curtailment columns are NaN
+        df = df.dropna(subset=self._ver_curtailment_numerical_cols, how="all")
+
+        df = df[~df["Interval Start"].isnull()]
+        df = df.sort_values("Interval Start").reset_index(drop=True)
+
+        return df
+
+    def _aggregate_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Sum VER curtailment numerical columns across BAAs."""
+        df = (
+            df.groupby(["Interval Start", "Interval End"], as_index=False)[
+                self._ver_curtailment_numerical_cols
+            ]
+            .sum()
+            .sort_values("Interval Start")
+            .reset_index(drop=True)
+        )
         return df
 
     @support_date_range("DAY_START")
@@ -811,6 +1206,23 @@ class SPP(ISOBase):
 
         return df
 
+    def _fetch_ver_curtailments_daily(self, date: pd.Timestamp) -> pd.DataFrame:
+        """Fetch and process a single day's VER curtailments CSV."""
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+        return self._process_ver_curtailments(df)
+
+    def _fetch_ver_curtailments_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
+        """Fetch and process a full year's VER curtailments zip."""
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
+        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        return self._process_ver_curtailments(df)
+
     @support_date_range("DAY_START")
     def get_ver_curtailments(
         self,
@@ -818,30 +1230,28 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get VER Curtailments
+        """Get VER Curtailments summed across BAAs.
 
-        Supports recent data. For historical annual data use get_ver_curtailments_annual
+        Supports recent data. For historical annual data use
+        get_ver_curtailments_annual. For data broken down by BAA use
+        get_ver_curtailments_by_baa.
 
         Args:
             date: start date
             end: end date
-
-
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
-
-        logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
-
-        return self._process_ver_curtailments(df)
+        df = self._fetch_ver_curtailments_daily(date)
+        return self._aggregate_ver_curtailments(df)
 
     def get_ver_curtailments_annual(
         self,
         year: int,
         verbose: bool = True,
     ) -> pd.DataFrame:
-        """Get VER Curtailments for a year. Starting 2014.
-        Recent data use get_ver_curtailments
+        """Get VER Curtailments summed across BAAs for a year. Starting 2014.
+
+        Recent data use get_ver_curtailments. For data broken down by BAA use
+        get_ver_curtailments_by_baa_annual.
 
         Args:
             year: year to get data for
@@ -850,16 +1260,44 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
-        df = utils.download_csvs_from_zip_url(url, verbose=verbose)
+        df = self._fetch_ver_curtailments_annual(year, verbose=verbose)
+        return self._aggregate_ver_curtailments(df)
 
-        df = self._process_ver_curtailments(df)
+    @support_date_range("DAY_START")
+    def get_ver_curtailments_by_baa(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get VER Curtailments broken down by BAA.
 
-        df = df[~df["Interval Start"].isnull()]
+        Supports recent data. For historical annual data use
+        get_ver_curtailments_by_baa_annual.
 
-        df = df.sort_values("Time")
+        Args:
+            date: start date
+            end: end date
+        """
+        return self._fetch_ver_curtailments_daily(date)
 
-        return df
+    def get_ver_curtailments_by_baa_annual(
+        self,
+        year: int,
+        verbose: bool = True,
+    ) -> pd.DataFrame:
+        """Get VER Curtailments broken down by BAA for a year. Starting 2014.
+
+        Recent data use get_ver_curtailments_by_baa.
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: VER Curtailments
+        """
+        return self._fetch_ver_curtailments_annual(year, verbose=verbose)
 
     def _get_load_and_forecast(self, verbose: bool = False) -> pd.DataFrame:
         url = f"{MARKETPLACE_BASE_URL}/chart-api/load-forecast/asChart"
@@ -1149,6 +1587,7 @@ class SPP(ISOBase):
             market=Markets.DAY_AHEAD_HOURLY,
             location_type=location_type,
             verbose=verbose,
+            include_baa=True,
         )
 
     def _get_feature_data(self, base_url: str, verbose: bool = False) -> pd.DataFrame:
@@ -1183,6 +1622,7 @@ class SPP(ISOBase):
         market: Markets,
         location_type: str,
         verbose: bool = False,
+        include_baa: bool = False,
     ) -> pd.DataFrame:
         """
         Finalizes DataFrame:
@@ -1199,6 +1639,8 @@ class SPP(ISOBase):
             market (str): Market
             location_type (str): Location type
             verbose (bool, optional): Verbose output
+            include_baa (bool, optional): Include BAA column. If BAA is not present and
+             this is True, it will be added with the default value of "SPP"
         """
         if market == Markets.REAL_TIME_5_MIN:
             interval_duration = pd.Timedelta(minutes=5)
@@ -1240,22 +1682,28 @@ class SPP(ISOBase):
             },
         )
 
-        df = df[
-            [
-                "Time",
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "PNode",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ]
+        if include_baa and "BAA" not in df.columns:
+            df["BAA"] = "SPP"
+
+        # Insert BAA before location if it exists
+        cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "PNode",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
         ]
 
+        if "BAA" in df.columns:
+            cols.insert(cols.index("Location"), "BAA")
+
+        df = df[cols]
         df = df.reset_index(drop=True)
 
         # Since Location = PNode for bus, we can drop PNode
@@ -1714,34 +2162,71 @@ class SPP(ISOBase):
         ]
 
     @support_date_range("DAY_START")
-    def get_hourly_load(
+    def get_hourly_load_historical(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Get Hourly Load
+        """Get Hourly Load in the legacy wide format (before 2026-03-24).
 
-        Supports recent data. For historical annual data use get_hourly_load_annual
+        Deprecated: SPP changed the hourly load data format on 2026-03-24.
+        Use get_hourly_load for data on or after 2026-03-24.
 
         Args:
-            date: start date
+            date: start date (must be before 2026-03-24)
             end: end date
 
         Returns:
-            pd.DataFrame: Hourly Load
+            pd.DataFrame: Hourly Load in wide format
         """
-        if date in ["today", "latest"] or utils.is_today(
-            date,
-            tz=self.default_timezone,
-        ):
-            raise NotSupported("Only historical data is available for hourly load data")
+        if date >= HOURLY_LOAD_WIDE_FORMAT_END_DATE:
+            raise NotSupported(
+                "SPP changed the hourly load data format on 2026-03-24. "
+                "Use get_hourly_load for data on or after 2026-03-24.",
+            )
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_hourly_load(df)
+
+    @support_date_range("DAY_START")
+    def get_hourly_load(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Hourly Load in the long format (on or after 2026-03-24).
+
+        Args:
+            date: start date (must be on or after 2026-03-24)
+            end: end date
+
+        Returns:
+            pd.DataFrame: Hourly Load with columns Time, Interval Start,
+                Interval End, Balancing Area Name, Control Zone Name,
+                Forecast Area Type, Load
+        """
+        if date in ["today", "latest"] or utils.is_today(
+            date,
+            tz=self.default_timezone,
+        ):
+            raise NoDataFoundException("Data is on at least a one day delay")
+
+        if date < HOURLY_LOAD_WIDE_FORMAT_END_DATE:
+            raise NoDataFoundException(
+                "Data before 2026-03-24 uses the legacy wide format. "
+                "Use get_hourly_load_historical for data before 2026-03-24.",
+            )
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
+        logger.info(f"Downloading {url}")
+        df = pd.read_csv(url)
+
+        return self._process_hourly_load_long(df)
 
     def get_hourly_load_annual(self, year: int, verbose: bool = True) -> pd.DataFrame:
         """Get Hourly Load for a year. Starting 2011.
@@ -1764,6 +2249,19 @@ class SPP(ISOBase):
         return self._process_hourly_load(df)
 
     def _process_hourly_load(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process hourly load data in the legacy wide format.
+
+        Deprecated: This method handles the wide format used before 2026-03-24.
+        For data on or after 2026-03-24, use _process_hourly_load_long instead.
+        """
+        if "Market Hour" in df.columns:
+            raise NotSupported(
+                "SPP changed the hourly load data format on 2026-03-24 from wide "
+                "to long. This method only supports the wide format used before "
+                "2026-03-24. Use get_hourly_load with dates on or after 2026-03-24 "
+                "for the new long format.",
+            )
+
         # Some column names contain leading whitespace in some files - remove it
         df = df.rename(columns=lambda x: x.strip())
 
@@ -1825,6 +2323,53 @@ class SPP(ISOBase):
 
         df = df.sort_values("Time")
         df["System Total"] = df[load_cols].sum(axis=1, skipna=True)
+
+        return df
+
+    def _process_hourly_load_long(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process hourly load data in the new long format (starting 2026-03-24).
+
+        The new format has columns: Market Hour, Balancing Area Name,
+        Control Zone Name, Forecast Area Type, Load MW.
+        """
+        df = df.rename(columns=lambda x: x.strip())
+
+        df = df.dropna(how="all")
+
+        df = self._handle_market_end_to_interval(
+            df,
+            column="Market Hour",
+            interval_duration=pd.Timedelta(minutes=60),
+            format="mixed",
+        )
+
+        df = df[~df["Interval Start"].isnull()].drop_duplicates()
+
+        df = df.rename(
+            columns={
+                "Load MW": "Load",
+            },
+        )
+
+        col_order = [
+            "Interval Start",
+            "Interval End",
+            "Balancing Area Name",
+            "Control Zone Name",
+            "Forecast Area Type",
+            "Load",
+        ]
+
+        df = df[col_order]
+
+        df = df.sort_values(
+            [
+                "Interval Start",
+                "Balancing Area Name",
+                "Control Zone Name",
+                "Forecast Area Type",
+            ],
+        ).reset_index(drop=True)
 
         return df
 
@@ -2021,7 +2566,8 @@ class SPP(ISOBase):
             # to get all intervals for that day. Also adjust start time since interval files
             # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
             if end is None:
-                end = start_date + pd.Timedelta(days=1)
+                # Assume getting 5 minutes since this is a five minute dataset
+                end = start_date + pd.Timedelta(minutes=5)
             # Interval files for today start around 02:15, so adjust start if needed
             adjusted_start = max(
                 start_date,
@@ -2114,6 +2660,187 @@ class SPP(ISOBase):
         ]
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
+
+    @support_date_range("MONTH_START")
+    def get_interchange_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time interchange (tie flow) data.
+
+        For "latest" and "today", returns ~2 days of 1-minute interchange data
+        from the real-time endpoint.
+
+        For historical dates, downloads monthly CSV files from the historical
+        tie flow archive.
+
+        Data from:
+        - Real-time: https://portal.spp.org/pages/integrated-marketplace-interchange-trend
+        - Historical: https://portal.spp.org/pages/historical-tie-flow
+
+        Args:
+            date: supports "latest", "today", or a historical date/date range
+            end: end date for historical range queries
+            verbose: print info
+
+        Returns:
+            pd.DataFrame: interchange data
+        """
+        if date == "latest":
+            return self.get_interchange_real_time(
+                "today",
+                verbose=verbose,
+            ).reset_index(drop=True)
+
+        # Handle tuple date ranges by checking if the start is recent
+        if isinstance(date, tuple):
+            start = date[0]
+        else:
+            start = utils._handle_date(date, tz=self.default_timezone)
+
+        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
+            url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
+            logger.info(f"Downloading {url}")
+            df = pd.read_csv(url)
+            return self._process_interchange_real_time(df)
+
+        # Historical data: download monthly CSV
+        month_str = start.strftime("%b%Y")  # e.g., "Apr2015"
+        # Starting March 2026, files use "TieFlows_SPP_" prefix
+        if start >= pd.Timestamp("2026-03-01"):
+            filename = f"TieFlows_SPP_{month_str}.csv"
+        else:
+            filename = f"TieFlows_{month_str}.csv"
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow?path=/{filename}"
+
+        logger.info(f"Downloading {url}")
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(
+                    f"No historical tie flow data found for {month_str}. "
+                    f"Historical data is available starting Mar2014.",
+                )
+            raise
+
+        # Normalize historical column names to match real-time format
+        df = df.rename(
+            columns={
+                "GMTTIME": "GMTTime",
+                "SPP_NSI": "SPP NSI",
+                "SPP_NAI": "SPP NAI",
+            },
+        )
+
+        return self._process_interchange_real_time(df)
+
+    @support_date_range("MONTH_START")
+    def get_west_interchange_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time interchange (tie flow) data for SPP West (SWPW).
+
+        For "latest" and "today", returns ~2 days of 1-minute interchange data
+        from the real-time endpoint.
+
+        For historical dates, downloads monthly CSV files from the historical
+        tie flow archive.
+
+        Data from:
+        - Real-time: https://portal.spp.org/pages/integrated-marketplace-interchange-trend
+        - Historical: https://portal.spp.org/pages/historical-tie-flow
+
+        Args:
+            date: supports "latest", "today", or a historical date/date range
+            end: end date for historical range queries
+            verbose: print info
+
+        Returns:
+            pd.DataFrame: interchange data
+        """
+        if date == "latest":
+            return self.get_west_interchange_real_time(
+                "today",
+                verbose=verbose,
+            ).reset_index(drop=True)
+
+        # Handle tuple date ranges by checking if the start is recent
+        if isinstance(date, tuple):
+            start = date[0]
+        else:
+            start = utils._handle_date(date, tz=self.default_timezone)
+
+        if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
+            url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend-swpw/asFile"
+            logger.info(f"Downloading {url}")
+            df = pd.read_csv(url)
+            return self._process_interchange_real_time(df)
+
+        # Historical data: download monthly CSV
+        month_str = start.strftime("%b%Y")  # e.g., "Apr2026"
+        url = (
+            f"{FILE_BROWSER_DOWNLOAD_URL}/historical-tie-flow"
+            f"?path=/TieFlows_SWPW_{month_str}.csv"
+        )
+
+        logger.info(f"Downloading {url}")
+        try:
+            df = pd.read_csv(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise NoDataFoundException(
+                    f"No historical SWPW tie flow data found for {month_str}. "
+                    f"Historical data is available starting Mar2026.",
+                )
+            raise
+
+        # Normalize historical column names to match real-time format
+        df = df.rename(
+            columns={
+                "GMTTIME": "GMTTime",
+                "SPP_NSI": "SWPW NSI",
+                "SPP_NAI": "SWPW NAI",
+            },
+        )
+
+        return self._process_interchange_real_time(df)
+
+    def _process_interchange_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["Time"] = pd.to_datetime(
+            df["GMTTime"],
+            utc=True,
+            format="ISO8601",
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df.drop(columns=["GMTTime"])
+
+        # Drop rows with null timestamps (bad data in some historical files)
+        df = df.dropna(subset=["Time"])
+
+        # Drop rows where all data columns are null (future forecast rows)
+        data_cols = [c for c in df.columns if c != "Time"]
+        df = df.dropna(subset=data_cols, how="all")
+
+        # Melt from wide to long format so schema is stable across time periods
+        id_cols = ["Time"]
+        value_cols = [c for c in df.columns if c not in id_cols]
+        df = df.melt(
+            id_vars=id_cols,
+            value_vars=value_cols,
+            var_name="Region",
+            value_name="Interchange",
+        )
+
+        # Drop rows where interchange is null (region didn't exist in this period)
+        df = df.dropna(subset=["Interchange"])
+
+        return df.sort_values(["Time", "Region"]).reset_index(drop=True)
 
 
 def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:

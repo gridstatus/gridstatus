@@ -1,6 +1,6 @@
 [project]
 name = "gridstatus"
-version = "0.34.0"
+version = "0.36.0"
 readme = "README.md"
 description = "API to access energy data"
 requires-python = ">=3.10,<3.15"
@@ -13,26 +13,28 @@ authors = [
 keywords = ["energy", "independent system operator"]
 license = { file = "LICENSE" }
 dependencies = [
-    "requests ~=2.32",
+    "requests >=2.33,<3",
     "pandas ~=2.2",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
     "tqdm ~=4.67",
     "openpyxl ~=3.1",
     "pdfplumber ~=0.11",
-    "lxml ~=5.3",
+    "lxml >=5.3,<7",
     "plotly ~=6.0",
     "termcolor ~=3.0",
     "xlrd ~=2.0",
     "xmltodict ~=0.14",
     "zipp ~=3.21",
     "certifi ~=2025.1",
-    "setuptools ~=78.1",
-    "cryptography ~=44.0",
-    "urllib3 ~=2.4",
-    "virtualenv ~=20.30",
+    "setuptools >=78.1.1,<79",
+    "cryptography >=46.0.6,<47",
+    "urllib3 >=2.6.3,<3",
+    "virtualenv >=20.36.1,<21",
     "frozendict ~=2.4",
     "rpds-py >= 0.30.0; python_version >= '3.14'",
+    "h11 >=0.16.0,<1",
+    "filelock >=3.20.3,<4",
 ]
 
 [dependency-groups]
@@ -58,11 +60,18 @@ dev = [
     "sphinx-favicon ~=1.0",
     "sphinx-autoapi ~=3.6",
     "notebook ~=7.4",
-    "jupyterlab ~=4.4",
+    "jupyterlab >=4.4.8,<5",
     "mypy ~=1.15",
+    "types-requests ~=2.32",
     "time-machine ~=2.16",
-    "tornado ~=6.4",
+    "tornado >=6.5.5,<7",
     "jinja2 ~=3.1",
+    "pillow >=12.1.1,<13",
+    "nbconvert >=7.17.0,<8",
+    "wheel >=0.46.2,<1",
+    "fonttools >=4.60.2,<5",
+    "Pygments >=2.20.0,<3",
+    "vcrpy ~=8.1",
 ]
 
 
@@ -81,6 +90,7 @@ testpaths = ["gridstatus/tests/*"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests that pull from an external API (deselect with '-m \"not integration\"')",
+    "real_sleep: do not mock time.sleep for retries/throttling (use when re-recording VCR cassettes against rate-limited APIs)",
 ]
 
 [tool.ruff]

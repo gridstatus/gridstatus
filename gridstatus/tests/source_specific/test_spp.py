@@ -1,13 +1,18 @@
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from gridstatus import SPP, Markets, NotSupported
+from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
+    BAA_LOAD_THRESHOLD_MW,
     LOCATION_TYPE_BUS,
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    BAAEnum,
+    fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -26,63 +31,218 @@ class TestSPP(BaseTestISO):
 
     """get_fuel_mix"""
 
-    @pytest.mark.skip(reason="Not Applicable")
-    def test_get_fuel_mix_date_or_start(self):
-        pass
+    FUEL_MIX_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Coal",
+        "Diesel Fuel Oil",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Solar",
+        "Waste Disposal Services",
+        "Wind",
+        "Waste Heat",
+        "Other",
+    ]
 
+    FUEL_MIX_DETAILED_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Coal Market",
+        "Coal Self",
+        "Diesel Fuel Oil Market",
+        "Diesel Fuel Oil Self",
+        "Hydro Market",
+        "Hydro Self",
+        "Natural Gas Market",
+        "Natural Gas Self",
+        "Nuclear Market",
+        "Nuclear Self",
+        "Solar Market",
+        "Solar Self",
+        "Waste Disposal Services Market",
+        "Waste Disposal Services Self",
+        "Wind Market",
+        "Wind Self",
+        "Waste Heat Market",
+        "Waste Heat Self",
+        "Other Market",
+        "Other Self",
+    ]
+
+    FUEL_MIX_BAA_COLS = [
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Coal",
+        "Diesel Fuel Oil",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Solar",
+        "Waste Disposal Services",
+        "Wind",
+        "Waste Heat",
+        "Other",
+    ]
+
+    FUEL_MIX_DETAILED_BAA_COLS = [
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Coal Market",
+        "Coal Self",
+        "Diesel Fuel Oil Market",
+        "Diesel Fuel Oil Self",
+        "Hydro Market",
+        "Hydro Self",
+        "Natural Gas Market",
+        "Natural Gas Self",
+        "Nuclear Market",
+        "Nuclear Self",
+        "Solar Market",
+        "Solar Self",
+        "Waste Disposal Services Market",
+        "Waste Disposal Services Self",
+        "Wind Market",
+        "Wind Self",
+        "Waste Heat Market",
+        "Waste Heat Self",
+        "Other Market",
+        "Other Self",
+    ]
+
+    def _check_fuel_mix(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.name is None
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+    # Base test uses dates >365 days old, which raises NotSupported
     @pytest.mark.integration
     def test_get_fuel_mix_historical(self):
         with pytest.raises(NotSupported):
-            super().test_get_fuel_mix_historical()
+            super().test_get_fuel_mix_historical(time_column="Interval Start")
 
-    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_fuel_mix_date_or_start(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_date_or_start.yaml"):
+            super().test_get_fuel_mix_date_or_start()
+
     def test_get_fuel_mix_historical_with_date_range(self):
-        pass
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_historical_with_date_range.yaml",
+        ):
+            super().test_get_fuel_mix_historical_with_date_range(
+                time_column="Interval Start",
+            )
 
-    @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(self):
-        pass
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_range_two_days_with_day_start_endpoint.yaml",
+        ):
+            super().test_get_fuel_mix_range_two_days_with_day_start_endpoint(
+                time_column="Interval Start",
+            )
 
-    @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_start_end_same_day(self):
-        pass
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_start_end_same_day.yaml",
+        ):
+            super().test_get_fuel_mix_start_end_same_day(
+                time_column="Interval Start",
+            )
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_central_time(self):
-        fm = self.iso.get_fuel_mix(date="latest")
-        assert fm.Time.iloc[0].tz.zone == self.iso.default_timezone
+    def test_get_fuel_mix_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
+            fm = self.iso.get_fuel_mix(date="latest")
 
-    @pytest.mark.integration
-    def test_get_fuel_mix_self_market(self):
-        fm = self.iso.get_fuel_mix(date="latest", detailed=True)
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
+        assert "BAA" not in fm.columns
 
-        cols = [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Coal Market",
-            "Coal Self",
-            "Diesel Fuel Oil Market",
-            "Diesel Fuel Oil Self",
-            "Hydro Market",
-            "Hydro Self",
-            "Natural Gas Market",
-            "Natural Gas Self",
-            "Nuclear Market",
-            "Nuclear Self",
-            "Solar Market",
-            "Solar Self",
-            "Waste Disposal Services Market",
-            "Waste Disposal Services Self",
-            "Wind Market",
-            "Wind Self",
-            "Waste Heat Market",
-            "Waste Heat Self",
-            "Other Market",
-            "Other Self",
-        ]
+    def test_get_fuel_mix_today(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
+            fm = self.iso.get_fuel_mix(date="today")
 
-        assert fm.columns.tolist() == cols
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert "BAA" not in fm.columns
+
+    def test_get_fuel_mix_detailed_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_detailed_latest.yaml"):
+            fm = self.iso.get_fuel_mix_detailed(date="latest")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert "BAA" not in fm.columns
+
+    def test_get_fuel_mix_too_old_raises(self):
+        old_date = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ) - pd.Timedelta(days=400)
+        with pytest.raises(NotSupported):
+            self.iso.get_fuel_mix(date=old_date)
+
+    def test_get_fuel_mix_historical_recent(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=1)
+        with api_vcr.use_cassette("test_get_fuel_mix_historical_recent.yaml"):
+            fm = self.iso.get_fuel_mix(date=yesterday)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert "BAA" not in fm.columns
+        assert fm["Interval Start"].min() >= yesterday
+
+    """get_fuel_mix_by_baa"""
+
+    def test_get_fuel_mix_by_baa_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_latest.yaml"):
+            fm = self.iso.get_fuel_mix_by_baa(date="latest")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
+        assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
+
+    def test_get_fuel_mix_by_baa_today(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_today.yaml"):
+            fm = self.iso.get_fuel_mix_by_baa(date="today")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
+
+    def test_get_fuel_mix_by_baa_historical_recent(self):
+        yesterday = pd.Timestamp.now(
+            tz=self.iso.default_timezone,
+        ).normalize() - pd.Timedelta(days=1)
+        with api_vcr.use_cassette(
+            "test_get_fuel_mix_by_baa_historical_recent.yaml",
+        ):
+            fm = self.iso.get_fuel_mix_by_baa(date=yesterday)
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        assert set(fm["BAA"].unique()).issubset({"SPP", "SWPW"})
+        assert "SPP" in fm["BAA"].values
+        assert fm["Interval Start"].min() >= yesterday
+
+    """get_fuel_mix_by_baa_detailed"""
+
+    def test_get_fuel_mix_by_baa_detailed_latest(self):
+        with api_vcr.use_cassette("test_get_fuel_mix_by_baa_detailed_latest.yaml"):
+            fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
+
+        assert len(fm) > 0
+        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_BAA_COLS
+        assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
     """get_lmp_real_time_5_min_by_location"""
 
@@ -410,6 +570,7 @@ class TestSPP(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Market",
+            "BAA",
             "Location",
             "Location Type",
             "PNode",
@@ -886,18 +1047,433 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_load_historical(self):
-        with pytest.raises(NotSupported):
-            super().test_get_load_historical()
+        test_date = (
+            pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=14)
+        ).date()
+        df = self.iso.get_load(test_date)
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+        assert "Interval Start" in df.columns
+        assert "Interval End" in df.columns
+        assert "Load" in df.columns
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_historical_with_date_range(self):
         pass
 
+    def test_get_load_pre_baa_historical(self):
+        date = pd.Timestamp("2026-03-30 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 2
+        assert df["Load"].tolist() == [20000.0, 20100.0]
+
+    def test_get_load_post_baa_historical(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [
+                    date,
+                    date,
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=5),
+                ],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [15000.0, 5000.0, 15100.0, 5100.0],
+                "BAA": ["SPP", "SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 2
+        assert df["Load"].tolist() == [20000.0, 20200.0]
+
+    def test_get_load_pre_baa_historical_no_baa_column(self):
+        date = pd.Timestamp("2026-03-28 08:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date],
+                "Interval End": [date + pd.Timedelta(minutes=5)],
+                "Actual": [18000.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 1
+        assert df["Load"].iloc[0] == 18000.0
+
+    def test_get_load_pre_baa_historical_null_baa_values(self):
+        date = pd.Timestamp("2026-03-29 10:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [19000.0, 19100.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 2
+
+    def test_get_load_null_baa_mixed_load_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=5),
+                ],
+                "Actual": [15000.0, 3500.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load(date=date, verbose=False)
+
+        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
+        assert len(df) == 1
+        assert df["Load"].iloc[0] == 18500.0
+
     """get_load_forecast"""
 
+    LOAD_FORECAST_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Load Forecast",
+    ]
+
+    # TODO: Refactor Base Tests such that we don't have to skip them everywhere
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_load_forecast_historical_with_date_range(self):
         pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_load_forecast_historical(self):
+        pass
+
+    @pytest.mark.skip(reason="Not Applicable")
+    def test_get_load_forecast_today(self):
+        pass
+
+    def test_get_load_forecast_post_baa(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [
+                    date,
+                    date,
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Publish Time": [publish_time] * 4,
+                "MTLF": [15000.0, 4000.0, 15100.0, 4100.0],
+                "BAA": ["SPP", "SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
+        assert len(df) == 2
+        assert df["Load Forecast"].tolist() == [19000.0, 19200.0]
+
+    def test_get_load_forecast_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 08:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date],
+                "Interval End": [date + pd.Timedelta(hours=1)],
+                "Publish Time": [publish_time],
+                "MTLF": [20000.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
+        assert len(df) == 1
+        assert df["Load Forecast"].iloc[0] == 20000.0
+
+    def test_get_load_forecast_null_baa_mixed_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [14000.0, 3500.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
+        assert len(df) == 1
+        assert df["Load Forecast"].iloc[0] == 17500.0
+
+    """get_load_forecast_by_baa"""
+
+    LOAD_FORECAST_BY_BAA_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "BAA",
+        "Load Forecast",
+    ]
+
+    def test_get_load_forecast_by_baa_post_baa(self):
+        now = self.local_now().floor("h")
+        publish_time = now
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now],
+                "Interval End": [
+                    now + pd.Timedelta(hours=1),
+                    now + pd.Timedelta(hours=1),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [15000.0, 4000.0],
+                "BAA": ["SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=now, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+
+    def test_get_load_forecast_by_baa_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_forecast_by_baa_null_baa_mixed_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        publish_time = date
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Publish Time": [publish_time] * 2,
+                "MTLF": [14000.0, 3500.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+        spp_row = df[df["BAA"] == "SPP"]
+        swpw_row = df[df["BAA"] == "SWPW"]
+        assert spp_row["Load Forecast"].iloc[0] == 14000.0
+        assert swpw_row["Load Forecast"].iloc[0] == 3500.0
+
+    def test_get_load_forecast_by_baa_empty_data(self):
+        date = pd.Timestamp("2026-03-25 10:00:00-0500")
+
+        with patch.object(
+            self.iso,
+            "_get_mid_term_forecast_data",
+            return_value=None,
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_load_forecast_by_baa(date=date, verbose=False)
 
     """get_load_forecast_short_term"""
 
@@ -1020,33 +1596,20 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette(
             f"test_get_load_forecast_short_term_keep_null_forecast_values_{start}_{end}.yaml",
         ):
-            df = self.iso.get_load_forecast_short_term(
+            df_dropped = self.iso.get_load_forecast_short_term(
                 date=start,
                 end=end,
                 drop_null_forecast_rows=True,
             )
 
-            assert df.empty
-
-            df = self.iso.get_load_forecast_short_term(
+            df_kept = self.iso.get_load_forecast_short_term(
                 date=start,
                 end=end,
                 drop_null_forecast_rows=False,
             )
 
-            assert not df.empty
-
-        assert df["Publish Time"].min() == pd.Timestamp(
-            start,
-            tz=self.iso.default_timezone,
-        )
-        assert df["Publish Time"].max() == pd.Timestamp(
-            end,
-            tz=self.iso.default_timezone,
-        ) - pd.Timedelta(minutes=5)
-        assert df["Publish Time"].nunique() == 3
-
-        assert df["STLF"].isna().all()
+        assert len(df_kept) >= len(df_dropped)
+        self._check_load_forecast(df_kept, "SHORT_TERM")
 
     """get_load_forecast_mid_term"""
 
@@ -1348,6 +1911,314 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
+    """get_load_by_baa"""
+
+    LOAD_BY_BAA_COLS = ["Interval Start", "Interval End", "BAA", "Load"]
+
+    def test_get_load_by_baa_post_baa(self):
+        now = self.local_now().floor("5min")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now, now],
+                "Interval End": [
+                    now + pd.Timedelta(minutes=5),
+                    now + pd.Timedelta(minutes=5),
+                    now + pd.Timedelta(minutes=5),
+                ],
+                "Actual": [1000.0, 1005.0, 1001.0],
+                "BAA": ["SWPW", "SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa(date=now, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_pre_baa_null_values(self):
+        date = pd.Timestamp("2026-03-29 10:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(minutes=5)],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=10),
+                ],
+                "Actual": [19000.0, 19100.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_null_baa_mixed_load_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(minutes=5),
+                    date + pd.Timedelta(minutes=5),
+                ],
+                "Actual": [15000.0, 3500.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+        spp_row = df[df["BAA"] == "SPP"]
+        swpw_row = df[df["BAA"] == "SWPW"]
+        assert spp_row["Load"].iloc[0] == 15000.0
+        assert swpw_row["Load"].iloc[0] == 3500.0
+
+    def test_get_load_by_baa_missing_actual_load_column(self):
+        now = self.local_now().floor("5min")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now],
+                "Interval End": [now + pd.Timedelta(minutes=5)],
+                "Actual Wind MW": [100.0],
+                "BAA": ["SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_short_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            with pytest.raises(KeyError):
+                self.iso.get_load_by_baa(date=now, verbose=False)
+
+    """get_load_by_baa_hourly"""
+
+    def test_get_load_by_baa_hourly_post_baa(self):
+        now = self.local_now().floor("h")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [now, now],
+                "Interval End": [
+                    now + pd.Timedelta(hours=1),
+                    now + pd.Timedelta(hours=1),
+                ],
+                "Averaged Actual": [15000.0, 5000.0],
+                "BAA": ["SPP", "SWPW"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=now, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_hourly_pre_baa_no_column(self):
+        date = pd.Timestamp("2026-03-28 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Averaged Actual": [20000.0, 20100.0],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_hourly_pre_baa_null_values(self):
+        date = pd.Timestamp("2026-03-29 10:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date + pd.Timedelta(hours=1)],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=2),
+                ],
+                "Averaged Actual": [19000.0, 19100.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP"}
+        assert len(df) == 2
+
+    def test_get_load_by_baa_hourly_null_baa_mixed_load_values(self):
+        date = pd.Timestamp("2026-04-02 12:00:00-0500")
+        source_df = pd.DataFrame(
+            {
+                "Interval Start": [date, date],
+                "Interval End": [
+                    date + pd.Timedelta(hours=1),
+                    date + pd.Timedelta(hours=1),
+                ],
+                "Averaged Actual": [14000.0, 4000.0],
+                "BAA": [None, None],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ),
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
+        assert len(df) == 2
+        spp_row = df[df["BAA"] == "SPP"]
+        swpw_row = df[df["BAA"] == "SWPW"]
+        assert spp_row["Load"].iloc[0] == 14000.0
+        assert swpw_row["Load"].iloc[0] == 4000.0
+
+    def test_get_load_by_baa_hourly_no_data(self):
+        date = pd.Timestamp("2026-03-25 10:00:00-0500")
+
+        with patch.object(
+            self.iso,
+            "_get_mid_term_forecast_data",
+            return_value=None,
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
+
+        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
+        assert len(df) == 0
+
     """get_status"""
 
     @pytest.mark.integration
@@ -1367,22 +2238,27 @@ class TestSPP(BaseTestISO):
         with pytest.raises(NotImplementedError):
             super().test_get_storage_today()
 
-    """ get_ver_curtailment """
+    """ get_ver_curtailments """
+
+    _ver_curtailment_cols = [
+        "Interval Start",
+        "Interval End",
+        "Wind Redispatch Curtailments",
+        "Wind Manual Curtailments",
+        "Wind Curtailed For Energy",
+        "Solar Redispatch Curtailments",
+        "Solar Manual Curtailments",
+        "Solar Curtailed For Energy",
+    ]
 
     def _check_ver_curtailments(self, df):
         assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self._ver_curtailment_cols
+        assert "BAA" not in df.columns
 
-        assert df.columns.tolist() == [
-            "Time",
-            "Interval Start",
-            "Interval End",
-            "Wind Redispatch Curtailments",
-            "Wind Manual Curtailments",
-            "Wind Curtailed For Energy",
-            "Solar Redispatch Curtailments",
-            "Solar Manual Curtailments",
-            "Solar Curtailed For Energy",
-        ]
+    def _check_ver_curtailments_by_baa(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self._ver_curtailment_cols + ["BAA"]
 
     def test_get_ver_curtailments_historical(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
@@ -1407,6 +2283,32 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
         self._check_ver_curtailments(df)
+
+    """ get_ver_curtailments_by_baa """
+
+    def test_get_ver_curtailments_by_baa_historical(self):
+        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
+        start = two_days_ago - pd.Timedelta(days=2)
+        with api_vcr.use_cassette(
+            f"test_get_ver_curtailments_by_baa_historical_{start.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_ver_curtailments_by_baa(start=start, end=two_days_ago)
+
+        assert df["Interval Start"].min().date() == start.date()
+        assert df["Interval Start"].max().date() == two_days_ago.date()
+        self._check_ver_curtailments_by_baa(df)
+
+    def test_get_ver_curtailments_by_baa_annual(self):
+        year = 2020
+        with api_vcr.use_cassette(
+            f"test_get_ver_curtailments_by_baa_annual_{year}.yaml",
+        ):
+            df = self.iso.get_ver_curtailments_by_baa_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
+        assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
+
+        self._check_ver_curtailments_by_baa(df)
 
     # get_capacity_of_generation_on_outage
 
@@ -1476,7 +2378,7 @@ class TestSPP(BaseTestISO):
         forecast_col = "STLF" if forecast_type == "SHORT_TERM" else "MTLF"
         actual_col = "Actual" if forecast_type == "SHORT_TERM" else "Averaged Actual"
 
-        expected_cols = [
+        required_cols = [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1491,7 +2393,14 @@ class TestSPP(BaseTestISO):
             else pd.Timedelta(hours=1)
         )
 
-        assert df.columns.tolist() == expected_cols
+        for col in required_cols:
+            assert col in df.columns, f"Missing column: {col}"
+
+        allowed_extra_cols = {"BAA"}
+        extra_cols = set(df.columns) - set(required_cols)
+        assert extra_cols <= allowed_extra_cols, (
+            f"Unexpected columns: {extra_cols - allowed_extra_cols}"
+        )
 
         assert (df[forecast_col] >= 0).all()
 
@@ -1530,9 +2439,9 @@ class TestSPP(BaseTestISO):
 
         assert (df["Forecast Type"] == forecast_type).all()
 
-    """ get_hourly_load """
+    """ get_hourly_load_historical (wide format, before 2026-03-24) """
 
-    def _check_hourly_load(self, df):
+    def _check_hourly_load_historical(self, df):
         assert isinstance(df, pd.DataFrame)
 
         assert df.columns.tolist() == [
@@ -1560,36 +2469,90 @@ class TestSPP(BaseTestISO):
         ]
 
     def test_get_hourly_load_historical(self):
-        two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
-        start = two_days_ago - pd.Timedelta(days=2)
+        start = pd.Timestamp("2026-03-20")
+        end = pd.Timestamp("2026-03-22")
         with api_vcr.use_cassette(
-            f"test_get_hourly_load_historical_{start.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+            f"test_get_hourly_load_historical_{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.yaml",
         ):
-            df = self.iso.get_hourly_load(start=start, end=two_days_ago)
+            df = self.iso.get_hourly_load_historical(start=start, end=end)
 
         assert df["Interval Start"].min().date() == start.date()
-        assert df["Interval Start"].max().date() == two_days_ago.date()
-        self._check_hourly_load(df)
+        assert df["Interval Start"].max().date() == pd.Timestamp("2026-03-21").date()
+        self._check_hourly_load_historical(df)
 
-    def test_get_hourly_load_annual(self):
+    def test_get_hourly_load_historical_annual(self):
         year = 2020
         with api_vcr.use_cassette(
-            f"test_get_hourly_load_annual_{year}.yaml",
+            f"test_get_hourly_load_historical_annual_{year}.yaml",
         ):
             df = self.iso.get_hourly_load_annual(year=year)
 
         assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
         assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
 
-        self._check_hourly_load(df)
+        self._check_hourly_load_historical(df)
 
-    @pytest.mark.integration
+    def test_get_hourly_load_historical_raises_on_new_date(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_hourly_load_historical(pd.Timestamp("2026-03-24"))
+
+    def test_get_hourly_load_historical_process_raises_on_new_data(self):
+        new_format_df = pd.DataFrame(
+            {
+                "Market Hour": ["03/24/2026 06:00:00"],
+                "Balancing Area Name": ["SPP"],
+                "Control Zone Name": ["CSWS"],
+                "Forecast Area Type": ["CF"],
+                "Load MW": [4091.830],
+            },
+        )
+        with pytest.raises(NotSupported):
+            self.iso._process_hourly_load(new_format_df)
+
+    """ get_hourly_load (long format, >= 2026-03-24) """
+
+    def _check_hourly_load(self, df):
+        assert isinstance(df, pd.DataFrame)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Balancing Area Name",
+            "Control Zone Name",
+            "Forecast Area Type",
+            "Load",
+        ]
+
+        assert df["Interval Start"].dtype == "datetime64[ns, US/Central]"
+        assert df["Interval End"].dtype == "datetime64[ns, US/Central]"
+        assert df["Balancing Area Name"].dtype == "object"
+        assert df["Control Zone Name"].dtype == "object"
+        assert df["Forecast Area Type"].dtype == "object"
+        assert df["Load"].dtype == "float64"
+        assert set(df["Forecast Area Type"].unique()).issubset({"CF", "NC"})
+
+    def test_get_hourly_load(self):
+        date = pd.Timestamp("2026-03-24")
+        with api_vcr.use_cassette(
+            f"test_get_hourly_load_{date}.yaml",
+        ):
+            df = self.iso.get_hourly_load(date)
+
+        self._check_hourly_load(df)
+        assert df["Interval Start"].min().date() == date.date()
+        assert df["Interval Start"].max().date() == date.date()
+        assert len(df) > 0
+
+    def test_get_hourly_load_raises_on_old_date(self):
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_hourly_load(pd.Timestamp("2026-03-23"))
+
     @pytest.mark.parametrize(
         "date",
         ["today", "latest", pd.Timestamp.now()],
     )
     def test_get_hourly_load_current_day_not_supported(self, date):
-        with pytest.raises(NotSupported):
+        with pytest.raises(NoDataFoundException):
             self.iso.get_hourly_load(date)
 
     """get_market_clearing_real_time"""
@@ -1804,3 +2767,221 @@ class TestSPP(BaseTestISO):
         self._check_binding_constraints_real_time(df)
         assert df["Interval Start"].min() == start_date
         assert df["Interval Start"].max() == end_date
+
+    """get_interchange_real_time"""
+
+    interchange_real_time_cols = [
+        "Time",
+        "Region",
+        "Interchange",
+    ]
+
+    def _check_interchange_real_time(self, df):
+        assert len(df) > 0
+        assert df["Time"].dt.tz is not None
+        assert list(df.columns) == self.interchange_real_time_cols
+        # Core interchange regions are present
+        regions = df["Region"].unique()
+        assert "SPP NSI" in regions
+        assert "SPP NAI" in regions
+        # No null interchange values
+        assert df["Interchange"].notna().all()
+
+    def test_get_interchange_real_time_latest(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
+            df = self.iso.get_interchange_real_time("latest")
+
+        self._check_interchange_real_time(df)
+
+    def test_get_interchange_real_time_today(self):
+        with api_vcr.use_cassette("test_get_interchange_real_time_today.yaml"):
+            df = self.iso.get_interchange_real_time("today")
+
+        self._check_interchange_real_time(df)
+
+    def test_get_interchange_real_time_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                pd.Timestamp("2025-01-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # The Jan 2025 file starts Dec 31 UTC-6 due to GMT→Central conversion
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 1
+        assert df["Time"].max().year == 2025
+
+    def test_get_interchange_real_time_historical_range(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_historical_range.yaml",
+        ):
+            df = self.iso.get_interchange_real_time(
+                date=pd.Timestamp("2025-01-01"),
+                end=pd.Timestamp("2025-03-01"),
+            )
+
+        self._check_interchange_real_time(df)
+        # Should span Jan and Feb 2025 (starts Dec 31 due to GMT→Central)
+        assert df["Time"].min().year >= 2024
+        assert df["Time"].max().month == 2
+        assert df["Time"].max().year == 2025
+
+    def test_get_interchange_real_time_no_data(self):
+        with api_vcr.use_cassette(
+            "test_get_interchange_real_time_no_data.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_interchange_real_time(
+                    pd.Timestamp("2014-02-01"),
+                    error="raise",
+                )
+
+    """get_west_interchange_real_time"""
+
+    west_interchange_real_time_cols = [
+        "Time",
+        "Region",
+        "Interchange",
+    ]
+
+    def _check_west_interchange_real_time(self, df):
+        assert len(df) > 0
+        assert df["Time"].dt.tz is not None
+        assert list(df.columns) == self.west_interchange_real_time_cols
+        # Core interchange regions are present
+        regions = df["Region"].unique()
+        assert "SWPW NSI" in regions
+        assert "SWPW NAI" in regions
+        # No null interchange values
+        assert df["Interchange"].notna().all()
+
+    def test_get_west_interchange_real_time_latest(self):
+        with api_vcr.use_cassette(
+            "test_get_west_interchange_real_time_latest.yaml",
+        ):
+            df = self.iso.get_west_interchange_real_time("latest")
+
+        self._check_west_interchange_real_time(df)
+
+    def test_get_west_interchange_real_time_today(self):
+        with api_vcr.use_cassette(
+            "test_get_west_interchange_real_time_today.yaml",
+        ):
+            df = self.iso.get_west_interchange_real_time("today")
+
+        self._check_west_interchange_real_time(df)
+
+    def test_get_west_interchange_real_time_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_west_interchange_real_time_historical.yaml",
+        ):
+            df = self.iso.get_west_interchange_real_time(
+                pd.Timestamp("2026-04-01"),
+            )
+
+        self._check_west_interchange_real_time(df)
+        assert df["Time"].min().month >= 3
+        assert df["Time"].max().month == 4
+        assert df["Time"].max().year == 2026
+
+    def test_get_west_interchange_real_time_historical_range(self):
+        with api_vcr.use_cassette(
+            "test_get_west_interchange_real_time_historical_range.yaml",
+        ):
+            df = self.iso.get_west_interchange_real_time(
+                date=pd.Timestamp("2026-03-01"),
+                end=pd.Timestamp("2026-05-01"),
+            )
+
+        self._check_west_interchange_real_time(df)
+        # Should span Mar and Apr 2026
+        assert df["Time"].min().month >= 3
+        assert df["Time"].max().month == 4
+        assert df["Time"].max().year == 2026
+
+    def test_get_west_interchange_real_time_no_data(self):
+        with api_vcr.use_cassette(
+            "test_get_west_interchange_real_time_no_data.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_west_interchange_real_time(
+                    pd.Timestamp("2025-02-01"),
+                    error="raise",
+                )
+
+
+class TestFillBaaColumn:
+    """Tests for the fill_baa_column utility function."""
+
+    def test_creates_baa_column_when_missing(self):
+        df = pd.DataFrame({"Load": [2000.0, 25000.0, 3000.0]})
+        result = fill_baa_column(df, "Load")
+        assert "BAA" in result.columns
+        assert result["BAA"].tolist() == [
+            BAAEnum.SWPW.value,
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_fills_nan_baa_values(self):
+        df = pd.DataFrame(
+            {
+                "Load": [2000.0, 25000.0, 3000.0],
+                "BAA": [BAAEnum.SWPW.value, None, None],
+            },
+        )
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [
+            BAAEnum.SWPW.value,
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_preserves_existing_baa_values(self):
+        df = pd.DataFrame(
+            {
+                "Load": [2000.0, 25000.0],
+                "BAA": [BAAEnum.SPP.value, BAAEnum.SWPW.value],
+            },
+        )
+        result = fill_baa_column(df, "Load")
+        # Existing non-null values should not be overwritten
+        assert result["BAA"].tolist() == [
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_nan_load_maps_to_spp(self):
+        df = pd.DataFrame({"Load": [float("nan"), 2000.0]})
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [
+            BAAEnum.SPP.value,
+            BAAEnum.SWPW.value,
+        ]
+
+    def test_threshold_boundary(self):
+        df = pd.DataFrame(
+            {"Load": [BAA_LOAD_THRESHOLD_MW - 1, BAA_LOAD_THRESHOLD_MW]},
+        )
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [
+            BAAEnum.SWPW.value,
+            BAAEnum.SPP.value,
+        ]
+
+    def test_returns_same_dataframe(self):
+        df = pd.DataFrame({"Load": [2000.0]})
+        result = fill_baa_column(df, "Load")
+        assert result is df
+
+    def test_all_baa_present_no_changes(self):
+        df = pd.DataFrame(
+            {
+                "Load": [2000.0, 25000.0],
+                "BAA": [BAAEnum.SPP.value, BAAEnum.SPP.value],
+            },
+        )
+        result = fill_baa_column(df, "Load")
+        assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]

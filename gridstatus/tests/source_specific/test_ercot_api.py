@@ -6,6 +6,8 @@ import pytest
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.ercot import ELECTRICAL_BUS_LOCATION_TYPE
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ESR_AS_OFFERS_COLUMNS,
     DAM_ESR_AS_OFFERS_KEY,
     DAM_ESR_COLUMNS,
@@ -25,7 +27,11 @@ from gridstatus.ercot_constants import (
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.source_specific.test_ercot import (
-    TestErcot,
+    TestErcot as _ErcotChecks,
+)
+from gridstatus.tests.source_specific.test_ercot import (
+    _check_dam_as_only_awards,
+    _check_dam_as_only_offers,
     check_60_day_dam_disclosure,
     check_60_day_sced_disclosure,
     check_load_forecast_by_model,
@@ -446,6 +452,50 @@ class TestErcotAPI(TestHelperMixin):
             end,
         )
 
+    """get_dam_asdc_aggregated"""
+
+    # Per NP4-19-CD documentation, the dataset advertises REGDN, REGUP, RRSPF,
+    # RRSFF, RRSUF, ECRSS, and ECRSM; in practice the published files also
+    # include the pre-ECRS NSPIN and NSPNM products.
+    allowed_dam_asdc_aggregated_as_types = {
+        "REGDN",
+        "REGUP",
+        "RRSPF",
+        "RRSFF",
+        "RRSUF",
+        "ECRSS",
+        "ECRSM",
+        "NSPIN",
+        "NSPNM",
+    }
+
+    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "Price",
+            "Quantity",
+        ]
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert set(df["AS Type"].unique()).issubset(
+            self.allowed_dam_asdc_aggregated_as_types,
+        )
+
+    def test_get_dam_asdc_aggregated_historical(self):
+        date = self.local_today() - pd.Timedelta(days=10)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_dam_asdc_aggregated_historical_{date}.yaml",
+        ):
+            df = self.iso.get_dam_asdc_aggregated(date, end)
+        self._check_get_dam_asdc_aggregated(df)
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval End"].max() == self.local_start_of_day(end)
+
     """get_as_reports"""
 
     def _check_as_reports(self, df, before_full_columns=False):
@@ -581,7 +631,7 @@ class TestErcotAPI(TestHelperMixin):
         with api_vcr.use_cassette(f"test_get_as_reports_dam_{date}.yaml"):
             df = self.iso.get_as_reports_dam(date, verbose=True)
 
-        TestErcot()._check_as_reports_dam(df)
+        _ErcotChecks()._check_as_reports_dam(df)
 
         assert df["Interval Start"].dt.date.unique() == date.date()
 
@@ -595,7 +645,7 @@ class TestErcotAPI(TestHelperMixin):
         with api_vcr.use_cassette(f"test_get_as_reports_sced_{date}.yaml"):
             df = self.iso.get_as_reports_sced(date, verbose=True)
 
-        TestErcot()._check_as_reports_sced(df)
+        _ErcotChecks()._check_as_reports_sced(df)
 
         assert df["SCED Timestamp"].dt.date.unique() == date.date()
 
@@ -1056,6 +1106,16 @@ class TestErcotAPI(TestHelperMixin):
             .all()
         )
 
+        # Make sure none of these strings have leading or trailing whitespace
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "To Station",
+            "From Station",
+        ]:
+            assert df[col].str.strip().equals(df[col])
+
     @pytest.mark.integration
     def test_get_shadow_prices_dam_today_and_latest(self):
         df = self.iso.get_shadow_prices_dam("today", verbose=True)
@@ -1094,7 +1154,7 @@ class TestErcotAPI(TestHelperMixin):
         past_date = self.local_start_of_today() - pd.DateOffset(
             days=HISTORICAL_DAYS_THRESHOLD * 4,
         )
-        past_end_date = past_date + pd.DateOffset(days=2)
+        past_end_date = past_date + pd.DateOffset(days=1)
 
         df = self.iso.get_shadow_prices_dam(
             date=past_date,
@@ -1390,6 +1450,14 @@ class TestErcotAPI(TestHelperMixin):
         dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
         assert dam_esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
         assert len(dam_esr_as_offers) > 0
+
+        # AS Only Awards/Offers (ENG-3684/ENG-3688) landed in the bundle on the
+        # same 2025-12-06 operating day as ESR, so we check them here too.
+        assert DAM_AS_ONLY_AWARDS_KEY in df_dict
+        assert DAM_AS_ONLY_OFFERS_KEY in df_dict
+
+        _check_dam_as_only_awards(df_dict[DAM_AS_ONLY_AWARDS_KEY])
+        _check_dam_as_only_offers(df_dict[DAM_AS_ONLY_OFFERS_KEY])
 
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)

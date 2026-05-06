@@ -6,6 +6,7 @@ from enum import Enum
 from typing import BinaryIO, Callable, List, Literal
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 import pytz
 import requests
@@ -24,6 +25,8 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_KEY,
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
@@ -44,6 +47,9 @@ from gridstatus.ercot_60d_utils import (
     SCED_LOAD_RESOURCE_KEY,
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
+    CurveOutputFormat,
+    process_dam_as_only_awards,
+    process_dam_as_only_offers,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -134,6 +140,14 @@ RTM_PRICE_CORRECTIONS_RTID = 13045
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-196-M
 DAM_PRICE_CORRECTIONS_RTID = 13044
 
+# DAM Shadow Prices
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
+DAM_SHADOW_PRICES_RTID = 12332
+
+# DAM LMPs by Electrical Bus
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP4-183-CD
+DAM_LMPS_BY_ELECTRICAL_BUS_RTID = 12328
+
 # LMPs by Electrical Bus
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-787-CD
 LMPS_BY_ELECTRICAL_BUS_RTID = 11485
@@ -176,6 +190,11 @@ DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
+
+# Monthly CRR Auction Results (bundled ZIP containing bids/offers, base loading,
+# binding constraints, market results, and source/sink shadow prices CSVs)
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+MONTHLY_CRR_AUCTION_RESULTS_RTID = 11201
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
 REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
@@ -227,6 +246,18 @@ RTD_INDICATIVE_REAL_TIME_MCPC_RTID = 24889
 # Total Capability of Resources Available to Provide Ancillary Service
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-328-CD
 TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID = 24887
+
+# DAM Aggregated Ancillary Service Offer Curve
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
+DAM_AGGREGATED_AS_OFFER_CURVE_RTID = 12330
+
+# 3-Day Highest Price Bids Selected or Dispatched in SCED
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
+THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID = 13230
+
+# 3-Day Highest Price Offered in SCED
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-916-ex
+THREE_DAY_HIGHEST_PRICE_OFFERED_SCED_RTID = 13029
 
 
 class ERCOTSevenDayLoadForecastReport(Enum):
@@ -1740,6 +1771,92 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
+    def get_lmp_by_bus_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day-Ahead Market (DAM) LMPs by Electrical Bus
+
+        Returns hourly Locational Marginal Prices per electrical bus from the
+        Day-Ahead Market.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-183-CD
+
+        Arguments:
+            date (str, datetime): date to get data for. Supports "latest",
+                "today", or a specific date.
+            end (str, datetime, optional): end date for a date range query.
+                If None, returns 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead LMPs by electrical bus
+        """
+        if date == "latest":
+            return self.get_lmp_by_bus_dam("today", verbose=verbose)
+
+        # DAM data is published the day before delivery
+        publish_date = date.normalize() - pd.DateOffset(days=1)
+
+        if end is not None:
+            published_before = end - pd.DateOffset(days=1)
+            published_after = publish_date
+            publish_date = None
+        else:
+            published_before = None
+            published_after = None
+
+        docs = self._get_documents(
+            report_type_id=DAM_LMPS_BY_ELECTRICAL_BUS_RTID,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(columns=self._lmp_by_bus_dam_cols),
+            verbose=verbose,
+        )
+
+        return self._handle_lmp_by_bus_dam_df(df)
+
+    _lmp_by_bus_dam_cols = [
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+    ]
+
+    def _handle_lmp_by_bus_dam_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException("No DAM LMP by bus data found")
+
+        df = df.rename(columns={"BusName": "Location"})
+        df = df.drop(columns=["Time"], errors="ignore")
+        df["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
+        df["Market"] = Markets.DAY_AHEAD_HOURLY.value
+
+        df = df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+            ]
+        ]
+
+        return df.sort_values("Interval Start").reset_index(drop=True)
+
     @lmp_config(
         supports={
             Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
@@ -1987,6 +2104,241 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
+    def get_mcpc_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Market Clearing Prices for Capacity (MCPC) from the Day-Ahead Market
+
+        Returns hourly MCPC per ancillary service type in long format.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
+
+        Arguments:
+            date (str, datetime): date to get data for. Supports "latest",
+                "today", or a specific date.
+            end (str, datetime, optional): end date for a date range query.
+                If None, returns 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns: Interval Start,
+                Interval End, AS Type, MCPC
+        """
+        if date == "latest":
+            return self.get_mcpc_dam("today", verbose=verbose)
+
+        # DAM data is published the day before delivery
+        publish_date = date.normalize() - pd.DateOffset(days=1)
+
+        if end is not None:
+            published_before = end - pd.DateOffset(days=1)
+            published_after = publish_date
+            publish_date = None
+        else:
+            published_before = None
+            published_after = None
+
+        docs = self._get_documents(
+            report_type_id=DAM_CLEARING_PRICES_FOR_CAPACITY_RTID,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(columns=self._mcpc_dam_cols),
+            verbose=verbose,
+        )
+
+        return self._handle_mcpc_dam_df(df)
+
+    _mcpc_dam_cols = [
+        "Interval Start",
+        "Interval End",
+        "AS Type",
+        "MCPC",
+    ]
+
+    def _handle_mcpc_dam_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException("No DAM MCPC data found")
+
+        df = df.rename(columns={"AncillaryType": "AS Type"})
+        df = df.drop(columns=["Time"], errors="ignore")
+        df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "MCPC"]]
+            .sort_values(["Interval Start", "AS Type"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency=None)
+    def get_shadow_prices_dam(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day-Ahead Market Shadow Prices
+
+        Returns shadow prices for binding transmission constraints from the
+        Day-Ahead Market.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
+
+        Arguments:
+            date (str, datetime): date to get data for. Supports "latest",
+                "today", or a specific date.
+            end (str, datetime, optional): end date for a date range query.
+                If None, returns 1 day of data. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with day-ahead market shadow prices
+        """
+        if date == "latest":
+            return self.get_shadow_prices_dam("today", verbose=verbose)
+
+        # DAM data is published the day before delivery
+        publish_date = date.normalize() - pd.DateOffset(days=1)
+
+        if end is not None:
+            published_before = end - pd.DateOffset(days=1)
+            published_after = publish_date
+            publish_date = None
+        else:
+            published_before = None
+            published_after = None
+
+        docs = self._get_documents(
+            report_type_id=DAM_SHADOW_PRICES_RTID,
+            date=publish_date,
+            published_before=published_before,
+            published_after=published_after,
+            constructed_name_contains="csv.zip",
+            verbose=verbose,
+        )
+
+        df = self.read_docs(
+            docs,
+            empty_df=pd.DataFrame(columns=self._shadow_prices_dam_cols),
+            verbose=verbose,
+        )
+
+        return self._handle_shadow_prices_dam_df(df)
+
+    def _shadow_prices_column_name_mapper(self):
+        return {
+            "CCTStatus": "CCT Status",
+            "ConstraintId": "Constraint ID",
+            "ConstraintID": "Constraint ID",
+            "ConstraintLimit": "Constraint Limit",
+            "ConstraintName": "Constraint Name",
+            "ConstraintValue": "Constraint Value",
+            "ContingencyName": "Contingency Name",
+            "DeliveryTime": "Delivery Time",
+            "FromStation": "From Station",
+            "FromStationkV": "From Station kV",
+            "MaxShadowPrice": "Max Shadow Price",
+            "ShadowPrice": "Shadow Price",
+            "SystemLambda": "System Lambda",
+            "ToStation": "To Station",
+            "ToStationkV": "To Station kV",
+            "ViolatedMW": "Violated MW",
+            "ViolationAmount": "Violation Amount",
+        }
+
+    def _construct_limiting_facility_column(self, data):
+        data["Limiting Facility"] = np.where(
+            data["Contingency Name"] != "BASE CASE",
+            data["From Station"].astype(str)
+            + "_"
+            + data["From Station kV"].astype(str)
+            + "_"
+            + data["To Station"].astype(str)
+            + "_"
+            + data["To Station kV"].astype(str),
+            pd.NA,
+        )
+
+        return data
+
+    _shadow_prices_dam_cols = [
+        "Interval Start",
+        "Interval End",
+        "Constraint ID",
+        "Constraint Name",
+        "Contingency Name",
+        "Limiting Facility",
+        "Constraint Limit",
+        "Constraint Value",
+        "Violation Amount",
+        "Shadow Price",
+        "From Station",
+        "To Station",
+        "From Station kV",
+        "To Station kV",
+    ]
+
+    def _handle_shadow_prices_dam_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            raise NoDataFoundException("No DAM shadow prices data found")
+
+        df = df.rename(columns=self._shadow_prices_column_name_mapper())
+
+        # Strip whitespace from Contingency Name before constructing
+        # Limiting Facility (raw data may have leading whitespace in
+        # ContingencyName which would break the BASE CASE check)
+        if "Contingency Name" in df.columns:
+            df["Contingency Name"] = df["Contingency Name"].str.strip()
+
+        df = self._construct_limiting_facility_column(df)
+
+        # Replace empty strings with NA and strip whitespace after
+        # constructing Limiting Facility to match original behavior
+        df = df.replace("", pd.NA)
+        for col in [
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "To Station",
+            "From Station",
+        ]:
+            if col in df.columns:
+                df[col] = df[col].str.strip()
+
+        output_cols = [
+            "Interval Start",
+            "Interval End",
+            "Constraint ID",
+            "Constraint Name",
+            "Contingency Name",
+            "Limiting Facility",
+            "Constraint Limit",
+            "Constraint Value",
+            "Violation Amount",
+            "Shadow Price",
+            "From Station",
+            "To Station",
+            "From Station kV",
+            "To Station kV",
+        ]
+
+        df = df.drop(columns=["Delivery Time", "Time"], errors="ignore")
+        df = df[output_cols]
+
+        return df.sort_values(
+            ["Interval Start", "Constraint ID"],
+        ).reset_index(drop=True)
+
     @support_date_range(frequency="DAY_START")
     def get_as_plan(
         self,
@@ -2077,6 +2429,14 @@ class Ercot(ISOBase):
     SCED_SUPPLEMENTAL_CORRECTION_START = pd.Timestamp("2025-12-05").date()
     SCED_SUPPLEMENTAL_CORRECTION_END = pd.Timestamp("2025-12-20").date()
 
+    # Data dates for which SCED Resource AS Offers data from the normal
+    # disclosure file is incorrect and should be replaced with data from the
+    # supplemental file. Published on April 10, 2026. Report dates
+    # Feb 3, 2026 through April 3, 2026 correspond to data dates
+    # Dec 5, 2025 through Feb 2, 2026.
+    SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_START = pd.Timestamp("2025-12-05").date()
+    SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_END = pd.Timestamp("2026-02-02").date()
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2084,6 +2444,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Get 60 day SCED Disclosure data
 
@@ -2094,6 +2455,9 @@ class Ercot(ISOBase):
             process (bool, optional): if True, will process the data into
                 standardized format. if False, will return raw data
             verbose (bool, optional): print verbose output. Defaults to False.
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: dictionary with keys "sced_load_resource", "sced_gen_resource",
@@ -2120,12 +2484,19 @@ class Ercot(ISOBase):
             <= date_as_date
             <= self.SCED_SUPPLEMENTAL_CORRECTION_END
         )
+        use_resource_as_offers_supplemental = (
+            self.SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_START
+            <= date_as_date
+            <= self.SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_END
+        )
 
         data = self._handle_60_day_sced_disclosure(
             z,
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction or use_sced_supplemental,
+            skip_resource_as_offers=use_resource_as_offers_supplemental,
+            output_format=output_format,
         )
 
         if use_sced_supplemental:
@@ -2134,6 +2505,7 @@ class Ercot(ISOBase):
                 date,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             data.update(supplemental)
         elif use_esr_correction:
@@ -2142,9 +2514,20 @@ class Ercot(ISOBase):
                 date,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
+
+        if use_resource_as_offers_supplemental:
+            resource_as_offers = self._get_sced_resource_as_offers_supplemental_data(
+                date,
+                process=process,
+                verbose=verbose,
+                output_format=output_format,
+            )
+            if resource_as_offers is not None:
+                data[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
 
         return data
 
@@ -2154,7 +2537,21 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        skip_resource_as_offers: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
+        """Parse a 60-day SCED disclosure zip file into DataFrames.
+
+        Args:
+            z: Opened ZipFile containing SCED disclosure CSVs.
+            process: If True, apply processing functions to standardize data.
+            verbose: If True, print verbose output.
+            skip_esr: If True, skip ESR data extraction.
+            skip_resource_as_offers: If True, skip Resource AS Offers data
+                extraction. Used when the caller will replace this dataset
+                with a supplemental file.
+            output_format: Curve output format passed to process functions.
+        """
         # TODO: there are other files in the zip folder
         load_resource_file = None
         gen_resource_file = None
@@ -2195,7 +2592,7 @@ class Ercot(ISOBase):
         )
         resource_as_offers = (
             pd.read_csv(z.open(resource_as_offers_file))
-            if resource_as_offers_file
+            if resource_as_offers_file and not skip_resource_as_offers
             else None
         )
 
@@ -2285,22 +2682,28 @@ class Ercot(ISOBase):
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
-            load_resource = process_sced_load(load_resource)
-            gen_resource = process_sced_gen(gen_resource)
+            load_resource = process_sced_load(
+                load_resource,
+                output_format=output_format,
+            )
+            gen_resource = process_sced_gen(gen_resource, output_format=output_format)
             smne = smne.rename(
                 columns={
                     "Resource Code": "Resource Name",
                 },
             )
             if esr is not None:
-                esr = process_sced_esr(esr)
+                esr = process_sced_esr(esr, output_format=output_format)
             if as_offer_updates is not None:
                 as_offer_updates = self.parse_doc(as_offer_updates)
                 as_offer_updates = process_sced_as_offer_updates_in_op_hour(
                     as_offer_updates,
                 )
             if resource_as_offers is not None:
-                resource_as_offers = process_sced_resource_as_offers(resource_as_offers)
+                resource_as_offers = process_sced_resource_as_offers(
+                    resource_as_offers,
+                    output_format=output_format,
+                )
 
         result = {
             SCED_LOAD_RESOURCE_KEY: load_resource,
@@ -2324,6 +2727,7 @@ class Ercot(ISOBase):
         date: pd.Timestamp,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> pd.DataFrame | None:
         """Fetch ESR data from the supplemental correction file for specific dates.
 
@@ -2335,6 +2739,7 @@ class Ercot(ISOBase):
             date: The data date (not report date) to fetch ESR correction data for
             process: If True, process the data into standardized format
             verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
 
         Returns:
             DataFrame with ESR correction data, or None if not found
@@ -2390,7 +2795,7 @@ class Ercot(ISOBase):
         )
 
         if process:
-            esr = process_sced_esr(esr)
+            esr = process_sced_esr(esr, output_format=output_format)
 
         return esr
 
@@ -2422,6 +2827,7 @@ class Ercot(ISOBase):
         date: pd.Timestamp,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Fetch ESR, Gen Resource, and Load Resource data from supplemental
         correction files for data dates Dec 5-20, 2025.
@@ -2434,6 +2840,7 @@ class Ercot(ISOBase):
             date: The data date (not report date) to fetch supplemental data for
             process: If True, process the data into standardized format
             verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
 
         Returns:
             dict with keys for the corrected datasets
@@ -2489,11 +2896,94 @@ class Ercot(ISOBase):
             )
 
             if process:
-                df = process_fn(df)
+                df = process_fn(df, output_format=output_format)
 
             result[key] = df
 
         return result
+
+    def _get_sced_resource_as_offers_supplemental_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+    ) -> pd.DataFrame | None:
+        """Fetch SCED Resource AS Offers data from the supplemental file for
+        data dates Dec 5, 2025 through Feb 2, 2026.
+
+        The supplemental file was published on April 10, 2026 and covers
+        report dates Feb 3, 2026 through April 3, 2026. ERCOT published
+        incorrect Resource AS Offers data for those report dates in the
+        normal 60-Day SCED Disclosure zips.
+
+        Arguments:
+            date: The data date (not report date) to fetch supplemental data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
+
+        Returns:
+            DataFrame with corrected Resource AS Offers data, or None if the
+            supplemental file or the specific date's CSV is not found.
+        """
+        docs = self._get_documents(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            constructed_name_contains=(
+                "60d_SCED_Resource_AS_OFFERS_02032026_thru_04032026_SUPPLEMENTAL"
+            ),
+            verbose=verbose,
+        )
+
+        if not docs:
+            logger.warning(
+                "SCED Resource AS Offers supplemental file not found",
+            )
+            return None
+
+        doc = max(docs, key=lambda x: x.publish_date)
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+        # Files are named like: 60d_SCED_Resource_AS_OFFERS-03-FEB-26.csv
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        expected_filename = f"60d_SCED_Resource_AS_OFFERS-{date_str}.csv"
+
+        target_file = None
+        for file in z.namelist():
+            cleaned = file.replace(" ", "_")
+            if expected_filename in cleaned:
+                target_file = file
+                break
+
+        if target_file is None:
+            logger.warning(
+                "Could not find SCED Resource AS Offers supplemental file "
+                f"{expected_filename} in supplemental zip",
+            )
+            return None
+
+        if verbose:
+            logger.info(
+                f"Reading SCED Resource AS Offers supplemental data from {target_file}",
+            )
+
+        df = pd.read_csv(z.open(target_file))
+
+        # Localize SCED Timestamp (column is already named "SCED Timestamp"
+        # in the supplemental file, but rename defensively in case a future
+        # supplemental reverts to "SCED Time Stamp").
+        df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+        df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["Repeated Hour Flag"] == "N",
+        )
+
+        if process:
+            df = process_sced_resource_as_offers(df, output_format=output_format)
+
+        return df
 
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(
@@ -2502,6 +2992,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         process: bool = False,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Get 60 day DAM Disclosure data. Returns a dict with keys
 
@@ -2519,11 +3010,18 @@ class Ercot(ISOBase):
         - "dam_ptp_obligation_option_awards"
         - "dam_esr" (when available, starting 2025-12-06)
         - "dam_esr_as_offers" (when available, starting 2025-12-06)
+        - "dam_as_only_awards" (when available, starting 2025-12-06)
+        - "dam_as_only_offers" (when available, starting 2025-12-06)
 
         and values as pandas.DataFrame objects
 
         The date passed in should be the report date. Since reports are delayed by 60
         days, the passed date should not be fewer than 60 days in the past.
+
+        Args:
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
         """
 
         report_date = date + pd.DateOffset(days=60)
@@ -2537,7 +3035,12 @@ class Ercot(ISOBase):
 
         z = utils.get_zip_folder(doc_info.url, verbose=verbose)
 
-        data = self._handle_60_day_dam_disclosure(z, process=process, verbose=verbose)
+        data = self._handle_60_day_dam_disclosure(
+            z,
+            process=process,
+            verbose=verbose,
+            output_format=output_format,
+        )
 
         return data
 
@@ -2547,7 +3050,17 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         files_prefix: dict = None,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
+        """Parse a 60-day DAM disclosure zip file into DataFrames.
+
+        Args:
+            z: Opened ZipFile containing DAM disclosure CSVs.
+            process: If True, apply processing functions to standardize data.
+            verbose: If True, print verbose output.
+            files_prefix: Override dict mapping data keys to file name prefixes.
+            output_format: Curve output format passed to process functions.
+        """
         if not files_prefix:
             files_prefix = {
                 DAM_GEN_RESOURCE_KEY: "60d_DAM_Gen_Resource_Data-",
@@ -2564,10 +3077,13 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
-        # ESR files are optional (only available starting 2025-12-06)
+        # Optional files added to the disclosure bundle starting operating day
+        # 2025-12-06 (posted 2026-02-04).
         optional_files_prefix = {
             DAM_ESR_KEY: "60d_DAM_ESR_Data-",
             DAM_ESR_AS_OFFERS_KEY: "60d_DAM_ESR_ASOffers-",
+            DAM_AS_ONLY_AWARDS_KEY: "60d_DAM_AS_Only_Awards-",
+            DAM_AS_ONLY_OFFERS_KEY: "60d_DAM_AS_Only_Offers-",
         }
 
         files = {}
@@ -2611,11 +3127,31 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
                 DAM_ESR_KEY: process_dam_esr,
                 DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
+                DAM_AS_ONLY_AWARDS_KEY: process_dam_as_only_awards,
+                DAM_AS_ONLY_OFFERS_KEY: process_dam_as_only_offers,
+            }
+
+            # These process functions accept output_format for curve extraction
+            supports_output_format = {
+                DAM_GEN_RESOURCE_KEY,
+                DAM_ESR_KEY,
+                DAM_ENERGY_ONLY_OFFERS_KEY,
+                DAM_ENERGY_BIDS_KEY,
+                DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+                DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+                DAM_ESR_AS_OFFERS_KEY,
+                DAM_AS_ONLY_OFFERS_KEY,
             }
 
             for file_name, process_func in file_to_function.items():
                 if file_name in data:
-                    data[file_name] = process_func(data[file_name])
+                    if file_name in supports_output_format:
+                        data[file_name] = process_func(
+                            data[file_name],
+                            output_format=output_format,
+                        )
+                    else:
+                        data[file_name] = process_func(data[file_name])
 
         return data
 
@@ -2862,6 +3398,184 @@ class Ercot(ISOBase):
         df = utils.move_cols_to_front(df, ["Time"])
 
         return df
+
+    OPERATIONS_MESSAGES_URL = (
+        "https://www.ercot.com/services/comm/mkt_notices/opsmessages"
+    )
+    WAYBACK_CDX_URL = "https://web.archive.org/cdx/search/cdx"
+    WAYBACK_SNAP_URL = "https://web.archive.org/web/{timestamp}/{url}"
+
+    def get_operations_messages(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get operations messages from the ERCOT control room.
+
+        When called without date arguments, scrapes the live page at
+        https://www.ercot.com/services/comm/mkt_notices/opsmessages
+        which shows a rolling window of recent messages (~one month).
+
+        When called with a date (and optional end), fetches historical
+        snapshots from the Wayback Machine covering the requested range,
+        deduplicates, and filters to the requested window.
+
+        Arguments:
+            date: Start date for historical query, or None for latest.
+            end: End date for historical query. Defaults to date + 1 month.
+            verbose: Print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns Time, Notice, Type, Status.
+        """
+        if date is None:
+            return self._fetch_operations_messages_from_url(
+                self.OPERATIONS_MESSAGES_URL,
+                verbose=verbose,
+            )
+
+        date = utils._handle_date(date, tz=self.default_timezone)
+        if end is None:
+            end = date + pd.DateOffset(months=1)
+        else:
+            end = utils._handle_date(end, tz=self.default_timezone)
+
+        snapshots = self._get_wayback_snapshots(
+            start=date - pd.DateOffset(months=1),
+            end=end + pd.DateOffset(months=1),
+            verbose=verbose,
+        )
+
+        if not snapshots:
+            raise NoDataFoundException(
+                f"No Wayback Machine snapshots found for {date} to {end}",
+            )
+
+        frames: list[pd.DataFrame] = []
+        for i, ts in enumerate(snapshots):
+            if i > 0:
+                time.sleep(2)
+            snap_url = self.WAYBACK_SNAP_URL.format(
+                timestamp=ts,
+                url=self.OPERATIONS_MESSAGES_URL,
+            )
+            try:
+                df = self._fetch_operations_messages_from_url(
+                    snap_url,
+                    verbose=verbose,
+                )
+                frames.append(df)
+            except Exception as e:
+                logger.warning(f"Skipping snapshot {ts}: {e}")
+
+        if not frames:
+            raise NoDataFoundException(
+                f"Could not parse any snapshots for {date} to {end}",
+            )
+
+        combined = pd.concat(frames, ignore_index=True)
+        combined = combined.drop_duplicates(
+            subset=["Time", "Notice"],
+        )
+        combined = combined[(combined["Time"] >= date) & (combined["Time"] < end)]
+
+        return (
+            combined[["Time", "Notice", "Type", "Status"]]
+            .sort_values("Time")
+            .reset_index(drop=True)
+        )
+
+    def _fetch_operations_messages_from_url(
+        self,
+        url: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Parse the operations messages HTML table from a URL (live or Wayback)."""
+        logger.info(f"Getting operations messages from {url}")
+
+        try:
+            dfs = pd.read_html(url, match="Date & Time")
+        except ValueError:
+            dfs = pd.read_html(url, match="Date")
+        df = dfs[0]
+
+        df = df.rename(
+            columns={
+                "Date & Time": "Time",
+                "Date": "Time",
+                "Message": "Notice",
+            },
+        )
+        df["Time"] = pd.to_datetime(df["Time"], format="mixed")
+
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        ambiguous = (now.utcoffset().total_seconds() / 3600) == -5.0
+
+        df["Time"] = df["Time"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=ambiguous,
+            nonexistent="shift_forward",
+        )
+
+        expected_cols = ["Time", "Notice", "Type", "Status"]
+        for col in expected_cols:
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        return df[expected_cols].sort_values("Time").reset_index(drop=True)
+
+    def _get_wayback_snapshots(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        verbose: bool = False,
+    ) -> list[str]:
+        """Query the Wayback Machine CDX API for snapshot timestamps."""
+        from_ts = start.strftime("%Y%m%d")
+        to_ts = end.strftime("%Y%m%d")
+
+        params = {
+            "url": self.OPERATIONS_MESSAGES_URL,
+            "output": "json",
+            "fl": "timestamp,statuscode",
+            "filter": "statuscode:200",
+            "collapse": "timestamp:8",
+            "from": from_ts,
+            "to": to_ts,
+        }
+
+        logger.info(
+            f"Querying Wayback Machine CDX for snapshots from {from_ts} to {to_ts}",
+        )
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    self.WAYBACK_CDX_URL,
+                    params=params,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                break
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt == max_retries - 1:
+                    raise
+                wait = 2 ** (attempt + 1)
+                logger.warning(
+                    f"Wayback CDX request failed (attempt {attempt + 1}/"
+                    f"{max_retries}), retrying in {wait}s: {e}",
+                )
+                time.sleep(wait)
+
+        data = resp.json()
+        if len(data) <= 1:
+            return []
+
+        timestamps = [row[0] for row in data[1:]]
+        logger.info(f"Found {len(timestamps)} Wayback snapshots")
+        return timestamps
 
     def get_real_time_system_conditions(
         self,
@@ -4227,6 +4941,143 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range("DAY_START")
+    def get_3_day_highest_price_bids_selected_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the bid price and name of the Load Resource submitting the
+        highest-priced bid selected or dispatched by SCED for the given
+        operating day.
+
+        Published daily, three days after the applicable operating day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
+
+        Arguments:
+            date: operating day to fetch data for.
+            end: optional end operating day for date range queries.
+            verbose: print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns: Interval Start, Interval End,
+            SCED Timestamp, QSE, DME, Load Resource,
+            Highest Price Dispatched by SCED, Proxy Extension.
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        return self._handle_3_day_highest_price_bids_selected_sced(df)
+
+    def _handle_3_day_highest_price_bids_selected_sced(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCED Time Stamp": "SCED Timestamp",
+                "Repeated Hour Flag": "RepeatedHourFlag",
+            },
+        )
+        df = self._handle_sced_timestamp(df)
+
+        df["Highest Price Dispatched by SCED"] = pd.to_numeric(
+            df["Highest Price Dispatched by SCED"],
+            errors="coerce",
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Load Resource",
+                    "Highest Price Dispatched by SCED",
+                    "Proxy Extension",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "QSE", "DME", "Load Resource"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("DAY_START")
+    def get_3_day_highest_price_offered_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the offer price and name of the Generation Resource submitting
+        the highest-priced offer selected by SCED for the given operating day.
+
+        Published daily, three days after the applicable operating day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np3-916-ex
+
+        Arguments:
+            date: operating day to fetch data for.
+            end: optional end operating day for date range queries.
+            verbose: print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns: Interval Start, Interval End,
+            SCED Timestamp, QSE, DME, Generation Resource, LMP,
+            Proxy Extension, Power Balance Penalty Flag.
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_OFFERED_SCED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        return self._handle_3_day_highest_price_offered_sced(df)
+
+    def _handle_3_day_highest_price_offered_sced(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCED Time Stamp": "SCED Timestamp",
+                "Repeated Hour Flag": "RepeatedHourFlag",
+            },
+        )
+        df = self._handle_sced_timestamp(df)
+
+        df["LMP"] = pd.to_numeric(df["LMP"], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Generation Resource",
+                    "LMP",
+                    "Proxy Extension",
+                    "Power Balance Penalty Flag",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "QSE", "DME", "Generation Resource"])
+            .reset_index(drop=True)
+        )
+
     def _handle_highest_price_as_offer_selected_file(
         self,
         doc: Document,
@@ -4990,26 +5841,202 @@ class Ercot(ISOBase):
         cols_to_keep = ["Time"] + list(columns.keys())
         return df[cols_to_keep].rename(columns=columns)
 
-    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
-        """Get DataFrame whose columns can help us filter out values"""
+    def _get_settlement_points_mapping_documents(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> list[Document]:
+        if date == "latest":
+            date = None
+        if date is None and end is None:
+            return [
+                self._get_document(
+                    report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
+                    extension=None,
+                    verbose=verbose,
+                ),
+            ]
 
-        doc_info = self._get_document(
+        all_docs = self._get_documents(
             report_type_id=SETTLEMENT_POINTS_LIST_AND_ELECTRICAL_BUSES_MAPPING_RTID,
             extension=None,
             verbose=verbose,
         )
-        doc_url = doc_info.url
 
-        logger.info(f"Fetching {doc_url}")
+        if not all_docs:
+            raise NoDataFoundException(
+                "No settlement points mapping documents found",
+            )
 
-        r = requests.get(doc_url)
+        if date is not None and end is None:
+            closest = min(
+                all_docs,
+                key=lambda d: abs(d.publish_date.normalize() - date.normalize()),
+            )
+            return [closest]
+
+        filtered = []
+        for doc in all_docs:
+            pub = doc.publish_date.normalize()
+            if date is not None and pub < date.normalize():
+                continue
+            if end is not None and pub >= end.normalize():
+                continue
+            filtered.append(doc)
+
+        if not filtered:
+            raise NoDataFoundException(
+                f"No settlement points mapping documents found between {date} and {end}",
+            )
+
+        return sorted(filtered, key=lambda d: d.publish_date)
+
+    def _download_and_extract_csv(
+        self,
+        doc: Document,
+        filename_contains: str,
+    ) -> tuple[pd.DataFrame, pd.Timestamp]:
+        logger.info(f"Fetching {doc.url}")
+        r = requests.get(doc.url)
         z = ZipFile(io.BytesIO(r.content))
         names = z.namelist()
-        settlement_points_file = [
-            name for name in names if "Settlement_Points" in name
-        ][0]
-        df = pd.read_csv(z.open(settlement_points_file))
+        matching = [name for name in names if filename_contains in name]
+        if not matching:
+            raise ValueError(
+                f"No file matching '{filename_contains}' found in zip. "
+                f"Available files: {names}",
+            )
+        df = pd.read_csv(z.open(matching[0]))
+        return df, doc.publish_date
+
+    def _get_settlement_points_csv(
+        self,
+        filename_contains: str,
+        column_mapping: dict[str, str],
+        date: pd.Timestamp | None = None,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        docs = self._get_settlement_points_mapping_documents(date, end, verbose)
+        dfs = []
+        for doc in docs:
+            df, publish_date = self._download_and_extract_csv(
+                doc,
+                filename_contains,
+            )
+            df = df.rename(columns=column_mapping)
+            df["Publish Date"] = publish_date.date()
+            cols = ["Publish Date"] + list(column_mapping.values())
+            dfs.append(df[cols])
+        return pd.concat(dfs).reset_index(drop=True)
+
+    def _get_settlement_point_mapping(self, verbose: bool = False) -> pd.DataFrame:
+        """Get DataFrame whose columns can help us filter out values"""
+        docs = self._get_settlement_points_mapping_documents(verbose=verbose)
+        df, _ = self._download_and_extract_csv(docs[0], "Settlement_Points")
         return df
+
+    @support_date_range(frequency=None)
+    def get_settlement_points_electrical_bus_mapping(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Settlement_Points",
+            column_mapping={
+                "ELECTRICAL_BUS": "Electrical Bus",
+                "NODE_NAME": "Node Name",
+                "PSSE_BUS_NAME": "PSSE Bus Name",
+                "VOLTAGE_LEVEL": "Voltage Level",
+                "SUBSTATION": "Substation",
+                "SETTLEMENT_LOAD_ZONE": "Settlement Load Zone",
+                "RESOURCE_NODE": "Resource Node",
+                "HUB_BUS_NAME": "Hub Bus Name",
+                "HUB": "Hub",
+                "PSSE_BUS_NUMBER": "PSSE Bus Number",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_ccp_resource_names(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="CCP_Resource_Names",
+            column_mapping={
+                "CCP_NAME": "CCP Name",
+                "LOGICALREOURCENODENAME": "Logical Resource Node Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_noie_mapping(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="NOIE_Mapping",
+            column_mapping={
+                "PHYSICAL_LOAD": "Physical Load",
+                "NOIE": "NOIE",
+                "VOLTAGE_NAME": "Voltage",
+                "SUBSTATION": "Substation",
+                "ELECTRICAL_BUS": "Electrical Bus",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_resource_node_to_unit(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Resource_Node_to_Unit",
+            column_mapping={
+                "RESOURCE_NODE": "Resource Node",
+                "UNIT_SUBSTATION": "Unit Substation",
+                "UNIT_NAME": "Unit Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_hub_name_dc_ties(
+        self,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        return self._get_settlement_points_csv(
+            filename_contains="Hub_Name_AND_DC_Ties",
+            column_mapping={
+                "NAME": "Name",
+            },
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
 
     def read_doc(
         self,
@@ -5494,6 +6521,388 @@ class Ercot(ISOBase):
 
         return data
 
+    # Keyed by dataset, the prefix the corresponding CSV file inside a monthly
+    # CRR auction ZIP starts with.
+    _MONTHLY_CRR_AUCTION_FILE_PREFIXES = {
+        "auction_bids_offers": "Common_AuctionBidsAndOffers_",
+        "base_loading": "Common_BaseLoading_",
+        "binding_constraints": "Common_BindingConstraint_",
+        "market_results": "Common_MarketResults_",
+        "source_sink_shadow_prices": "Common_SourceAndSinkShadowPrices_",
+    }
+
+    def _parse_crr_auction_month(self, friendly_name: str) -> pd.Timestamp:
+        """Parse auction month-start (Central Time) from a CRR friendly name.
+
+        Friendly names look like ``JUN2025MonthlyCRRAuctionResults``; the first
+        3 characters are the month abbreviation and the next 4 are the year.
+        """
+        month_year = friendly_name[:7]
+        parsed = datetime.datetime.strptime(month_year, "%b%Y")
+        return pd.Timestamp(parsed).tz_localize(self.default_timezone)
+
+    def _handle_monthly_crr_auction_zip(
+        self,
+        z: ZipFile,
+    ) -> dict[str, pd.DataFrame]:
+        """Parse a monthly CRR auction zip into a dict of raw DataFrames.
+
+        The ZIP published via NP7-803-M contains one CSV per dataset:
+            - Common_AuctionBidsAndOffers_...csv
+            - Common_BaseLoading_...csv
+            - Common_BindingConstraint_...csv
+            - Common_MarketResults_...csv
+            - Common_SourceAndSinkShadowPrices_...csv
+        """
+        result: dict[str, pd.DataFrame] = {}
+        for key, prefix in self._MONTHLY_CRR_AUCTION_FILE_PREFIXES.items():
+            match = None
+            for file in z.namelist():
+                if prefix in file and file.lower().endswith(".csv"):
+                    match = file
+                    break
+            if match is not None:
+                result[key] = pd.read_csv(z.open(match))
+        return result
+
+    def _get_monthly_crr_auction_frames(
+        self,
+        dataset_key: str,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None,
+        verbose: bool = False,
+    ) -> list[tuple[pd.Timestamp, pd.DataFrame]]:
+        """Download all monthly CRR ZIPs covering [date, end) and extract frames.
+
+        The result is a list of ``(auction_month_start_central, df)`` tuples for
+        the requested ``dataset_key``. ``end`` is treated as exclusive; when
+        ``end`` is ``None`` only the month containing ``date`` is returned.
+        """
+        start_month = (
+            date.tz_convert(self.default_timezone)
+            .normalize()
+            .replace(
+                day=1,
+            )
+        )
+        if end is None:
+            end_exclusive = start_month + pd.DateOffset(months=1)
+        else:
+            end_exclusive = end.tz_convert(self.default_timezone)
+
+        docs = self._get_documents(
+            report_type_id=MONTHLY_CRR_AUCTION_RESULTS_RTID,
+            verbose=verbose,
+        )
+
+        results: list[tuple[pd.Timestamp, pd.DataFrame]] = []
+        for doc in docs:
+            try:
+                month_start = self._parse_crr_auction_month(doc.friendly_name)
+            except ValueError:
+                continue
+            if month_start < start_month or month_start >= end_exclusive:
+                continue
+            z = utils.get_zip_folder(doc.url, verbose=verbose)
+            frames = self._handle_monthly_crr_auction_zip(z)
+            if dataset_key in frames:
+                results.append((month_start, frames[dataset_key]))
+
+        if not results:
+            raise NoDataFoundException(
+                "No Monthly CRR Auction documents found for "
+                f"dataset={dataset_key}, date={date}, end={end}",
+            )
+
+        results.sort(key=lambda item: item[0])
+        return results
+
+    @support_date_range(frequency="MONTH_START")
+    def get_crr_auction_bids_offers_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Bids and offers for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "auction_bids_offers",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = pd.to_datetime(
+                df["StartDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["EndDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df = df.rename(
+                columns={
+                    "BidType": "Bid Type",
+                    "HedgeType": "Hedge Type",
+                    "TimeOfUse": "Time of Use",
+                    "BidPricePerMWH": "Bid Price Per MWh",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Path",
+                "Source",
+                "Sink",
+                "Bid Type",
+                "Hedge Type",
+                "Time of Use",
+                "MW",
+                "Bid Price Per MWh",
+                "Shadow Price Per MWh",
+            ]
+        ]
+
+    @support_date_range(frequency="MONTH_START")
+    def get_crr_base_loading_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Base loading for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "base_loading",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = month_start
+            df["Interval End"] = month_start + pd.offsets.MonthEnd(0)
+            df = df.rename(
+                columns={
+                    "CRR_ID": "CRR ID",
+                    "AccountHolder": "Account Holder",
+                    "HedgeType": "Hedge Type",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "CRR ID",
+                "Account Holder",
+                "Source",
+                "Sink",
+                "Hedge Type",
+                "Time of Use",
+                "MW",
+                "Shadow Price Per MWh",
+                "Path",
+            ]
+        ]
+
+    @support_date_range(frequency="MONTH_START")
+    def get_crr_binding_constraints_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Binding constraints for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "binding_constraints",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _month_start, raw in frames:
+            df = raw.copy()
+            calendar_start = pd.to_datetime(
+                df["CalendarPeriod"],
+                format="%b_%Y",
+            )
+            df["Interval Start"] = calendar_start.dt.tz_localize(
+                self.default_timezone,
+            )
+            df["Interval End"] = (
+                calendar_start + pd.offsets.MonthEnd(0)
+            ).dt.tz_localize(self.default_timezone)
+            df = df.rename(
+                columns={
+                    "DeviceName": "Device Name",
+                    "DeviceType": "Device Type",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPrice": "Shadow Price",
+                },
+            )
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Device Name",
+                "Device Type",
+                "Direction",
+                "Flow",
+                "Limit",
+                "Description",
+                "Contingency",
+                "Time of Use",
+                "Shadow Price",
+            ]
+        ]
+
+    @support_date_range(frequency="MONTH_START")
+    def get_crr_market_results_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Market results for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "market_results",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _month_start, raw in frames:
+            df = raw.copy()
+            df["Interval Start"] = pd.to_datetime(
+                df["StartDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval End"] = pd.to_datetime(
+                df["EndDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df = df.rename(
+                columns={
+                    "CRR_ID": "CRR ID",
+                    "OriginalCRR_ID": "Original CRR ID",
+                    "AccountHolder": "Account Holder",
+                    "HedgeType": "Hedge Type",
+                    "BidType": "Bid Type",
+                    "CRRType": "CRR Type",
+                    "TimeOfUse": "Time of Use",
+                    "Bid24Hour": "Bid 24 Hour",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "CRR ID",
+                "Original CRR ID",
+                "Account Holder",
+                "Hedge Type",
+                "Bid Type",
+                "CRR Type",
+                "Source",
+                "Sink",
+                "Time of Use",
+                "Bid 24 Hour",
+                "MW",
+                "Shadow Price Per MWh",
+                "Path",
+            ]
+        ]
+
+    @support_date_range(frequency="MONTH_START")
+    def get_crr_source_sink_shadow_prices_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Source and sink shadow prices for each monthly ERCOT CRR Auction.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
+        """
+        frames = self._get_monthly_crr_auction_frames(
+            "source_sink_shadow_prices",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _month_start, raw in frames:
+            df = raw.copy()
+            calendar_start = pd.to_datetime(
+                df["CalendarPeriod"],
+                format="%b_%Y",
+            )
+            df["Interval Start"] = calendar_start.dt.tz_localize(
+                self.default_timezone,
+            )
+            df["Interval End"] = (
+                calendar_start + pd.offsets.MonthEnd(0)
+            ).dt.tz_localize(self.default_timezone)
+            df = df.rename(
+                columns={
+                    "SourceSink": "Source Sink",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Source Sink",
+                "Time of Use",
+                "Shadow Price Per MWh",
+            ]
+        ]
+
     # Published every SCED interval
     @support_date_range(frequency=None)
     def get_mcpc_sced(
@@ -5665,6 +7074,67 @@ class Ercot(ISOBase):
             .sort_values(
                 ["Interval Start", "Publish Time", "AS Type", "Demand Curve Point"],
             )
+            .reset_index(drop=True)
+        )
+
+    # Published once per DAM run (daily, ~12-2 PM Central) for the next day's
+    # delivery date. Covers the AS types REGDN, REGUP, RRSPF, RRSFF, RRSUF,
+    # ECRSS, and ECRSM.
+    @support_date_range(frequency=None)
+    def get_dam_asdc_aggregated(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Aggregated Ancillary Service Offer Curve (NP4-19-CD).
+
+        The DAM Aggregated Ancillary Service Demand/Offer Curve contains the
+        aggregated offer curve (price/quantity pairs) per ancillary service
+        type for each hour of the next day's delivery, published once per DAM
+        run. ``date`` and ``end`` are interpreted as delivery dates; the DAM
+        runs the day before, so the underlying file is located by shifting the
+        posted-date filter back by one day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
+        """
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+                extension="csv",
+                published_after=date - pd.Timedelta(days=1),
+                published_before=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_dam_asdc_aggregated(df)
+
+    def _handle_dam_asdc_aggregated(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "AncillaryType": "AS Type",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+        df = self.parse_doc(df)
+
+        for col in ["Price", "Quantity"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "Price", "Quantity"]]
+            .sort_values(["Interval Start", "AS Type", "Price"])
             .reset_index(drop=True)
         )
 
@@ -6089,12 +7559,15 @@ class Ercot(ISOBase):
         return self._handle_indicative_mcpc_rtd(df)
 
     def _handle_indicative_mcpc_rtd(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Parse timestamps with DST handling
+        # Parse timestamps with DST handling. nonexistent= only applies to
+        # spring-forward (gap when 02:00 does not exist); fall-back repeated
+        # hour is handled by ambiguous= from RepeatedHourFlag.
         df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
             self.default_timezone,
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"IntervalEndingRepeatedHourFlag": "DSTFlag"}),
             ),
+            nonexistent="shift_forward",
         )
 
         df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
@@ -6104,6 +7577,7 @@ class Ercot(ISOBase):
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"RepeatedHourFlag": "DSTFlag"}),
             ),
+            nonexistent="shift_forward",
         )
 
         # Convert price columns to numeric (float64)

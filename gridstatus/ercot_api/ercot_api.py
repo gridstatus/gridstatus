@@ -7,7 +7,6 @@ from enum import StrEnum
 from typing import Dict
 from zipfile import ZipFile
 
-import numpy as np
 import pandas as pd
 import pytz
 import requests
@@ -21,6 +20,7 @@ from gridstatus.ercot import (
     ELECTRICAL_BUS_LOCATION_TYPE,
     Ercot,
 )
+from gridstatus.ercot_60d_utils import CurveOutputFormat
 from gridstatus.ercot_api.api_parser import _timestamp_parser, parse_all_endpoints
 from gridstatus.ercot_constants import (
     LOAD_FORECAST_BY_MODEL_COLUMNS,
@@ -159,6 +159,12 @@ INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub
 
 # https://data.ercot.com/data-product-archive/NP1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_ENDPOINT = "/np1-301/60_cop_adj_period_snapshot"
+
+# DAM Aggregated Ancillary Service Offer Curve
+# https://data.ercot.com/data-product-archive/NP4-19-CD
+# Not exposed as a delivery-date filterable public API endpoint; archive only.
+DAM_ASDC_AGGREGATED_EMIL_ID = "np4-19-cd"
+DAM_ASDC_AGGREGATED_ENDPOINT = f"/{DAM_ASDC_AGGREGATED_EMIL_ID}"
 
 ESR_ENDPOINT = "/rptesr-m/4_sec_esr_charging_mw"
 
@@ -791,15 +797,52 @@ class ErcotAPI:
         data: pd.DataFrame,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        data = self.ercot.parse_doc(data, verbose=verbose).rename(
-            columns={"AncillaryType": "AS Type"},
+        data = self.ercot.parse_doc(data, verbose=verbose)
+        return self.ercot._handle_mcpc_dam_df(data)
+
+    @support_date_range(frequency=None)
+    def get_dam_asdc_aggregated(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Aggregated Ancillary Service Offer Curve (NP4-19-CD).
+
+        Contains the aggregated offer curve (price/quantity pairs) per
+        ancillary service type for each hour of the next day's delivery,
+        published once per DAM run. Covers REGDN, REGUP, RRSPF, RRSFF, RRSUF,
+        ECRSS, and ECRSM.
+
+        This dataset is only available via the ERCOT data archive (not as a
+        delivery-date filterable public API endpoint), so the archive is
+        filtered by the DAM posted date, which runs the day before delivery.
+
+        Arguments:
+            date (str): the delivery date to fetch offer curves for. Can be
+                "latest" to fetch the next day's curves.
+            end (str, optional): the end delivery date. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns Interval Start,
+            Interval End, AS Type, Price, and Quantity.
+        """
+        if date == "latest":
+            return self.get_dam_asdc_aggregated("today", verbose=verbose)
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        # The archive filters by posted datetime, which is the day before the
+        # delivery date (DAM runs the day before), so shift back by one day.
+        data = self.get_historical_data(
+            endpoint=DAM_ASDC_AGGREGATED_ENDPOINT,
+            start_date=date - pd.Timedelta(days=1),
+            end_date=end - pd.Timedelta(days=1),
+            verbose=verbose,
         )
 
-        return (
-            data[["Interval Start", "Interval End", "AS Type", "MCPC"]]
-            .sort_values(["Interval Start", "AS Type"])
-            .reset_index(drop=True)
-        )
+        return self.ercot._handle_dam_asdc_aggregated(data)
 
     @support_date_range(frequency=None)
     def get_as_reports(self, date, end=None, verbose=False):
@@ -1207,40 +1250,18 @@ class ErcotAPI:
 
         return self.parse_dam_doc(data)
 
-    def parse_dam_doc(self, data):
-        data = (
-            self.ercot.parse_doc(
-                data.rename(
-                    columns=dict(
-                        deliveryDate="DeliveryDate",
-                        hourEnding="HourEnding",
-                        busName="BusName",
-                    ),
+    def parse_dam_doc(self, data: pd.DataFrame) -> pd.DataFrame:
+        data = self.ercot.parse_doc(
+            data.rename(
+                columns=dict(
+                    deliveryDate="DeliveryDate",
+                    hourEnding="HourEnding",
+                    busName="BusName",
                 ),
-            )
-            .rename(columns={"BusName": "Location"})
-            .drop(columns=["Time"])
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
-            .assign(
-                Market=Markets.DAY_AHEAD_HOURLY.name,
-                **{"Location Type": ELECTRICAL_BUS_LOCATION_TYPE},
-            )
+            ),
         )
 
-        data = utils.move_cols_to_front(
-            data,
-            [
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-            ],
-        )
-
-        return data
+        return self.ercot._handle_lmp_by_bus_dam_df(data)
 
     @support_date_range(frequency=None)
     def get_shadow_prices_dam(self, date, end=None, verbose=False):
@@ -1291,28 +1312,7 @@ class ErcotAPI:
 
     def _handle_shadow_prices_dam(self, data, verbose=False):
         data = self.ercot.parse_doc(data, verbose=verbose)
-        data = data.rename(columns=self._shadow_prices_column_name_mapper())
-        data = self._construct_limiting_facility_column(data)
-        # Fill all empty strings in the dataframe with NaN
-        data = data.replace("", pd.NA)
-
-        data = utils.move_cols_to_front(
-            data,
-            [
-                "Interval Start",
-                "Interval End",
-                "Constraint ID",
-                "Constraint Name",
-                "Contingency Name",
-                "Limiting Facility",
-            ],
-        )
-
-        data = data.drop(columns=["Delivery Time", "Time"])
-
-        return data.sort_values(["Interval Start", "Constraint ID"]).reset_index(
-            drop=True,
-        )
+        return self.ercot._handle_shadow_prices_dam_df(data)
 
     @support_date_range(frequency=None)
     def get_shadow_prices_sced(self, date, end=None, verbose=False):
@@ -1356,10 +1356,16 @@ class ErcotAPI:
 
         return self._handle_shadow_prices_sced(data, verbose=verbose)
 
-    def _handle_shadow_prices_sced(self, data, verbose=False):
+    def _handle_shadow_prices_sced(
+        self,
+        data: pd.DataFrame,
+        verbose=False,
+    ) -> pd.DataFrame:
         data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
-        data = data.rename(columns=self._shadow_prices_column_name_mapper())
-        data = self._construct_limiting_facility_column(data)
+        data = data.rename(
+            columns=self.ercot._shadow_prices_column_name_mapper(),
+        )
+        data = self.ercot._construct_limiting_facility_column(data)
         # Fill all empty strings in the dataframe with NaN
         data = data.replace("", pd.NA)
 
@@ -1379,42 +1385,6 @@ class ErcotAPI:
         return data.sort_values(["SCED Timestamp", "Constraint ID"]).reset_index(
             drop=True,
         )
-
-    def _construct_limiting_facility_column(self, data):
-        data["Limiting Facility"] = np.where(
-            data["Contingency Name"] != "BASE CASE",
-            data["From Station"].astype(str)
-            + "_"
-            + data["From Station kV"].astype(str)
-            + "_"
-            + data["To Station"].astype(str)
-            + "_"
-            + data["To Station kV"].astype(str),
-            pd.NA,
-        )
-
-        return data
-
-    def _shadow_prices_column_name_mapper(self):
-        return {
-            "CCTStatus": "CCT Status",
-            "ConstraintId": "Constraint ID",  # API is inconsistent with capitalization
-            "ConstraintID": "Constraint ID",
-            "ConstraintLimit": "Constraint Limit",
-            "ConstraintName": "Constraint Name",
-            "ConstraintValue": "Constraint Value",
-            "ContingencyName": "Contingency Name",
-            "DeliveryTime": "Delivery Time",
-            "FromStation": "From Station",
-            "FromStationkV": "From Station kV",
-            "MaxShadowPrice": "Max Shadow Price",
-            "ShadowPrice": "Shadow Price",
-            "SystemLambda": "System Lambda",
-            "ToStation": "To Station",
-            "ToStationkV": "To Station kV",
-            "ViolatedMW": "Violated MW",
-            "ViolationAmount": "Violation Amount",
-        }
 
     @support_date_range(frequency=None)
     def get_spp_real_time_15_min(self, date, end=None, verbose=False):
@@ -1499,6 +1469,7 @@ class ErcotAPI:
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day DAM disclosure reports from ERCOT.
@@ -1509,6 +1480,9 @@ class ErcotAPI:
                 Defaults to date + 1 day
             verbose (bool, optional): Whether to print progress messages. Defaults to
                 False
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
@@ -1526,6 +1500,8 @@ class ErcotAPI:
                 - "dam_ptp_obligation_option_awards"
                 - "dam_esr" (when available, starting 2025-12-06)
                 - "dam_esr_as_offers" (when available, starting 2025-12-06)
+                - "dam_as_only_awards" (when available, starting 2025-12-06)
+                - "dam_as_only_offers" (when available, starting 2025-12-06)
 
         NOTE: because data is delayed by 60 days, requesting data in the past 60 days
         will return no data.
@@ -1559,6 +1535,7 @@ class ErcotAPI:
                 z=zip_file,
                 process=True,
                 verbose=verbose,
+                output_format=output_format,
             )
             df_list.append(processed_files)
 
@@ -1572,6 +1549,7 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
         process: bool = True,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> Dict[str, pd.DataFrame]:
         """
         Get the 60-day SCED disclosure reports from ERCOT.
@@ -1582,6 +1560,9 @@ class ErcotAPI:
                 Defaults to date + 1 day
             verbose (bool, optional): Whether to print progress messages. Defaults to
                 False
+            output_format: CurveOutputFormat.LIST (default) returns Python
+                list-of-lists per curve cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns
+                PG array strings, using ~3x less peak memory.
 
         Returns:
             dict: Dictionary containing dataframes as values and keys:
@@ -1622,6 +1603,7 @@ class ErcotAPI:
                 z=zip_file,
                 process=process,
                 verbose=verbose,
+                output_format=output_format,
             )
             df_list.append(processed_files)
 
