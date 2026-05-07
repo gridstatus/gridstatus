@@ -2531,7 +2531,120 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
-    @support_date_range("DAY_START")
+    # NB: For the SPP Real Time Binding Constraints,
+    # Daily files are more performant for older historical dates than interval files.
+    # Use interval files for today and yesterday so recent data matches RTBM interval
+    # publishing (daily By_Day files can lag). The decorator splits by day.
+    # Daily files contain the first 2.25 hours of the next day, so interval files for
+    # today don't start until ~02:15.
+    def _normalize_binding_constraints_window(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
+    ) -> tuple[pd.Timestamp, pd.Timestamp | None]:
+        start = utils._handle_date(date, self.default_timezone)
+        window_end = (
+            utils._handle_date(end, self.default_timezone) if end is not None else None
+        )
+        return start, window_end
+
+    def _binding_constraints_real_time_5_min_frequency(
+        self,
+        args_dict: dict[str, object],
+    ) -> str:
+        end = args_dict.get("end")
+        if end is None:
+            return "DAY_START"
+
+        start_date = utils._handle_date(args_dict["date"], self.default_timezone)
+        end_date = utils._handle_date(end, self.default_timezone)
+        if (
+            start_date.normalize() == end_date.normalize()
+            and self._is_recent_binding_constraints_window(start_date, end_date)
+        ):
+            return "5_MIN"
+        return "DAY_START"
+
+    def _is_recent_binding_constraints_window(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> bool:
+        if utils.is_within_last_days(start, 1, self.default_timezone):
+            return True
+        if end is None:
+            return False
+        return utils.is_within_last_days(
+            end - pd.Timedelta(minutes=5),
+            1,
+            self.default_timezone,
+        )
+
+    def _route_binding_constraints_source(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> str:
+        if utils.is_today(start, self.default_timezone):
+            return "intervals"
+        if utils.is_yesterday(start, self.default_timezone) and (
+            start == start.normalize()
+        ):
+            return "intervals"
+        if (
+            end is not None
+            and start.normalize() == end.normalize()
+            and self._is_recent_binding_constraints_window(start, end)
+        ):
+            return "intervals"
+        return "daily"
+
+    def _adjust_today_interval_window(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        day_floor = start.normalize()
+        adjusted_start = max(
+            start,
+            day_floor + pd.Timedelta(hours=2, minutes=10),
+        )
+        adjusted_end = end
+        if adjusted_end is None:
+            if start == day_floor:
+                now_ceiled = pd.Timestamp.now(
+                    tz=self.default_timezone,
+                ).ceil("5min")
+                adjusted_end = min(
+                    now_ceiled,
+                    day_floor + pd.Timedelta(days=1),
+                )
+            else:
+                adjusted_end = start + pd.Timedelta(minutes=5)
+        if adjusted_end <= adjusted_start:
+            adjusted_end = adjusted_start + pd.Timedelta(minutes=5)
+        return adjusted_start, adjusted_end
+
+    def _get_binding_constraints_interval_window(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        if utils.is_today(start, self.default_timezone):
+            return self._adjust_today_interval_window(start, end)
+        if end is None:
+            if start == start.normalize():
+                return start, start + pd.Timedelta(days=1)
+            return start, start + pd.Timedelta(minutes=5)
+        return start, end
+
+    @support_date_range(
+        lambda args_dict: args_dict[
+            "self"
+        ]._binding_constraints_real_time_5_min_frequency(
+            args_dict,
+        ),
+    )
     def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -2555,53 +2668,25 @@ class SPP(ISOBase):
                 verbose=verbose,
             )
 
-        # NB: Daily files are more performant for older historical dates than interval files.
-        # Use interval files for today and yesterday so recent data matches RTBM interval
-        # publishing (daily By_Day files can lag). The decorator splits by day.
-        # Daily files contain the first 2.25 hours of the next day, so interval files for
-        # today don't start until ~02:15.
-        start_date = utils._handle_date(date, self.default_timezone)
-        if utils.is_within_last_days(start_date, 1, self.default_timezone):
-            if utils.is_today(start_date, self.default_timezone):
-                # When decorator splits by day, we need to provide end of day for interval method
-                # to get all intervals for that day. Also adjust start time since interval files
-                # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
-                day_floor = start_date.normalize()
-                # Interval files for today start around 02:15, so adjust start if needed
-                adjusted_start = max(
-                    start_date,
-                    day_floor + pd.Timedelta(hours=2, minutes=10),
+        start, window_end = self._normalize_binding_constraints_window(date, end)
+        source = self._route_binding_constraints_source(start, window_end)
+
+        if source == "intervals":
+            interval_start, interval_end = (
+                self._get_binding_constraints_interval_window(
+                    start,
+                    window_end,
                 )
-                if end is None:
-                    if start_date == day_floor:
-                        now_ceiled = pd.Timestamp.now(
-                            tz=self.default_timezone,
-                        ).ceil("5min")
-                        end = min(
-                            now_ceiled,
-                            day_floor + pd.Timedelta(days=1),
-                        )
-                    else:
-                        # Assume getting 5 minutes since this is a five minute dataset
-                        end = start_date + pd.Timedelta(minutes=5)
-                if end <= adjusted_start:
-                    end = adjusted_start + pd.Timedelta(minutes=5)
-                return self._get_binding_constraints_real_time_5_min_from_intervals(
-                    adjusted_start,
-                    end=end,
-                    verbose=verbose,
-                )
-            if start_date == start_date.normalize():
-                day_start = start_date.normalize()
-                interval_end = day_start + pd.Timedelta(days=1)
-                return self._get_binding_constraints_real_time_5_min_from_intervals(
-                    day_start,
-                    end=interval_end,
-                    verbose=verbose,
-                )
+            )
+            return self._get_binding_constraints_real_time_5_min_from_intervals(
+                interval_start,
+                end=interval_end,
+                verbose=verbose,
+            )
+
         return self._get_binding_constraints_real_time_5_min_from_daily_files(
-            date,
-            end=end,
+            start,
+            end=window_end,
             verbose=verbose,
         )
 
