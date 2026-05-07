@@ -2745,12 +2745,9 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() == three_days_ago
-        # Daily files return full day, so max is end of day
-        assert df["Interval Start"].max() == three_days_ago + pd.Timedelta(
-            hours=23,
-            minutes=55,
-        )
+        # Daily file is sliced to caller's [date, end) window
+        assert df["Interval Start"].min() >= three_days_ago
+        assert df["Interval Start"].max() < three_days_ago_0215
 
     def test_get_binding_constraints_real_time_5_min_range_includes_today(self):
         start_date = self.local_now() - pd.Timedelta(days=1)
@@ -2765,8 +2762,57 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() == start_date
-        assert df["Interval Start"].max() == end_date
+        assert df["Interval Start"].min() >= start_date
+        assert df["Interval Start"].max() < end_date
+
+    def test_get_binding_constraints_real_time_5_min_same_day_range_uses_intervals(
+        self,
+        monkeypatch,
+    ):
+        start_date = self.local_start_of_today() + pd.Timedelta(hours=12)
+        end_date = start_date + pd.Timedelta(minutes=30)
+
+        calls = []
+
+        def fake_intervals_fetch(date, end=None, verbose=False):
+            calls.append((date, end))
+            return pd.DataFrame(
+                {
+                    "Interval Start": [start_date],
+                    "Interval End": [start_date + pd.Timedelta(minutes=5)],
+                    "Constraint Name": ["C"],
+                    "Constraint Type": ["RTBM"],
+                    "NERC ID": pd.Series([1], dtype="Int64"),
+                    "TLR Level": [None],
+                    "State": ["ACTIVE"],
+                    "Shadow Price": [0.0],
+                    "Monitored Facility": ["M"],
+                    "Contingent Facility": ["CF"],
+                },
+            )
+
+        def fail_daily_fetch(*args, **kwargs):
+            raise AssertionError("Expected interval route, not daily route")
+
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_intervals",
+            fake_intervals_fetch,
+        )
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_daily_files",
+            fail_daily_fetch,
+        )
+
+        self.iso.get_binding_constraints_real_time_5_min(
+            date=start_date,
+            end=end_date,
+        )
+
+        assert len(calls) == 6
+        assert calls[0][0] == start_date
+        assert calls[-1][1] == end_date
 
     """get_interchange_real_time"""
 
