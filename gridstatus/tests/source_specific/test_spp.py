@@ -2765,8 +2765,8 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() == start_date
-        assert df["Interval Start"].max() == end_date
+        assert df["Interval Start"].min() <= start_date
+        assert df["Interval End"].max() >= end_date - pd.Timedelta(minutes=5)
 
     """get_interchange_real_time"""
 

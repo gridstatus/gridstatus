@@ -2555,35 +2555,55 @@ class SPP(ISOBase):
                 verbose=verbose,
             )
 
-        # NB: Daily files are more performant for historical dates than getting from interval files
-        # The decorator splits by day, so we can check if this specific date is today
-        # Use interval files only for today; use daily files for all historical dates
-        # Note: Daily files contain the first 2.25 hours of the next day, so interval files
-        # for today don't start until 02:15
+        # NB: Daily files are more performant for older historical dates than interval files.
+        # Use interval files for today and yesterday so recent data matches RTBM interval
+        # publishing (daily By_Day files can lag). The decorator splits by day.
+        # Daily files contain the first 2.25 hours of the next day, so interval files for
+        # today don't start until ~02:15.
         start_date = utils._handle_date(date, self.default_timezone)
-        if utils.is_today(start_date, self.default_timezone):
-            # When decorator splits by day, we need to provide end of day for interval method
-            # to get all intervals for that day. Also adjust start time since interval files
-            # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
-            if end is None:
-                # Assume getting 5 minutes since this is a five minute dataset
-                end = start_date + pd.Timedelta(minutes=5)
-            # Interval files for today start around 02:15, so adjust start if needed
-            adjusted_start = max(
-                start_date,
-                start_date.normalize() + pd.Timedelta(hours=2, minutes=10),
-            )
-            return self._get_binding_constraints_real_time_5_min_from_intervals(
-                adjusted_start,
-                end=end,
-                verbose=verbose,
-            )
-        else:
-            return self._get_binding_constraints_real_time_5_min_from_daily_files(
-                date,
-                end=end,
-                verbose=verbose,
-            )
+        if utils.is_within_last_days(start_date, 1, self.default_timezone):
+            if utils.is_today(start_date, self.default_timezone):
+                # When decorator splits by day, we need to provide end of day for interval method
+                # to get all intervals for that day. Also adjust start time since interval files
+                # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
+                day_floor = start_date.normalize()
+                # Interval files for today start around 02:15, so adjust start if needed
+                adjusted_start = max(
+                    start_date,
+                    day_floor + pd.Timedelta(hours=2, minutes=10),
+                )
+                if end is None:
+                    if start_date == day_floor:
+                        now_ceiled = pd.Timestamp.now(
+                            tz=self.default_timezone,
+                        ).ceil("5min")
+                        end = min(
+                            now_ceiled,
+                            day_floor + pd.Timedelta(days=1),
+                        )
+                    else:
+                        # Assume getting 5 minutes since this is a five minute dataset
+                        end = start_date + pd.Timedelta(minutes=5)
+                if end <= adjusted_start:
+                    end = adjusted_start + pd.Timedelta(minutes=5)
+                return self._get_binding_constraints_real_time_5_min_from_intervals(
+                    adjusted_start,
+                    end=end,
+                    verbose=verbose,
+                )
+            if start_date == start_date.normalize():
+                day_start = start_date.normalize()
+                interval_end = day_start + pd.Timedelta(days=1)
+                return self._get_binding_constraints_real_time_5_min_from_intervals(
+                    day_start,
+                    end=interval_end,
+                    verbose=verbose,
+                )
+        return self._get_binding_constraints_real_time_5_min_from_daily_files(
+            date,
+            end=end,
+            verbose=verbose,
+        )
 
     def _get_binding_constraints_real_time_5_min_from_daily_files(
         self,
