@@ -2548,6 +2548,10 @@ class SPP(ISOBase):
         )
         return start, window_end
 
+    # NB: This controls support_date_range splitting for this dataset only.
+    # We keep day-level splitting by default for historical efficiency, and
+    # switch to 5-minute splitting only for same-day recent windows so the
+    # requested end bound is preserved during incremental catch-up.
     def _binding_constraints_real_time_5_min_frequency(
         self,
         args_dict: dict[str, object],
@@ -2565,6 +2569,8 @@ class SPP(ISOBase):
             return "5_MIN"
         return "DAY_START"
 
+    # NB: "Recent" means the interval window overlaps today or yesterday
+    # in SPP local time, where interval files are preferred over daily files.
     def _is_recent_binding_constraints_window(
         self,
         start: pd.Timestamp,
@@ -2580,6 +2586,8 @@ class SPP(ISOBase):
             self.default_timezone,
         )
 
+    # NB: Central router for source choice. This keeps route policy in one
+    # place so callers only dispatch to "intervals" or "daily".
     def _route_binding_constraints_source(
         self,
         start: pd.Timestamp,
@@ -2599,6 +2607,8 @@ class SPP(ISOBase):
             return "intervals"
         return "daily"
 
+    # NB: Today requires an interval floor (~02:10 local) because early
+    # intervals are represented in the prior day's daily file.
     def _adjust_today_interval_window(
         self,
         start: pd.Timestamp,
@@ -2625,6 +2635,8 @@ class SPP(ISOBase):
             adjusted_end = adjusted_start + pd.Timedelta(minutes=5)
         return adjusted_start, adjusted_end
 
+    # NB: Final interval window builder used after routing to interval files.
+    # It normalizes defaults for non-today windows while keeping explicit end.
     def _get_binding_constraints_interval_window(
         self,
         start: pd.Timestamp,

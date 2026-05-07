@@ -2775,11 +2775,10 @@ class TestSPP(BaseTestISO):
         start_date = self.local_start_of_today() + pd.Timedelta(hours=12)
         end_date = start_date + pd.Timedelta(minutes=30)
 
-        calls = {}
+        calls = []
 
         def fake_intervals_fetch(date, end=None, verbose=False):
-            calls["date"] = date
-            calls["end"] = end
+            calls.append((date, end))
             return pd.DataFrame(
                 {
                     "Interval Start": [start_date],
@@ -2814,8 +2813,9 @@ class TestSPP(BaseTestISO):
             end=end_date,
         )
 
-        assert calls["date"] == start_date
-        assert calls["end"] == end_date
+        assert len(calls) == 6
+        assert calls[0][0] == start_date
+        assert calls[-1][1] == end_date
 
     """get_interchange_real_time"""
 
