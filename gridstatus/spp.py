@@ -2552,11 +2552,16 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
-    # NB: SPP RTBM publishes per-interval CSVs and daily aggregates, both
-    # aligned to local midnight. Daily files are faster (one request per day)
-    # but lag publication, so we use interval files for today/yesterday and
-    # daily files for older history.
-    @support_date_range(_binding_constraints_real_time_5_min_frequency)
+    # NB: SPP RTBM publishes per-interval CSVs and daily aggregates. Both are
+    # aligned to local midnight. Interval files live under
+    # By_Interval/<DD>/RTBM-BC-<YYYYMMDDHHMM>.csv where DD is the interval's
+    # start-day and HHMM is the interval's end-time; the midnight-crossing
+    # interval (start = prev day 23:55, end = next day 00:00) sits in the
+    # previous day's folder with the next day's filename. Daily files are
+    # faster (one request per day) but lag publication, so we use interval
+    # files for today/yesterday and daily files for older history. Daily files
+    # always return the whole local day; this method slices the result to the
+    # caller's [date, end) window.
     def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -2580,6 +2585,32 @@ class SPP(ISOBase):
                 verbose=verbose,
             )
 
+        start_ts = utils._handle_date(date, self.default_timezone)
+        end_ts = (
+            utils._handle_date(end, self.default_timezone) if end is not None else None
+        )
+
+        df = self._fetch_binding_constraints_real_time_5_min(
+            date=start_ts,
+            end=end_ts,
+            verbose=verbose,
+        )
+
+        if end_ts is None:
+            return df
+
+        return df[
+            (df["Interval Start"] >= start_ts) & (df["Interval Start"] < end_ts)
+        ].reset_index(drop=True)
+
+    @support_date_range(_binding_constraints_real_time_5_min_frequency)
+    def _fetch_binding_constraints_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Per-chunk fetch dispatching to interval or daily-file source."""
         start = utils._handle_date(date, self.default_timezone)
         if not utils.is_within_last_days(start, 1, self.default_timezone):
             return self._get_binding_constraints_real_time_5_min_from_daily_files(

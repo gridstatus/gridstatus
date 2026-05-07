@@ -2745,12 +2745,9 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() == three_days_ago
-        # Daily files return full day, so max is end of day
-        assert df["Interval Start"].max() == three_days_ago + pd.Timedelta(
-            hours=23,
-            minutes=55,
-        )
+        # Daily file is sliced to caller's [date, end) window
+        assert df["Interval Start"].min() >= three_days_ago
+        assert df["Interval Start"].max() < three_days_ago_0215
 
     def test_get_binding_constraints_real_time_5_min_range_includes_today(self):
         start_date = self.local_now() - pd.Timedelta(days=1)
@@ -2765,8 +2762,8 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() <= start_date
-        assert df["Interval End"].max() >= end_date - pd.Timedelta(minutes=5)
+        assert df["Interval Start"].min() >= start_date
+        assert df["Interval Start"].max() < end_date
 
     def test_get_binding_constraints_real_time_5_min_same_day_range_uses_intervals(
         self,
