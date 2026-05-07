@@ -2552,11 +2552,10 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
-    # NB: SPP RTBM publishes per-interval CSVs and daily aggregates. Daily files
-    # are faster (one request per day) but lag publication, so we use interval
-    # files for today/yesterday and daily files for older history. Today's first
-    # ~2.25 hours don't have interval files yet (they live in yesterday's daily
-    # file), so today's interval start is floored to 02:10 local.
+    # NB: SPP RTBM publishes per-interval CSVs and daily aggregates, both
+    # aligned to local midnight. Daily files are faster (one request per day)
+    # but lag publication, so we use interval files for today/yesterday and
+    # daily files for older history.
     @support_date_range(_binding_constraints_real_time_5_min_frequency)
     def get_binding_constraints_real_time_5_min(
         self,
@@ -2606,20 +2605,13 @@ class SPP(ISOBase):
     ) -> tuple[pd.Timestamp, pd.Timestamp]:
         """Window for today/yesterday interval fetches.
 
-        Today's first ~2.25 hours live in yesterday's daily file, so start
-        is floored to 02:10. When end is omitted (DAY_START chunk), fetch
-        through end-of-local-day, capping today at the most recent 5-min
-        boundary so we don't request future intervals.
+        When end is omitted (DAY_START chunk), fetch through end-of-local-day,
+        capping today at the most recent 5-min boundary so we don't request
+        future intervals.
         """
-        is_today = utils.is_today(start, self.default_timezone)
-        day_floor = start.normalize()
-
-        if is_today:
-            start = max(start, day_floor + pd.Timedelta(hours=2, minutes=10))
-
         if end is None:
-            end = day_floor + pd.Timedelta(days=1)
-            if is_today:
+            end = start.normalize() + pd.Timedelta(days=1)
+            if utils.is_today(start, self.default_timezone):
                 end = min(
                     end,
                     pd.Timestamp.now(tz=self.default_timezone).ceil("5min"),
