@@ -3222,8 +3222,8 @@ class TestErcot(BaseTestISO):
     CRR_TEST_AUCTION_YEAR_END = "2027-01-01"
 
     crr_auction_bids_offers_annual_cols = [
-        "Interval Start",
-        "Interval End",
+        "Start Date",
+        "End Date",
         "Path",
         "Source",
         "Sink",
@@ -3238,8 +3238,8 @@ class TestErcot(BaseTestISO):
     ]
 
     crr_base_loading_annual_cols = [
-        "Interval Start",
-        "Interval End",
+        "Start Date",
+        "End Date",
         "CRR ID",
         "Account Holder",
         "Source",
@@ -3254,8 +3254,8 @@ class TestErcot(BaseTestISO):
     ]
 
     crr_binding_constraints_annual_cols = [
-        "Interval Start",
-        "Interval End",
+        "Start Date",
+        "End Date",
         "Device Name",
         "Device Type",
         "Direction",
@@ -3270,8 +3270,8 @@ class TestErcot(BaseTestISO):
     ]
 
     crr_market_results_annual_cols = [
-        "Interval Start",
-        "Interval End",
+        "Start Date",
+        "End Date",
         "CRR ID",
         "Original CRR ID",
         "Account Holder",
@@ -3290,8 +3290,8 @@ class TestErcot(BaseTestISO):
     ]
 
     crr_source_sink_shadow_prices_annual_cols = [
-        "Interval Start",
-        "Interval End",
+        "Start Date",
+        "End Date",
         "Source Sink",
         "Time of Use",
         "Shadow Price Per MWh",
@@ -3307,16 +3307,14 @@ class TestErcot(BaseTestISO):
     ) -> None:
         assert df.columns.tolist() == expected_cols
         assert len(df) > 0
-        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
-        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
-        assert df["Interval Start"].dt.tz is not None
-        assert df["Interval End"].dt.tz is not None
+        assert pd.api.types.is_datetime64_any_dtype(df["Start Date"])
+        assert pd.api.types.is_datetime64_any_dtype(df["End Date"])
+        assert df["Start Date"].dt.tz is not None
+        assert df["End Date"].dt.tz is not None
         tz = self.iso.default_timezone
+        assert (df["Start Date"] >= pd.Timestamp(f"{expected_year}-01-01", tz=tz)).all()
         assert (
-            df["Interval Start"] >= pd.Timestamp(f"{expected_year}-01-01", tz=tz)
-        ).all()
-        assert (
-            df["Interval Start"] < pd.Timestamp(f"{expected_year + 1}-01-01", tz=tz)
+            df["Start Date"] < pd.Timestamp(f"{expected_year + 1}-01-01", tz=tz)
         ).all()
         assert df["Sequence"].between(1, 6).all()
         assert df["Strip"].isin([1, 2]).all()
@@ -3355,7 +3353,7 @@ class TestErcot(BaseTestISO):
 
         self._check_crr_annual_frame(df, self.crr_base_loading_annual_cols)
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
-        pk = ["Interval Start", "Sequence", "Strip", "CRR ID"]
+        pk = ["Start Date", "Sequence", "Strip", "CRR ID"]
         assert not df.duplicated(subset=pk).any()
 
     def test_get_crr_binding_constraints_annual_historical(self):
@@ -3371,7 +3369,7 @@ class TestErcot(BaseTestISO):
         assert df["Direction"].notna().all()
         assert df["Device Type"].notna().all()
         pk = [
-            "Interval Start",
+            "Start Date",
             "Sequence",
             "Strip",
             "Device Name",
@@ -3392,7 +3390,7 @@ class TestErcot(BaseTestISO):
 
         self._check_crr_annual_frame(df, self.crr_market_results_annual_cols)
         assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
-        pk = ["Interval Start", "Sequence", "Strip", "CRR ID"]
+        pk = ["Start Date", "Sequence", "Strip", "CRR ID"]
         assert not df.duplicated(subset=pk).any()
 
     def test_get_crr_source_sink_shadow_prices_annual_historical(self):
@@ -3408,7 +3406,7 @@ class TestErcot(BaseTestISO):
             df,
             self.crr_source_sink_shadow_prices_annual_cols,
         )
-        pk = ["Interval Start", "Sequence", "Strip", "Source Sink", "Time of Use"]
+        pk = ["Start Date", "Sequence", "Strip", "Source Sink", "Time of Use"]
         assert not df.duplicated(subset=pk).any()
 
     def test_get_crr_market_results_annual_multi_year_range(self):
@@ -3422,10 +3420,10 @@ class TestErcot(BaseTestISO):
 
         assert df.columns.tolist() == self.crr_market_results_annual_cols
         tz = self.iso.default_timezone
-        years_covered = sorted(df["Interval Start"].dt.year.unique())
+        years_covered = sorted(df["Start Date"].dt.year.unique())
         assert set(years_covered).issubset({2026, 2027})
-        assert (df["Interval Start"] >= pd.Timestamp("2026-01-01", tz=tz)).all()
-        assert (df["Interval Start"] < pd.Timestamp("2028-01-01", tz=tz)).all()
+        assert (df["Start Date"] >= pd.Timestamp("2026-01-01", tz=tz)).all()
+        assert (df["Start Date"] < pd.Timestamp("2028-01-01", tz=tz)).all()
         assert df["Sequence"].between(1, 6).all()
         assert df["Strip"].isin([1, 2]).all()
 
