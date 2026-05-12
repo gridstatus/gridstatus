@@ -3216,6 +3216,217 @@ class TestErcot(BaseTestISO):
             pd.Timestamp("2026-03-31", tz=tz),
         ]
 
+    """get_crr_*_annual"""
+
+    CRR_TEST_AUCTION_YEAR_START = "2026-01-01"
+    CRR_TEST_AUCTION_YEAR_END = "2027-01-01"
+
+    crr_auction_bids_offers_annual_cols = [
+        "Start Date",
+        "End Date",
+        "Path",
+        "Source",
+        "Sink",
+        "Bid Type",
+        "Hedge Type",
+        "Time of Use",
+        "MW",
+        "Bid Price Per MWh",
+        "Shadow Price Per MWh",
+        "Sequence",
+        "Strip",
+    ]
+
+    crr_base_loading_annual_cols = [
+        "Start Date",
+        "End Date",
+        "CRR ID",
+        "Account Holder",
+        "Source",
+        "Sink",
+        "Hedge Type",
+        "Time of Use",
+        "MW",
+        "Shadow Price Per MWh",
+        "Path",
+        "Sequence",
+        "Strip",
+    ]
+
+    crr_binding_constraints_annual_cols = [
+        "Start Date",
+        "End Date",
+        "Device Name",
+        "Device Type",
+        "Direction",
+        "Flow",
+        "Limit",
+        "Description",
+        "Contingency",
+        "Time of Use",
+        "Shadow Price",
+        "Sequence",
+        "Strip",
+    ]
+
+    crr_market_results_annual_cols = [
+        "Start Date",
+        "End Date",
+        "CRR ID",
+        "Original CRR ID",
+        "Account Holder",
+        "Hedge Type",
+        "Bid Type",
+        "CRR Type",
+        "Source",
+        "Sink",
+        "Time of Use",
+        "Bid 24 Hour",
+        "MW",
+        "Shadow Price Per MWh",
+        "Path",
+        "Sequence",
+        "Strip",
+    ]
+
+    crr_source_sink_shadow_prices_annual_cols = [
+        "Start Date",
+        "End Date",
+        "Source Sink",
+        "Time of Use",
+        "Shadow Price Per MWh",
+        "Sequence",
+        "Strip",
+    ]
+
+    def _check_crr_annual_frame(
+        self,
+        df: pd.DataFrame,
+        expected_cols: list[str],
+        expected_year: int = 2026,
+    ) -> None:
+        assert df.columns.tolist() == expected_cols
+        assert len(df) > 0
+        assert pd.api.types.is_datetime64_any_dtype(df["Start Date"])
+        assert pd.api.types.is_datetime64_any_dtype(df["End Date"])
+        assert df["Start Date"].dt.tz is not None
+        assert df["End Date"].dt.tz is not None
+        tz = self.iso.default_timezone
+        assert (df["Start Date"] >= pd.Timestamp(f"{expected_year}-01-01", tz=tz)).all()
+        assert (
+            df["Start Date"] < pd.Timestamp(f"{expected_year + 1}-01-01", tz=tz)
+        ).all()
+        assert df["Sequence"].between(1, 6).all()
+        assert df["Strip"].isin([1, 2]).all()
+
+    def test_get_crr_auction_bids_offers_annual_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_auction_bids_offers_annual_historical.yaml",
+        ):
+            df = self.iso.get_crr_auction_bids_offers_annual(
+                date=self.CRR_TEST_AUCTION_YEAR_START,
+                end=self.CRR_TEST_AUCTION_YEAR_END,
+            )
+
+        self._check_crr_annual_frame(df, self.crr_auction_bids_offers_annual_cols)
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+        assert df["Bid Type"].isin(["BUY", "SELL"]).all()
+        observed_combos = sorted(
+            map(
+                tuple,
+                df[["Sequence", "Strip"]].drop_duplicates().to_numpy().tolist(),
+            ),
+        )
+        expected_combos = sorted(
+            (seq, strip) for strip in (1, 2) for seq in range(1, 7)
+        )
+        assert observed_combos == expected_combos
+
+    def test_get_crr_base_loading_annual_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_base_loading_annual_historical.yaml",
+        ):
+            df = self.iso.get_crr_base_loading_annual(
+                date=self.CRR_TEST_AUCTION_YEAR_START,
+                end=self.CRR_TEST_AUCTION_YEAR_END,
+            )
+
+        self._check_crr_annual_frame(df, self.crr_base_loading_annual_cols)
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+        pk = ["Start Date", "Sequence", "Strip", "CRR ID"]
+        assert not df.duplicated(subset=pk).any()
+
+    def test_get_crr_binding_constraints_annual_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_binding_constraints_annual_historical.yaml",
+        ):
+            df = self.iso.get_crr_binding_constraints_annual(
+                date=self.CRR_TEST_AUCTION_YEAR_START,
+                end=self.CRR_TEST_AUCTION_YEAR_END,
+            )
+
+        self._check_crr_annual_frame(df, self.crr_binding_constraints_annual_cols)
+        assert df["Direction"].notna().all()
+        assert df["Device Type"].notna().all()
+        pk = [
+            "Start Date",
+            "Sequence",
+            "Strip",
+            "Device Name",
+            "Contingency",
+            "Direction",
+            "Time of Use",
+        ]
+        assert not df.duplicated(subset=pk).any()
+
+    def test_get_crr_market_results_annual_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_annual_historical.yaml",
+        ):
+            df = self.iso.get_crr_market_results_annual(
+                date=self.CRR_TEST_AUCTION_YEAR_START,
+                end=self.CRR_TEST_AUCTION_YEAR_END,
+            )
+
+        self._check_crr_annual_frame(df, self.crr_market_results_annual_cols)
+        assert (df["Path"] == df["Source"] + "-" + df["Sink"]).all()
+        pk = ["Start Date", "Sequence", "Strip", "CRR ID"]
+        assert not df.duplicated(subset=pk).any()
+
+    def test_get_crr_source_sink_shadow_prices_annual_historical(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_source_sink_shadow_prices_annual_historical.yaml",
+        ):
+            df = self.iso.get_crr_source_sink_shadow_prices_annual(
+                date=self.CRR_TEST_AUCTION_YEAR_START,
+                end=self.CRR_TEST_AUCTION_YEAR_END,
+            )
+
+        self._check_crr_annual_frame(
+            df,
+            self.crr_source_sink_shadow_prices_annual_cols,
+        )
+        pk = ["Start Date", "Sequence", "Strip", "Source Sink", "Time of Use"]
+        assert not df.duplicated(subset=pk).any()
+
+    def test_get_crr_market_results_annual_multi_year_range(self):
+        with api_vcr.use_cassette(
+            "test_get_crr_market_results_annual_multi_year_range.yaml",
+        ):
+            df = self.iso.get_crr_market_results_annual(
+                date="2026-01-01",
+                end="2028-01-01",
+            )
+
+        assert df.columns.tolist() == self.crr_market_results_annual_cols
+        tz = self.iso.default_timezone
+        years_covered = sorted(df["Start Date"].dt.year.unique())
+        assert set(years_covered).issubset({2026, 2027})
+        assert (df["Start Date"] >= pd.Timestamp("2026-01-01", tz=tz)).all()
+        assert (df["Start Date"] < pd.Timestamp("2028-01-01", tz=tz)).all()
+        assert df["Sequence"].between(1, 6).all()
+        assert df["Strip"].isin([1, 2]).all()
+
     """get_hourly_load_post_settlements"""
 
     def _check_hourly_load_post_settlements(self, df):

@@ -1,5 +1,6 @@
 import datetime
 import io
+import re
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -195,6 +196,28 @@ COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
 # binding constraints, market results, and source/sink shadow prices CSVs)
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP7-803-M
 MONTHLY_CRR_AUCTION_RESULTS_RTID = 11201
+
+# Annual (long-term) CRR Auction Results. One ZIP per (auction year, strip,
+# sequence) clearing event; each ZIP contains the same five CSV prefixes as the
+# monthly bundle, except base loading which is split into one CSV per covered
+# month.
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP7-802-M
+ANNUAL_CRR_AUCTION_RESULTS_RTID = 11203
+
+# Friendly names look like 20262nd6AnnualAuctionSeq1CRRAuctionResults: 4-digit
+# auction year, the strip label (1st/2nd), the literal '6AnnualAuctionSeq',
+# the sequence number, then 'CRRAuctionResults'.
+_ANNUAL_CRR_FRIENDLY_NAME_RE = re.compile(
+    r"^(?P<year>\d{4})(?P<strip>1st|2nd)6AnnualAuctionSeq(?P<seq>\d+)CRRAuctionResults$",
+)
+
+# Base loading CSV names look like
+# Common_BaseLoading_2026.2nd6.AnnualAuction.Seq1_AUCTION_AUG_2026.csv -- the
+# tail encodes the month covered by that file.
+_ANNUAL_CRR_BASE_LOADING_MONTH_RE = re.compile(
+    r"_AUCTION_(?P<month>[A-Z]{3})_(?P<year>\d{4})\.csv$",
+    re.IGNORECASE,
+)
 
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
 REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
@@ -6706,6 +6729,551 @@ class Ercot(ISOBase):
         ]
 
         return data
+
+    # Annual CRR auction ZIPs share the Common_* CSV prefixes used by the
+    # monthly bundle.
+    _ANNUAL_CRR_AUCTION_FILE_PREFIXES = {
+        "auction_bids_offers": "Common_AuctionBidsAndOffers_",
+        "base_loading": "Common_BaseLoading_",
+        "binding_constraints": "Common_BindingConstraint_",
+        "market_results": "Common_MarketResults_",
+        "source_sink_shadow_prices": "Common_SourceAndSinkShadowPrices_",
+    }
+
+    def _parse_crr_annual_auction_friendly_name(
+        self,
+        friendly_name: str,
+    ) -> tuple[pd.Timestamp, int, int]:
+        """Parse (auction year-start Central, strip, sequence) from a friendly name.
+
+        Strip is returned as 1 (1st) or 2 (2nd). Raises ``ValueError`` when the
+        name does not match the expected annual CRR pattern.
+        """
+        match = _ANNUAL_CRR_FRIENDLY_NAME_RE.match(friendly_name)
+        if match is None:
+            raise ValueError(
+                f"Friendly name {friendly_name!r} does not look like an annual CRR auction",
+            )
+        year = int(match.group("year"))
+        strip = 1 if match.group("strip") == "1st" else 2
+        sequence = int(match.group("seq"))
+        year_start = pd.Timestamp(year=year, month=1, day=1).tz_localize(
+            self.default_timezone,
+        )
+        return year_start, strip, sequence
+
+    def _annual_crr_request_window(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        """Return the ``[start, end)`` request window in the default timezone.
+
+        When ``end`` is ``None``, the window snaps to the full auction year
+        containing ``date`` (Jan 1 → Jan 1 next year), matching the legacy
+        behavior. Otherwise ``end`` is taken verbatim as the exclusive upper
+        bound.
+        """
+        start_dt = date.tz_convert(self.default_timezone)
+        if end is None:
+            year_start = start_dt.normalize().replace(month=1, day=1)
+            end_dt = year_start + pd.DateOffset(years=1)
+        else:
+            end_dt = end.tz_convert(self.default_timezone)
+        return start_dt, end_dt
+
+    def _annual_crr_relevant_year_strips(
+        self,
+        request_start: pd.Timestamp,
+        request_end: pd.Timestamp,
+    ) -> set[tuple[int, int]]:
+        """Return the set of ``(auction_year, strip)`` pairs to download.
+
+        Strip 1 covers Jan-Jun of its auction year; strip 2 covers Jul-Dec.
+        A pair is included when its calendar coverage overlaps
+        ``[request_start, request_end)``. Skipping irrelevant pairs avoids
+        downloading half a year's worth of zips when a request only touches
+        the other strip.
+        """
+        tz = self.default_timezone
+        relevant: set[tuple[int, int]] = set()
+        for year in range(request_start.year, request_end.year + 1):
+            year_start = pd.Timestamp(year=year, month=1, day=1).tz_localize(tz)
+            mid_year = pd.Timestamp(year=year, month=7, day=1).tz_localize(tz)
+            next_year_start = pd.Timestamp(
+                year=year + 1,
+                month=1,
+                day=1,
+            ).tz_localize(tz)
+            strip_windows = (
+                (1, year_start, mid_year),
+                (2, mid_year, next_year_start),
+            )
+            for strip, strip_start, strip_end in strip_windows:
+                if strip_end > request_start and strip_start < request_end:
+                    relevant.add((year, strip))
+        return relevant
+
+    @staticmethod
+    def _filter_annual_crr_rows_to_window(
+        df: pd.DataFrame,
+        request_start: pd.Timestamp,
+        request_end: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Keep rows whose ``[Start Date, End Date]`` overlaps the request window.
+
+        The predicate is ``Start Date < request_end AND End Date >= request_start``,
+        which keeps any row whose interval has non-empty intersection with
+        ``[request_start, request_end)``. Used to honor sub-strip date ranges
+        after concatenation across multiple zips.
+        """
+        mask = (df["Start Date"] < request_end) & (df["End Date"] >= request_start)
+        return df.loc[mask].reset_index(drop=True)
+
+    def _handle_annual_crr_auction_zip(
+        self,
+        z: ZipFile,
+    ) -> dict[str, list[tuple[str, pd.DataFrame]]]:
+        """Parse an annual CRR auction zip into a dict of (filename, DataFrame) lists.
+
+        Unlike the monthly bundle, the annual zip may contain multiple CSVs per
+        dataset (base loading publishes one CSV per covered month), so each
+        dataset key maps to a list of frames keyed by their basename.
+        """
+        result: dict[str, list[tuple[str, pd.DataFrame]]] = {}
+        for key, prefix in self._ANNUAL_CRR_AUCTION_FILE_PREFIXES.items():
+            matches: list[tuple[str, pd.DataFrame]] = []
+            for file in z.namelist():
+                basename = file.rsplit("/", 1)[-1]
+                if basename.startswith(prefix) and basename.lower().endswith(".csv"):
+                    matches.append((basename, pd.read_csv(z.open(file))))
+            if matches:
+                result[key] = matches
+        return result
+
+    def _get_annual_crr_auction_frames(
+        self,
+        dataset_key: str,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None,
+        verbose: bool = False,
+    ) -> list[tuple[pd.Timestamp, int, int, str, pd.DataFrame]]:
+        """Download annual CRR ZIPs whose (year, strip) overlaps [date, end).
+
+        Returns a list of ``(year_start_central, strip, sequence, basename, df)``
+        tuples for the requested ``dataset_key``, sorted by
+        ``(year_start, strip, sequence, basename)``. ``end`` is treated as
+        exclusive; when ``end`` is ``None`` only the auction year containing
+        ``date`` is returned.
+
+        Each ERCOT annual auction publishes 12 zips per auction year
+        (6 sequences × 2 strips); the 1st strip covers Jan-Jun and the 2nd
+        strip covers Jul-Dec. Only zips whose strip window overlaps the
+        request range are downloaded, so a request that lives entirely within
+        one strip avoids 6 unnecessary downloads.
+        """
+        request_start, request_end = self._annual_crr_request_window(date, end)
+        relevant_year_strips = self._annual_crr_relevant_year_strips(
+            request_start,
+            request_end,
+        )
+
+        docs = self._get_documents(
+            report_type_id=ANNUAL_CRR_AUCTION_RESULTS_RTID,
+            verbose=verbose,
+        )
+
+        results: list[tuple[pd.Timestamp, int, int, str, pd.DataFrame]] = []
+        for doc in docs:
+            try:
+                year_start, strip, sequence = (
+                    self._parse_crr_annual_auction_friendly_name(
+                        doc.friendly_name,
+                    )
+                )
+            except ValueError:
+                continue
+            if (year_start.year, strip) not in relevant_year_strips:
+                continue
+            z = utils.get_zip_folder(doc.url, verbose=verbose)
+            frames = self._handle_annual_crr_auction_zip(z)
+            for basename, raw in frames.get(dataset_key, []):
+                results.append((year_start, strip, sequence, basename, raw))
+
+        if not results:
+            raise NoDataFoundException(
+                "No Annual CRR Auction documents found for "
+                f"dataset={dataset_key}, date={date}, end={end}",
+            )
+
+        results.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
+        return results
+
+    @support_date_range(frequency=None)
+    def get_crr_auction_bids_offers_annual(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Bids and offers for each annual (long-term) ERCOT CRR Auction.
+
+        Each annual auction year publishes 12 zips (6 sequences × 2 strips).
+        Only zips whose strip window (Jan-Jun for strip 1, Jul-Dec for strip
+        2) overlaps the requested ``[date, end)`` range are downloaded, and
+        the returned rows are filtered to that same window. ``end`` is
+        exclusive; when ``end`` is ``None`` the full auction year containing
+        ``date`` is returned.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-802-M
+        """
+        request_start, request_end = self._annual_crr_request_window(date, end)
+        frames = self._get_annual_crr_auction_frames(
+            "auction_bids_offers",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _year_start, strip, sequence, _basename, raw in frames:
+            df = raw.copy()
+            df["Start Date"] = pd.to_datetime(
+                df["StartDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df["End Date"] = pd.to_datetime(
+                df["EndDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df = df.rename(
+                columns={
+                    "BidType": "Bid Type",
+                    "HedgeType": "Hedge Type",
+                    "TimeOfUse": "Time of Use",
+                    "BidPricePerMWH": "Bid Price Per MWh",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            df["Sequence"] = sequence
+            df["Strip"] = strip
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        df = df[
+            [
+                "Start Date",
+                "End Date",
+                "Path",
+                "Source",
+                "Sink",
+                "Bid Type",
+                "Hedge Type",
+                "Time of Use",
+                "MW",
+                "Bid Price Per MWh",
+                "Shadow Price Per MWh",
+                "Sequence",
+                "Strip",
+            ]
+        ]
+        return self._filter_annual_crr_rows_to_window(
+            df,
+            request_start,
+            request_end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_crr_base_loading_annual(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Base loading for each annual (long-term) ERCOT CRR Auction.
+
+        Each auction zip publishes one base-loading CSV per covered month;
+        ``Start Date`` / ``End Date`` are derived from the trailing
+        ``_AUCTION_<MMM>_<YYYY>.csv`` segment of the file name. Zips outside
+        the requested strip window are skipped, and rows are filtered to
+        ``[date, end)`` after concatenation.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-802-M
+        """
+        request_start, request_end = self._annual_crr_request_window(date, end)
+        frames = self._get_annual_crr_auction_frames(
+            "base_loading",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _year_start, strip, sequence, basename, raw in frames:
+            match = _ANNUAL_CRR_BASE_LOADING_MONTH_RE.search(basename)
+            if match is None:
+                raise ValueError(
+                    f"Could not parse base-loading month from filename {basename!r}",
+                )
+            month_year = f"{match.group('month').upper()}_{match.group('year')}"
+            month_start = pd.Timestamp(
+                datetime.datetime.strptime(month_year, "%b_%Y"),
+            ).tz_localize(self.default_timezone)
+            df = raw.copy()
+            df["Start Date"] = month_start
+            df["End Date"] = month_start + pd.offsets.MonthEnd(0)
+            df = df.rename(
+                columns={
+                    "CRR_ID": "CRR ID",
+                    "AccountHolder": "Account Holder",
+                    "HedgeType": "Hedge Type",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            df["Sequence"] = sequence
+            df["Strip"] = strip
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        df = df[
+            [
+                "Start Date",
+                "End Date",
+                "CRR ID",
+                "Account Holder",
+                "Source",
+                "Sink",
+                "Hedge Type",
+                "Time of Use",
+                "MW",
+                "Shadow Price Per MWh",
+                "Path",
+                "Sequence",
+                "Strip",
+            ]
+        ]
+        return self._filter_annual_crr_rows_to_window(
+            df,
+            request_start,
+            request_end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_crr_binding_constraints_annual(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Binding constraints for each annual (long-term) ERCOT CRR Auction.
+
+        Zips outside the requested strip window are skipped, and rows are
+        filtered to ``[date, end)`` after concatenation.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-802-M
+        """
+        request_start, request_end = self._annual_crr_request_window(date, end)
+        frames = self._get_annual_crr_auction_frames(
+            "binding_constraints",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _year_start, strip, sequence, _basename, raw in frames:
+            df = raw.copy()
+            calendar_start = pd.to_datetime(
+                df["CalendarPeriod"],
+                format="%b_%Y",
+            )
+            df["Start Date"] = calendar_start.dt.tz_localize(
+                self.default_timezone,
+            )
+            df["End Date"] = (calendar_start + pd.offsets.MonthEnd(0)).dt.tz_localize(
+                self.default_timezone,
+            )
+            df = df.rename(
+                columns={
+                    "DeviceName": "Device Name",
+                    "DeviceType": "Device Type",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPrice": "Shadow Price",
+                },
+            )
+            df["Sequence"] = sequence
+            df["Strip"] = strip
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        df = df[
+            [
+                "Start Date",
+                "End Date",
+                "Device Name",
+                "Device Type",
+                "Direction",
+                "Flow",
+                "Limit",
+                "Description",
+                "Contingency",
+                "Time of Use",
+                "Shadow Price",
+                "Sequence",
+                "Strip",
+            ]
+        ]
+        return self._filter_annual_crr_rows_to_window(
+            df,
+            request_start,
+            request_end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_crr_market_results_annual(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Market results for each annual (long-term) ERCOT CRR Auction.
+
+        Zips outside the requested strip window are skipped, and rows are
+        filtered to ``[date, end)`` after concatenation.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-802-M
+        """
+        request_start, request_end = self._annual_crr_request_window(date, end)
+        frames = self._get_annual_crr_auction_frames(
+            "market_results",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _year_start, strip, sequence, _basename, raw in frames:
+            df = raw.copy()
+            df["Start Date"] = pd.to_datetime(
+                df["StartDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df["End Date"] = pd.to_datetime(
+                df["EndDate"],
+                format="%m/%d/%Y",
+            ).dt.tz_localize(self.default_timezone)
+            df = df.rename(
+                columns={
+                    "CRR_ID": "CRR ID",
+                    "OriginalCRR_ID": "Original CRR ID",
+                    "AccountHolder": "Account Holder",
+                    "HedgeType": "Hedge Type",
+                    "BidType": "Bid Type",
+                    "CRRType": "CRR Type",
+                    "TimeOfUse": "Time of Use",
+                    "Bid24Hour": "Bid 24 Hour",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Path"] = df["Source"].astype(str) + "-" + df["Sink"].astype(str)
+            df["Sequence"] = sequence
+            df["Strip"] = strip
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        df = df[
+            [
+                "Start Date",
+                "End Date",
+                "CRR ID",
+                "Original CRR ID",
+                "Account Holder",
+                "Hedge Type",
+                "Bid Type",
+                "CRR Type",
+                "Source",
+                "Sink",
+                "Time of Use",
+                "Bid 24 Hour",
+                "MW",
+                "Shadow Price Per MWh",
+                "Path",
+                "Sequence",
+                "Strip",
+            ]
+        ]
+        return self._filter_annual_crr_rows_to_window(
+            df,
+            request_start,
+            request_end,
+        )
+
+    @support_date_range(frequency=None)
+    def get_crr_source_sink_shadow_prices_annual(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Source and sink shadow prices for each annual (long-term) ERCOT CRR Auction.
+
+        Zips outside the requested strip window are skipped, and rows are
+        filtered to ``[date, end)`` after concatenation.
+
+        Source: https://www.ercot.com/mp/data-products/data-product-details?id=NP7-802-M
+        """
+        request_start, request_end = self._annual_crr_request_window(date, end)
+        frames = self._get_annual_crr_auction_frames(
+            "source_sink_shadow_prices",
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+        all_df = []
+        for _year_start, strip, sequence, _basename, raw in frames:
+            df = raw.copy()
+            calendar_start = pd.to_datetime(
+                df["CalendarPeriod"],
+                format="%b_%Y",
+            )
+            df["Start Date"] = calendar_start.dt.tz_localize(
+                self.default_timezone,
+            )
+            df["End Date"] = (calendar_start + pd.offsets.MonthEnd(0)).dt.tz_localize(
+                self.default_timezone,
+            )
+            df = df.rename(
+                columns={
+                    "SourceSink": "Source Sink",
+                    "TimeOfUse": "Time of Use",
+                    "ShadowPricePerMWH": "Shadow Price Per MWh",
+                },
+            )
+            df["Sequence"] = sequence
+            df["Strip"] = strip
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        df = df[
+            [
+                "Start Date",
+                "End Date",
+                "Source Sink",
+                "Time of Use",
+                "Shadow Price Per MWh",
+                "Sequence",
+                "Strip",
+            ]
+        ]
+        return self._filter_annual_crr_rows_to_window(
+            df,
+            request_start,
+            request_end,
+        )
 
     # Keyed by dataset, the prefix the corresponding CSV file inside a monthly
     # CRR auction ZIP starts with.
