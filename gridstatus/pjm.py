@@ -4336,47 +4336,16 @@ class PJM(ISOBase):
     ) -> pd.DataFrame:
         """Reshape the 3-row-multi-header Option Path Clearing Prices sheet.
 
-        Raw columns have form ``(level0, level1, level2)``; the four id
-        columns combine ``Source Node`` / ``Source PNODEID`` / ``Sink Node`` /
-        ``Sink PNODEID`` across the three levels, while metric columns
-        repeat ``(MONTH_ABBR, "Option MCP", metric)`` blocks. Positional
-        indices are used to avoid ambiguity from the partially-empty header
-        levels.
+        Raw columns have form ``(level0, level1, level2)``. ID columns occupy
+        the first four Excel columns (source/sink labels and numeric ids).
+        Remaining columns are ``(MONTH_ABBR, "Option MCP", metric)`` blocks.
         """
-        id_indices: dict[str, int] = {}
-        metric_positions: list[tuple[int, str, str]] = []
-
-        for idx, col in enumerate(raw.columns):
-            level0, level1, level2 = col
-            if str(level1) == "Source Node":
-                id_indices["Source Node"] = idx
-            elif str(level1) == "Source" and str(level2) == "PNODEID":
-                id_indices["Source PNODEID"] = idx
-            elif str(level1) == "Sink Node":
-                id_indices["Sink Node"] = idx
-            elif str(level1) == "Sink" and str(level2) == "PNODEID":
-                id_indices["Sink PNODEID"] = idx
-            elif str(level1) == "Option MCP":
-                metric_positions.append((idx, str(level0), str(level2)))
-
-        missing = {
-            "Source Node",
-            "Source PNODEID",
-            "Sink Node",
-            "Sink PNODEID",
-        } - set(id_indices)
-        if missing:
-            raise NoDataFoundException(
-                f"Option Path Clearing Prices sheet missing id columns: {missing};"
-                f" available headers: {raw.columns.tolist()}",
-            )
-
         ids = pd.DataFrame(
             {
-                "Source Node": raw.iloc[:, id_indices["Source Node"]].values,
-                "Source PNODEID": raw.iloc[:, id_indices["Source PNODEID"]].values,
-                "Sink Node": raw.iloc[:, id_indices["Sink Node"]].values,
-                "Sink PNODEID": raw.iloc[:, id_indices["Sink PNODEID"]].values,
+                "Source Node": raw.iloc[:, 0].values,
+                "Source PNODEID": raw.iloc[:, 1].values,
+                "Sink Node": raw.iloc[:, 2].values,
+                "Sink PNODEID": raw.iloc[:, 3].values,
             },
         )
 
@@ -4388,13 +4357,18 @@ class PJM(ISOBase):
             "Daily Off Peak": "MCP Off Peak Daily",
         }
 
-        months_in_sheet: list[str] = []
-        for _idx, month_abbr, _metric in metric_positions:
-            if month_abbr not in months_in_sheet:
-                months_in_sheet.append(month_abbr)
+        metric_positions: list[tuple[int, str, str]] = []
+        for idx in range(4, len(raw.columns)):
+            level0, level1, level2 = raw.columns[idx]
+            if str(level1) == "Option MCP":
+                metric_positions.append((idx, str(level0), str(level2)))
+
+        months_order = dict.fromkeys(
+            month_abbr for _, month_abbr, _ in metric_positions
+        )
 
         rows: list[pd.DataFrame] = []
-        for month_abbr in months_in_sheet:
+        for month_abbr in months_order:
             block = ids.copy()
             block["Month"] = month_abbr
             for idx, m_abbr, metric in metric_positions:
@@ -4405,9 +4379,6 @@ class PJM(ISOBase):
 
         df = pd.concat(rows, ignore_index=True)
         df["Auction Period"] = month_start
-        for metric_col in metric_rename.values():
-            if metric_col not in df.columns:
-                df[metric_col] = pd.NA
         return df
 
     FTR_OPTION_PATHS_MONTHLY_URL = (
