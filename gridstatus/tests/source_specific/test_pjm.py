@@ -3426,10 +3426,10 @@ class TestPJM(BaseTestISO):
             "Ctg Id",
             "Period Type",
             "Marginal Value On Peak",
-            "Marginal Value Wknd On Peak",
+            "Marginal Value Weekend On Peak",
             "Marginal Value Daily Off Peak",
             "Limit On Peak",
-            "Limit Wknd On Peak",
+            "Limit Weekend On Peak",
             "Limit Daily Off Peak",
             "Auction Period",
         ]
@@ -3438,10 +3438,10 @@ class TestPJM(BaseTestISO):
         assert df["Period Type"].dtype == object
         for col in [
             "Marginal Value On Peak",
-            "Marginal Value Wknd On Peak",
+            "Marginal Value Weekend On Peak",
             "Marginal Value Daily Off Peak",
             "Limit On Peak",
-            "Limit Wknd On Peak",
+            "Limit Weekend On Peak",
             "Limit Daily Off Peak",
         ]:
             assert df[col].dtype == np.float64, col
@@ -3473,7 +3473,7 @@ class TestPJM(BaseTestISO):
             "LMP 24H",
             "LMP On Peak",
             "LMP Off Peak",
-            "LMP Wknd On Peak",
+            "LMP Weekend On Peak",
             "LMP Daily Off Peak",
             "Auction Period",
         ]
@@ -3484,7 +3484,7 @@ class TestPJM(BaseTestISO):
             "LMP 24H",
             "LMP On Peak",
             "LMP Off Peak",
-            "LMP Wknd On Peak",
+            "LMP Weekend On Peak",
             "LMP Daily Off Peak",
         ]:
             assert df[col].dtype == np.float64, col
@@ -3515,11 +3515,11 @@ class TestPJM(BaseTestISO):
             "Sink Node",
             "Sink PNODE ID",
             "Month",
-            "MCP 24H",
+            "MCP 24 Hour",
             "MCP On Peak",
             "MCP Off Peak",
-            "MCP Wknd On Peak",
-            "MCP Daily Off Peak",
+            "MCP Weekend On Peak",
+            "MCP Off Peak Daily",
             "Auction Period",
         ]
         assert df["Source Node"].dtype == object
@@ -3528,11 +3528,11 @@ class TestPJM(BaseTestISO):
         assert df["Sink PNODE ID"].dtype == np.int64
         assert df["Month"].dtype == object
         for col in [
-            "MCP 24H",
+            "MCP 24 Hour",
             "MCP On Peak",
             "MCP Off Peak",
-            "MCP Wknd On Peak",
-            "MCP Daily Off Peak",
+            "MCP Weekend On Peak",
+            "MCP Off Peak Daily",
         ]:
             assert df[col].dtype == np.float64, col
         assert pd.api.types.is_datetime64_any_dtype(df["Auction Period"])

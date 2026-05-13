@@ -4144,9 +4144,9 @@ class PJM(ISOBase):
 
         Returns:
             pd.DataFrame: Columns ``Constraint``, ``Ctg Id``, ``Period Type``,
-                ``Marginal Value On Peak``, ``Marginal Value Wknd On Peak``,
+                ``Marginal Value On Peak``, ``Marginal Value Weekend On Peak``,
                 ``Marginal Value Daily Off Peak``, ``Limit On Peak``,
-                ``Limit Wknd On Peak``, ``Limit Daily Off Peak``,
+                ``Limit Weekend On Peak``, ``Limit Daily Off Peak``,
                 ``Auction Period``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
@@ -4167,6 +4167,12 @@ class PJM(ISOBase):
                     flat = f"{top} {sub}"
                 df[flat] = raw[(top, sub)].values
 
+            df = df.rename(
+                columns={
+                    "Marginal Value Wknd On Peak": "Marginal Value Weekend On Peak",
+                    "Limit Wknd On Peak": "Limit Weekend On Peak",
+                },
+            )
             df["Auction Period"] = month_start
             all_df.append(df)
 
@@ -4177,10 +4183,10 @@ class PJM(ISOBase):
                 "Ctg Id",
                 "Period Type",
                 "Marginal Value On Peak",
-                "Marginal Value Wknd On Peak",
+                "Marginal Value Weekend On Peak",
                 "Marginal Value Daily Off Peak",
                 "Limit On Peak",
-                "Limit Wknd On Peak",
+                "Limit Weekend On Peak",
                 "Limit Daily Off Peak",
                 "Auction Period",
             ]
@@ -4212,7 +4218,7 @@ class PJM(ISOBase):
         Returns:
             pd.DataFrame: Columns ``Node``, ``PNODE ID``, ``Period Type``,
                 ``LMP 24H``, ``LMP On Peak``, ``LMP Off Peak``,
-                ``LMP Wknd On Peak``, ``LMP Daily Off Peak``,
+                ``LMP Weekend On Peak``, ``LMP Daily Off Peak``,
                 ``Auction Period``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
@@ -4233,7 +4239,12 @@ class PJM(ISOBase):
                     flat = f"{top} {sub}"
                 df[flat] = raw[(top, sub)].values
 
-            df = df.rename(columns={"PNODEID": "PNODE ID"})
+            df = df.rename(
+                columns={
+                    "PNODEID": "PNODE ID",
+                    "LMP Wknd On Peak": "LMP Weekend On Peak",
+                },
+            )
             df["Auction Period"] = month_start
             all_df.append(df)
 
@@ -4246,7 +4257,7 @@ class PJM(ISOBase):
                 "LMP 24H",
                 "LMP On Peak",
                 "LMP Off Peak",
-                "LMP Wknd On Peak",
+                "LMP Weekend On Peak",
                 "LMP Daily Off Peak",
                 "Auction Period",
             ]
@@ -4279,9 +4290,9 @@ class PJM(ISOBase):
 
         Returns:
             pd.DataFrame: Columns ``Source Node``, ``Source PNODE ID``,
-                ``Sink Node``, ``Sink PNODE ID``, ``Month``, ``MCP 24H``,
-                ``MCP On Peak``, ``MCP Off Peak``, ``MCP Wknd On Peak``,
-                ``MCP Daily Off Peak``, ``Auction Period``.
+                ``Sink Node``, ``Sink PNODE ID``, ``Month``, ``MCP 24 Hour``,
+                ``MCP On Peak``, ``MCP Off Peak``, ``MCP Weekend On Peak``,
+                ``MCP Off Peak Daily``, ``Auction Period``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
         all_df: list[pd.DataFrame] = []
@@ -4309,11 +4320,11 @@ class PJM(ISOBase):
                 "Sink Node",
                 "Sink PNODE ID",
                 "Month",
-                "MCP 24H",
+                "MCP 24 Hour",
                 "MCP On Peak",
                 "MCP Off Peak",
-                "MCP Wknd On Peak",
-                "MCP Daily Off Peak",
+                "MCP Weekend On Peak",
+                "MCP Off Peak Daily",
                 "Auction Period",
             ]
         ]
@@ -4370,11 +4381,11 @@ class PJM(ISOBase):
         )
 
         metric_rename = {
-            "24H": "MCP 24H",
+            "24H": "MCP 24 Hour",
             "On Peak": "MCP On Peak",
             "Off Peak": "MCP Off Peak",
-            "Wknd On Peak": "MCP Wknd On Peak",
-            "Daily Off Peak": "MCP Daily Off Peak",
+            "Wknd On Peak": "MCP Weekend On Peak",
+            "Daily Off Peak": "MCP Off Peak Daily",
         }
 
         months_in_sheet: list[str] = []
