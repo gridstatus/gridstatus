@@ -3945,6 +3945,460 @@ class PJM(ISOBase):
 
         return df
 
+    FTR_MONTHLY_HISTORICAL_URL_TEMPLATE = (
+        "http://www.pjm.com//pub/account/auction-user-info/historical/{yyyymm}-ftr.xlsx"
+    )
+    FTR_MONTHLY_HISTORICAL_PUBLIC_START = pd.Timestamp("2020-01-01")
+    FTR_AUCTION_RESULTS_SHEET_SUFFIX = "Auction Results"
+    FTR_BINDING_CONSTRAINTS_SHEET_SUFFIX = "Binding Constraints"
+    FTR_OBLIGATION_NODAL_PRICES_SHEET_SUFFIX = "Obligation Nodal Prices"
+    FTR_OPTION_PATH_CLEARING_PRICES_SHEET_SUFFIX = "Option Path Clearing Prices"
+
+    def _normalize_ftr_monthly_range(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
+    ) -> list[pd.Timestamp]:
+        """Normalize a date / (date, end) input into a list of month-start timestamps.
+
+        ``date`` and ``end`` may be strings, ``pd.Timestamp``s, or a single tuple of
+        ``(start, end)``. ``end`` is inclusive at the month granularity (i.e., an
+        ``end`` falling anywhere in month X is treated as covering month X).
+        Timezones are stripped so that ``Auction Period`` is naive month-start.
+        Raises ``NotSupported`` if any month is before
+        ``FTR_MONTHLY_HISTORICAL_PUBLIC_START``.
+        """
+        if isinstance(date, tuple):
+            start_raw, end_raw = date
+        else:
+            start_raw = date
+            end_raw = end if end is not None else date
+
+        def _to_naive_month_start(value: str | pd.Timestamp) -> pd.Timestamp:
+            ts = pd.Timestamp(value)
+            if ts.tzinfo is not None:
+                ts = ts.tz_convert(self.default_timezone).tz_localize(None)
+            return pd.Timestamp(ts.year, ts.month, 1)
+
+        start_month = _to_naive_month_start(start_raw)
+        end_month = _to_naive_month_start(end_raw)
+
+        if end_month < start_month:
+            raise ValueError(
+                f"end ({end_month.date()}) must be on or after"
+                f" start ({start_month.date()})",
+            )
+
+        if start_month < self.FTR_MONTHLY_HISTORICAL_PUBLIC_START:
+            raise NotSupported(
+                f"{self.name} get_ftr_*_monthly only supports dates from"
+                f" {self.FTR_MONTHLY_HISTORICAL_PUBLIC_START.date()} forward via the"
+                f" public URL. Pre-2020 history requires manual SharePoint download."
+                f" Got {start_month.date()}.",
+            )
+
+        months = list(pd.date_range(start_month, end_month, freq="MS"))
+        return [pd.Timestamp(m.year, m.month, 1) for m in months]
+
+    def _get_ftr_monthly_workbook(
+        self,
+        month_start: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.ExcelFile:
+        """Download the monthly FTR workbook for ``month_start`` and return an
+        ``pd.ExcelFile``.
+
+        This is the single download entrypoint used by all four
+        ``get_ftr_*_monthly`` methods. Tests and backfill scripts monkey-patch
+        this method to load workbooks from local files instead of HTTP.
+        """
+        yyyymm = f"{month_start.year:04d}{month_start.month:02d}"
+        url = self.FTR_MONTHLY_HISTORICAL_URL_TEMPLATE.format(yyyymm=yyyymm)
+        logger.info(f"Requesting {url}...")
+
+        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
+        if response.status_code == 404:
+            raise NoDataFoundException(
+                f"No PJM monthly FTR workbook found for {month_start.date()} at {url}",
+            )
+        response.raise_for_status()
+
+        if not response.content:
+            raise NoDataFoundException(
+                f"PJM monthly FTR workbook for {month_start.date()} is empty",
+            )
+
+        return pd.ExcelFile(io.BytesIO(response.content), engine="openpyxl")
+
+    def _resolve_ftr_monthly_sheet(
+        self,
+        xls: pd.ExcelFile,
+        suffix: str,
+    ) -> str:
+        """Find the sheet whose name ends with ``suffix`` (case-insensitive).
+
+        Sheet names vary across files; some include the auction year, others
+        only the month abbreviation (e.g., ``DEC 2024 Auction Results`` vs
+        ``DEC Obligation Nodal Prices``).
+        """
+        suffix_lower = suffix.lower()
+        for name in xls.sheet_names:
+            if name.lower().endswith(suffix_lower):
+                return name
+        raise NoDataFoundException(
+            f"No sheet ending with '{suffix}' found in workbook;"
+            f" available sheets: {xls.sheet_names}",
+        )
+
+    def get_ftr_auction_results_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly PJM FTR Auction Results.
+
+        Cleared FTR positions from each PJM monthly FTR auction. One row per
+        cleared FTR per Period Type (calendar month within the auction
+        coverage). Supports a single date or a date range; for ranges, every
+        monthly workbook in ``[date, end]`` is concatenated.
+
+        Source: ``Auction Results`` sheet of the monthly FTR workbook at
+        ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
+        Public files are available from January 2020 onward.
+
+        Arguments:
+            date: Start date (inclusive). String, ``pd.Timestamp``, or a
+                ``(start, end)`` tuple.
+            end: End date (inclusive at month granularity). Optional.
+            verbose: Print verbose output.
+
+        Returns:
+            pd.DataFrame: Columns ``FTR ID``, ``Class Type``, ``Period Type``,
+                ``Participant``, ``Source Node``, ``Source PNODE ID``,
+                ``Sink Node``, ``Sink PNODE ID``, ``Trade Type``,
+                ``Hedge Type``, ``Cleared MW``, ``Obligation MCP``,
+                ``Option MCP``, ``Auction Period``.
+        """
+        months = self._normalize_ftr_monthly_range(date, end)
+        all_df: list[pd.DataFrame] = []
+        for month_start in months:
+            xls = self._get_ftr_monthly_workbook(month_start, verbose=verbose)
+            sheet = self._resolve_ftr_monthly_sheet(
+                xls,
+                self.FTR_AUCTION_RESULTS_SHEET_SUFFIX,
+            )
+            df = pd.read_excel(xls, sheet_name=sheet, header=0)
+            df = df.rename(
+                columns={
+                    "FTRID": "FTR ID",
+                    "Source PNODEID": "Source PNODE ID",
+                    "Sink PNODEID": "Sink PNODE ID",
+                },
+            )
+            df["Auction Period"] = month_start
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "FTR ID",
+                "Class Type",
+                "Period Type",
+                "Participant",
+                "Source Node",
+                "Source PNODE ID",
+                "Sink Node",
+                "Sink PNODE ID",
+                "Trade Type",
+                "Hedge Type",
+                "Cleared MW",
+                "Obligation MCP",
+                "Option MCP",
+                "Auction Period",
+            ]
+        ]
+
+    def get_ftr_binding_constraints_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly PJM FTR Binding Constraints.
+
+        Constraints that bound the monthly FTR auction solution, with marginal
+        values and limits broken out per time-of-use category (On Peak, Wknd
+        On Peak, Daily Off Peak). One row per ``(Constraint, Period Type)``
+        within each auction workbook.
+
+        Source: ``Binding Constraints`` sheet of the monthly FTR workbook at
+        ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
+        Public files are available from January 2020 onward.
+
+        Arguments:
+            date: Start date (inclusive). String, ``pd.Timestamp``, or a
+                ``(start, end)`` tuple.
+            end: End date (inclusive at month granularity). Optional.
+            verbose: Print verbose output.
+
+        Returns:
+            pd.DataFrame: Columns ``Constraint``, ``Ctg Id``, ``Period Type``,
+                ``Marginal Value On Peak``, ``Marginal Value Wknd On Peak``,
+                ``Marginal Value Daily Off Peak``, ``Limit On Peak``,
+                ``Limit Wknd On Peak``, ``Limit Daily Off Peak``,
+                ``Auction Period``.
+        """
+        months = self._normalize_ftr_monthly_range(date, end)
+        all_df: list[pd.DataFrame] = []
+        for month_start in months:
+            xls = self._get_ftr_monthly_workbook(month_start, verbose=verbose)
+            sheet = self._resolve_ftr_monthly_sheet(
+                xls,
+                self.FTR_BINDING_CONSTRAINTS_SHEET_SUFFIX,
+            )
+            raw = pd.read_excel(xls, sheet_name=sheet, header=[0, 1])
+
+            df = pd.DataFrame()
+            for top, sub in raw.columns:
+                if sub.startswith("Unnamed:"):
+                    flat = top
+                else:
+                    flat = f"{top} {sub}"
+                df[flat] = raw[(top, sub)].values
+
+            df["Auction Period"] = month_start
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Constraint",
+                "Ctg Id",
+                "Period Type",
+                "Marginal Value On Peak",
+                "Marginal Value Wknd On Peak",
+                "Marginal Value Daily Off Peak",
+                "Limit On Peak",
+                "Limit Wknd On Peak",
+                "Limit Daily Off Peak",
+                "Auction Period",
+            ]
+        ]
+
+    def get_ftr_obligation_nodal_prices_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly PJM FTR Obligation Nodal Prices.
+
+        LMPs at each pricing node for each Period Type covered by the auction,
+        broken out by time-of-use category (24H, On Peak, Off Peak, Wknd On
+        Peak, Daily Off Peak). One row per ``(Node, Period Type)`` within
+        each auction workbook.
+
+        Source: ``Obligation Nodal Prices`` sheet of the monthly FTR workbook
+        at ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
+        Public files are available from January 2020 onward.
+
+        Arguments:
+            date: Start date (inclusive). String, ``pd.Timestamp``, or a
+                ``(start, end)`` tuple.
+            end: End date (inclusive at month granularity). Optional.
+            verbose: Print verbose output.
+
+        Returns:
+            pd.DataFrame: Columns ``Node``, ``PNODE ID``, ``Period Type``,
+                ``LMP 24H``, ``LMP On Peak``, ``LMP Off Peak``,
+                ``LMP Wknd On Peak``, ``LMP Daily Off Peak``,
+                ``Auction Period``.
+        """
+        months = self._normalize_ftr_monthly_range(date, end)
+        all_df: list[pd.DataFrame] = []
+        for month_start in months:
+            xls = self._get_ftr_monthly_workbook(month_start, verbose=verbose)
+            sheet = self._resolve_ftr_monthly_sheet(
+                xls,
+                self.FTR_OBLIGATION_NODAL_PRICES_SHEET_SUFFIX,
+            )
+            raw = pd.read_excel(xls, sheet_name=sheet, header=[0, 1])
+
+            df = pd.DataFrame()
+            for top, sub in raw.columns:
+                if sub.startswith("Unnamed:"):
+                    flat = top
+                else:
+                    flat = f"{top} {sub}"
+                df[flat] = raw[(top, sub)].values
+
+            df = df.rename(columns={"PNODEID": "PNODE ID"})
+            df["Auction Period"] = month_start
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        return df[
+            [
+                "Node",
+                "PNODE ID",
+                "Period Type",
+                "LMP 24H",
+                "LMP On Peak",
+                "LMP Off Peak",
+                "LMP Wknd On Peak",
+                "LMP Daily Off Peak",
+                "Auction Period",
+            ]
+        ]
+
+    def get_ftr_option_path_clearing_prices_monthly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Gets the monthly PJM FTR Option Path Clearing Prices.
+
+        Option-path clearing prices (MCPs) per source-sink pair, with one row
+        per ``(Source Node, Sink Node, Month)``. The raw sheet has 3 header
+        rows and one repeating 5-metric ``Option MCP`` column block per
+        forward calendar month covered by the auction; the per-month blocks
+        are reshaped into a ``Month`` row dimension.
+
+        Source: ``Option Path Clearing Prices`` sheet of the monthly FTR
+        workbook at
+        ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
+        Public files are available from January 2020 onward.
+
+        Arguments:
+            date: Start date (inclusive). String, ``pd.Timestamp``, or a
+                ``(start, end)`` tuple.
+            end: End date (inclusive at month granularity). Optional.
+            verbose: Print verbose output.
+
+        Returns:
+            pd.DataFrame: Columns ``Source Node``, ``Source PNODE ID``,
+                ``Sink Node``, ``Sink PNODE ID``, ``Month``, ``MCP 24H``,
+                ``MCP On Peak``, ``MCP Off Peak``, ``MCP Wknd On Peak``,
+                ``MCP Daily Off Peak``, ``Auction Period``.
+        """
+        months = self._normalize_ftr_monthly_range(date, end)
+        all_df: list[pd.DataFrame] = []
+        for month_start in months:
+            xls = self._get_ftr_monthly_workbook(month_start, verbose=verbose)
+            sheet = self._resolve_ftr_monthly_sheet(
+                xls,
+                self.FTR_OPTION_PATH_CLEARING_PRICES_SHEET_SUFFIX,
+            )
+            raw = pd.read_excel(xls, sheet_name=sheet, header=[0, 1, 2])
+            df = self._parse_ftr_option_path_clearing_prices(raw, month_start)
+            all_df.append(df)
+
+        df = pd.concat(all_df, ignore_index=True)
+        df = df.rename(
+            columns={
+                "Source PNODEID": "Source PNODE ID",
+                "Sink PNODEID": "Sink PNODE ID",
+            },
+        )
+        return df[
+            [
+                "Source Node",
+                "Source PNODE ID",
+                "Sink Node",
+                "Sink PNODE ID",
+                "Month",
+                "MCP 24H",
+                "MCP On Peak",
+                "MCP Off Peak",
+                "MCP Wknd On Peak",
+                "MCP Daily Off Peak",
+                "Auction Period",
+            ]
+        ]
+
+    def _parse_ftr_option_path_clearing_prices(
+        self,
+        raw: pd.DataFrame,
+        month_start: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """Reshape the 3-row-multi-header Option Path Clearing Prices sheet.
+
+        Raw columns have form ``(level0, level1, level2)``; the four id
+        columns combine ``Source Node`` / ``Source PNODEID`` / ``Sink Node`` /
+        ``Sink PNODEID`` across the three levels, while metric columns
+        repeat ``(MONTH_ABBR, "Option MCP", metric)`` blocks. Positional
+        indices are used to avoid ambiguity from the partially-empty header
+        levels.
+        """
+        id_indices: dict[str, int] = {}
+        metric_positions: list[tuple[int, str, str]] = []
+
+        for idx, col in enumerate(raw.columns):
+            level0, level1, level2 = col
+            if str(level1) == "Source Node":
+                id_indices["Source Node"] = idx
+            elif str(level1) == "Source" and str(level2) == "PNODEID":
+                id_indices["Source PNODEID"] = idx
+            elif str(level1) == "Sink Node":
+                id_indices["Sink Node"] = idx
+            elif str(level1) == "Sink" and str(level2) == "PNODEID":
+                id_indices["Sink PNODEID"] = idx
+            elif str(level1) == "Option MCP":
+                metric_positions.append((idx, str(level0), str(level2)))
+
+        missing = {
+            "Source Node",
+            "Source PNODEID",
+            "Sink Node",
+            "Sink PNODEID",
+        } - set(id_indices)
+        if missing:
+            raise NoDataFoundException(
+                f"Option Path Clearing Prices sheet missing id columns: {missing};"
+                f" available headers: {raw.columns.tolist()}",
+            )
+
+        ids = pd.DataFrame(
+            {
+                "Source Node": raw.iloc[:, id_indices["Source Node"]].values,
+                "Source PNODEID": raw.iloc[:, id_indices["Source PNODEID"]].values,
+                "Sink Node": raw.iloc[:, id_indices["Sink Node"]].values,
+                "Sink PNODEID": raw.iloc[:, id_indices["Sink PNODEID"]].values,
+            },
+        )
+
+        metric_rename = {
+            "24H": "MCP 24H",
+            "On Peak": "MCP On Peak",
+            "Off Peak": "MCP Off Peak",
+            "Wknd On Peak": "MCP Wknd On Peak",
+            "Daily Off Peak": "MCP Daily Off Peak",
+        }
+
+        months_in_sheet: list[str] = []
+        for _idx, month_abbr, _metric in metric_positions:
+            if month_abbr not in months_in_sheet:
+                months_in_sheet.append(month_abbr)
+
+        rows: list[pd.DataFrame] = []
+        for month_abbr in months_in_sheet:
+            block = ids.copy()
+            block["Month"] = month_abbr
+            for idx, m_abbr, metric in metric_positions:
+                if m_abbr != month_abbr or metric not in metric_rename:
+                    continue
+                block[metric_rename[metric]] = raw.iloc[:, idx].values
+            rows.append(block)
+
+        df = pd.concat(rows, ignore_index=True)
+        df["Auction Period"] = month_start
+        for metric_col in metric_rename.values():
+            if metric_col not in df.columns:
+                df[metric_col] = pd.NA
+        return df
+
     FTR_OPTION_PATHS_MONTHLY_URL = (
         "https://www.pjm.com/pjmfiles/pub/"
         "account/auction-user-info/downloads/option-paths.csv"
