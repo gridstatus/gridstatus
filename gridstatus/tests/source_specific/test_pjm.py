@@ -3354,29 +3354,29 @@ class TestPJM(BaseTestISO):
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         assert df.columns.tolist() == [
+            "Auction Period",
             "FTR ID",
             "Class Type",
             "Period Type",
             "Participant",
             "Source Node",
-            "Source PNODE ID",
+            "Source Pnode ID",
             "Sink Node",
-            "Sink PNODE ID",
+            "Sink Pnode ID",
             "Trade Type",
             "Hedge Type",
             "Cleared MW",
             "Obligation MCP",
             "Option MCP",
-            "Auction Period",
         ]
         assert df["FTR ID"].dtype == np.int64
         assert df["Class Type"].dtype == object
         assert df["Period Type"].dtype == object
         assert df["Participant"].dtype == object
         assert df["Source Node"].dtype == object
-        assert df["Source PNODE ID"].dtype == np.int64
+        assert df["Source Pnode ID"].dtype == np.int64
         assert df["Sink Node"].dtype == object
-        assert df["Sink PNODE ID"].dtype == np.int64
+        assert df["Sink Pnode ID"].dtype == np.int64
         assert df["Trade Type"].dtype == object
         assert df["Hedge Type"].dtype == object
         assert df["Cleared MW"].dtype == np.float64
@@ -3422,8 +3422,9 @@ class TestPJM(BaseTestISO):
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         assert df.columns.tolist() == [
+            "Auction Period",
             "Constraint",
-            "Ctg Id",
+            "CTG ID",
             "Period Type",
             "Marginal Value On Peak",
             "Marginal Value Weekend On Peak",
@@ -3431,10 +3432,9 @@ class TestPJM(BaseTestISO):
             "Limit On Peak",
             "Limit Weekend On Peak",
             "Limit Daily Off Peak",
-            "Auction Period",
         ]
         assert df["Constraint"].dtype == object
-        assert df["Ctg Id"].dtype == object
+        assert df["CTG ID"].dtype == object
         assert df["Period Type"].dtype == object
         for col in [
             "Marginal Value On Peak",
@@ -3467,18 +3467,18 @@ class TestPJM(BaseTestISO):
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         assert df.columns.tolist() == [
+            "Auction Period",
             "Node",
-            "PNODE ID",
+            "Pnode ID",
             "Period Type",
             "LMP 24H",
             "LMP On Peak",
             "LMP Off Peak",
             "LMP Weekend On Peak",
             "LMP Daily Off Peak",
-            "Auction Period",
         ]
         assert df["Node"].dtype == object
-        assert df["PNODE ID"].dtype == np.int64
+        assert df["Pnode ID"].dtype == np.int64
         assert df["Period Type"].dtype == object
         for col in [
             "LMP 24H",
@@ -3510,22 +3510,22 @@ class TestPJM(BaseTestISO):
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
         assert df.columns.tolist() == [
+            "Auction Period",
             "Source Node",
-            "Source PNODE ID",
+            "Source Pnode ID",
             "Sink Node",
-            "Sink PNODE ID",
+            "Sink Pnode ID",
             "Month",
             "MCP 24 Hour",
             "MCP On Peak",
             "MCP Off Peak",
             "MCP Weekend On Peak",
             "MCP Off Peak Daily",
-            "Auction Period",
         ]
         assert df["Source Node"].dtype == object
-        assert df["Source PNODE ID"].dtype == np.int64
+        assert df["Source Pnode ID"].dtype == np.int64
         assert df["Sink Node"].dtype == object
-        assert df["Sink PNODE ID"].dtype == np.int64
+        assert df["Sink Pnode ID"].dtype == np.int64
         assert df["Month"].dtype == object
         for col in [
             "MCP 24 Hour",

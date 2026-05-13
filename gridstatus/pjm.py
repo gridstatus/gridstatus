@@ -4074,11 +4074,11 @@ class PJM(ISOBase):
             verbose: Print verbose output.
 
         Returns:
-            pd.DataFrame: Columns ``FTR ID``, ``Class Type``, ``Period Type``,
-                ``Participant``, ``Source Node``, ``Source PNODE ID``,
-                ``Sink Node``, ``Sink PNODE ID``, ``Trade Type``,
-                ``Hedge Type``, ``Cleared MW``, ``Obligation MCP``,
-                ``Option MCP``, ``Auction Period``.
+            pd.DataFrame: Columns ``Auction Period``, ``FTR ID``, ``Class Type``,
+                ``Period Type``, ``Participant``, ``Source Node``,
+                ``Source Pnode ID``, ``Sink Node``, ``Sink Pnode ID``,
+                ``Trade Type``, ``Hedge Type``, ``Cleared MW``,
+                ``Obligation MCP``, ``Option MCP``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
         all_df: list[pd.DataFrame] = []
@@ -4092,8 +4092,8 @@ class PJM(ISOBase):
             df = df.rename(
                 columns={
                     "FTRID": "FTR ID",
-                    "Source PNODEID": "Source PNODE ID",
-                    "Sink PNODEID": "Sink PNODE ID",
+                    "Source PNODEID": "Source Pnode ID",
+                    "Sink PNODEID": "Sink Pnode ID",
                 },
             )
             df["Auction Period"] = month_start
@@ -4102,20 +4102,20 @@ class PJM(ISOBase):
         df = pd.concat(all_df, ignore_index=True)
         return df[
             [
+                "Auction Period",
                 "FTR ID",
                 "Class Type",
                 "Period Type",
                 "Participant",
                 "Source Node",
-                "Source PNODE ID",
+                "Source Pnode ID",
                 "Sink Node",
-                "Sink PNODE ID",
+                "Sink Pnode ID",
                 "Trade Type",
                 "Hedge Type",
                 "Cleared MW",
                 "Obligation MCP",
                 "Option MCP",
-                "Auction Period",
             ]
         ]
 
@@ -4143,11 +4143,11 @@ class PJM(ISOBase):
             verbose: Print verbose output.
 
         Returns:
-            pd.DataFrame: Columns ``Constraint``, ``Ctg Id``, ``Period Type``,
-                ``Marginal Value On Peak``, ``Marginal Value Weekend On Peak``,
+            pd.DataFrame: Columns ``Auction Period``, ``Constraint``, ``CTG ID``,
+                ``Period Type``, ``Marginal Value On Peak``,
+                ``Marginal Value Weekend On Peak``,
                 ``Marginal Value Daily Off Peak``, ``Limit On Peak``,
-                ``Limit Weekend On Peak``, ``Limit Daily Off Peak``,
-                ``Auction Period``.
+                ``Limit Weekend On Peak``, ``Limit Daily Off Peak``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
         all_df: list[pd.DataFrame] = []
@@ -4169,6 +4169,7 @@ class PJM(ISOBase):
 
             df = df.rename(
                 columns={
+                    "Ctg Id": "CTG ID",
                     "Marginal Value Wknd On Peak": "Marginal Value Weekend On Peak",
                     "Limit Wknd On Peak": "Limit Weekend On Peak",
                 },
@@ -4179,8 +4180,9 @@ class PJM(ISOBase):
         df = pd.concat(all_df, ignore_index=True)
         return df[
             [
+                "Auction Period",
                 "Constraint",
-                "Ctg Id",
+                "CTG ID",
                 "Period Type",
                 "Marginal Value On Peak",
                 "Marginal Value Weekend On Peak",
@@ -4188,7 +4190,6 @@ class PJM(ISOBase):
                 "Limit On Peak",
                 "Limit Weekend On Peak",
                 "Limit Daily Off Peak",
-                "Auction Period",
             ]
         ]
 
@@ -4216,10 +4217,9 @@ class PJM(ISOBase):
             verbose: Print verbose output.
 
         Returns:
-            pd.DataFrame: Columns ``Node``, ``PNODE ID``, ``Period Type``,
-                ``LMP 24H``, ``LMP On Peak``, ``LMP Off Peak``,
-                ``LMP Weekend On Peak``, ``LMP Daily Off Peak``,
-                ``Auction Period``.
+            pd.DataFrame: Columns ``Auction Period``, ``Node``, ``Pnode ID``,
+                ``Period Type``, ``LMP 24H``, ``LMP On Peak``, ``LMP Off Peak``,
+                ``LMP Weekend On Peak``, ``LMP Daily Off Peak``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
         all_df: list[pd.DataFrame] = []
@@ -4241,7 +4241,7 @@ class PJM(ISOBase):
 
             df = df.rename(
                 columns={
-                    "PNODEID": "PNODE ID",
+                    "PNODEID": "Pnode ID",
                     "LMP Wknd On Peak": "LMP Weekend On Peak",
                 },
             )
@@ -4251,15 +4251,15 @@ class PJM(ISOBase):
         df = pd.concat(all_df, ignore_index=True)
         return df[
             [
+                "Auction Period",
                 "Node",
-                "PNODE ID",
+                "Pnode ID",
                 "Period Type",
                 "LMP 24H",
                 "LMP On Peak",
                 "LMP Off Peak",
                 "LMP Weekend On Peak",
                 "LMP Daily Off Peak",
-                "Auction Period",
             ]
         ]
 
@@ -4289,10 +4289,10 @@ class PJM(ISOBase):
             verbose: Print verbose output.
 
         Returns:
-            pd.DataFrame: Columns ``Source Node``, ``Source PNODE ID``,
-                ``Sink Node``, ``Sink PNODE ID``, ``Month``, ``MCP 24 Hour``,
-                ``MCP On Peak``, ``MCP Off Peak``, ``MCP Weekend On Peak``,
-                ``MCP Off Peak Daily``, ``Auction Period``.
+            pd.DataFrame: Columns ``Auction Period``, ``Source Node``,
+                ``Source Pnode ID``, ``Sink Node``, ``Sink Pnode ID``, ``Month``,
+                ``MCP 24 Hour``, ``MCP On Peak``, ``MCP Off Peak``,
+                ``MCP Weekend On Peak``, ``MCP Off Peak Daily``.
         """
         months = self._normalize_ftr_monthly_range(date, end)
         all_df: list[pd.DataFrame] = []
@@ -4309,23 +4309,23 @@ class PJM(ISOBase):
         df = pd.concat(all_df, ignore_index=True)
         df = df.rename(
             columns={
-                "Source PNODEID": "Source PNODE ID",
-                "Sink PNODEID": "Sink PNODE ID",
+                "Source PNODEID": "Source Pnode ID",
+                "Sink PNODEID": "Sink Pnode ID",
             },
         )
         return df[
             [
+                "Auction Period",
                 "Source Node",
-                "Source PNODE ID",
+                "Source Pnode ID",
                 "Sink Node",
-                "Sink PNODE ID",
+                "Sink Pnode ID",
                 "Month",
                 "MCP 24 Hour",
                 "MCP On Peak",
                 "MCP Off Peak",
                 "MCP Weekend On Peak",
                 "MCP Off Peak Daily",
-                "Auction Period",
             ]
         ]
 
