@@ -3412,10 +3412,6 @@ class TestPJM(BaseTestISO):
                 pd.Timestamp("2024-12-01"),
             ]
 
-    def test_get_ftr_auction_results_monthly_pre_2020_not_supported(self):
-        with pytest.raises(NotSupported):
-            self.iso.get_ftr_auction_results_monthly(date="2019-12-01")
-
     """get_ftr_binding_constraints_monthly"""
 
     def _check_ftr_binding_constraints_monthly(self, df):
@@ -3457,10 +3453,6 @@ class TestPJM(BaseTestISO):
                 pd.Timestamp("2024-12-01"),
             ]
 
-    def test_get_ftr_binding_constraints_monthly_pre_2020_not_supported(self):
-        with pytest.raises(NotSupported):
-            self.iso.get_ftr_binding_constraints_monthly(date="2019-12-01")
-
     """get_ftr_obligation_nodal_prices_monthly"""
 
     def _check_ftr_obligation_nodal_prices_monthly(self, df):
@@ -3499,10 +3491,6 @@ class TestPJM(BaseTestISO):
             assert df["Auction Period"].unique().tolist() == [
                 pd.Timestamp("2024-12-01"),
             ]
-
-    def test_get_ftr_obligation_nodal_prices_monthly_pre_2020_not_supported(self):
-        with pytest.raises(NotSupported):
-            self.iso.get_ftr_obligation_nodal_prices_monthly(date="2019-12-01")
 
     """get_ftr_option_path_clearing_prices_monthly"""
 
@@ -3557,10 +3545,6 @@ class TestPJM(BaseTestISO):
                     "Auction Period",
                 ],
             ).any()
-
-    def test_get_ftr_option_path_clearing_prices_monthly_pre_2020_not_supported(self):
-        with pytest.raises(NotSupported):
-            self.iso.get_ftr_option_path_clearing_prices_monthly(date="2019-12-01")
 
     """get_ftr_option_paths_monthly"""
 

@@ -3948,7 +3948,6 @@ class PJM(ISOBase):
     FTR_MONTHLY_HISTORICAL_URL_TEMPLATE = (
         "http://www.pjm.com//pub/account/auction-user-info/historical/{yyyymm}-ftr.xlsx"
     )
-    FTR_MONTHLY_HISTORICAL_PUBLIC_START = pd.Timestamp("2020-01-01")
     FTR_AUCTION_RESULTS_SHEET_SUFFIX = "Auction Results"
     FTR_BINDING_CONSTRAINTS_SHEET_SUFFIX = "Binding Constraints"
     FTR_OBLIGATION_NODAL_PRICES_SHEET_SUFFIX = "Obligation Nodal Prices"
@@ -3965,8 +3964,6 @@ class PJM(ISOBase):
         ``(start, end)``. ``end`` is inclusive at the month granularity (i.e., an
         ``end`` falling anywhere in month X is treated as covering month X).
         Timezones are stripped so that ``Auction Period`` is naive month-start.
-        Raises ``NotSupported`` if any month is before
-        ``FTR_MONTHLY_HISTORICAL_PUBLIC_START``.
         """
         if isinstance(date, tuple):
             start_raw, end_raw = date
@@ -3989,14 +3986,6 @@ class PJM(ISOBase):
                 f" start ({start_month.date()})",
             )
 
-        if start_month < self.FTR_MONTHLY_HISTORICAL_PUBLIC_START:
-            raise NotSupported(
-                f"{self.name} get_ftr_*_monthly only supports dates from"
-                f" {self.FTR_MONTHLY_HISTORICAL_PUBLIC_START.date()} forward via the"
-                f" public URL. Pre-2020 history requires manual SharePoint download."
-                f" Got {start_month.date()}.",
-            )
-
         months = list(pd.date_range(start_month, end_month, freq="MS"))
         return [pd.Timestamp(m.year, m.month, 1) for m in months]
 
@@ -4017,16 +4006,7 @@ class PJM(ISOBase):
         logger.info(f"Requesting {url}...")
 
         response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
-        if response.status_code == 404:
-            raise NoDataFoundException(
-                f"No PJM monthly FTR workbook found for {month_start.date()} at {url}",
-            )
         response.raise_for_status()
-
-        if not response.content:
-            raise NoDataFoundException(
-                f"PJM monthly FTR workbook for {month_start.date()} is empty",
-            )
 
         return pd.ExcelFile(io.BytesIO(response.content), engine="openpyxl")
 
@@ -4042,12 +4022,8 @@ class PJM(ISOBase):
         ``DEC Obligation Nodal Prices``).
         """
         suffix_lower = suffix.lower()
-        for name in xls.sheet_names:
-            if name.lower().endswith(suffix_lower):
-                return name
-        raise NoDataFoundException(
-            f"No sheet ending with '{suffix}' found in workbook;"
-            f" available sheets: {xls.sheet_names}",
+        return next(
+            name for name in xls.sheet_names if name.lower().endswith(suffix_lower)
         )
 
     def get_ftr_auction_results_monthly(
@@ -4065,8 +4041,6 @@ class PJM(ISOBase):
 
         Source: ``Auction Results`` sheet of the monthly FTR workbook at
         ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
-        Public files are available from January 2020 onward.
-
         Arguments:
             date: Start date (inclusive). String, ``pd.Timestamp``, or a
                 ``(start, end)`` tuple.
@@ -4134,8 +4108,6 @@ class PJM(ISOBase):
 
         Source: ``Binding Constraints`` sheet of the monthly FTR workbook at
         ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
-        Public files are available from January 2020 onward.
-
         Arguments:
             date: Start date (inclusive). String, ``pd.Timestamp``, or a
                 ``(start, end)`` tuple.
@@ -4208,8 +4180,6 @@ class PJM(ISOBase):
 
         Source: ``Obligation Nodal Prices`` sheet of the monthly FTR workbook
         at ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
-        Public files are available from January 2020 onward.
-
         Arguments:
             date: Start date (inclusive). String, ``pd.Timestamp``, or a
                 ``(start, end)`` tuple.
@@ -4280,8 +4250,6 @@ class PJM(ISOBase):
         Source: ``Option Path Clearing Prices`` sheet of the monthly FTR
         workbook at
         ``http://www.pjm.com/pub/account/auction-user-info/historical/YYYYMM-ftr.xlsx``.
-        Public files are available from January 2020 onward.
-
         Arguments:
             date: Start date (inclusive). String, ``pd.Timestamp``, or a
                 ``(start, end)`` tuple.
