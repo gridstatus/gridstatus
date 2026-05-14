@@ -655,6 +655,77 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_day_ahead_hourly(df, location_types=[location_type])
 
+    """get_lmp_day_ahead_hourly_by_bus"""
+
+    def _check_lmp_day_ahead_hourly_by_bus(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "BAA",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert df["Market"].unique() == [Markets.DAY_AHEAD_HOURLY.value]
+        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
+    @pytest.mark.integration
+    def test_get_lmp_day_ahead_hourly_by_bus_latest_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_lmp_day_ahead_hourly_by_bus(date="latest")
+
+    def test_get_lmp_day_ahead_hourly_by_bus_today(self):
+        with api_vcr.use_cassette(
+            "test_get_lmp_day_ahead_hourly_by_bus_today.yaml",
+        ):
+            df = self.iso.get_lmp_day_ahead_hourly_by_bus(date="today")
+
+        self._check_lmp_day_ahead_hourly_by_bus(df)
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=1,
+        )
+
+    def test_get_lmp_day_ahead_hourly_by_bus_date_range(self):
+        four_days_ago = self.local_start_of_today() - pd.DateOffset(days=4)
+        two_days_ago = four_days_ago + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_lmp_day_ahead_hourly_by_bus_date_range_{four_days_ago.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_day_ahead_hourly_by_bus(
+                start=four_days_ago,
+                end=two_days_ago,
+            )
+
+        self._check_lmp_day_ahead_hourly_by_bus(df)
+        assert df["Interval Start"].min() == four_days_ago
+        # Not end day inclusive
+        assert df["Interval End"].max() == two_days_ago
+
+    def test_get_lmp_day_ahead_hourly_by_bus_historical_date(self):
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        with api_vcr.use_cassette(
+            f"test_get_lmp_day_ahead_hourly_by_bus_historical_date_{thirty_days_ago.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_day_ahead_hourly_by_bus(date=thirty_days_ago)
+
+        self._check_lmp_day_ahead_hourly_by_bus(df)
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
+
     # This is not a method in the class, but the base class calls it. So we need to
     # override these tests
     """get_lmp"""
