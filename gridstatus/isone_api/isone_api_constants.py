@@ -97,6 +97,16 @@ ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS = [
     "Estimated BTM Solar",
 ]
 
+ISONE_TOTAL_DEMAND_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Total Load",
+    "Native Load",
+    "Asset Related Load",
+    "Total Load With Estimated Solar",
+    "Native Load With Estimated Solar",
+]
+
 ISONE_FCM_RECONFIGURATION_COLUMNS = [
     "Interval Start",
     "Interval End",
