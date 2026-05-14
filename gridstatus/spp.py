@@ -23,6 +23,7 @@ from gridstatus.gs_logging import logger
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-settlement-location"
+FS_DAM_LMP_BY_BUS = "da-lmp-by-bus"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
 OPERATING_RESERVES = "operating-reserves"
 RTBM_MCP = "rtbm-mcp"
@@ -1601,12 +1602,42 @@ class SPP(ISOBase):
         if date == "latest":
             raise NotSupported("Latest not supported for day ahead hourly")
 
-        df = self._get_dam_lmp(date, verbose)
+        df = self._get_dam_lmp(date, location_type=location_type, verbose=verbose)
 
         return self._finalize_spp_df(
             df,
             market=Markets.DAY_AHEAD_HOURLY,
             location_type=location_type,
+            verbose=verbose,
+            include_baa=True,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly_by_bus(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day ahead hourly LMP data by bus (pnode-level).
+
+        Args:
+            date: date to get data for
+            end: end date
+            verbose: print url
+
+        NOTE: does not take a location_type argument because it always returns
+        LOCATION_TYPE_BUS.
+        """
+        if date == "latest":
+            raise NotSupported("Latest not supported for day ahead hourly by bus")
+
+        df = self._get_dam_lmp(date, location_type=LOCATION_TYPE_BUS, verbose=verbose)
+
+        return self._finalize_spp_df(
+            df,
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type=LOCATION_TYPE_BUS,
             verbose=verbose,
             include_baa=True,
         )
@@ -1630,9 +1661,17 @@ class SPP(ISOBase):
     def _get_dam_lmp(
         self,
         date: pd.Timestamp,
+        location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{FS_DAM_LMP_BY_LOCATION}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        if location_type == LOCATION_TYPE_BUS:
+            endpoint = FS_DAM_LMP_BY_BUS
+            file_prefix = "DA-LMP-B"
+        else:
+            endpoint = FS_DAM_LMP_BY_LOCATION
+            file_prefix = "DA-LMP-SL"
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/{file_prefix}-{date.strftime('%Y%m%d')}0100.csv"  # noqa
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return df
