@@ -9,6 +9,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
+    ISONE_TOTAL_DEMAND_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -628,6 +629,47 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_zonal_load_estimated_5_min(date=date, end=end)
 
         self._check_zonal_load_estimated_5_min(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=5)
+
+    """get_total_demand"""
+
+    def _check_total_demand(self, df: pd.DataFrame) -> None:
+        assert list(df.columns) == ISONE_TOTAL_DEMAND_COLUMNS
+        for col in ISONE_TOTAL_DEMAND_COLUMNS[2:]:
+            assert df[col].dtype in [np.int64, np.float64]
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert df["Interval Start"].is_unique
+        assert df["Interval Start"].is_monotonic_increasing
+
+    def test_get_total_demand_latest(self):
+        with api_vcr.use_cassette("test_get_total_demand_latest.yaml"):
+            result = self.iso.get_total_demand(date="latest")
+
+        self._check_total_demand(result)
+        assert len(result) == 1
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_total_demand_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_total_demand_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_total_demand(date=date, end=end)
+
+        self._check_total_demand(result)
 
         assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
             self.iso.default_timezone,
