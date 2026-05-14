@@ -995,12 +995,10 @@ class ISONEAPI:
         url = self._build_url("fiveminutesystemload", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        # The /current endpoint returns {"FiveMinSystemLoad": [...]} while the
-        # /day endpoint nests the records under "FiveMinSystemLoads".
-        records = self._prepare_records(
-            self._safe_get(response, "FiveMinSystemLoads", "FiveMinSystemLoad")
-            or self._safe_get(response, "FiveMinSystemLoad"),
-        )
+        # /current returns {"FiveMinSystemLoad": [...]}; /day nests it under
+        # "FiveMinSystemLoads". Collapse both shapes to the inner container.
+        container = response.get("FiveMinSystemLoads", response)
+        records = self._prepare_records(container.get("FiveMinSystemLoad"))
 
         if not records:
             raise NoDataFoundException(
