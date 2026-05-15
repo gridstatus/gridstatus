@@ -4490,7 +4490,7 @@ class IESO(ISOBase):
                 for file, last_modified_time in filtered_files
             }
             for future in as_completed(future_to_file):
-                file, last_modified_time = future_to_file[future]
+                file, _ = future_to_file[future]
                 try:
                     json_data, ts = future.result()
                     json_data_with_times.append((json_data, ts))

@@ -2286,6 +2286,17 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_shadow_prices_real_time_5_min(date, end=end)
             self._check_shadow_prices(df)
 
+            last_modified = pd.Timestamp(date, tz=self.default_timezone) + pd.Timedelta(
+                hours=12,
+            )
+            filtered = self.iso.get_shadow_prices_real_time_5_min(
+                date,
+                end=end,
+                last_modified=last_modified,
+            )
+            self._check_shadow_prices(filtered)
+            assert (filtered["Publish Time"] >= last_modified).all()
+
     def test_get_shadow_prices_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette(
             "test_get_shadow_prices_day_ahead_hourly_latest.yaml",
@@ -2308,6 +2319,17 @@ class TestIESO(BaseTestISO):
         with file_vcr.use_cassette(cassette_name):
             df = self.iso.get_shadow_prices_day_ahead_hourly(date, end=end)
             self._check_shadow_prices(df)
+
+            last_modified = pd.Timestamp(date, tz=self.default_timezone) + pd.Timedelta(
+                hours=12,
+            )
+            filtered = self.iso.get_shadow_prices_day_ahead_hourly(
+                date,
+                end=end,
+                last_modified=last_modified,
+            )
+            self._check_shadow_prices(filtered)
+            assert (filtered["Publish Time"] >= last_modified).all()
 
         """get_lmp_real_time_operating_reserves"""
 
