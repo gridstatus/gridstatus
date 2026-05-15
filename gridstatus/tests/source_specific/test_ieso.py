@@ -2270,6 +2270,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_shadow_prices_real_time_5_min("latest")
             self._check_shadow_prices(df)
             assert df["Interval Start"].is_monotonic_increasing
+            assert df["Publish Time"].nunique() == 1
 
     @pytest.mark.parametrize(
         "date, end",
@@ -2304,6 +2305,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_shadow_prices_day_ahead_hourly("latest")
             self._check_shadow_prices(df)
             assert df["Interval Start"].is_monotonic_increasing
+            assert df["Publish Time"].nunique() == 1
 
     @pytest.mark.parametrize(
         "date, end",
