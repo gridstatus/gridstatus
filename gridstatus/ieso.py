@@ -863,8 +863,21 @@ class IESO(ISOBase):
         else:
             tls_verify = True
 
+        r = None
         while retry_num < max_retries:
-            r = requests.get(url, verify=tls_verify)
+            try:
+                r = requests.get(url, verify=tls_verify)
+            except (
+                requests.exceptions.ConnectionError,
+                http.client.RemoteDisconnected,
+            ) as exc:
+                retry_num += 1
+                logger.info(
+                    f"Connection error for {url}: {exc}. Retrying {retry_num}...",
+                )
+                time.sleep(sleep)
+                sleep *= 2
+                continue
 
             if r.ok:
                 break
@@ -882,7 +895,7 @@ class IESO(ISOBase):
 
             sleep *= 2
 
-        if not r.ok:
+        if r is None or not r.ok:
             raise Exception(
                 f"Failed to retrieve data from {url} in {max_retries} tries.",
             )
