@@ -4302,7 +4302,7 @@ class IESO(ISOBase):
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
             df = self._parse_real_time_shadow_prices_report(json_data)
-            df["Last Modified"] = file_last_modified
+            df["Publish Time"] = file_last_modified
             dfs.append(df)
         df = pd.concat(dfs)
         df = utils.move_cols_to_front(
@@ -4363,8 +4363,9 @@ class IESO(ISOBase):
             last_modified=last_modified,
         )
         dfs = []
-        for json_data, _ in json_data_with_times:
+        for json_data, file_last_modified in json_data_with_times:
             df = self._parse_day_ahead_shadow_prices_report(json_data)
+            df["Publish Time"] = file_last_modified
             dfs.append(df)
         df = pd.concat(dfs)
         df = utils.move_cols_to_front(
@@ -4450,7 +4451,8 @@ class IESO(ISOBase):
             return "connection reset" in msg or "connection aborted" in msg
 
         def _fetch_with_retries(
-            file: str, last_modified_time: str
+            file: str,
+            last_modified_time: str,
         ) -> tuple[dict, pd.Timestamp]:
             # small stagger based on filename hash so not all tasks start at once
             initial_delay = (hash(file) % 2000) / 1000.0  # 0–2s
