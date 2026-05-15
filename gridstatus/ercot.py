@@ -508,7 +508,7 @@ class Ercot(ISOBase):
 
     def get_energy_storage_resources(
         self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = "latest",
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get energy storage resources.
@@ -713,15 +713,12 @@ class Ercot(ISOBase):
         """Get load for a date
 
         Arguments:
-            date (datetime.date, str): "latest", "today", or a date string
+            date (datetime.date, str): "today", or a date string
                 are supported.
 
 
         """
-        if date == "latest":
-            return self.get_load("today", verbose=verbose)
-
-        elif utils.is_today(date, tz=self.default_timezone):
+        if utils.is_today(date, tz=self.default_timezone):
             df = self._get_todays_outlook_non_forecast(date, verbose=verbose)
             df = df.rename(columns={"demand": "Load"})
             return df[["Time", "Interval Start", "Interval End", "Load"]]
@@ -911,19 +908,13 @@ class Ercot(ISOBase):
         and parses the historical load data by weather zones.
 
         Arguments:
-            date (str, datetime): Year to download data for, or "latest" for most recent data
+            date (str, datetime): Year to download data for
             end (str, datetime): End date for range, or None for single date
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
             pandas.DataFrame
         """
-        if date == "latest":
-            # NB: Gets the most recent year available, since they are published as annual files
-            current_year = pd.Timestamp.now().year
-            date = pd.Timestamp(f"{current_year}-01-01")
-            end = pd.Timestamp(f"{current_year + 1}-01-01")
-
         date = utils._handle_date(date, self.default_timezone)
         end = utils._handle_date(end, self.default_timezone)
 
@@ -1269,7 +1260,7 @@ class Ercot(ISOBase):
         Released every hour for the current day and the next 7.
 
         Arguments:
-            date (str, datetime): date to get report for. Supports "latest" or a
+            date (str, datetime): date to get report for. Supports a
                 date string.
             end (str, datetime, optional): end date for date range. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
@@ -1995,7 +1986,7 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP4-183-CD
 
         Arguments:
-            date (str, datetime): date to get data for. Supports "latest",
+            date (str, datetime): date to get data for. Supports
                 "today", or a specific date.
             end (str, datetime, optional): end date for a date range query.
                 If None, returns 1 day of data. Defaults to None.
@@ -2004,9 +1995,6 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead LMPs by electrical bus
         """
-        if date == "latest":
-            return self.get_lmp_by_bus_dam("today", verbose=verbose)
-
         # DAM data is published the day before delivery
         publish_date = date.normalize() - pd.DateOffset(days=1)
 
@@ -2068,8 +2056,8 @@ class Ercot(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
-            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.REAL_TIME_15_MIN: ["today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
     )
     @support_date_range(frequency=None)
@@ -2101,9 +2089,7 @@ class Ercot(ISOBase):
         friendly_name_timestamp_after = None
 
         if market == Markets.REAL_TIME_15_MIN:
-            if date == "latest":
-                publish_date = "latest"
-            elif end is None:
+            if end is None:
                 # no end, so assume requesting one day
                 # use the timestamp from the friendly name
                 friendly_name_timestamp_after = date.normalize()
@@ -2117,9 +2103,7 @@ class Ercot(ISOBase):
 
             report = SETTLEMENT_POINT_PRICES_AT_RESOURCE_NODES_HUBS_AND_LOAD_ZONES_RTID
         elif market == Markets.DAY_AHEAD_HOURLY:
-            if date == "latest":
-                publish_date = "latest"
-            elif end is None:
+            if end is None:
                 # no end, so assume requesting one day
                 # data is publish one day prior
                 publish_date = date.normalize() - pd.DateOffset(days=1)
@@ -2327,7 +2311,7 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP4-188-CD
 
         Arguments:
-            date (str, datetime): date to get data for. Supports "latest",
+            date (str, datetime): date to get data for. Supports
                 "today", or a specific date.
             end (str, datetime, optional): end date for a date range query.
                 If None, returns 1 day of data. Defaults to None.
@@ -2337,9 +2321,6 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame with columns: Interval Start,
                 Interval End, AS Type, MCPC
         """
-        if date == "latest":
-            return self.get_mcpc_dam("today", verbose=verbose)
-
         # DAM data is published the day before delivery
         publish_date = date.normalize() - pd.DateOffset(days=1)
 
@@ -2404,7 +2385,7 @@ class Ercot(ISOBase):
         https://www.ercot.com/mp/data-products/data-product-details?id=NP4-191-CD
 
         Arguments:
-            date (str, datetime): date to get data for. Supports "latest",
+            date (str, datetime): date to get data for. Supports
                 "today", or a specific date.
             end (str, datetime, optional): end date for a date range query.
                 If None, returns 1 day of data. Defaults to None.
@@ -2413,9 +2394,6 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead market shadow prices
         """
-        if date == "latest":
-            return self.get_shadow_prices_dam("today", verbose=verbose)
-
         # DAM data is published the day before delivery
         publish_date = date.normalize() - pd.DateOffset(days=1)
 
@@ -2569,9 +2547,6 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with prices for ECRS, NSPIN, REGDN, REGUP, RRS
         """
-        if date == "latest":
-            return self.get_as_plan("today", verbose=verbose)
-
         doc_info = self._get_document(
             report_type_id=DAM_ANCILLARY_SERVICE_PLAN_RTID,
             date=date,
@@ -3894,7 +3869,7 @@ class Ercot(ISOBase):
         which is uncurtailed power generation potential.
 
         Arguments:
-            date (str): date to get report for. Supports "latest"
+            date (str): date to get report for.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -3923,7 +3898,7 @@ class Ercot(ISOBase):
         """Get Hourly Wind Report by geographical region
 
         Arguments:
-            date (str): date to get report for. Supports "latest"
+            date (str): date to get report for.
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
@@ -3952,7 +3927,7 @@ class Ercot(ISOBase):
         """Get Hourly Solar Report.
 
         Arguments:
-            date (str): date to get report for. Supports "latest" or a date string
+            date (str): date to get report for. Supports a date string
             end (str, optional): end date for date range. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
@@ -3988,7 +3963,7 @@ class Ercot(ISOBase):
         On-Line PVGRs for the rolling future 168-hour period.
 
         Arguments:
-            date (str): date to get report for. Supports "latest" or a date string
+            date (str): date to get report for. Supports a date string
             end (str, optional): end date for date range. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
@@ -4137,7 +4112,7 @@ class Ercot(ISOBase):
 
         Arguments:
             date (str, pd.Timestamp): time to download. Returns last hourly report
-                before this time. Supports "latest"
+                before this time.
             end (str, pd.Timestamp, optional): end time to download. Defaults to None.
             verbose (bool, optional): print verbose output. Defaults to False.
 
@@ -4340,7 +4315,7 @@ class Ercot(ISOBase):
         """
         # This method is not supported starting with the file published on 2025-12-08
         # (with data for 2025-12-06)
-        if date == "latest" or date >= pd.Timestamp(
+        if date >= pd.Timestamp(
             "2025-12-06",
             tz=self.default_timezone,
         ):
@@ -4456,19 +4431,16 @@ class Ercot(ISOBase):
     ) -> Document:
         """Get the AS report document for a given date.
 
-        Handles "latest" date and applies the 2-day delay offset.
+        Applies the 2-day delay offset.
 
         Arguments:
-            date: date to fetch reports for (or "latest")
+            date: date to fetch reports for
             report_type_id: RTID of the report type to fetch
             verbose: print verbose output
 
         Returns:
             Document: The document for the requested date
         """
-        if date == "latest":
-            date = self.local_now().normalize() - pd.DateOffset(days=2)
-
         report_date = date.normalize() + pd.DateOffset(days=2)
 
         return self._get_document(
@@ -4803,7 +4775,7 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrame with day-ahead market system lambda data
         """
         # Subtract one day since this is the day ahead market
-        date = date if date == "latest" else date - pd.DateOffset(days=1)
+        date = date - pd.DateOffset(days=1)
 
         doc = self._get_document(
             report_type_id=DAM_SYSTEM_LAMBDA_RTID,
@@ -4861,11 +4833,7 @@ class Ercot(ISOBase):
 
         # no end, so assume requesting one day
         # use the timestamp from the friendly name
-        if date == "latest":
-            date = date
-            friendly_name_timestamp_after = None
-            friendly_name_timestamp_before = None
-        elif end is None:
+        if end is None:
             friendly_name_timestamp_after = date.normalize()
             friendly_name_timestamp_before = (
                 friendly_name_timestamp_after + pd.DateOffset(days=1)
@@ -4982,7 +4950,7 @@ class Ercot(ISOBase):
             pandas.DataFrame: A DataFrameq
         """
         # This report ends on 2025-12-05
-        if date == "latest" or date >= pd.Timestamp(
+        if date >= pd.Timestamp(
             "2025-12-06",
             tz=self.default_timezone,
         ):
@@ -5568,12 +5536,6 @@ class Ercot(ISOBase):
         """
         report_type_id = SYSTEM_WIDE_ACTUALS_RTID
 
-        if date == "latest":
-            # Go back one hour to ensure we have data
-            date = pd.Timestamp.now(tz=self.default_timezone).floor("h") - pd.Timedelta(
-                hours=1,
-            )
-
         if end is None:
             doc = self._get_document(
                 report_type_id=report_type_id,
@@ -5693,26 +5655,17 @@ class Ercot(ISOBase):
 
         NOTE: data only goes back 5 days
         """
-        if date == "latest":
-            docs = [
-                self._get_document(
-                    report_type_id=REAL_TIME_ADDERS_AND_RESERVES_RTID,
-                    published_before=date,
-                    verbose=verbose,
-                ),
-            ]
-        else:
-            # Set date to get a full day of published data
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        # Set date to get a full day of published data
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_ADDERS_AND_RESERVES_RTID,
-                published_after=date,
-                published_before=end,
-                extension="csv",
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_ADDERS_AND_RESERVES_RTID,
+            published_after=date,
+            published_before=end,
+            extension="csv",
+            verbose=verbose,
+        )
 
         return self._handle_real_time_adders_and_reserves_docs(docs, verbose=verbose)
 
@@ -5751,22 +5704,16 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with temperature forecast data
         """
-        if date == "latest":
-            return self.get_temperature_forecast_by_weather_zone(
-                "today",
-                verbose=verbose,
-            )
-        else:
-            # Set end to get a full day of published data
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        # Set end to get a full day of published data
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID,
-                extension="csv",
-                published_after=date,
-                published_before=end,
-            )
+        docs = self._get_documents(
+            report_type_id=TEMPERATURE_FORECAST_BY_WEATHER_ZONE_RTID,
+            extension="csv",
+            published_after=date,
+            published_before=end,
+        )
 
         return self._handle_temperature_forecast_by_weather_zone_docs(docs, verbose)
 
@@ -6496,8 +6443,6 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        if date == "latest":
-            self.get_indicative_lmp_by_settlement_point(date="today")
         if not end:
             end = date + pd.DateOffset(days=1)
 
@@ -6567,12 +6512,6 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with DAM total energy purchased data
         """
-        if date == "latest":
-            return self.get_dam_total_energy_purchased(
-                date="today",
-                verbose=verbose,
-            )
-
         # DAM data so subtract one from the date
         doc = self._get_document(
             report_type_id=DAM_TOTAL_ENERGY_PURCHASED_RTID,
@@ -6623,12 +6562,6 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with DAM total energy sold data
         """
-        if date == "latest":
-            return self.get_dam_total_energy_sold(
-                date="today",
-                verbose=verbose,
-            )
-
         # DAM data so subtract one from the date
         doc = self._get_document(
             report_type_id=DAM_TOTAL_ENERGY_SOLD_RTID,
@@ -6648,7 +6581,7 @@ class Ercot(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        if date == "latest" or date > pd.Timestamp.now(
+        if date > pd.Timestamp.now(
             tz=self.default_timezone,
         ) - pd.DateOffset(days=60):
             raise ValueError(
@@ -7666,28 +7599,20 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Market Clearing Prices for Capacity by SCED interval"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if end is None:
-                # Assume getting data for one day
-                end = date + pd.DateOffset(days=1)
+        if end is None:
+            # Assume getting data for one day
+            end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
+        published_before = end
+        published_after = date
 
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
-                extension="csv",
-                published_before=published_before,
-                published_after=published_after,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID,
+            extension="csv",
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_mcpc_sced(df)
@@ -7714,29 +7639,20 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Market Clearing Prices for Capacity by 15-minute interval"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
+        # Assume getting data for one day
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-        else:
-            # Assume getting data for one day
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        published_before = end + pd.Timedelta(minutes=15)
+        published_after = date + pd.Timedelta(minutes=15)
 
-            published_before = end + pd.Timedelta(minutes=15)
-            published_after = date + pd.Timedelta(minutes=15)
-
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
-                extension="csv",
-                published_before=published_before,
-                published_after=published_after,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_15_MIN_RTID,
+            extension="csv",
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_mcpc_real_time_15_min(df)
@@ -7770,24 +7686,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Ancillary Service Demand Curves"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if end is None:
-                end = date + pd.DateOffset(days=1)
+        if end is None:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
-                extension="csv",
-                published_before=end,
-                published_after=date,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=DAM_AND_SCED_ANCILLARY_SERVICE_DEMAND_CURVES_RTID,
+            extension="csv",
+            published_before=end,
+            published_after=date,
+            verbose=verbose,
+        )
 
         df = pd.concat(
             [
@@ -7852,24 +7760,16 @@ class Ercot(ISOBase):
 
         https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
         """
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if end is None:
-                end = date + pd.DateOffset(days=1)
+        if end is None:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
-                extension="csv",
-                published_after=date - pd.Timedelta(days=1),
-                published_before=end - pd.Timedelta(days=1),
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+            extension="csv",
+            published_after=date - pd.Timedelta(days=1),
+            published_before=end - pd.Timedelta(days=1),
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_dam_asdc_aggregated(df)
@@ -7901,24 +7801,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Projected Ancillary Service Deployment Factors"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if end is None:
-                end = date + pd.DateOffset(days=1)
+        if end is None:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
-                extension="csv",
-                published_before=end,
-                published_after=date,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=PROJECTED_ANCILLARY_SERVICE_DEPLOYMENTS_FACTORS_RTID,
+            extension="csv",
+            published_before=end,
+            published_after=date,
+            verbose=verbose,
+        )
 
         return self._handle_as_deployment_factors_projected(docs, verbose=verbose)
 
@@ -7973,24 +7865,16 @@ class Ercot(ISOBase):
             DataFrame with columns: Interval Start, Interval End, RUC Timestamp,
             AS Type, and AS Deployment Factors.
         """
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-                date=date,
-                constructed_name_contains="csv",
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-                constructed_name_contains="csv",
-                published_after=date,
-                published_before=end,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=WEEKLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            constructed_name_contains="csv",
+            published_after=date,
+            published_before=end,
+            verbose=verbose,
+        )
 
         return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
@@ -8003,24 +7887,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Daily RUC Ancillary Service Deployment Factors"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-                date=date,
-                constructed_name_contains="csv",
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-                constructed_name_contains="csv",
-                published_after=date,
-                published_before=end,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=DAILY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            constructed_name_contains="csv",
+            published_after=date,
+            published_before=end,
+            verbose=verbose,
+        )
 
         return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
@@ -8034,24 +7910,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Hourly RUC Ancillary Service Deployment Factors"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-                date=date,
-                constructed_name_contains="csv",
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
-                constructed_name_contains="csv",
-                published_after=date,
-                published_before=end,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=HOURLY_RUC_AS_DEPLOYMENT_FACTORS_RTID,
+            constructed_name_contains="csv",
+            published_after=date,
+            published_before=end,
+            verbose=verbose,
+        )
 
         return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
@@ -8105,24 +7973,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Hourly RUC Ancillary Service Demand Curves"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
-                published_before=end,
-                published_after=date,
-                extension="csv",
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=HOURLY_RUC_AS_DEMAND_CURVES_RTID,
+            published_before=end,
+            published_after=date,
+            extension="csv",
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
@@ -8136,24 +7996,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Daily RUC Ancillary Service Demand Curves"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
-                published_before=end,
-                published_after=date,
-                extension="csv",
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=DAILY_RUC_AS_DEMAND_CURVES_RTID,
+            published_before=end,
+            published_after=date,
+            extension="csv",
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
@@ -8167,24 +8019,16 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Weekly RUC Ancillary Service Demand Curves"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            docs = self._get_documents(
-                report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
-                published_before=end,
-                published_after=date,
-                extension="csv",
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=WEEKLY_RUC_AS_DEMAND_CURVES_RTID,
+            published_before=end,
+            published_after=date,
+            extension="csv",
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
@@ -8239,8 +8083,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get DAM Total Ancillary Services Sold"""
-        if date != "latest":
-            date -= pd.DateOffset(days=1)
+        date -= pd.DateOffset(days=1)
 
         docs = self._get_documents(
             report_type_id=DAM_TOTAL_AS_SOLD_RTID,
@@ -8287,27 +8130,19 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get RTD Indicative Real-Time Market Clearing Prices for Capacity"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
+        published_before = end
+        published_after = date
 
-            docs = self._get_documents(
-                report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
-                extension="csv",
-                published_before=published_before,
-                published_after=published_after,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=RTD_INDICATIVE_REAL_TIME_MCPC_RTID,
+            extension="csv",
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
 
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_indicative_mcpc_rtd(df)
@@ -8354,27 +8189,19 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get Total Capability of Resources Available to Provide Ancillary Service"""
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
+        published_before = end
+        published_after = date
 
-            docs = self._get_documents(
-                report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
-                extension="csv",
-                published_before=published_before,
-                published_after=published_after,
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID,
+            extension="csv",
+            published_before=published_before,
+            published_after=published_after,
+            verbose=verbose,
+        )
 
         # Add the publish time to deal with duplicates downstream
         df = pd.concat(
@@ -8446,28 +8273,20 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with ORDC price adders data
         """
-        if date == "latest":
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_ADDERS_RTID,
-                extension="csv",
-                date=date,
-                verbose=verbose,
-            )
-        else:
-            if not end:
-                # Assume getting data for one day
-                end = date + pd.DateOffset(days=1)
+        if not end:
+            # Assume getting data for one day
+            end = date + pd.DateOffset(days=1)
 
-            published_before = end
-            published_after = date
+        published_before = end
+        published_after = date
 
-            docs = self._get_documents(
-                report_type_id=REAL_TIME_ADDERS_RTID,
-                published_after=published_after,
-                published_before=published_before,
-                extension="csv",
-                verbose=verbose,
-            )
+        docs = self._get_documents(
+            report_type_id=REAL_TIME_ADDERS_RTID,
+            published_after=published_after,
+            published_before=published_before,
+            extension="csv",
+            verbose=verbose,
+        )
 
         return self._handle_real_time_adders(docs, verbose=verbose)
 
