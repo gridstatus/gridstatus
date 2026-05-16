@@ -3348,6 +3348,204 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() >= date
             assert df["Interval End"].max() <= end
 
+    """get_ftr_auction_results_monthly"""
+
+    def _check_ftr_auction_results_monthly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.columns.tolist() == [
+            "Auction Period",
+            "FTR ID",
+            "Class Type",
+            "Period Type",
+            "Participant",
+            "Source Node",
+            "Source Pnode ID",
+            "Sink Node",
+            "Sink Pnode ID",
+            "Trade Type",
+            "Hedge Type",
+            "Cleared MW",
+            "Obligation MCP",
+            "Option MCP",
+        ]
+        assert df["FTR ID"].dtype == np.int64
+        assert df["Class Type"].dtype == object
+        assert df["Period Type"].dtype == object
+        assert df["Participant"].dtype == object
+        assert df["Source Node"].dtype == object
+        assert df["Source Pnode ID"].dtype == np.int64
+        assert df["Sink Node"].dtype == object
+        assert df["Sink Pnode ID"].dtype == np.int64
+        assert df["Trade Type"].dtype == object
+        assert df["Hedge Type"].dtype == object
+        assert df["Cleared MW"].dtype == np.float64
+        assert df["Obligation MCP"].dtype == np.float64
+        assert df["Option MCP"].dtype == np.float64
+        assert pd.api.types.is_datetime64_any_dtype(df["Auction Period"])
+        for ts in df["Auction Period"].unique():
+            ts = pd.Timestamp(ts)
+            assert ts.day == 1
+            assert ts.hour == 0 and ts.minute == 0 and ts.second == 0
+
+    def test_get_ftr_auction_results_monthly(self):
+        with pjm_vcr.use_cassette(
+            "test_get_ftr_auction_results_monthly_2024-12-01.yaml",
+        ):
+            df = self.iso.get_ftr_auction_results_monthly(date="2024-12-01")
+            self._check_ftr_auction_results_monthly(df)
+            assert df["Auction Period"].unique().tolist() == [
+                pd.Timestamp("2024-12-01"),
+            ]
+
+    def test_get_ftr_auction_results_monthly_date_range(self):
+        with pjm_vcr.use_cassette(
+            "test_get_ftr_auction_results_monthly_2024-11-01_2024-12-01.yaml",
+        ):
+            df = self.iso.get_ftr_auction_results_monthly(
+                date="2024-11-01",
+                end="2024-12-01",
+            )
+            self._check_ftr_auction_results_monthly(df)
+            assert sorted(df["Auction Period"].unique().tolist()) == [
+                pd.Timestamp("2024-11-01"),
+                pd.Timestamp("2024-12-01"),
+            ]
+
+    """get_ftr_binding_constraints_monthly"""
+
+    def _check_ftr_binding_constraints_monthly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.columns.tolist() == [
+            "Auction Period",
+            "Constraint",
+            "CTG ID",
+            "Period Type",
+            "Marginal Value On Peak",
+            "Marginal Value Weekend On Peak",
+            "Marginal Value Daily Off Peak",
+            "Limit On Peak",
+            "Limit Weekend On Peak",
+            "Limit Daily Off Peak",
+        ]
+        assert df["Constraint"].dtype == object
+        assert df["CTG ID"].dtype == object
+        assert df["Period Type"].dtype == object
+        for col in [
+            "Marginal Value On Peak",
+            "Marginal Value Weekend On Peak",
+            "Marginal Value Daily Off Peak",
+            "Limit On Peak",
+            "Limit Weekend On Peak",
+            "Limit Daily Off Peak",
+        ]:
+            assert df[col].dtype == np.float64, col
+        assert pd.api.types.is_datetime64_any_dtype(df["Auction Period"])
+
+    def test_get_ftr_binding_constraints_monthly(self):
+        with pjm_vcr.use_cassette(
+            "test_get_ftr_binding_constraints_monthly_2024-12-01.yaml",
+        ):
+            df = self.iso.get_ftr_binding_constraints_monthly(date="2024-12-01")
+            self._check_ftr_binding_constraints_monthly(df)
+            assert df["Auction Period"].unique().tolist() == [
+                pd.Timestamp("2024-12-01"),
+            ]
+
+    """get_ftr_obligation_nodal_prices_monthly"""
+
+    def _check_ftr_obligation_nodal_prices_monthly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.columns.tolist() == [
+            "Auction Period",
+            "Node",
+            "Pnode ID",
+            "Period Type",
+            "LMP 24H",
+            "LMP On Peak",
+            "LMP Off Peak",
+            "LMP Weekend On Peak",
+            "LMP Daily Off Peak",
+        ]
+        assert df["Node"].dtype == object
+        assert df["Pnode ID"].dtype == np.int64
+        assert df["Period Type"].dtype == object
+        for col in [
+            "LMP 24H",
+            "LMP On Peak",
+            "LMP Off Peak",
+            "LMP Weekend On Peak",
+            "LMP Daily Off Peak",
+        ]:
+            assert df[col].dtype == np.float64, col
+        assert pd.api.types.is_datetime64_any_dtype(df["Auction Period"])
+
+    def test_get_ftr_obligation_nodal_prices_monthly(self):
+        with pjm_vcr.use_cassette(
+            "test_get_ftr_obligation_nodal_prices_monthly_2024-12-01.yaml",
+        ):
+            df = self.iso.get_ftr_obligation_nodal_prices_monthly(date="2024-12-01")
+            self._check_ftr_obligation_nodal_prices_monthly(df)
+            assert df["Auction Period"].unique().tolist() == [
+                pd.Timestamp("2024-12-01"),
+            ]
+
+    """get_ftr_option_path_clearing_prices_monthly"""
+
+    def _check_ftr_option_path_clearing_prices_monthly(self, df):
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert df.columns.tolist() == [
+            "Auction Period",
+            "Source Node",
+            "Source Pnode ID",
+            "Sink Node",
+            "Sink Pnode ID",
+            "Month",
+            "MCP 24 Hour",
+            "MCP On Peak",
+            "MCP Off Peak",
+            "MCP Weekend On Peak",
+            "MCP Off Peak Daily",
+        ]
+        assert df["Source Node"].dtype == object
+        assert df["Source Pnode ID"].dtype == np.int64
+        assert df["Sink Node"].dtype == object
+        assert df["Sink Pnode ID"].dtype == np.int64
+        assert df["Month"].dtype == object
+        for col in [
+            "MCP 24 Hour",
+            "MCP On Peak",
+            "MCP Off Peak",
+            "MCP Weekend On Peak",
+            "MCP Off Peak Daily",
+        ]:
+            assert df[col].dtype == np.float64, col
+        assert pd.api.types.is_datetime64_any_dtype(df["Auction Period"])
+
+    def test_get_ftr_option_path_clearing_prices_monthly(self):
+        with pjm_vcr.use_cassette(
+            "test_get_ftr_option_path_clearing_prices_monthly_2024-12-01.yaml",
+        ):
+            df = self.iso.get_ftr_option_path_clearing_prices_monthly(
+                date="2024-12-01",
+            )
+            self._check_ftr_option_path_clearing_prices_monthly(df)
+            assert df["Auction Period"].unique().tolist() == [
+                pd.Timestamp("2024-12-01"),
+            ]
+            assert set(df["Month"].unique()).issuperset({"DEC"})
+            assert not df.duplicated(
+                subset=[
+                    "Source Node",
+                    "Sink Node",
+                    "Month",
+                    "Auction Period",
+                ],
+            ).any()
+
     """get_ftr_option_paths_monthly"""
 
     def _check_ftr_option_paths_monthly(self, df):
