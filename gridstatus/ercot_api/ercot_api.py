@@ -129,6 +129,10 @@ HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
 # https://data.ercot.com/data-product-archive/NP3-565-CD
 LOAD_FORECAST_BY_MODEL_ENDPOINT = "/np3-565-cd/lf_by_model_weather_zone"
 
+# Actual System Load by Weather Zone
+# https://data.ercot.com/data-product-archive/NP6-345-CD
+ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT = "/np6-345-cd/act_sys_load_by_wzn"
+
 
 # Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
 # https://data.ercot.com/data-product-archive/NP6-905-CD
@@ -695,6 +699,95 @@ class ErcotAPI:
             .sort_values(["Interval Start", "Publish Time", "Model"])
             .reset_index(drop=True)
         )[LOAD_FORECAST_BY_MODEL_COLUMNS]
+
+    @support_date_range(frequency=None)
+    def get_load_by_weather_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Actual System Load by Weather Zone.
+
+        Hourly actual load by ERCOT weather zone, published once per operating
+        day on the following day.
+
+        Arguments:
+            date: the operating day to fetch reports for.
+            end: the end operating day (exclusive). Defaults to one day after date.
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            A DataFrame with hourly load by weather zone.
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP6-345-CD
+        """
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT,
+                # The archive is filtered by posted date, which runs the day
+                # after the operating day, so shift the window forward by 1 day.
+                start_date=date + pd.Timedelta(days=1),
+                end_date=end + pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "operatingDayFrom": date,
+                # Subtract off one second to avoid including the end date
+                "operatingDayTo": end - pd.Timedelta(seconds=1),
+            }
+            data = self.hit_ercot_api(
+                endpoint=ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT,
+                page_size=DEFAULT_PAGE_SIZE,
+                verbose=verbose,
+                **api_params,
+            )
+
+        # Normalize the date column name to what Ercot.parse_doc expects.
+        data = data.rename(columns={"OperatingDay": "DeliveryDate"})
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        # The live API returns camelCase columns capitalized to e.g. "FarWest",
+        # while the historical archive returns "FAR_WEST" — normalize both.
+        data = data.rename(
+            columns={
+                "Coast": "Coast",
+                "East": "East",
+                "FarWest": "Far West",
+                "North": "North",
+                "NorthC": "North Central",
+                "SouthC": "South Central",
+                "Southern": "Southern",
+                "West": "West",
+                "Total": "System Total",
+                "COAST": "Coast",
+                "EAST": "East",
+                "FAR_WEST": "Far West",
+                "NORTH": "North",
+                "NORTH_C": "North Central",
+                "SOUTH_C": "South Central",
+                "SOUTHERN": "Southern",
+                "WEST": "West",
+                "TOTAL": "System Total",
+            },
+        )
+
+        columns = (
+            ["Time", "Interval Start", "Interval End"]
+            + Ercot()._weather_zone_column_name_order()
+            + ["System Total"]
+        )
+
+        return (
+            utils.move_cols_to_front(data, columns)
+            .sort_values("Interval Start")
+            .reset_index(drop=True)[columns]
+        )
 
     def get_as_prices(
         self,
