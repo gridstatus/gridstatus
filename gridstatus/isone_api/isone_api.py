@@ -978,7 +978,7 @@ class ISONEAPI:
         """
         Get five-minute system load ("total demand") data.
 
-        Includes Total Load, Native Load, Asset Related Load, and the
+        Includes Total Load, Native Load, Storage Load, and the
         behind-the-meter (estimated solar) variants, as reported by the
         ISO-NE /fiveminutesystemload web service endpoint.
 
@@ -1017,7 +1017,7 @@ class ISONEAPI:
             columns={
                 "LoadMw": "Total Load",
                 "NativeLoad": "Native Load",
-                "ArdDemand": "Asset Related Load",
+                "ArdDemand": "Storage Load",
                 "SystemLoadBtmPv": "Total Load With Estimated Solar",
                 "NativeLoadBtmPv": "Native Load With Estimated Solar",
             },
