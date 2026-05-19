@@ -381,6 +381,43 @@ class TestErcotAPI(TestHelperMixin):
         # 48 hours of data (2 operating days)
         assert len(df) == 48
 
+    """get_load_by_forecast_zone"""
+
+    LOAD_BY_FORECAST_ZONE_COLUMNS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "NORTH",
+        "SOUTH",
+        "WEST",
+        "HOUSTON",
+        "TOTAL",
+    ]
+
+    def _check_load_by_forecast_zone(self, df):
+        assert df.columns.tolist() == self.LOAD_BY_FORECAST_ZONE_COLUMNS
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert df["Interval Start"].is_monotonic_increasing
+
+    def test_get_load_by_forecast_zone_historical_date_range(self):
+        date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
+        end = date + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            "test_get_load_by_forecast_zone_historical_date_range.yaml",
+        ):
+            df = self.iso.get_load_by_forecast_zone(date, end, verbose=True)
+
+        self._check_load_by_forecast_zone(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Interval End"].max() == self.local_start_of_day(
+            date.date(),
+        ) + pd.DateOffset(days=2)
+
+        # 48 hours of data (2 operating days)
+        assert len(df) == 48
+
     """get_as_prices"""
 
     def _check_as_prices(self, df):
