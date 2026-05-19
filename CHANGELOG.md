@@ -2,11 +2,6 @@
 
 ## v0.36.0 - April 20, 2026
 
-### Breaking Changes
-
-#### ERCOT
-* Removed `Ercot.get_crr_*` methods (monthly and annual CRR auction datasets). These are now provided by gs-etl `ErcotClosedSource` for Grid Status product datasets.
-
 ### Additions (New Features/Datasets)
 
 #### ERCOT
