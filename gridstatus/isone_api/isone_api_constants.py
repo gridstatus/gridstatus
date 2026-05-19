@@ -102,7 +102,7 @@ ISONE_TOTAL_DEMAND_COLUMNS = [
     "Interval End",
     "Total Load",
     "Native Load",
-    "Asset Related Load",
+    "Storage Load",
     "Total Load With Estimated Solar",
     "Native Load With Estimated Solar",
 ]
