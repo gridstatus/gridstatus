@@ -74,6 +74,8 @@ class PJM(ISOBase):
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
 
+    UNVERIFIED_FIVEMIN_LMPS_THROTTLE = pd.Timedelta(minutes=5)
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -91,6 +93,8 @@ class PJM(ISOBase):
 
         if not self.api_key:
             raise ValueError("api_key must be provided or set in PJM_API_KEY env var")
+
+        self._last_unverified_fivemin_lmps_call_utc: pd.Timestamp | None = None
 
     @support_date_range(frequency="365D")
     def get_fuel_mix(
@@ -533,6 +537,7 @@ class PJM(ISOBase):
             if "No data found" not in str(e):
                 raise e
 
+            latest_only = False
             if market_endpoint == "rt_fivemin_hrl_lmps":
                 market_endpoint = "rt_unverified_fivemin_lmps"
                 params["fields"] = (
@@ -541,6 +546,23 @@ class PJM(ISOBase):
                 # remove this field because it's not supported in this endpoint
                 del params["row_is_current"]
 
+                # ENG-3910: Dataminer flagged this fallback for spam. Per their
+                # guidance, send `5MinutesAgo` instead of resending the original
+                # window, and throttle to at most one call per 5 minutes so a
+                # tight worker loop (e.g. `--sleep 5`) can't hammer the endpoint.
+                now_utc = pd.Timestamp.utcnow()
+                last_call = self._last_unverified_fivemin_lmps_call_utc
+                if (
+                    last_call is not None
+                    and (now_utc - last_call) < self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE
+                ):
+                    raise NoDataFoundException(
+                        f"No data found for {market_endpoint}: throttled "
+                        f"(last call {now_utc - last_call} ago)",
+                    )
+                self._last_unverified_fivemin_lmps_call_utc = now_utc
+                latest_only = True
+
             data = self._get_pjm_json(
                 market_endpoint,
                 start=date,
@@ -548,6 +570,7 @@ class PJM(ISOBase):
                 params=params,
                 verbose=verbose,
                 interval_duration_min=interval_duration_min,
+                latest_only=latest_only,
             )
 
             data["system_energy_price_rt"] = (
@@ -910,6 +933,7 @@ class PJM(ISOBase):
         interval_duration_min: int | float | None = None,
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
+        latest_only: bool = False,
     ):
         if start == "latest":
             raise NotSupported(f"{self.name} does not support 'latest'")
@@ -923,7 +947,10 @@ class PJM(ISOBase):
         final_params = params.copy()
         final_params.update(default_params)
 
-        if start is not None:
+        if latest_only:
+            final_params[f"{filter_timestamp_name}_ept"] = "5MinutesAgo"
+            end = None
+        elif start is not None:
             start = utils._handle_date(start)
 
             if end:
@@ -991,12 +1018,13 @@ class PJM(ISOBase):
 
             # PJM API is inclusive of end,
             # so we need to drop where end timestamp is included
-            df = df[
-                df["Interval Start"].dt.strftime(
-                    "%Y-%m-%d %H:%M",
-                )
-                != end.strftime("%Y-%m-%d %H:%M")
-            ]
+            if end is not None:
+                df = df[
+                    df["Interval Start"].dt.strftime(
+                        "%Y-%m-%d %H:%M",
+                    )
+                    != end.strftime("%Y-%m-%d %H:%M")
+                ]
 
             if "datetime_ending_utc" in df.columns:
                 df["Interval End"] = (
