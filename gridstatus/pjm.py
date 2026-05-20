@@ -546,7 +546,7 @@ class PJM(ISOBase):
                 # remove this field because it's not supported in this endpoint
                 del params["row_is_current"]
 
-                # ENG-3910: Dataminer flagged this fallback for spam. Per their
+                # Dataminer flagged this fallback for spam. Per their
                 # guidance, send `5MinutesAgo` instead of resending the original
                 # window, and throttle to at most one call per 5 minutes so a
                 # tight worker loop (e.g. `--sleep 5`) can't hammer the endpoint.
