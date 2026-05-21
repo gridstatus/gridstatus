@@ -341,6 +341,47 @@ class TestISONEAPI(TestHelperMixin):
                 assert result[col].dtype in [np.int64, np.float64]
                 assert (result[numeric_cols].sum(axis=1) > 0).all()
 
+    def test_get_marginal_fuel_type_latest(self):
+        with api_vcr.use_cassette("test_get_marginal_fuel_type_latest.yaml"):
+            result = self.iso.get_marginal_fuel_type(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 1
+            assert "Time" in result.columns
+            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+
+            fuel_cols = [col for col in result.columns if col != "Time"]
+            assert len(fuel_cols) > 0
+            for col in fuel_cols:
+                assert result[col].dtype == bool
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_marginal_fuel_type_date_range(self, date, end):
+        cassette_name = f"test_get_marginal_fuel_type_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_marginal_fuel_type(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert "Time" in result.columns
+
+            assert min(result["Time"]).date() == pd.Timestamp(date).date()
+            assert max(result["Time"]).date() == pd.Timestamp(
+                end,
+            ).date() - pd.Timedelta(days=1)
+
+            assert all(isinstance(t, pd.Timestamp) for t in result["Time"])
+
+            fuel_cols = [col for col in result.columns if col != "Time"]
+            assert len(fuel_cols) > 0
+            for col in fuel_cols:
+                # Cross-day concat can upgrade bool->object when a fuel
+                # category is absent on some days (e.g. Coal in newer data).
+                assert result[col].dropna().isin([True, False]).all()
+            assert (result[fuel_cols] == True).any(axis=1).sum() > 0  # noqa: E712
+
     def test_get_load_hourly_latest(self):
         with api_vcr.use_cassette("test_get_load_hourly_latest.yaml"):
             result = self.iso.get_load_hourly(date="latest")
