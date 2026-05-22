@@ -406,7 +406,7 @@ class PJM(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["today", "historical"],
             Markets.REAL_TIME_HOURLY: ["today", "historical"],
             Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
@@ -459,13 +459,7 @@ class PJM(ISOBase):
         params = {}
 
         if market == Markets.REAL_TIME_5_MIN:
-            # `date="latest"` hits the unverified endpoint directly with
-            # `5MinutesAgo`; the verified endpoint hasn't published the tip yet
-            # by definition. Any non-latest date uses the verified endpoint.
-            if date == "latest":
-                market_endpoint = "rt_unverified_fivemin_lmps"
-            else:
-                market_endpoint = "rt_fivemin_hrl_lmps"
+            market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
             interval_duration_min = 5
         elif market == Markets.REAL_TIME_HOURLY:
@@ -506,56 +500,34 @@ class PJM(ISOBase):
             if locations is not None:
                 locations = None
 
-        if date == "latest":
+        if date >= _get_pjm_archive_date(market):
+            # after archive date, filtering allowed
             params["fields"] = (
-                "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
             )
+
             if locations and locations != "ALL":
                 params["pnode_id"] = ";".join(map(str, locations))
 
-            data = self._get_pjm_json(
-                market_endpoint,
-                start=pd.Timestamp.utcnow(),
-                end=None,
-                params=params,
-                verbose=verbose,
-                interval_duration_min=interval_duration_min,
-                latest_only=True,
+        elif locations is not None and locations != "ALL":
+            warnings.warn(
+                (
+                    "Querying before archive date, so filtering by location will happen"
+                    " after all data is downloaded"
+                ),
             )
-            data["system_energy_price_rt"] = (
-                data["total_lmp_rt"]
-                - data["congestion_price_rt"]
-                - data["marginal_loss_price_rt"]
-            )
-        else:
-            if date >= _get_pjm_archive_date(market):
-                # after archive date, filtering allowed
-                params["fields"] = (
-                    f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
-                )
 
-                if locations and locations != "ALL":
-                    params["pnode_id"] = ";".join(map(str, locations))
+        # returns on the latest version of the data
+        params["row_is_current"] = "TRUE"
 
-            elif locations is not None and locations != "ALL":
-                warnings.warn(
-                    (
-                        "Querying before archive date, so filtering by location will happen"
-                        " after all data is downloaded"
-                    ),
-                )
-
-            # returns on the latest version of the data
-            params["row_is_current"] = "TRUE"
-
-            data = self._get_pjm_json(
-                market_endpoint,
-                start=date,
-                end=end,
-                params=params,
-                verbose=verbose,
-                interval_duration_min=interval_duration_min,
-            )
+        data = self._get_pjm_json(
+            market_endpoint,
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            interval_duration_min=interval_duration_min,
+        )
 
         # API cannot filter location type for rt 5 min
         data = data.rename(columns={"type": "Location Type"})
@@ -1010,7 +982,6 @@ class PJM(ISOBase):
         interval_duration_min: int | float | None = None,
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
-        latest_only: bool = False,
     ):
         if start == "latest":
             raise NotSupported(f"{self.name} does not support 'latest'")
@@ -1024,10 +995,7 @@ class PJM(ISOBase):
         final_params = params.copy()
         final_params.update(default_params)
 
-        if latest_only:
-            final_params[f"{filter_timestamp_name}_ept"] = "5MinutesAgo"
-            end = None
-        elif start is not None:
+        if start is not None:
             start = utils._handle_date(start)
 
             if end:
