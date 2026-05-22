@@ -539,6 +539,10 @@ class PJM(ISOBase):
                 raise e
 
             if market_endpoint == "rt_fivemin_hrl_lmps":
+                logger.debug(
+                    "Verified rt_fivemin_hrl_lmps returned no data; "
+                    "falling back to rt_unverified_fivemin_lmps",
+                )
                 market_endpoint = "rt_unverified_fivemin_lmps"
                 params["fields"] = (
                     "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
@@ -642,9 +646,14 @@ class PJM(ISOBase):
         start_ts = utils._handle_date(date)
         end_ts = utils._handle_date(end) if end is not None else None
 
+        window = end_ts - start_ts if end_ts is not None else None
         is_live = (
             end_ts is None
             or (end_ts - start_ts) <= self.UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW
+        )
+        logger.debug(
+            f"Unverified fivemin fallback: mode={'live' if is_live else 'catchup'} "
+            f"start={start_ts} end={end_ts} window={window}",
         )
 
         if is_live:
@@ -654,11 +663,19 @@ class PJM(ISOBase):
                 last_call is not None
                 and (now_utc - last_call) < self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE
             ):
+                logger.debug(
+                    f"Unverified fivemin fallback live: throttled "
+                    f"(last call {now_utc - last_call} ago, "
+                    f"throttle={self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE})",
+                )
                 raise NoDataFoundException(
                     f"No data found for {endpoint}: throttled "
                     f"(last call {now_utc - last_call} ago)",
                 )
             PJM._last_unverified_fivemin_lmps_call_utc = now_utc
+            logger.debug(
+                f"Unverified fivemin fallback live: sending 5MinutesAgo to {endpoint}",
+            )
             return self._get_pjm_json(
                 endpoint,
                 start=date,
@@ -672,10 +689,19 @@ class PJM(ISOBase):
         chunks: list[pd.DataFrame] = []
         chunk_start = start_ts.floor("5min")
         snapped_end = end_ts.ceil("5min")
+        logger.debug(
+            f"Unverified fivemin fallback catchup: "
+            f"snapped_start={chunk_start} snapped_end={snapped_end} "
+            f"chunk_size={self.UNVERIFIED_FIVEMIN_LMPS_CHUNK}",
+        )
         while chunk_start < snapped_end:
             chunk_end = min(
                 chunk_start + self.UNVERIFIED_FIVEMIN_LMPS_CHUNK,
                 snapped_end,
+            )
+            logger.debug(
+                f"Unverified fivemin fallback catchup chunk: "
+                f"{chunk_start} -> {chunk_end}",
             )
             try:
                 chunks.append(
@@ -689,10 +715,17 @@ class PJM(ISOBase):
                     ),
                 )
             except NoDataFoundException:
-                pass
+                logger.debug(
+                    f"Unverified fivemin fallback catchup chunk: "
+                    f"no data for {chunk_start} -> {chunk_end}",
+                )
             chunk_start = chunk_end
 
         PJM._last_unverified_fivemin_lmps_call_utc = pd.Timestamp.utcnow()
+        logger.debug(
+            f"Unverified fivemin fallback catchup: completed with "
+            f"{len(chunks)} chunk(s) of data",
+        )
         if not chunks:
             raise NoDataFoundException(f"No data found for {endpoint}")
         return pd.concat(chunks, ignore_index=True)
