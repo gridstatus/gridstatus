@@ -75,6 +75,9 @@ class PJM(ISOBase):
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
 
     UNVERIFIED_FIVEMIN_LMPS_THROTTLE = pd.Timedelta(minutes=5)
+    UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW = pd.Timedelta(minutes=10)
+    UNVERIFIED_FIVEMIN_LMPS_CHUNK = pd.Timedelta(hours=1)
+    _last_unverified_fivemin_lmps_call_utc: pd.Timestamp | None = None
 
     def __init__(
         self,
@@ -93,8 +96,6 @@ class PJM(ISOBase):
 
         if not self.api_key:
             raise ValueError("api_key must be provided or set in PJM_API_KEY env var")
-
-        self._last_unverified_fivemin_lmps_call_utc: pd.Timestamp | None = None
 
     @support_date_range(frequency="365D")
     def get_fuel_mix(
@@ -537,7 +538,6 @@ class PJM(ISOBase):
             if "No data found" not in str(e):
                 raise e
 
-            latest_only = False
             if market_endpoint == "rt_fivemin_hrl_lmps":
                 market_endpoint = "rt_unverified_fivemin_lmps"
                 params["fields"] = (
@@ -546,32 +546,22 @@ class PJM(ISOBase):
                 # remove this field because it's not supported in this endpoint
                 del params["row_is_current"]
 
-                # Dataminer flagged this fallback for spam. Per their
-                # guidance, send `5MinutesAgo` instead of resending the original
-                # window, and throttle to at most one call per 5 minutes so a
-                # tight worker loop (e.g. `--sleep 5`) can't hammer the endpoint.
-                now_utc = pd.Timestamp.utcnow()
-                last_call = self._last_unverified_fivemin_lmps_call_utc
-                if (
-                    last_call is not None
-                    and (now_utc - last_call) < self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE
-                ):
-                    raise NoDataFoundException(
-                        f"No data found for {market_endpoint}: throttled "
-                        f"(last call {now_utc - last_call} ago)",
-                    )
-                self._last_unverified_fivemin_lmps_call_utc = now_utc
-                latest_only = True
-
-            data = self._get_pjm_json(
-                market_endpoint,
-                start=date,
-                end=end,
-                params=params,
-                verbose=verbose,
-                interval_duration_min=interval_duration_min,
-                latest_only=latest_only,
-            )
+                data = self._get_unverified_fivemin_fallback(
+                    date=date,
+                    end=end,
+                    params=params,
+                    interval_duration_min=interval_duration_min,
+                    verbose=verbose,
+                )
+            else:
+                data = self._get_pjm_json(
+                    market_endpoint,
+                    start=date,
+                    end=end,
+                    params=params,
+                    verbose=verbose,
+                    interval_duration_min=interval_duration_min,
+                )
 
             data["system_energy_price_rt"] = (
                 data["total_lmp_rt"]
@@ -627,6 +617,84 @@ class PJM(ISOBase):
         data = data.sort_values("Interval Start")
 
         return data
+
+    def _get_unverified_fivemin_fallback(
+        self,
+        date: pd.Timestamp | str,
+        end: pd.Timestamp | str | None,
+        params: dict,
+        interval_duration_min: int | float | None,
+        verbose: bool,
+    ) -> pd.DataFrame:
+        """Hit `rt_unverified_fivemin_lmps` per Dataminer guidance.
+
+        - Live window (<= UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW): send
+          `datetime_beginning_ept=5MinutesAgo` and throttle to at most one call
+          per UNVERIFIED_FIVEMIN_LMPS_THROTTLE so a tight worker loop
+          can't hammer the endpoint at the tip of the data.
+        - Catch-up window (longer): snap start/end to the 5-minute mark and
+          page through in UNVERIFIED_FIVEMIN_LMPS_CHUNK-sized windows so the
+          worker can backfill missed intervals after downtime without sending
+          multi-hour requests Dataminer rejects.
+        """
+        endpoint = "rt_unverified_fivemin_lmps"
+        start_ts = utils._handle_date(date)
+        end_ts = utils._handle_date(end) if end is not None else None
+
+        is_live = (
+            end_ts is None
+            or (end_ts - start_ts) <= self.UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW
+        )
+
+        if is_live:
+            now_utc = pd.Timestamp.utcnow()
+            last_call = PJM._last_unverified_fivemin_lmps_call_utc
+            if (
+                last_call is not None
+                and (now_utc - last_call) < self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE
+            ):
+                raise NoDataFoundException(
+                    f"No data found for {endpoint}: throttled "
+                    f"(last call {now_utc - last_call} ago)",
+                )
+            PJM._last_unverified_fivemin_lmps_call_utc = now_utc
+            return self._get_pjm_json(
+                endpoint,
+                start=date,
+                end=end,
+                params=params,
+                verbose=verbose,
+                interval_duration_min=interval_duration_min,
+                latest_only=True,
+            )
+
+        chunks: list[pd.DataFrame] = []
+        chunk_start = start_ts.floor("5min")
+        snapped_end = end_ts.ceil("5min")
+        while chunk_start < snapped_end:
+            chunk_end = min(
+                chunk_start + self.UNVERIFIED_FIVEMIN_LMPS_CHUNK,
+                snapped_end,
+            )
+            try:
+                chunks.append(
+                    self._get_pjm_json(
+                        endpoint,
+                        start=chunk_start,
+                        end=chunk_end,
+                        params=params,
+                        verbose=verbose,
+                        interval_duration_min=interval_duration_min,
+                    ),
+                )
+            except NoDataFoundException:
+                pass
+            chunk_start = chunk_end
+
+        PJM._last_unverified_fivemin_lmps_call_utc = pd.Timestamp.utcnow()
+        if not chunks:
+            raise NoDataFoundException(f"No data found for {endpoint}")
+        return pd.concat(chunks, ignore_index=True)
 
     def _add_pnode_info_to_lmp_data(self, data: pd.DataFrame) -> pd.DataFrame:
         # the pnode_name in the lmp data isn't always full name

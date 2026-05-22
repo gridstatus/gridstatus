@@ -3416,8 +3416,13 @@ class TestPJM(BaseTestISO):
 
 @mock.patch.dict(os.environ, {"PJM_API_KEY": "test_key"})
 class TestPJMUnverifiedFiveminFallback:
-    """ENG-3910: fallback to ``rt_unverified_fivemin_lmps`` must always be
-    a single ``5MinutesAgo`` request and throttled to once per 5 minutes."""
+    """ENG-3910: fallback to ``rt_unverified_fivemin_lmps`` must:
+
+    - For a live window (<= 10 min), send ``datetime_beginning_ept=5MinutesAgo``
+      and throttle to one call per 5 minutes.
+    - For a catch-up window (> 10 min), snap start/end to a 5-minute mark and
+      page through 1-hour chunks (no ``5MinutesAgo``).
+    """
 
     LMP_FIELDS = (
         "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,"
@@ -3426,6 +3431,14 @@ class TestPJMUnverifiedFiveminFallback:
     )
 
     EMPTY_RESPONSE = {"totalRows": 0, "items": [], "links": []}
+
+    @pytest.fixture(autouse=True)
+    def _reset_throttle(self):
+        """The throttle counter is class-level on PJM, so leaking between
+        tests would make them order-dependent. Reset before and after."""
+        PJM._last_unverified_fivemin_lmps_call_utc = None
+        yield
+        PJM._last_unverified_fivemin_lmps_call_utc = None
 
     def _five_min_response(self) -> dict:
         ts = pd.Timestamp.utcnow().floor("5min")
@@ -3489,7 +3502,7 @@ class TestPJMUnverifiedFiveminFallback:
                 ),
             ):
                 iso.get_lmp(
-                    date=pd.Timestamp.utcnow() - pd.Timedelta(minutes=10),
+                    date=pd.Timestamp.utcnow() - pd.Timedelta(minutes=5),
                     end=pd.Timestamp.utcnow(),
                     market=Markets.REAL_TIME_5_MIN,
                     locations="ALL",
@@ -3500,11 +3513,11 @@ class TestPJMUnverifiedFiveminFallback:
         ]
         assert len(unverified_calls) == 1
         assert unverified_calls[0]["params"]["datetime_beginning_ept"] == "5MinutesAgo"
-        assert iso._last_unverified_fivemin_lmps_call_utc is not None
+        assert PJM._last_unverified_fivemin_lmps_call_utc is not None
 
     def test_get_lmp_fallback_throttles_repeat_calls_within_5_minutes(self):
         iso = PJM(api_key="test_key")
-        iso._last_unverified_fivemin_lmps_call_utc = (
+        PJM._last_unverified_fivemin_lmps_call_utc = (
             pd.Timestamp.utcnow() - pd.Timedelta(minutes=1)
         )
 
@@ -3522,3 +3535,75 @@ class TestPJMUnverifiedFiveminFallback:
                     market=Markets.REAL_TIME_5_MIN,
                     locations="ALL",
                 )
+
+    def test_throttle_is_shared_across_pjm_instances(self):
+        """Reviewer concern: a notebook or script that does
+        ``PJM(); PJM().get_lmp(...)`` repeatedly should still be throttled.
+        The counter is class-level, so a fresh PJM() must inherit it."""
+        first = PJM(api_key="test_key")
+        PJM._last_unverified_fivemin_lmps_call_utc = (
+            pd.Timestamp.utcnow() - pd.Timedelta(minutes=1)
+        )
+
+        second = PJM(api_key="test_key")
+        assert first is not second
+
+        def fake_api_call(url, params=None, **_):
+            if "rt_fivemin_hrl_lmps" in url:
+                return self.EMPTY_RESPONSE
+            raise AssertionError(
+                f"Throttle did not block fresh PJM() instance from calling {url}",
+            )
+
+        with mock.patch.object(second, "_make_api_call", side_effect=fake_api_call):
+            with pytest.raises(NoDataFoundException, match="throttled"):
+                second.get_lmp(
+                    date=pd.Timestamp.utcnow() - pd.Timedelta(minutes=5),
+                    market=Markets.REAL_TIME_5_MIN,
+                    locations="ALL",
+                )
+
+    def test_get_lmp_fallback_catchup_pages_in_one_hour_chunks(self):
+        """A wide (>10 min) window must page in 1-hour chunks aligned to a
+        5-minute mark — never `5MinutesAgo`."""
+        iso = PJM(api_key="test_key")
+        captured = []
+
+        def fake_api_call(url, params=None, **_):
+            captured.append({"url": url, "params": params})
+            if "rt_fivemin_hrl_lmps" in url:
+                return self.EMPTY_RESPONSE
+            return self._five_min_response()
+
+        date = pd.Timestamp("2026-05-20 12:00:00", tz="US/Eastern")
+        end = pd.Timestamp("2026-05-20 13:30:00", tz="US/Eastern")
+
+        with mock.patch.object(iso, "_make_api_call", side_effect=fake_api_call):
+            with mock.patch.object(
+                iso,
+                "get_pnode_ids",
+                return_value=pd.DataFrame(
+                    columns=[
+                        "pnode_id",
+                        "pnode_name",
+                        "voltage_level",
+                        "pnode_short_name",
+                    ],
+                ),
+            ):
+                iso.get_lmp(
+                    date=date,
+                    end=end,
+                    market=Markets.REAL_TIME_5_MIN,
+                    locations="ALL",
+                )
+
+        unverified_calls = [
+            c for c in captured if "rt_unverified_fivemin_lmps" in c["url"]
+        ]
+        assert len(unverified_calls) == 2
+        for call in unverified_calls:
+            ept = call["params"]["datetime_beginning_ept"]
+            assert ept != "5MinutesAgo"
+            assert "to" in ept
+        assert PJM._last_unverified_fivemin_lmps_call_utc is not None
