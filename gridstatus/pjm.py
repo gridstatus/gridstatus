@@ -620,6 +620,105 @@ class PJM(ISOBase):
         return data
 
     @support_date_range(frequency="365D")
+    def get_lmp_real_time_unverified_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        locations: str | list | None = "hubs",
+        location_type: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time unverified 5-minute LMPs for a date range.
+
+        Mirrors the output shape of ``get_lmp(market=REAL_TIME_5_MIN)`` but
+        always hits ``rt_unverified_fivemin_lmps`` so callers can pull the
+        freshest data (verified is delayed ~25 minutes).
+        """
+        if locations == "hubs":
+            locations = self.hub_node_ids
+
+        params = {
+            "fields": (
+                "congestion_price_rt,datetime_beginning_ept,"
+                "datetime_beginning_utc,marginal_loss_price_rt,occ_check,"
+                "pnode_id,pnode_name,ref_caseid_used_multi_interval,"
+                "total_lmp_rt,type"
+            ),
+        }
+
+        if location_type:
+            location_type = location_type.upper()
+            if location_type not in self.location_types:
+                raise ValueError(
+                    f"location_type must be one of {self.location_types}",
+                )
+            warnings.warn(
+                (
+                    "When using Real Time 5 Minute market, location_type filter"
+                    " will happen after all data is downloaded"
+                ),
+            )
+            locations = None
+
+        if locations and locations != "ALL":
+            params["pnode_id"] = ";".join(map(str, locations))
+
+        data = self._get_pjm_json(
+            "rt_unverified_fivemin_lmps",
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            interval_duration_min=5,
+        )
+
+        data["system_energy_price_rt"] = (
+            data["total_lmp_rt"]
+            - data["congestion_price_rt"]
+            - data["marginal_loss_price_rt"]
+        )
+
+        data = data.rename(columns={"type": "Location Type"})
+        if location_type:
+            data = data[data["Location Type"] == location_type]
+
+        if locations is not None and locations != "ALL":
+            data["Location"] = data["pnode_id"]
+            data = utils.filter_lmp_locations(data, map(int, locations))
+
+        data = self._add_pnode_info_to_lmp_data(data)
+
+        data = data.rename(
+            columns={
+                "pnode_id": "Location Id",
+                "pnode_name": "Location Name",
+                "pnode_short_name": "Location Short Name",
+                "total_lmp_rt": "LMP",
+                "system_energy_price_rt": "Energy",
+                "congestion_price_rt": "Congestion",
+                "marginal_loss_price_rt": "Loss",
+            },
+        )
+        data["Market"] = Markets.REAL_TIME_5_MIN.value
+
+        return data[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location Id",
+                "Location Name",
+                "Location Short Name",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ].sort_values("Interval Start")
+
+    @support_date_range(frequency="365D")
     def get_lmp_real_time_unverified_hourly(
         self,
         date: str | pd.Timestamp,
@@ -991,12 +1090,13 @@ class PJM(ISOBase):
 
             # PJM API is inclusive of end,
             # so we need to drop where end timestamp is included
-            df = df[
-                df["Interval Start"].dt.strftime(
-                    "%Y-%m-%d %H:%M",
-                )
-                != end.strftime("%Y-%m-%d %H:%M")
-            ]
+            if end is not None:
+                df = df[
+                    df["Interval Start"].dt.strftime(
+                        "%Y-%m-%d %H:%M",
+                    )
+                    != end.strftime("%Y-%m-%d %H:%M")
+                ]
 
             if "datetime_ending_utc" in df.columns:
                 df["Interval End"] = (
