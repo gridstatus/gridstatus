@@ -75,7 +75,7 @@ class PJM(ISOBase):
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
 
     UNVERIFIED_FIVEMIN_LMPS_THROTTLE = pd.Timedelta(minutes=5)
-    UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW = pd.Timedelta(minutes=10)
+    UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW = pd.Timedelta(minutes=5)
     UNVERIFIED_FIVEMIN_LMPS_CHUNK = pd.Timedelta(hours=1)
     _last_unverified_fivemin_lmps_call_utc: pd.Timestamp | None = None
 
@@ -628,14 +628,15 @@ class PJM(ISOBase):
     ) -> pd.DataFrame:
         """Hit `rt_unverified_fivemin_lmps` per Dataminer guidance.
 
-        - Live window (<= UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW): send
-          `datetime_beginning_ept=5MinutesAgo` and throttle to at most one call
-          per UNVERIFIED_FIVEMIN_LMPS_THROTTLE so a tight worker loop
-          can't hammer the endpoint at the tip of the data.
+        - Live window (<= UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW, i.e. at most one
+          5-min interval): send `datetime_beginning_ept=5MinutesAgo` and
+          throttle to at most one call per UNVERIFIED_FIVEMIN_LMPS_THROTTLE so
+          a tight worker loop can't hammer the endpoint at the tip of the data.
         - Catch-up window (longer): snap start/end to the 5-minute mark and
           page through in UNVERIFIED_FIVEMIN_LMPS_CHUNK-sized windows so the
           worker can backfill missed intervals after downtime without sending
-          multi-hour requests Dataminer rejects.
+          multi-hour requests Dataminer rejects, and without dropping any of
+          the multiple intervals the wider window asked for.
         """
         endpoint = "rt_unverified_fivemin_lmps"
         start_ts = utils._handle_date(date)

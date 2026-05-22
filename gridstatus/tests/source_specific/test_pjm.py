@@ -3418,9 +3418,10 @@ class TestPJM(BaseTestISO):
 class TestPJMUnverifiedFiveminFallback:
     """ENG-3910: fallback to ``rt_unverified_fivemin_lmps`` must:
 
-    - For a live window (<= 10 min), send ``datetime_beginning_ept=5MinutesAgo``
-      and throttle to one call per 5 minutes.
-    - For a catch-up window (> 10 min), snap start/end to a 5-minute mark and
+    - For a live window (<= one 5-min interval), send
+      ``datetime_beginning_ept=5MinutesAgo`` and throttle to one call per
+      5 minutes.
+    - For a catch-up window (longer), snap start/end to a 5-minute mark and
       page through 1-hour chunks (no ``5MinutesAgo``).
     """
 
@@ -3502,7 +3503,7 @@ class TestPJMUnverifiedFiveminFallback:
                 ),
             ):
                 iso.get_lmp(
-                    date=pd.Timestamp.utcnow() - pd.Timedelta(minutes=5),
+                    date=pd.Timestamp.utcnow() - pd.Timedelta(minutes=1),
                     end=pd.Timestamp.utcnow(),
                     market=Markets.REAL_TIME_5_MIN,
                     locations="ALL",
