@@ -74,11 +74,6 @@ class PJM(ISOBase):
     load_forecast_historical_endpoint_name = "load_frcstd_hist"
     load_forecast_5_min_endpoint_name = "very_short_load_frcst"
 
-    UNVERIFIED_FIVEMIN_LMPS_THROTTLE = pd.Timedelta(minutes=5)
-    UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW = pd.Timedelta(minutes=5)
-    UNVERIFIED_FIVEMIN_LMPS_CHUNK = pd.Timedelta(hours=1)
-    _last_unverified_fivemin_lmps_call_utc: pd.Timestamp | None = None
-
     def __init__(
         self,
         api_key: str | None = None,
@@ -411,7 +406,7 @@ class PJM(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
             Markets.REAL_TIME_HOURLY: ["today", "historical"],
             Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
@@ -464,7 +459,13 @@ class PJM(ISOBase):
         params = {}
 
         if market == Markets.REAL_TIME_5_MIN:
-            market_endpoint = "rt_fivemin_hrl_lmps"
+            # `date="latest"` hits the unverified endpoint directly with
+            # `5MinutesAgo`; the verified endpoint hasn't published the tip yet
+            # by definition. Any non-latest date uses the verified endpoint.
+            if date == "latest":
+                market_endpoint = "rt_unverified_fivemin_lmps"
+            else:
+                market_endpoint = "rt_fivemin_hrl_lmps"
             market_type = "rt"
             interval_duration_min = 5
         elif market == Markets.REAL_TIME_HOURLY:
@@ -505,27 +506,48 @@ class PJM(ISOBase):
             if locations is not None:
                 locations = None
 
-        if date >= _get_pjm_archive_date(market):
-            # after archive date, filtering allowed
+        if date == "latest":
             params["fields"] = (
-                f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
+                "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
             )
-
             if locations and locations != "ALL":
                 params["pnode_id"] = ";".join(map(str, locations))
 
-        elif locations is not None and locations != "ALL":
-            warnings.warn(
-                (
-                    "Querying before archive date, so filtering by location will happen"
-                    " after all data is downloaded"
-                ),
+            data = self._get_pjm_json(
+                market_endpoint,
+                start=pd.Timestamp.utcnow(),
+                end=None,
+                params=params,
+                verbose=verbose,
+                interval_duration_min=interval_duration_min,
+                latest_only=True,
             )
+            data["system_energy_price_rt"] = (
+                data["total_lmp_rt"]
+                - data["congestion_price_rt"]
+                - data["marginal_loss_price_rt"]
+            )
+        else:
+            if date >= _get_pjm_archive_date(market):
+                # after archive date, filtering allowed
+                params["fields"] = (
+                    f"congestion_price_{market_type},datetime_beginning_ept,datetime_beginning_utc,equipment,marginal_loss_price_{market_type},pnode_id,pnode_name,row_is_current,system_energy_price_{market_type},total_lmp_{market_type},type,version_nbr,voltage,zone",
+                )
 
-        # returns on the latest version of the data
-        params["row_is_current"] = "TRUE"
+                if locations and locations != "ALL":
+                    params["pnode_id"] = ";".join(map(str, locations))
 
-        try:
+            elif locations is not None and locations != "ALL":
+                warnings.warn(
+                    (
+                        "Querying before archive date, so filtering by location will happen"
+                        " after all data is downloaded"
+                    ),
+                )
+
+            # returns on the latest version of the data
+            params["row_is_current"] = "TRUE"
+
             data = self._get_pjm_json(
                 market_endpoint,
                 start=date,
@@ -533,44 +555,6 @@ class PJM(ISOBase):
                 params=params,
                 verbose=verbose,
                 interval_duration_min=interval_duration_min,
-            )
-        except NoDataFoundException as e:
-            if "No data found" not in str(e):
-                raise e
-
-            if market_endpoint == "rt_fivemin_hrl_lmps":
-                logger.debug(
-                    "Verified rt_fivemin_hrl_lmps returned no data; "
-                    "falling back to rt_unverified_fivemin_lmps",
-                )
-                market_endpoint = "rt_unverified_fivemin_lmps"
-                params["fields"] = (
-                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
-                )
-                # remove this field because it's not supported in this endpoint
-                del params["row_is_current"]
-
-                data = self._get_unverified_fivemin_fallback(
-                    date=date,
-                    end=end,
-                    params=params,
-                    interval_duration_min=interval_duration_min,
-                    verbose=verbose,
-                )
-            else:
-                data = self._get_pjm_json(
-                    market_endpoint,
-                    start=date,
-                    end=end,
-                    params=params,
-                    verbose=verbose,
-                    interval_duration_min=interval_duration_min,
-                )
-
-            data["system_energy_price_rt"] = (
-                data["total_lmp_rt"]
-                - data["congestion_price_rt"]
-                - data["marginal_loss_price_rt"]
             )
 
         # API cannot filter location type for rt 5 min
@@ -621,114 +605,6 @@ class PJM(ISOBase):
         data = data.sort_values("Interval Start")
 
         return data
-
-    def _get_unverified_fivemin_fallback(
-        self,
-        date: pd.Timestamp | str,
-        end: pd.Timestamp | str | None,
-        params: dict,
-        interval_duration_min: int | float | None,
-        verbose: bool,
-    ) -> pd.DataFrame:
-        """Hit `rt_unverified_fivemin_lmps` per Dataminer guidance.
-
-        - Live window (<= UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW, i.e. at most one
-          5-min interval): send `datetime_beginning_ept=5MinutesAgo` and
-          throttle to at most one call per UNVERIFIED_FIVEMIN_LMPS_THROTTLE so
-          a tight worker loop can't hammer the endpoint at the tip of the data.
-        - Catch-up window (longer): snap start/end to the 5-minute mark and
-          page through in UNVERIFIED_FIVEMIN_LMPS_CHUNK-sized windows so the
-          worker can backfill missed intervals after downtime without sending
-          multi-hour requests Dataminer rejects, and without dropping any of
-          the multiple intervals the wider window asked for.
-        """
-        endpoint = "rt_unverified_fivemin_lmps"
-        start_ts = utils._handle_date(date)
-        end_ts = utils._handle_date(end) if end is not None else None
-
-        window = end_ts - start_ts if end_ts is not None else None
-        is_live = (
-            end_ts is None
-            or (end_ts - start_ts) <= self.UNVERIFIED_FIVEMIN_LMPS_LIVE_WINDOW
-        )
-        logger.debug(
-            f"Unverified fivemin fallback: mode={'live' if is_live else 'catchup'} "
-            f"start={start_ts} end={end_ts} window={window}",
-        )
-
-        if is_live:
-            now_utc = pd.Timestamp.utcnow()
-            last_call = PJM._last_unverified_fivemin_lmps_call_utc
-            if (
-                last_call is not None
-                and (now_utc - last_call) < self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE
-            ):
-                logger.debug(
-                    f"Unverified fivemin fallback live: throttled "
-                    f"(last call {now_utc - last_call} ago, "
-                    f"throttle={self.UNVERIFIED_FIVEMIN_LMPS_THROTTLE})",
-                )
-                raise NoDataFoundException(
-                    f"No data found for {endpoint}: throttled "
-                    f"(last call {now_utc - last_call} ago)",
-                )
-            PJM._last_unverified_fivemin_lmps_call_utc = now_utc
-            logger.debug(
-                f"Unverified fivemin fallback live: sending 5MinutesAgo to {endpoint}",
-            )
-            return self._get_pjm_json(
-                endpoint,
-                start=date,
-                end=end,
-                params=params,
-                verbose=verbose,
-                interval_duration_min=interval_duration_min,
-                latest_only=True,
-            )
-
-        chunks: list[pd.DataFrame] = []
-        chunk_start = start_ts.floor("5min")
-        snapped_end = end_ts.ceil("5min")
-        logger.debug(
-            f"Unverified fivemin fallback catchup: "
-            f"snapped_start={chunk_start} snapped_end={snapped_end} "
-            f"chunk_size={self.UNVERIFIED_FIVEMIN_LMPS_CHUNK}",
-        )
-        while chunk_start < snapped_end:
-            chunk_end = min(
-                chunk_start + self.UNVERIFIED_FIVEMIN_LMPS_CHUNK,
-                snapped_end,
-            )
-            logger.debug(
-                f"Unverified fivemin fallback catchup chunk: "
-                f"{chunk_start} -> {chunk_end}",
-            )
-            try:
-                chunks.append(
-                    self._get_pjm_json(
-                        endpoint,
-                        start=chunk_start,
-                        end=chunk_end,
-                        params=params,
-                        verbose=verbose,
-                        interval_duration_min=interval_duration_min,
-                    ),
-                )
-            except NoDataFoundException:
-                logger.debug(
-                    f"Unverified fivemin fallback catchup chunk: "
-                    f"no data for {chunk_start} -> {chunk_end}",
-                )
-            chunk_start = chunk_end
-
-        PJM._last_unverified_fivemin_lmps_call_utc = pd.Timestamp.utcnow()
-        logger.debug(
-            f"Unverified fivemin fallback catchup: completed with "
-            f"{len(chunks)} chunk(s) of data",
-        )
-        if not chunks:
-            raise NoDataFoundException(f"No data found for {endpoint}")
-        return pd.concat(chunks, ignore_index=True)
 
     def _add_pnode_info_to_lmp_data(self, data: pd.DataFrame) -> pd.DataFrame:
         # the pnode_name in the lmp data isn't always full name
