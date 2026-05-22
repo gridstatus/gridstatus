@@ -520,14 +520,41 @@ class PJM(ISOBase):
         # returns on the latest version of the data
         params["row_is_current"] = "TRUE"
 
-        data = self._get_pjm_json(
-            market_endpoint,
-            start=date,
-            end=end,
-            params=params,
-            verbose=verbose,
-            interval_duration_min=interval_duration_min,
-        )
+        try:
+            data = self._get_pjm_json(
+                market_endpoint,
+                start=date,
+                end=end,
+                params=params,
+                verbose=verbose,
+                interval_duration_min=interval_duration_min,
+            )
+        except NoDataFoundException as e:
+            if "No data found" not in str(e):
+                raise e
+
+            if market_endpoint == "rt_fivemin_hrl_lmps":
+                market_endpoint = "rt_unverified_fivemin_lmps"
+                params["fields"] = (
+                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                )
+                # remove this field because it's not supported in this endpoint
+                del params["row_is_current"]
+
+            data = self._get_pjm_json(
+                market_endpoint,
+                start=date,
+                end=end,
+                params=params,
+                verbose=verbose,
+                interval_duration_min=interval_duration_min,
+            )
+
+            data["system_energy_price_rt"] = (
+                data["total_lmp_rt"]
+                - data["congestion_price_rt"]
+                - data["marginal_loss_price_rt"]
+            )
 
         # API cannot filter location type for rt 5 min
         data = data.rename(columns={"type": "Location Type"})
