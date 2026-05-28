@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Breaking Changes
+
+* Removed the `save_to` parameter from data retrieval methods. Data is no longer written to CSV files as it is fetched; callers should save the returned DataFrame themselves (e.g. with `df.to_csv(...)`). The `load_folder` utility remains available for loading previously saved CSV folders.
+
 ## v0.36.0 - April 20, 2026
 
 ### Additions (New Features/Datasets)
