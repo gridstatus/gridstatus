@@ -1,5 +1,4 @@
 import functools
-import os
 import pprint
 from typing import Any, Callable, Dict, List, ParamSpec, TypeVar, cast
 
@@ -71,8 +70,6 @@ class support_date_range:
 
         - **error** (str): Error handling mode. Default is "ignore" which prints
           errors and continues. Use "raise" to raise errors immediately.
-        - **save_to** (str): Directory path to save results as CSV files.
-          Creates directory if needed.
         - **start**: Alternative parameter name for 'date' (automatically converted).
 
     Example::
@@ -115,11 +112,6 @@ class support_date_range:
             # delete end if None to avoid attribute error
             if "end" in args_dict and not args_dict["end"]:
                 del args_dict["end"]
-
-            save_to = None
-            if "save_to" in args_dict:
-                save_to = args_dict.pop("save_to")
-                os.makedirs(save_to, exist_ok=True)
 
             error = "ignore"
             errors = []
@@ -171,7 +163,6 @@ class support_date_range:
             # no date range handling required
             if "end" not in args_dict:
                 df = inner_f(**args_dict)
-                _handle_save_to(df, save_to, args_dict, f)
                 return df
 
             if (
@@ -288,8 +279,6 @@ class support_date_range:
                                 ),
                             )
 
-                    _handle_save_to(df, save_to, args_dict, f)
-
                     pbar.update(1)
 
                     if df is not None:
@@ -320,32 +309,6 @@ class support_date_range:
             return df
 
         return cast(Callable[P, T], wrapped_f)
-
-
-def _handle_save_to(
-    df: pd.DataFrame | None,
-    save_to: str | None,
-    args_dict: Dict[str, Any],
-    f: Callable[..., Any],
-) -> None:
-    if df is not None and save_to is not None:
-        if "end" in args_dict:
-            filename = "{}_{}_{}_{}.csv".format(
-                args_dict["self"].__class__.__name__,
-                f.__name__,
-                args_dict["date"].strftime("%Y%m%d"),
-                args_dict["end"].strftime("%Y%m%d"),
-            )
-        else:
-            filename = "{}_{}_{}.csv".format(
-                args_dict["self"].__class__.__name__,
-                f.__name__,
-                args_dict["date"].strftime("%Y%m%d"),
-            )
-
-        path = os.path.join(save_to, filename)
-
-        df.to_csv(path, index=None)
 
 
 def _get_pjm_archive_date(market: str | Markets) -> pd.Timestamp:
