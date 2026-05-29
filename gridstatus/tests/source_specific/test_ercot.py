@@ -1882,6 +1882,79 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == cols
         assert df["Publish Time"].nunique() == 3
 
+    """get_planned_outage_capacity_7_day"""
+
+    PLANNED_OUTAGE_CAPACITY_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Max POC Non IRR Non PUN",
+        "Approved POC Non IRR Non PUN",
+        "Received POC Non IRR Non PUN",
+        "Max POC IRR",
+        "Approved POC IRR",
+        "Received POC IRR",
+    ]
+
+    def _check_planned_outage_capacity(self, df):
+        assert df.columns.tolist() == self.PLANNED_OUTAGE_CAPACITY_COLUMNS
+
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Publish Time"].kind == "M"
+
+        assert not df.duplicated(
+            subset=["Publish Time", "Interval Start"],
+        ).any()
+
+    def test_get_planned_outage_capacity_7_day(self):
+        end = (
+            pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=1)
+        ).floor("h")
+        start = end - pd.Timedelta(hours=3)
+
+        with api_vcr.use_cassette(
+            f"test_get_planned_outage_capacity_7_day_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_planned_outage_capacity_7_day(
+                date=start,
+                end=end,
+                verbose=True,
+            )
+
+        self._check_planned_outage_capacity(df)
+
+        assert df["Publish Time"].nunique() == 3
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    """get_planned_outage_capacity_future"""
+
+    def test_get_planned_outage_capacity_future(self):
+        start = self.local_start_of_today() - pd.Timedelta(days=1)
+        end = start + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_planned_outage_capacity_future_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_planned_outage_capacity_future(
+                date=start,
+                end=end,
+                verbose=True,
+            )
+
+        self._check_planned_outage_capacity(df)
+
+        assert df["Publish Time"].nunique() >= 1
+        # Daily intervals are day-aligned. A fixed 24h delta does not hold across
+        # DST transitions, so we check that each interval spans one calendar day.
+        assert (df["Interval Start"] == df["Interval Start"].dt.normalize()).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
+        assert (df["Interval Start"] > end).all()
+
     """get_wind_actual_and_forecast_hourly"""
 
     def _check_hourly_wind_report(self, df, geographic_data=False):
