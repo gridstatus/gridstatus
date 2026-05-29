@@ -353,27 +353,6 @@ PLANNED_OUTAGE_CAPACITY_7_DAY_RTID = 22469
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-161-CD
 PLANNED_OUTAGE_CAPACITY_FUTURE_RTID = 22470
 
-PLANNED_OUTAGE_CAPACITY_COLUMN_MAP = {
-    "MaxDailyResourcePOCnonIRRnonPUN": "Max POC Non IRR Non PUN",
-    "AggApprovedResourcePOCnonIRRnonPUN": "Approved POC Non IRR Non PUN",
-    "AggReceivedResourcePOCnonIRRnonPUN": "Received POC Non IRR Non PUN",
-    "MaxDailyResourcePOCIRR": "Max POC IRR",
-    "AggApprovedResourcePOCIRR": "Approved POC IRR",
-    "AggReceivedResourcePOCIRR": "Received POC IRR",
-}
-
-PLANNED_OUTAGE_CAPACITY_COLUMNS = [
-    "Interval Start",
-    "Interval End",
-    "Publish Time",
-    "Max POC Non IRR Non PUN",
-    "Approved POC Non IRR Non PUN",
-    "Received POC Non IRR Non PUN",
-    "Max POC IRR",
-    "Approved POC IRR",
-    "Received POC IRR",
-]
-
 # Wind Power Production - Hourly Averaged Actual and Forecasted Values
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
 WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
@@ -4334,9 +4313,30 @@ class Ercot(ISOBase):
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        df = df.rename(columns=PLANNED_OUTAGE_CAPACITY_COLUMN_MAP)
+        df = df.rename(
+            columns={
+                "MaxDailyResourcePOCnonIRRnonPUN": "Max POC Non IRR Non PUN",
+                "AggApprovedResourcePOCnonIRRnonPUN": "Approved POC Non IRR Non PUN",
+                "AggReceivedResourcePOCnonIRRnonPUN": "Received POC Non IRR Non PUN",
+                "MaxDailyResourcePOCIRR": "Max POC IRR",
+                "AggApprovedResourcePOCIRR": "Approved POC IRR",
+                "AggReceivedResourcePOCIRR": "Received POC IRR",
+            },
+        )
 
-        return df[PLANNED_OUTAGE_CAPACITY_COLUMNS]
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Max POC Non IRR Non PUN",
+                "Approved POC Non IRR Non PUN",
+                "Received POC Non IRR Non PUN",
+                "Max POC IRR",
+                "Approved POC IRR",
+                "Received POC IRR",
+            ]
+        ]
 
     @support_date_range(frequency=None)
     def get_unplanned_resource_outages(
