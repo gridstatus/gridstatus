@@ -4211,6 +4211,7 @@ class Ercot(ISOBase):
 
         return df
 
+    @support_date_range(frequency=None)
     def get_planned_outage_capacity_7_day(
         self,
         date: str | pd.Timestamp,
@@ -4258,6 +4259,7 @@ class Ercot(ISOBase):
 
         return self._handle_planned_outage_capacity_df(df)
 
+    @support_date_range(frequency=None)
     def get_planned_outage_capacity_future(
         self,
         date: str | pd.Timestamp,
@@ -4323,7 +4325,7 @@ class Ercot(ISOBase):
                 "AggReceivedResourcePOCIRR": "Received POC IRR",
             },
         )
-
+        df = df.sort_values(["Interval Start", "Publish Time"]).reset_index(drop=True)
         return df[
             [
                 "Interval Start",
