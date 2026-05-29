@@ -4316,9 +4316,10 @@ class Ercot(ISOBase):
     ) -> pd.DataFrame:
         df = self.read_doc(doc, parse=False, verbose=verbose)
 
-        df["Interval Start"] = pd.to_datetime(df["OperatingDate"]).dt.tz_localize(
-            self.default_timezone,
-        )
+        df["Interval Start"] = pd.to_datetime(
+            df["OperatingDate"],
+            format="%m/%d/%Y",
+        ).dt.tz_localize(self.default_timezone)
         df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
 
         df.insert(
