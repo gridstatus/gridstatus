@@ -4522,6 +4522,68 @@ class TestProcessScedResourceAsOffers:
         assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
+def _to_new_suffixes(df):
+    """Rename AS-price columns to ERCOT's post-March-2026 suffixes."""
+    old_to_new = {
+        "_URS": "_REGUP",
+        "_DRS": "_REGDN",
+        "_RRSPF": "_RRSPFR",
+        "_RRSUF": "_RRSUFR",
+        "_RRSFF": "_RRSFFR",
+        "_NS": "_NSPIN",
+    }
+
+    def rename(col):
+        for old, new in old_to_new.items():
+            if col.endswith(old):
+                return col[: -len(old)] + new
+        return col
+
+    return df.rename(columns=rename)
+
+
+class TestProcessScedResourceAsOffersNewSuffixes:
+    """ERCOT renamed the AS-price column suffixes in late March 2026
+    (_URS->_REGUP, _DRS->_REGDN, _NS->_NSPIN, _RRSPF->_RRSPFR, etc.). The
+    parser renames them back, so the new layout produces the same result as the
+    old one. Before the fix every offer type collapsed to "Online", producing
+    duplicate (SCED Timestamp, Resource Name, Curve Type) keys.
+    """
+
+    _ROWS = [
+        _AEEC_ANTLP_3_ONRES_CORRECTED,
+        _AEEC_ANTLP_3_REGDN_CORRECTED,
+        _AEEC_ANTLP_3_OFFNS_CORRECTED,
+    ]
+
+    def test_curve_types_match_old_layout(self):
+        """Renamed columns classify into the same three curve types."""
+        df = _to_new_suffixes(_make_sced_resource_as_offers_df(self._ROWS))
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == ["Online", "Regulation Down", "Offline"]
+
+    def test_no_duplicate_primary_keys(self):
+        """The three offer rows at one timestamp resolve to distinct keys."""
+        df = _to_new_suffixes(_make_sced_resource_as_offers_df(self._ROWS))
+        result = process_sced_resource_as_offers(df)
+        pk = ["SCED Timestamp", "Resource Name", "Curve Type"]
+        assert not result.duplicated(subset=pk).any()
+
+    def test_curves_and_columns_match_old_layout(self):
+        """Renamed columns produce identical output to the old layout."""
+        old = process_sced_resource_as_offers(
+            _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED]),
+        )
+        new = process_sced_resource_as_offers(
+            _to_new_suffixes(
+                _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED]),
+            ),
+        )
+        assert new.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+        for col in [c for c in new.columns if c.endswith("Offer Curve")]:
+            assert old[col].iloc[0] == new[col].iloc[0], col
+
+
 def check_60_day_dam_disclosure(df_dict):
     assert df_dict is not None
 
