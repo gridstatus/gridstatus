@@ -1479,6 +1479,28 @@ def process_sced_resource_as_offers(
             "pg_array_as_string" returns PG array strings like '{{mw,price},{mw,price}}'
             directly, using ~3x less peak memory.
     """
+    # ERCOT renamed the AS-price column suffixes in late March 2026
+    # (_URS->_REGUP, _DRS->_REGDN, _NS->_NSPIN, _RRSPF->_RRSPFR,
+    # _RRSUF->_RRSUFR, _RRSFF->_RRSFFR). Rename them back to the original names
+    # so the curve-type and curve-extraction logic below works unchanged for
+    # both old and new files.
+    new_to_old_suffix = {
+        "_REGUP": "_URS",
+        "_REGDN": "_DRS",
+        "_RRSPFR": "_RRSPF",
+        "_RRSUFR": "_RRSUF",
+        "_RRSFFR": "_RRSFF",
+        "_NSPIN": "_NS",
+    }
+
+    def _rename_suffix(col):
+        for new_suffix, old_suffix in new_to_old_suffix.items():
+            if col.endswith(new_suffix):
+                return col[: -len(new_suffix)] + old_suffix
+        return col
+
+    df = df.rename(columns=_rename_suffix)
+
     # First create a curve_type column with the logic:
     # regulation down : values only in _DRS columns and not in other columns
     # offline: values in _NS and optionally _ECRS columns and not in other columns
