@@ -854,6 +854,205 @@ class MISO(ISOBase):
         return queue
 
     @support_date_range(frequency="DAY_START")
+    def get_generation_fuel_mix_by_area_real_time(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the hourly real-time state estimator generation fuel mix broken out by
+        MISO area (Central, North, South) and the MISO system total.
+
+        Source URL: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AGeneration%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+
+        Args:
+            date (str | pd.Timestamp): The market date to retrieve data for.
+            end (str | pd.Timestamp, optional): End date for a range. Defaults to None.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: Hourly generation fuel mix by area.
+        """
+        return self._get_generation_fuel_mix_by_area(
+            date,
+            sheet_name="RT Generation Fuel Mix",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_generation_fuel_mix_by_area_day_ahead(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the hourly day-ahead cleared generation fuel mix broken out by MISO area
+        (Central, North, South) and the MISO system total.
+
+        Source URL: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ASummary%2FMarketReportName%3AGeneration%20Fuel%20Mix%20(xlsx)&t=10&p=0&s=MarketReportPublished&sd=desc
+
+        Args:
+            date (str | pd.Timestamp): The market date to retrieve data for.
+            end (str | pd.Timestamp, optional): End date for a range. Defaults to None.
+            verbose (bool, optional): Print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: Hourly generation fuel mix by area.
+        """
+        return self._get_generation_fuel_mix_by_area(
+            date,
+            sheet_name="DA Cleared Generation Fuel Mix",
+            verbose=verbose,
+        )
+
+    def _get_generation_fuel_mix_by_area(
+        self,
+        date: str | pd.Timestamp,
+        sheet_name: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        # The file is published the day after the market date and is named using the
+        # publish date, so we shift the requested market date forward by one day to
+        # build the URL.
+        file_date = date + pd.Timedelta(days=1)
+        url = f"https://docs.misoenergy.org/marketreports/{file_date.strftime('%Y%m%d')}_sr_gfm.xlsx"  # noqa
+
+        logger.info(f"Downloading generation fuel mix by area data from {url}")
+
+        response = requests.get(url)
+        if response.status_code == 404:
+            raise NoDataFoundException(
+                f"No generation fuel mix by area data found for {date.date()}",
+            )
+        response.raise_for_status()
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                module=re.escape("openpyxl.styles.stylesheet"),
+            )
+            raw = pd.read_excel(
+                io.BytesIO(response.content),
+                sheet_name=sheet_name,
+                header=None,
+            )
+
+        publish_date = pd.Timestamp(str(raw.iloc[1, 0]).split(":", 1)[1].strip())
+        market_date = pd.Timestamp(str(raw.iloc[2, 0]).split(":", 1)[1].strip())
+
+        fuels = [
+            "Coal",
+            "Gas",
+            "Nuclear",
+            "Hydro",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
+        ]
+
+        # Column offsets for each area block in the raw sheet. South does not report a
+        # Storage column. The "Total" entry is the area's reported total MW.
+        area_columns = {
+            "Central": {
+                "Coal": 1,
+                "Gas": 2,
+                "Nuclear": 3,
+                "Hydro": 4,
+                "Wind": 5,
+                "Solar": 6,
+                "Other": 7,
+                "Storage": 8,
+                "Total": 9,
+            },
+            "North": {
+                "Coal": 11,
+                "Gas": 12,
+                "Nuclear": 13,
+                "Hydro": 14,
+                "Wind": 15,
+                "Solar": 16,
+                "Other": 17,
+                "Storage": 18,
+                "Total": 19,
+            },
+            "South": {
+                "Coal": 21,
+                "Gas": 22,
+                "Nuclear": 23,
+                "Hydro": 24,
+                "Wind": 25,
+                "Solar": 26,
+                "Other": 27,
+                "Total": 28,
+            },
+            "MISO": {
+                "Coal": 32,
+                "Gas": 33,
+                "Nuclear": 34,
+                "Hydro": 35,
+                "Wind": 36,
+                "Solar": 37,
+                "Other": 38,
+                "Storage": 39,
+                "Total": 40,
+            },
+        }
+
+        hour_ending = pd.to_numeric(raw.iloc[:, 0], errors="coerce")
+        data = raw[hour_ending.between(1, 24)].reset_index(drop=True)
+        hour_ending = pd.to_numeric(data.iloc[:, 0]).astype(int)
+
+        area_frames = []
+        for area, columns in area_columns.items():
+            block = pd.DataFrame({"Hour Ending": hour_ending})
+            # South does not report Storage, so we omit it here and let the concat
+            # below fill it with NA rather than concatenating an all-NA column.
+            for fuel in fuels:
+                if fuel in columns:
+                    block[fuel] = pd.to_numeric(
+                        data.iloc[:, columns[fuel]],
+                        errors="coerce",
+                    )
+            block["Total"] = pd.to_numeric(
+                data.iloc[:, columns["Total"]],
+                errors="coerce",
+            )
+            block["Area"] = area
+            area_frames.append(block)
+
+        df = pd.concat(area_frames, ignore_index=True)
+
+        df["Interval End"] = (
+            market_date + pd.to_timedelta(df["Hour Ending"], unit="h")
+        ).dt.tz_localize(self.default_timezone)
+        df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
+        df["Publish Time"] = publish_date.tz_localize(self.default_timezone)
+
+        for col in fuels + ["Total"]:
+            df[col] = df[col].astype("Float64")
+
+        df["Area"] = pd.Categorical(
+            df["Area"],
+            categories=["Central", "North", "South", "MISO"],
+            ordered=True,
+        )
+        df = df.sort_values(["Interval Start", "Area"]).reset_index(drop=True)
+        df["Area"] = df["Area"].astype("string")
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Area",
+            ]
+            + fuels
+            + ["Total"]
+        ]
+
+    @support_date_range(frequency="DAY_START")
     def get_generation_outages_forecast(
         self,
         date: str | pd.Timestamp,
