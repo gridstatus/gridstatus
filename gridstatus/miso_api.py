@@ -855,22 +855,26 @@ class MISOAPI:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 data[col] = data[col].astype(float)
 
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Total",
-                "Coal",
-                "Gas",
-                "Nuclear",
-                "Water",
-                "Wind",
-                "Solar",
-                "Other",
-                "Storage",
-            ]
-        ].reset_index(drop=True)
+        data = self._append_miso_generation_fuel_type_aggregate(
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Region",
+                    "Total",
+                    "Coal",
+                    "Gas",
+                    "Nuclear",
+                    "Water",
+                    "Wind",
+                    "Solar",
+                    "Other",
+                    "Storage",
+                ]
+            ],
+        )
+
+        return data
 
     def _get_real_time_cleared_demand(
         self,
@@ -1186,22 +1190,57 @@ class MISOAPI:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 data[col] = data[col].astype(float)
 
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Total",
-                "Coal",
-                "Gas",
-                "Nuclear",
-                "Water",
-                "Wind",
-                "Solar",
-                "Other",
-                "Storage",
-            ]
-        ].reset_index(drop=True)
+        data = self._append_miso_generation_fuel_type_aggregate(
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Region",
+                    "Total",
+                    "Coal",
+                    "Gas",
+                    "Nuclear",
+                    "Water",
+                    "Wind",
+                    "Solar",
+                    "Other",
+                    "Storage",
+                ]
+            ],
+        )
+
+        return data
+
+    def _append_miso_generation_fuel_type_aggregate(
+        self,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Append a MISO system total region by summing the CENTRAL, NORTH, and SOUTH
+        regions for each interval. The API only returns the three sub-regions, so the
+        system-wide total is derived to match the retired Market Reports Generation
+        Fuel Mix dataset."""
+        value_columns = [
+            "Total",
+            "Coal",
+            "Gas",
+            "Nuclear",
+            "Water",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
+        ]
+
+        miso = data.groupby(["Interval Start", "Interval End"], as_index=False)[
+            value_columns
+        ].sum()
+        miso["Region"] = "MISO"
+
+        combined = pd.concat([data, miso], ignore_index=True)
+
+        return combined.sort_values(["Interval Start", "Region"]).reset_index(
+            drop=True,
+        )
 
     def _get_actual_load(
         self,
