@@ -698,6 +698,34 @@ class TestMISOAPI(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
 
+        # The API returns CENTRAL, NORTH, and SOUTH; the MISO system total is derived
+        # by summing them for each interval.
+        assert set(df["Region"].unique()) == {"CENTRAL", "NORTH", "SOUTH", "MISO"}
+
+        value_columns = [
+            "Total",
+            "Coal",
+            "Gas",
+            "Nuclear",
+            "Water",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
+        ]
+        miso_total = (
+            df[df["Region"] == "MISO"]
+            .set_index("Interval Start")[value_columns]
+            .sort_index()
+        )
+        region_sum = (
+            df[df["Region"] != "MISO"]
+            .groupby("Interval Start")[value_columns]
+            .sum()
+            .sort_index()
+        )
+        assert ((miso_total - region_sum).abs().max() < 1.0).all()
+
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
             hours=23,
@@ -876,6 +904,34 @@ class TestMISOAPI(TestHelperMixin):
         for col in df.columns:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 assert df[col].dtype == "float64"
+
+        # The API returns CENTRAL, NORTH, and SOUTH; the MISO system total is derived
+        # by summing them for each interval.
+        assert set(df["Region"].unique()) == {"CENTRAL", "NORTH", "SOUTH", "MISO"}
+
+        value_columns = [
+            "Total",
+            "Coal",
+            "Gas",
+            "Nuclear",
+            "Water",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
+        ]
+        miso_total = (
+            df[df["Region"] == "MISO"]
+            .set_index("Interval Start")[value_columns]
+            .sort_index()
+        )
+        region_sum = (
+            df[df["Region"] != "MISO"]
+            .groupby("Interval Start")[value_columns]
+            .sum()
+            .sort_index()
+        )
+        assert ((miso_total - region_sum).abs().max() < 1.0).all()
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
