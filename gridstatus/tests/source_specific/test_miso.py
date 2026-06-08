@@ -1359,6 +1359,23 @@ class TestMISO(BaseTestISO):
         assert len(df) == 2 * 4 * 24
         assert df["Interval Start"].min() == pd.Timestamp("2024-02-15", tz="EST")
 
+    def test_get_generation_fuel_mix_by_area_historical_layout(self):
+        # Older files use a different column layout where the South block omits the
+        # Wind column, shifting later columns. Columns are detected dynamically so
+        # these files parse correctly.
+        start, end = "2023-01-04", "2023-01-06"
+        cassette_name = "test_get_generation_fuel_mix_by_area_historical_layout.yaml"
+
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_generation_fuel_mix_by_area_real_time(start, end=end)
+
+        self._check_generation_fuel_mix_by_area(df)
+
+        # End is exclusive: 2 market days x 4 areas x 24 hours
+        assert len(df) == 2 * 4 * 24
+        # South does not report Wind in this older layout
+        assert df[df["Area"] == "South"]["Wind"].isna().all()
+
     def test_get_generation_fuel_mix_by_area_no_data(self):
         # Far-future market date has no published report
         future = (

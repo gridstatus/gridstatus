@@ -952,53 +952,48 @@ class MISO(ISOBase):
             "Storage",
         ]
 
-        # Column offsets for each area block in the raw sheet. South does not report a
-        # Storage column. The "Total" entry is the area's reported total MW.
-        area_columns = {
-            "Central": {
-                "Coal": 1,
-                "Gas": 2,
-                "Nuclear": 3,
-                "Hydro": 4,
-                "Wind": 5,
-                "Solar": 6,
-                "Other": 7,
-                "Storage": 8,
-                "Total": 9,
-            },
-            "North": {
-                "Coal": 11,
-                "Gas": 12,
-                "Nuclear": 13,
-                "Hydro": 14,
-                "Wind": 15,
-                "Solar": 16,
-                "Other": 17,
-                "Storage": 18,
-                "Total": 19,
-            },
-            "South": {
-                "Coal": 21,
-                "Gas": 22,
-                "Nuclear": 23,
-                "Hydro": 24,
-                "Wind": 25,
-                "Solar": 26,
-                "Other": 27,
-                "Total": 28,
-            },
-            "MISO": {
-                "Coal": 32,
-                "Gas": 33,
-                "Nuclear": 34,
-                "Hydro": 35,
-                "Wind": 36,
-                "Solar": 37,
-                "Other": 38,
-                "Storage": 39,
-                "Total": 40,
-            },
+        # The column layout varies across history (e.g. some 2023 files omit the South
+        # Wind column, which shifts every later column), so we locate each area's
+        # columns dynamically from the area group header row (row index 3) and the fuel
+        # header row (row index 4) rather than hardcoding offsets. The source labels the
+        # system-wide block "Total" and its total column "MISO"; per-area total columns
+        # are labeled "Total MW".
+        area_label_map = {
+            "Central": "Central",
+            "North": "North",
+            "South": "South",
+            "Total": "MISO",
         }
+
+        group_row = raw.iloc[3]
+        header_row = raw.iloc[4]
+
+        group_columns = sorted(
+            col for col in range(raw.shape[1]) if pd.notna(group_row.iloc[col])
+        )
+
+        area_columns = {}
+        for index, start_col in enumerate(group_columns):
+            end_col = (
+                group_columns[index + 1]
+                if index + 1 < len(group_columns)
+                else raw.shape[1]
+            )
+            area = area_label_map.get(str(group_row.iloc[start_col]).strip())
+            if area is None:
+                continue
+
+            columns = {}
+            for col in range(start_col, end_col):
+                header = header_row.iloc[col]
+                if pd.isna(header):
+                    continue
+                header = str(header).strip()
+                if header in fuels:
+                    columns[header] = col
+                elif header in ("Total MW", "MISO"):
+                    columns["Total"] = col
+            area_columns[area] = columns
 
         hour_ending = pd.to_numeric(raw.iloc[:, 0], errors="coerce")
         data = raw[hour_ending.between(1, 24)].reset_index(drop=True)
