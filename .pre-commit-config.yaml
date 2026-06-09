@@ -60,6 +60,7 @@ repos:
             gridstatus/isone_api/.*|
             gridstatus/lmp_config\.py|
             gridstatus/miso\.py|
+            gridstatus/miso_api\.py|
             gridstatus/nyiso\.py|
             gridstatus/pjm\.py|
             gridstatus/spp\.py|
