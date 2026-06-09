@@ -4233,13 +4233,17 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with hourly planned outage capacity data
         """
-        return self._get_hourly_report(
-            start=date,
-            end=end,
-            report_type_id=PLANNED_OUTAGE_CAPACITY_7_DAY_RTID,
-            extension="csv",
-            handle_doc=self._handle_planned_outage_capacity_7_day,
-            verbose=verbose,
+        return (
+            self._get_hourly_report(
+                start=date,
+                end=end,
+                report_type_id=PLANNED_OUTAGE_CAPACITY_7_DAY_RTID,
+                extension="csv",
+                handle_doc=self._handle_planned_outage_capacity_7_day,
+                verbose=verbose,
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
         )
 
     def _handle_planned_outage_capacity_7_day(
@@ -4281,13 +4285,17 @@ class Ercot(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with daily planned outage capacity data
         """
-        return self._get_hourly_report(
-            start=date,
-            end=end,
-            report_type_id=PLANNED_OUTAGE_CAPACITY_FUTURE_RTID,
-            extension="csv",
-            handle_doc=self._handle_planned_outage_capacity_future,
-            verbose=verbose,
+        return (
+            self._get_hourly_report(
+                start=date,
+                end=end,
+                report_type_id=PLANNED_OUTAGE_CAPACITY_FUTURE_RTID,
+                extension="csv",
+                handle_doc=self._handle_planned_outage_capacity_future,
+                verbose=verbose,
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
         )
 
     def _handle_planned_outage_capacity_future(
@@ -4325,7 +4333,7 @@ class Ercot(ISOBase):
                 "AggReceivedResourcePOCIRR": "Received POC IRR",
             },
         )
-        df = df.sort_values(["Interval Start", "Publish Time"]).reset_index(drop=True)
+
         return df[
             [
                 "Interval Start",

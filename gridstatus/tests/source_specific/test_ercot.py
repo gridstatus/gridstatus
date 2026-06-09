@@ -1901,11 +1901,15 @@ class TestErcot(BaseTestISO):
 
         assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Publish Time"].kind == "M"
+        assert df.dtypes["Publish Time"] == "datetime64[s, US/Central]"
 
         assert not df.duplicated(
             subset=["Publish Time", "Interval Start"],
         ).any()
+
+        assert df.equals(
+            df.sort_values(["Interval Start", "Publish Time"]).reset_index(drop=True),
+        )
 
     def test_get_planned_outage_capacity_7_day(self):
         end = (
