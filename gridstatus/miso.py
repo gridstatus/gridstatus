@@ -612,7 +612,7 @@ class MISO(ISOBase):
         },
     )
     @support_date_range(frequency="DAY_START")
-    def get_lmp(
+    def _get_lmp(
         self,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
@@ -723,6 +723,109 @@ class MISO(ISOBase):
         data = utils.filter_lmp_locations(data, locations)
 
         return data
+
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
+            Markets.REAL_TIME_HOURLY_FINAL: ["historical"],
+            Markets.REAL_TIME_HOURLY_PRELIM: ["historical"],
+        },
+    )
+    def get_lmp(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        market: str = Markets.REAL_TIME_5_MIN,
+        locations: list = "ALL",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Deprecated. Use the per-dataset methods instead:
+        :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_day_ahead_hourly`,
+        :meth:`get_lmp_real_time_hourly_prelim`,
+        :meth:`get_lmp_real_time_hourly_final`.
+        """
+        warnings.warn(
+            "MISO.get_lmp is deprecated; use the per-dataset methods "
+            "get_lmp_real_time_5_min, get_lmp_day_ahead_hourly, "
+            "get_lmp_real_time_hourly_prelim, or get_lmp_real_time_hourly_final "
+            "instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_lmp(
+            date,
+            end=end,
+            market=market,
+            locations=locations,
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get prelim ExPost real-time 5-minute LMPs for all nodes.
+
+        Only today, yesterday, and "latest" are supported.
+        """
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.REAL_TIME_5_MIN,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get ExPost day-ahead hourly LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.DAY_AHEAD_HOURLY,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_hourly_prelim(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get prelim ExPost real-time hourly LMPs for all nodes.
+
+        Only 4 days of data available, with the most recent being yesterday.
+        """
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.REAL_TIME_HOURLY_PRELIM,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_hourly_final(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get final ExPost real-time hourly LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.REAL_TIME_HOURLY_FINAL,
+            locations="ALL",
+            verbose=verbose,
+        )
 
     def _handle_hourly_lmp(
         self,

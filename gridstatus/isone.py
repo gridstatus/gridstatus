@@ -1,4 +1,5 @@
 import io
+import warnings
 from typing import BinaryIO
 
 import pandas as pd
@@ -380,7 +381,7 @@ class ISONE(ISOBase):
         },
     )
     @support_date_range(frequency="DAY_START")
-    def get_lmp(
+    def _get_lmp(
         self,
         date,
         end=None,
@@ -515,6 +516,87 @@ class ISONE(ISOBase):
         # https://www.iso-ne.com/static-assets/documents/2022/01/2022_daygenbyfuel.xlsx
         # a bunch more here: https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/daily-gen-fuel-type
 
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
+        },
+    )
+    def get_lmp(
+        self,
+        date,
+        end=None,
+        market: str = None,
+        locations: list = None,
+        include_id=False,
+        verbose=False,
+    ):
+        """Deprecated. Use the per-dataset methods instead:
+        :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_real_time_hourly`,
+        :meth:`get_lmp_day_ahead_hourly`.
+        """
+        warnings.warn(
+            "ISONE.get_lmp is deprecated; use the per-dataset methods "
+            "get_lmp_real_time_5_min, get_lmp_real_time_hourly, or "
+            "get_lmp_day_ahead_hourly instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_lmp(
+            date,
+            end=end,
+            market=market,
+            locations=locations,
+            include_id=include_id,
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time 5-minute LMPs for all locations."""
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.REAL_TIME_5_MIN,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time hourly LMPs for all locations."""
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.REAL_TIME_HOURLY,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead hourly LMPs for all locations."""
+        return self._get_lmp(
+            date,
+            end=end,
+            market=Markets.DAY_AHEAD_HOURLY,
+            locations="ALL",
+            verbose=verbose,
+        )
+
     def _process_lmp(self, data, market, timezone, locations, include_id=False):
         # each market returns a slight different set of columns
         # real time 5 minute has "Location ID"
@@ -562,7 +644,7 @@ class ISONE(ISOBase):
 
         # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
-            day_ahead = self.get_lmp(
+            day_ahead = self._get_lmp(
                 # query for same day in case it matters
                 date=data["Interval Start"].min().date(),
                 market=Markets.DAY_AHEAD_HOURLY,

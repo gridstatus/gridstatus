@@ -1,3 +1,4 @@
+import warnings
 from enum import StrEnum
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
@@ -513,7 +514,7 @@ class NYISO(ISOBase):
         },
     )
     @support_date_range(frequency="MONTH_START")
-    def get_lmp(
+    def _get_lmp(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -625,7 +626,7 @@ class NYISO(ISOBase):
             # timestamp in the daily dataframe. If the data matches, then we know all
             # daily data after that timestamp is 15 minute. If the data doesn't match,
             # we assume all daily data on or after that timestamp is 15 min data.
-            most_recent_5_min_data = self.get_lmp(
+            most_recent_5_min_data = self._get_lmp(
                 date="latest",
                 market=Markets.REAL_TIME_5_MIN,
                 location_type=location_type,
@@ -685,6 +686,152 @@ class NYISO(ISOBase):
             .sort_values(["Interval Start", "Location"])
             .reset_index(drop=True)
         )
+
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_15_MIN: ["latest", "today"],
+            Markets.REAL_TIME_HOURLY: ["latest", "today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+        },
+    )
+    def get_lmp(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        market: Markets | None = None,
+        locations: list | None = None,
+        location_type: NYISOLocationType | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Deprecated. Use the per-dataset methods instead:
+        :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_real_time_15_min`,
+        :meth:`get_lmp_real_time_hourly`, :meth:`get_lmp_day_ahead_hourly`.
+        """
+        warnings.warn(
+            "NYISO.get_lmp is deprecated; use the per-dataset methods "
+            "get_lmp_real_time_5_min, get_lmp_real_time_15_min, "
+            "get_lmp_real_time_hourly, or get_lmp_day_ahead_hourly instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_lmp(
+            date,
+            end=end,
+            market=market,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+    def _get_lmp_zone_and_generator(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        market: Markets,
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Fetch both zone and generator LMPs for a market.
+
+        The generator data also contains the single Reference Bus location.
+        """
+        zone = self._get_lmp(
+            date,
+            end=end,
+            market=market,
+            locations="ALL",
+            location_type=NYISOLocationType.ZONE,
+            verbose=verbose,
+        )
+        generator = self._get_lmp(
+            date,
+            end=end,
+            market=market,
+            locations="ALL",
+            location_type=NYISOLocationType.GENERATOR,
+            verbose=verbose,
+        )
+        return zone, generator
+
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time 5-minute (RTD) LMPs for all zone and generator locations."""
+        zone, generator = self._get_lmp_zone_and_generator(
+            date,
+            market=Markets.REAL_TIME_5_MIN,
+            end=end,
+            verbose=verbose,
+        )
+
+        df = pd.concat([zone, generator], axis=0)
+
+        # Only keep intervals where both zone and generator data are present so the
+        # combined dataset is internally consistent.
+        maximum_timestamp = min(
+            zone["Interval Start"].max(),
+            generator["Interval Start"].max(),
+        )
+        df = df[df["Interval Start"] <= maximum_timestamp]
+
+        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    def get_lmp_real_time_15_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time 15-minute (RTC) LMPs for all zone and generator locations."""
+        zone, generator = self._get_lmp_zone_and_generator(
+            date,
+            market=Markets.REAL_TIME_15_MIN,
+            end=end,
+            verbose=verbose,
+        )
+
+        df = pd.concat([zone, generator], axis=0)
+
+        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    def get_lmp_real_time_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time hourly LMPs for all zone and generator locations."""
+        zone, generator = self._get_lmp_zone_and_generator(
+            date,
+            market=Markets.REAL_TIME_HOURLY,
+            end=end,
+            verbose=verbose,
+        )
+
+        df = pd.concat([zone, generator], axis=0)
+
+        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead hourly LMPs for all zone and generator locations."""
+        zone, generator = self._get_lmp_zone_and_generator(
+            date,
+            market=Markets.DAY_AHEAD_HOURLY,
+            end=end,
+            verbose=verbose,
+        )
+
+        df = pd.concat([zone, generator], axis=0)
+
+        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     def get_raw_interconnection_queue(self) -> BinaryIO:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa

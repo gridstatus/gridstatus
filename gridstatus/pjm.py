@@ -412,7 +412,7 @@ class PJM(ISOBase):
         },
     )
     @support_date_range(frequency="365D", update_dates=pjm_update_dates)
-    def get_lmp(
+    def _get_lmp(
         self,
         date: str | pd.Timestamp,
         market: str,
@@ -604,6 +604,87 @@ class PJM(ISOBase):
         data = data.sort_values("Interval Start")
 
         return data
+
+    @lmp_config(
+        supports={
+            Markets.REAL_TIME_5_MIN: ["today", "historical"],
+            Markets.REAL_TIME_HOURLY: ["today", "historical"],
+            Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
+        },
+    )
+    def get_lmp(
+        self,
+        date: str | pd.Timestamp,
+        market: str,
+        end: str | pd.Timestamp | None = None,
+        locations: str = "hubs",
+        location_type: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Deprecated. Use the per-dataset methods instead:
+        :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_real_time_hourly`,
+        :meth:`get_lmp_day_ahead_hourly`.
+        """
+        warnings.warn(
+            "PJM.get_lmp is deprecated; use the per-dataset methods "
+            "get_lmp_real_time_5_min, get_lmp_real_time_hourly, or "
+            "get_lmp_day_ahead_hourly instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_lmp(
+            date,
+            market=market,
+            end=end,
+            locations=locations,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time 5-minute LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            market=Markets.REAL_TIME_5_MIN,
+            end=end,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time hourly LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            market=Markets.REAL_TIME_HOURLY,
+            end=end,
+            locations="ALL",
+            verbose=verbose,
+        )
+
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead hourly LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            market=Markets.DAY_AHEAD_HOURLY,
+            end=end,
+            locations="ALL",
+            verbose=verbose,
+        )
 
     def _add_pnode_info_to_lmp_data(self, data: pd.DataFrame) -> pd.DataFrame:
         # the pnode_name in the lmp data isn't always full name
