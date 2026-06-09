@@ -345,6 +345,14 @@ AS_EXCLUDE_PRODUCTS = [
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
 HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
 
+# Available Resource Planned Outage Capacity Margin_7 Day
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-162-CD
+PLANNED_OUTAGE_CAPACITY_7_DAY_RTID = 22469
+
+# Available Resource Planned Outage Capacity Margin_7 Day Plus
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-161-CD
+PLANNED_OUTAGE_CAPACITY_FUTURE_RTID = 22470
+
 # Wind Power Production - Hourly Averaged Actual and Forecasted Values
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
 WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
@@ -4202,6 +4210,143 @@ class Ercot(ISOBase):
             )
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_planned_outage_capacity_7_day(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Hourly maximum resource capacity available for planned outages within 7
+        days of the operating day, as reported by ERCOT (NP3-162-CD).
+
+        The date argument refers to the publish time of the report, which is
+        published hourly.
+
+        Arguments:
+            date (str, pd.Timestamp): publish time to download.
+            end (str, pd.Timestamp, optional): end publish time to download.
+                Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly planned outage capacity data
+        """
+        return (
+            self._get_hourly_report(
+                start=date,
+                end=end,
+                report_type_id=PLANNED_OUTAGE_CAPACITY_7_DAY_RTID,
+                extension="csv",
+                handle_doc=self._handle_planned_outage_capacity_7_day,
+                verbose=verbose,
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    def _handle_planned_outage_capacity_7_day(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        df = df.rename(columns={"OperatingDate": "DeliveryDate"})
+        df = self.parse_doc(df, verbose=verbose)
+
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+
+        return self._handle_planned_outage_capacity_df(df)
+
+    @support_date_range(frequency=None)
+    def get_planned_outage_capacity_future(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Daily maximum resource capacity available for planned outages from 7 days
+        to 60 months ahead of the operating day, as reported by ERCOT (NP3-161-CD).
+
+        The date argument refers to the publish time of the report, which is
+        published twice each business day.
+
+        Arguments:
+            date (str, pd.Timestamp): publish time to download.
+            end (str, pd.Timestamp, optional): end publish time to download.
+                Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with daily planned outage capacity data
+        """
+        return (
+            self._get_hourly_report(
+                start=date,
+                end=end,
+                report_type_id=PLANNED_OUTAGE_CAPACITY_FUTURE_RTID,
+                extension="csv",
+                handle_doc=self._handle_planned_outage_capacity_future,
+                verbose=verbose,
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    def _handle_planned_outage_capacity_future(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+
+        df["Interval Start"] = pd.to_datetime(
+            df["OperatingDate"],
+            format="%m/%d/%Y",
+        ).dt.tz_localize(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+
+        return self._handle_planned_outage_capacity_df(df)
+
+    def _handle_planned_outage_capacity_df(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "MaxDailyResourcePOCnonIRRnonPUN": "Max POC Non IRR Non PUN",
+                "AggApprovedResourcePOCnonIRRnonPUN": "Approved POC Non IRR Non PUN",
+                "AggReceivedResourcePOCnonIRRnonPUN": "Received POC Non IRR Non PUN",
+                "MaxDailyResourcePOCIRR": "Max POC IRR",
+                "AggApprovedResourcePOCIRR": "Approved POC IRR",
+                "AggReceivedResourcePOCIRR": "Received POC IRR",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Max POC Non IRR Non PUN",
+                "Approved POC Non IRR Non PUN",
+                "Received POC Non IRR Non PUN",
+                "Max POC IRR",
+                "Approved POC IRR",
+                "Received POC IRR",
+            ]
+        ]
 
     @support_date_range(frequency=None)
     def get_unplanned_resource_outages(
