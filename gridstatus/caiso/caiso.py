@@ -2175,6 +2175,166 @@ class CAISO(ISOBase):
 
         return df
 
+    def _parse_ir_rc_requirements_awards(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "BAA_GRP_ID": "BAA",
+                "PRODUCT_TYPE": "Product",
+            },
+        )
+
+        df = df.melt(
+            id_vars=[
+                "Interval Start",
+                "Interval End",
+                "BAA",
+                "Product",
+            ],
+            value_vars=["REQ_MW", "AGG_AWD_MW"],
+            var_name="Type",
+            value_name="MW",
+        )
+
+        df["Type"] = df["Type"].map(
+            {
+                "REQ_MW": "Requirement",
+                "AGG_AWD_MW": "Award",
+            },
+        )
+
+        df["MW"] = pd.to_numeric(df["MW"], errors="coerce")
+        df = df.dropna(subset=["MW"])
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "BAA",
+            "Product",
+            "Type",
+            "MW",
+        ]
+
+        return (
+            df[columns]
+            .sort_values(["Interval Start", "BAA", "Product", "Type"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_requirements_awards_dam(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return day-ahead hourly Imbalance Reserve requirements and
+        Imbalance Reserve and Reliability Capacity awards by BAA.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, BAA, Product, Type). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_requirements_awards",
+            start=date,
+            end=end,
+            params={"groupid": "DAM_CAP_REQ_AWRD_GRP"},
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        if df.empty:
+            return df
+
+        return self._parse_ir_rc_requirements_awards(df)
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_requirements_awards_2da(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return two-day-ahead hourly Imbalance Reserve requirements by BAA.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, BAA, Product, Type). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_requirements_awards",
+            start=date,
+            end=end,
+            params={"groupid": "2DA_CAP_REQ_AWRD_GRP"},
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        if df.empty:
+            return df
+
+        return self._parse_ir_rc_requirements_awards(df)
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_requirements_awards_3da(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return three-day-ahead hourly Imbalance Reserve requirements by BAA.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, BAA, Product, Type). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_requirements_awards",
+            start=date,
+            end=end,
+            params={"groupid": "3DA_CAP_REQ_AWRD_GRP"},
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        if df.empty:
+            return df
+
+        return self._parse_ir_rc_requirements_awards(df)
+
     @support_date_range(frequency="DAY_START")
     def get_curtailed_non_operational_generator_report(
         self,
