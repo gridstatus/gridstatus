@@ -674,7 +674,7 @@ class TestMISOAPI(TestHelperMixin):
         with api_vcr.use_cassette(
             f"get_day_ahead_generation_fuel_type_hourly_{date.date()}",
         ):
-            df = self.iso.get_day_ahead_generation_fuel_type_hourly(date)
+            df = self.iso.get_generation_fuel_mix_by_area_day_ahead(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -881,7 +881,7 @@ class TestMISOAPI(TestHelperMixin):
         with api_vcr.use_cassette(
             f"get_real_time_generation_fuel_type_hourly_{date.date()}",
         ):
-            df = self.iso.get_real_time_generation_fuel_type_hourly(date)
+            df = self.iso.get_generation_fuel_mix_by_area_real_time(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
