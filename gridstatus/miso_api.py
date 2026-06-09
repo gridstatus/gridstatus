@@ -799,7 +799,7 @@ class MISOAPI:
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_generation_fuel_mix_by_area_day_ahead(
+    def get_generation_fuel_mix_by_region_day_ahead(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -874,7 +874,7 @@ class MISOAPI:
         return data
 
     @support_date_range(frequency="DAY_START")
-    def get_generation_fuel_mix_by_area_real_time(
+    def get_generation_fuel_mix_by_region_real_time(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,

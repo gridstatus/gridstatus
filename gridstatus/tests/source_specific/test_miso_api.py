@@ -668,13 +668,13 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_day_ahead_generation_fuel_type_hourly(self):
+    def test_get_generation_fuel_mix_by_region_day_ahead(self):
         date = self.local_start_of_today()
 
         with api_vcr.use_cassette(
-            f"get_day_ahead_generation_fuel_type_hourly_{date.date()}",
+            f"get_generation_fuel_mix_by_region_day_ahead_{date.date()}",
         ):
-            df = self.iso.get_generation_fuel_mix_by_area_day_ahead(date)
+            df = self.iso.get_generation_fuel_mix_by_region_day_ahead(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
@@ -875,13 +875,13 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     @pytest.mark.integration
-    def test_get_real_time_generation_fuel_type_hourly(self):
+    def test_get_generation_fuel_mix_by_region_real_time(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"get_real_time_generation_fuel_type_hourly_{date.date()}",
+            f"get_generation_fuel_mix_by_region_real_time_{date.date()}",
         ):
-            df = self.iso.get_generation_fuel_mix_by_area_real_time(date)
+            df = self.iso.get_generation_fuel_mix_by_region_real_time(date)
 
         assert df.columns.tolist() == [
             "Interval Start",
