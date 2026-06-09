@@ -2254,9 +2254,6 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        if df.empty:
-            return df
-
         return self._parse_ir_rc_requirements_awards(df)
 
     @support_date_range(frequency="DAY_START")
@@ -2292,9 +2289,6 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        if df.empty:
-            return df
-
         return self._parse_ir_rc_requirements_awards(df)
 
     @support_date_range(frequency="DAY_START")
@@ -2329,9 +2323,6 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
-
-        if df.empty:
-            return df
 
         return self._parse_ir_rc_requirements_awards(df)
 
