@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.37.0 - June 11, 2026
+
 ### Breaking Changes
 
 * Removed the `save_to` parameter from data retrieval methods. Data is no longer written to CSV files as it is fetched; callers should save the returned DataFrame themselves (e.g. with `df.to_csv(...)`). The `load_folder` utility remains available for loading previously saved CSV folders.
@@ -10,6 +12,10 @@
 
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
+
+### Documentation & Packaging
+
+* Rewrote the README as an LLM/agent-friendly "call contract" (canonical fixed-date examples, honest open-source-vs-hosted comparison, a "Notes for AI agents" section) and enriched PyPI metadata — clearer description, expanded keywords, Trove classifiers, and Homepage/Documentation/Data Catalog/Hosted API project URLs — for better discoverability by humans, agents, and package indexes in [#888](https://github.com/gridstatus/gridstatus/pull/888)
 
 ## v0.36.0 - April 20, 2026
 
