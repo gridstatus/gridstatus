@@ -23,6 +23,7 @@ from gridstatus.gs_logging import logger
 RTBM_LMP_BY_BUS = "rtbm-lmp-by-bus"
 FS_RTBM_LMP_BY_LOCATION = "rtbm-lmp-by-location"
 FS_DAM_LMP_BY_LOCATION = "da-lmp-by-settlement-location"
+FS_DAM_LMP_BY_BUS = "da-lmp-by-bus"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
 OPERATING_RESERVES = "operating-reserves"
 RTBM_MCP = "rtbm-mcp"
@@ -154,6 +155,27 @@ def fill_baa_column(df, load_col):
             ),
         )
     return df
+
+
+def _binding_constraints_real_time_5_min_frequency(args_dict: dict) -> str:
+    """support_date_range frequency for SPP real-time binding constraints.
+
+    Splits at 5-min boundaries only for same-day recent windows so the
+    caller's explicit end is preserved through decorator chunking. Otherwise
+    splits per day, matching the source's daily-file granularity.
+    """
+    iso = args_dict["self"]
+    end = args_dict.get("end")
+    if end is None:
+        return "DAY_START"
+
+    start = utils._handle_date(args_dict["date"], iso.default_timezone)
+    end = utils._handle_date(end, iso.default_timezone)
+    if start.normalize() != end.normalize():
+        return "DAY_START"
+    if not utils.is_within_last_days(start, 1, iso.default_timezone):
+        return "DAY_START"
+    return "5_MIN"
 
 
 class SPP(ISOBase):
@@ -1580,12 +1602,42 @@ class SPP(ISOBase):
         if date == "latest":
             raise NotSupported("Latest not supported for day ahead hourly")
 
-        df = self._get_dam_lmp(date, verbose)
+        df = self._get_dam_lmp(date, location_type=location_type, verbose=verbose)
 
         return self._finalize_spp_df(
             df,
             market=Markets.DAY_AHEAD_HOURLY,
             location_type=location_type,
+            verbose=verbose,
+            include_baa=True,
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_lmp_day_ahead_hourly_by_bus(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day ahead hourly LMP data by bus (pnode-level).
+
+        Args:
+            date: date to get data for
+            end: end date
+            verbose: print url
+
+        NOTE: does not take a location_type argument because it always returns
+        LOCATION_TYPE_BUS.
+        """
+        if date == "latest":
+            raise NotSupported("Latest not supported for day ahead hourly by bus")
+
+        df = self._get_dam_lmp(date, location_type=LOCATION_TYPE_BUS, verbose=verbose)
+
+        return self._finalize_spp_df(
+            df,
+            market=Markets.DAY_AHEAD_HOURLY,
+            location_type=LOCATION_TYPE_BUS,
             verbose=verbose,
             include_baa=True,
         )
@@ -1609,9 +1661,17 @@ class SPP(ISOBase):
     def _get_dam_lmp(
         self,
         date: pd.Timestamp,
+        location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{FS_DAM_LMP_BY_LOCATION}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-LMP-SL-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        if location_type == LOCATION_TYPE_BUS:
+            endpoint = FS_DAM_LMP_BY_BUS
+            file_prefix = "DA-LMP-B"
+        else:
+            endpoint = FS_DAM_LMP_BY_LOCATION
+            file_prefix = "DA-LMP-SL"
+
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/{file_prefix}-{date.strftime('%Y%m%d')}0100.csv"  # noqa
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return df
@@ -2531,7 +2591,16 @@ class SPP(ISOBase):
 
         return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
 
-    @support_date_range("DAY_START")
+    # NB: SPP RTBM publishes per-interval CSVs and daily aggregates. Both are
+    # aligned to local midnight. Interval files live under
+    # By_Interval/<DD>/RTBM-BC-<YYYYMMDDHHMM>.csv where DD is the interval's
+    # start-day and HHMM is the interval's end-time; the midnight-crossing
+    # interval (start = prev day 23:55, end = next day 00:00) sits in the
+    # previous day's folder with the next day's filename. Daily files are
+    # faster (one request per day) but lag publication, so we use interval
+    # files for today/yesterday and daily files for older history. Daily files
+    # always return the whole local day; this method slices the result to the
+    # caller's [date, end) window.
     def get_binding_constraints_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -2555,35 +2624,73 @@ class SPP(ISOBase):
                 verbose=verbose,
             )
 
-        # NB: Daily files are more performant for historical dates than getting from interval files
-        # The decorator splits by day, so we can check if this specific date is today
-        # Use interval files only for today; use daily files for all historical dates
-        # Note: Daily files contain the first 2.25 hours of the next day, so interval files
-        # for today don't start until 02:15
-        start_date = utils._handle_date(date, self.default_timezone)
-        if utils.is_today(start_date, self.default_timezone):
-            # When decorator splits by day, we need to provide end of day for interval method
-            # to get all intervals for that day. Also adjust start time since interval files
-            # for today don't exist for the first ~2 hours (they're in yesterday's daily file)
-            if end is None:
-                # Assume getting 5 minutes since this is a five minute dataset
-                end = start_date + pd.Timedelta(minutes=5)
-            # Interval files for today start around 02:15, so adjust start if needed
-            adjusted_start = max(
-                start_date,
-                start_date.normalize() + pd.Timedelta(hours=2, minutes=10),
-            )
-            return self._get_binding_constraints_real_time_5_min_from_intervals(
-                adjusted_start,
-                end=end,
-                verbose=verbose,
-            )
-        else:
+        start_ts = utils._handle_date(date, self.default_timezone)
+        end_ts = (
+            utils._handle_date(end, self.default_timezone) if end is not None else None
+        )
+
+        df = self._fetch_binding_constraints_real_time_5_min(
+            date=start_ts,
+            end=end_ts,
+            verbose=verbose,
+        )
+
+        if end_ts is None:
+            return df
+
+        return df[
+            (df["Interval Start"] >= start_ts) & (df["Interval Start"] < end_ts)
+        ].reset_index(drop=True)
+
+    @support_date_range(_binding_constraints_real_time_5_min_frequency)
+    def _fetch_binding_constraints_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Per-chunk fetch dispatching to interval or daily-file source."""
+        start = utils._handle_date(date, self.default_timezone)
+        if not utils.is_within_last_days(start, 1, self.default_timezone):
             return self._get_binding_constraints_real_time_5_min_from_daily_files(
-                date,
+                start,
                 end=end,
                 verbose=verbose,
             )
+
+        interval_start, interval_end = self._resolve_recent_interval_window(
+            start,
+            end,
+        )
+        return self._get_binding_constraints_real_time_5_min_from_intervals(
+            interval_start,
+            end=interval_end,
+            verbose=verbose,
+        )
+
+    def _resolve_recent_interval_window(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        """Window for today/yesterday interval fetches.
+
+        When end is omitted (DAY_START chunk), fetch through end-of-local-day,
+        capping today at the most recent 5-min boundary so we don't request
+        future intervals.
+        """
+        if end is None:
+            end = start.normalize() + pd.Timedelta(days=1)
+            if utils.is_today(start, self.default_timezone):
+                end = min(
+                    end,
+                    pd.Timestamp.now(tz=self.default_timezone).ceil("5min"),
+                )
+
+        if end <= start:
+            end = start + pd.Timedelta(minutes=5)
+
+        return start, end
 
     def _get_binding_constraints_real_time_5_min_from_daily_files(
         self,

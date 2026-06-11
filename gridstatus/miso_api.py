@@ -799,15 +799,12 @@ class MISOAPI:
         )
 
     @support_date_range(frequency="DAY_START")
-    def get_day_ahead_generation_fuel_type_hourly(
+    def get_generation_fuel_mix_by_region_day_ahead(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        if date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
-
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/fuel-type"
@@ -855,22 +852,100 @@ class MISOAPI:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 data[col] = data[col].astype(float)
 
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Total",
-                "Coal",
-                "Gas",
-                "Nuclear",
-                "Water",
-                "Wind",
-                "Solar",
-                "Other",
-                "Storage",
-            ]
-        ].reset_index(drop=True)
+        data = self._append_miso_generation_fuel_type_aggregate(
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Region",
+                    "Total",
+                    "Coal",
+                    "Gas",
+                    "Nuclear",
+                    "Water",
+                    "Wind",
+                    "Solar",
+                    "Other",
+                    "Storage",
+                ]
+            ],
+        )
+
+        return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_generation_fuel_mix_by_region_real_time(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        date_str = date.strftime("%Y-%m-%d")
+
+        url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/fuel-type"
+
+        data_list = self._get_url(
+            url,
+            product=LOAD_GENERATION_AND_INTERCHANGE_PRODUCT,
+            verbose=verbose,
+        )
+
+        df = self._data_list_to_df(
+            data_list,
+        )
+
+        if "interval" in df.columns:
+            df = df.drop(columns=["interval"])
+
+        fuel_types_df = df["fuelTypes"].apply(pd.Series)
+        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+
+        df = df.rename(
+            columns={
+                "region": "Region",
+                "totalMw": "Total",
+                "coal": "Coal",
+                "gas": "Gas",
+                "nuclear": "Nuclear",
+                "water": "Water",
+                "wind": "Wind",
+                "solar": "Solar",
+                "other": "Other",
+                "storage": "Storage",
+            },
+        )
+
+        data = df.reset_index()
+
+        data = data[data["Interval Start"] >= date]
+
+        if end is not None:
+            data = data[data["Interval End"] <= end]
+
+        for col in data.columns:
+            if col not in ["Interval Start", "Interval End", "Region"]:
+                data[col] = data[col].astype(float)
+
+        data = self._append_miso_generation_fuel_type_aggregate(
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Region",
+                    "Total",
+                    "Coal",
+                    "Gas",
+                    "Nuclear",
+                    "Water",
+                    "Wind",
+                    "Solar",
+                    "Other",
+                    "Storage",
+                ]
+            ],
+        )
+
+        return data
 
     def _get_real_time_cleared_demand(
         self,
@@ -1186,22 +1261,57 @@ class MISOAPI:
             if col not in ["Interval Start", "Interval End", "Region"]:
                 data[col] = data[col].astype(float)
 
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Region",
-                "Total",
-                "Coal",
-                "Gas",
-                "Nuclear",
-                "Water",
-                "Wind",
-                "Solar",
-                "Other",
-                "Storage",
-            ]
-        ].reset_index(drop=True)
+        data = self._append_miso_generation_fuel_type_aggregate(
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Region",
+                    "Total",
+                    "Coal",
+                    "Gas",
+                    "Nuclear",
+                    "Water",
+                    "Wind",
+                    "Solar",
+                    "Other",
+                    "Storage",
+                ]
+            ],
+        )
+
+        return data
+
+    def _append_miso_generation_fuel_type_aggregate(
+        self,
+        data: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Append a MISO system total region by summing the CENTRAL, NORTH, and SOUTH
+        regions for each interval. The API only returns the three sub-regions, so the
+        system-wide total is derived to match the retired Market Reports Generation
+        Fuel Mix dataset."""
+        value_columns = [
+            "Total",
+            "Coal",
+            "Gas",
+            "Nuclear",
+            "Water",
+            "Wind",
+            "Solar",
+            "Other",
+            "Storage",
+        ]
+
+        miso = data.groupby(["Interval Start", "Interval End"], as_index=False)[
+            value_columns
+        ].sum()
+        miso["Region"] = "MISO"
+
+        combined = pd.concat([data, miso], ignore_index=True)
+
+        return combined.sort_values(["Interval Start", "Region"]).reset_index(
+            drop=True,
+        )
 
     def _get_actual_load(
         self,

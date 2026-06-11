@@ -129,6 +129,14 @@ HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
 # https://data.ercot.com/data-product-archive/NP3-565-CD
 LOAD_FORECAST_BY_MODEL_ENDPOINT = "/np3-565-cd/lf_by_model_weather_zone"
 
+# Actual System Load by Weather Zone
+# https://data.ercot.com/data-product-archive/NP6-345-CD
+ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT = "/np6-345-cd/act_sys_load_by_wzn"
+
+# Actual System Load by Forecast Zone
+# https://data.ercot.com/data-product-archive/NP6-346-CD
+ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE_ENDPOINT = "/np6-346-cd/act_sys_load_by_fzn"
+
 
 # Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
 # https://data.ercot.com/data-product-archive/NP6-905-CD
@@ -159,6 +167,12 @@ INDICATIVE_LMP_BY_SETTLEMENT_POINT_ENDPOINT = "/np6-970-cd/rtd_lmp_node_zone_hub
 
 # https://data.ercot.com/data-product-archive/NP1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_ENDPOINT = "/np1-301/60_cop_adj_period_snapshot"
+
+# DAM Aggregated Ancillary Service Offer Curve
+# https://data.ercot.com/data-product-archive/NP4-19-CD
+# Not exposed as a delivery-date filterable public API endpoint; archive only.
+DAM_ASDC_AGGREGATED_EMIL_ID = "np4-19-cd"
+DAM_ASDC_AGGREGATED_ENDPOINT = f"/{DAM_ASDC_AGGREGATED_EMIL_ID}"
 
 ESR_ENDPOINT = "/rptesr-m/4_sec_esr_charging_mw"
 
@@ -690,6 +704,177 @@ class ErcotAPI:
             .reset_index(drop=True)
         )[LOAD_FORECAST_BY_MODEL_COLUMNS]
 
+    @support_date_range(frequency=None)
+    def get_load_by_weather_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Actual System Load by Weather Zone.
+
+        Hourly actual load by ERCOT weather zone, published once per operating
+        day on the following day.
+
+        Arguments:
+            date: the operating day to fetch reports for.
+            end: the end operating day (exclusive). Defaults to one day after date.
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            A DataFrame with hourly load by weather zone.
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP6-345-CD
+        """
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT,
+                # The archive is filtered by posted date, which runs the day
+                # after the operating day, so shift the window forward by 1 day.
+                start_date=date + pd.Timedelta(days=1),
+                end_date=end + pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "operatingDayFrom": date,
+                # Subtract off one second to avoid including the end date
+                "operatingDayTo": end - pd.Timedelta(seconds=1),
+            }
+            data = self.hit_ercot_api(
+                endpoint=ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT,
+                page_size=DEFAULT_PAGE_SIZE,
+                verbose=verbose,
+                **api_params,
+            )
+
+        # Normalize the date column name to what Ercot.parse_doc expects.
+        data = data.rename(columns={"OperatingDay": "DeliveryDate"})
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        # The live API returns camelCase columns capitalized to e.g. "FarWest",
+        # while the historical archive returns "FAR_WEST" — normalize both.
+        data = data.rename(
+            columns={
+                "Coast": "Coast",
+                "East": "East",
+                "FarWest": "Far West",
+                "North": "North",
+                "NorthC": "North Central",
+                "SouthC": "South Central",
+                "Southern": "Southern",
+                "West": "West",
+                "Total": "System Total",
+                "COAST": "Coast",
+                "EAST": "East",
+                "FAR_WEST": "Far West",
+                "NORTH": "North",
+                "NORTH_C": "North Central",
+                "SOUTH_C": "South Central",
+                "SOUTHERN": "Southern",
+                "WEST": "West",
+                "TOTAL": "System Total",
+            },
+        )
+
+        columns = (
+            ["Time", "Interval Start", "Interval End"]
+            + Ercot()._weather_zone_column_name_order()
+            + ["System Total"]
+        )
+
+        return (
+            utils.move_cols_to_front(data, columns)
+            .sort_values("Interval Start")
+            .reset_index(drop=True)[columns]
+        )
+
+    @support_date_range(frequency=None)
+    def get_load_by_forecast_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Actual System Load by Forecast Zone.
+
+        Hourly actual load by ERCOT forecast zone (North, South, West, Houston),
+        published once per operating day on the following day.
+
+        Arguments:
+            date: the operating day to fetch reports for.
+            end: the end operating day (exclusive). Defaults to one day after date.
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            A DataFrame with hourly load by forecast zone.
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP6-346-CD
+        """
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        if self._should_use_historical(date):
+            data = self.get_historical_data(
+                endpoint=ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE_ENDPOINT,
+                # The archive is filtered by posted date, which runs the day
+                # after the operating day, so shift the window forward by 1 day.
+                start_date=date + pd.Timedelta(days=1),
+                end_date=end + pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+        else:
+            api_params = {
+                "operatingDayFrom": date,
+                # Subtract off one second to avoid including the end date
+                "operatingDayTo": end - pd.Timedelta(seconds=1),
+            }
+            data = self.hit_ercot_api(
+                endpoint=ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE_ENDPOINT,
+                page_size=DEFAULT_PAGE_SIZE,
+                verbose=verbose,
+                **api_params,
+            )
+
+        # Normalize the date column name to what Ercot.parse_doc expects.
+        data = data.rename(columns={"OperatingDay": "DeliveryDate"})
+
+        data = Ercot().parse_doc(data, verbose=verbose)
+
+        # The live API returns capitalized columns like "North", while the
+        # historical archive returns "NORTH" — normalize both to uppercase
+        # to match Ercot.get_load_by_forecast_zone.
+        data = data.rename(
+            columns={
+                "North": "NORTH",
+                "South": "SOUTH",
+                "West": "WEST",
+                "Houston": "HOUSTON",
+                "Total": "TOTAL",
+            },
+        )
+
+        columns = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "NORTH",
+            "SOUTH",
+            "WEST",
+            "HOUSTON",
+            "TOTAL",
+        ]
+
+        return (
+            utils.move_cols_to_front(data, columns)
+            .sort_values("Interval Start")
+            .reset_index(drop=True)[columns]
+        )
+
     def get_as_prices(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -793,6 +978,50 @@ class ErcotAPI:
     ) -> pd.DataFrame:
         data = self.ercot.parse_doc(data, verbose=verbose)
         return self.ercot._handle_mcpc_dam_df(data)
+
+    @support_date_range(frequency=None)
+    def get_dam_asdc_aggregated(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Aggregated Ancillary Service Offer Curve (NP4-19-CD).
+
+        Contains the aggregated offer curve (price/quantity pairs) per
+        ancillary service type for each hour of the next day's delivery,
+        published once per DAM run. Covers REGDN, REGUP, RRSPF, RRSFF, RRSUF,
+        ECRSS, and ECRSM.
+
+        This dataset is only available via the ERCOT data archive (not as a
+        delivery-date filterable public API endpoint), so the archive is
+        filtered by the DAM posted date, which runs the day before delivery.
+
+        Arguments:
+            date (str): the delivery date to fetch offer curves for. Can be
+                "latest" to fetch the next day's curves.
+            end (str, optional): the end delivery date. Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns Interval Start,
+            Interval End, AS Type, Price, and Quantity.
+        """
+        if date == "latest":
+            return self.get_dam_asdc_aggregated("today", verbose=verbose)
+
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        # The archive filters by posted datetime, which is the day before the
+        # delivery date (DAM runs the day before), so shift back by one day.
+        data = self.get_historical_data(
+            endpoint=DAM_ASDC_AGGREGATED_ENDPOINT,
+            start_date=date - pd.Timedelta(days=1),
+            end_date=end - pd.Timedelta(days=1),
+            verbose=verbose,
+        )
+
+        return self.ercot._handle_dam_asdc_aggregated(data)
 
     @support_date_range(frequency=None)
     def get_as_reports(self, date, end=None, verbose=False):
@@ -1450,6 +1679,8 @@ class ErcotAPI:
                 - "dam_ptp_obligation_option_awards"
                 - "dam_esr" (when available, starting 2025-12-06)
                 - "dam_esr_as_offers" (when available, starting 2025-12-06)
+                - "dam_as_only_awards" (when available, starting 2025-12-06)
+                - "dam_as_only_offers" (when available, starting 2025-12-06)
 
         NOTE: because data is delayed by 60 days, requesting data in the past 60 days
         will return no data.

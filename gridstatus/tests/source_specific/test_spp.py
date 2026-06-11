@@ -655,6 +655,77 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_day_ahead_hourly(df, location_types=[location_type])
 
+    """get_lmp_day_ahead_hourly_by_bus"""
+
+    def _check_lmp_day_ahead_hourly_by_bus(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "BAA",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+
+        assert df["Market"].unique() == [Markets.DAY_AHEAD_HOURLY.value]
+        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
+        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+
+    @pytest.mark.integration
+    def test_get_lmp_day_ahead_hourly_by_bus_latest_not_supported(self):
+        with pytest.raises(NotSupported):
+            self.iso.get_lmp_day_ahead_hourly_by_bus(date="latest")
+
+    def test_get_lmp_day_ahead_hourly_by_bus_today(self):
+        with api_vcr.use_cassette(
+            "test_get_lmp_day_ahead_hourly_by_bus_today.yaml",
+        ):
+            df = self.iso.get_lmp_day_ahead_hourly_by_bus(date="today")
+
+        self._check_lmp_day_ahead_hourly_by_bus(df)
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
+            days=1,
+        )
+
+    def test_get_lmp_day_ahead_hourly_by_bus_date_range(self):
+        four_days_ago = self.local_start_of_today() - pd.DateOffset(days=4)
+        two_days_ago = four_days_ago + pd.DateOffset(days=2)
+
+        with api_vcr.use_cassette(
+            f"test_get_lmp_day_ahead_hourly_by_bus_date_range_{four_days_ago.strftime('%Y%m%d')}_{two_days_ago.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_day_ahead_hourly_by_bus(
+                start=four_days_ago,
+                end=two_days_ago,
+            )
+
+        self._check_lmp_day_ahead_hourly_by_bus(df)
+        assert df["Interval Start"].min() == four_days_ago
+        # Not end day inclusive
+        assert df["Interval End"].max() == two_days_ago
+
+    def test_get_lmp_day_ahead_hourly_by_bus_historical_date(self):
+        thirty_days_ago = self.local_start_of_today() - pd.DateOffset(days=30)
+
+        with api_vcr.use_cassette(
+            f"test_get_lmp_day_ahead_hourly_by_bus_historical_date_{thirty_days_ago.strftime('%Y%m%d')}.yaml",
+        ):
+            df = self.iso.get_lmp_day_ahead_hourly_by_bus(date=thirty_days_ago)
+
+        self._check_lmp_day_ahead_hourly_by_bus(df)
+        assert df["Interval Start"].min() == thirty_days_ago
+        assert df["Interval End"].max() == thirty_days_ago + pd.DateOffset(days=1)
+
     # This is not a method in the class, but the base class calls it. So we need to
     # override these tests
     """get_lmp"""
@@ -2745,12 +2816,9 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() == three_days_ago
-        # Daily files return full day, so max is end of day
-        assert df["Interval Start"].max() == three_days_ago + pd.Timedelta(
-            hours=23,
-            minutes=55,
-        )
+        # Daily file is sliced to caller's [date, end) window
+        assert df["Interval Start"].min() >= three_days_ago
+        assert df["Interval Start"].max() < three_days_ago_0215
 
     def test_get_binding_constraints_real_time_5_min_range_includes_today(self):
         start_date = self.local_now() - pd.Timedelta(days=1)
@@ -2765,8 +2833,57 @@ class TestSPP(BaseTestISO):
             )
 
         self._check_binding_constraints_real_time(df)
-        assert df["Interval Start"].min() == start_date
-        assert df["Interval Start"].max() == end_date
+        assert df["Interval Start"].min() >= start_date
+        assert df["Interval Start"].max() < end_date
+
+    def test_get_binding_constraints_real_time_5_min_same_day_range_uses_intervals(
+        self,
+        monkeypatch,
+    ):
+        start_date = self.local_start_of_today() + pd.Timedelta(hours=12)
+        end_date = start_date + pd.Timedelta(minutes=30)
+
+        calls = []
+
+        def fake_intervals_fetch(date, end=None, verbose=False):
+            calls.append((date, end))
+            return pd.DataFrame(
+                {
+                    "Interval Start": [start_date],
+                    "Interval End": [start_date + pd.Timedelta(minutes=5)],
+                    "Constraint Name": ["C"],
+                    "Constraint Type": ["RTBM"],
+                    "NERC ID": pd.Series([1], dtype="Int64"),
+                    "TLR Level": [None],
+                    "State": ["ACTIVE"],
+                    "Shadow Price": [0.0],
+                    "Monitored Facility": ["M"],
+                    "Contingent Facility": ["CF"],
+                },
+            )
+
+        def fail_daily_fetch(*args, **kwargs):
+            raise AssertionError("Expected interval route, not daily route")
+
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_intervals",
+            fake_intervals_fetch,
+        )
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_daily_files",
+            fail_daily_fetch,
+        )
+
+        self.iso.get_binding_constraints_real_time_5_min(
+            date=start_date,
+            end=end_date,
+        )
+
+        assert len(calls) == 6
+        assert calls[0][0] == start_date
+        assert calls[-1][1] == end_date
 
     """get_interchange_real_time"""
 

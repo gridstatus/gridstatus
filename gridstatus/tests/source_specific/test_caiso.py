@@ -53,6 +53,143 @@ class TestCAISO(BaseTestISO):
                 df = self.iso.get_as_procurement(date, market=market)
                 self._check_as_data(df, market)
 
+    """get_ir_rc_prices"""
+
+    IR_RC_PRICES_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Location",
+        "Product",
+        "MCP",
+        "Capacity",
+        "Congestion",
+        "Loss",
+    ]
+
+    def _check_ir_rc_prices(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == self.IR_RC_PRICES_COLUMNS
+        assert df.shape[0] > 0
+        assert set(df["Product"].unique()) == {"IRU", "IRD", "RCU", "RCD"}
+        interval_minutes = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        assert (interval_minutes == 60).all()
+        assert not df.duplicated(
+            subset=["Interval Start", "Location", "Product"],
+        ).any()
+        ir_loss_null = df.loc[df["Product"].isin(["IRU", "IRD"]), "Loss"].isna().all()
+        assert ir_loss_null
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_ir_rc_prices(self, date):
+        with caiso_vcr.use_cassette(f"test_get_ir_rc_prices_{date}.yaml"):
+            df = self.iso.get_ir_rc_prices(date=date)
+            self._check_ir_rc_prices(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(hours=23)
+
+    @pytest.mark.real_sleep
+    @pytest.mark.parametrize(
+        "start, end",
+        [("2026-05-01", "2026-05-03")],
+    )
+    def test_get_ir_rc_prices_date_range(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_prices_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_ir_rc_prices(date=start, end=end, sleep=15)
+            self._check_ir_rc_prices(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(start)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                end,
+            ) - pd.Timedelta(hours=1)
+
+    """get_ir_rc_requirements_awards"""
+
+    IR_RC_REQUIREMENTS_AWARDS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "BAA",
+        "Product",
+        "Type",
+        "MW",
+    ]
+
+    def _check_ir_rc_requirements_awards(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == self.IR_RC_REQUIREMENTS_AWARDS_COLUMNS
+        assert df.shape[0] > 0
+        assert set(df["Product"].unique()).issubset({"IRU", "IRD", "RCU", "RCD"})
+        assert set(df["Type"].unique()) == {"Requirement", "Award"}
+        interval_minutes = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        assert (interval_minutes == 60).all()
+        assert not df.duplicated(
+            subset=["Interval Start", "BAA", "Product", "Type"],
+        ).any()
+        assert pd.api.types.is_numeric_dtype(df["MW"])
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_ir_rc_requirements_awards_dam(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_requirements_awards_dam_{date}.yaml",
+        ):
+            df = self.iso.get_ir_rc_requirements_awards_dam(date=date)
+            self._check_ir_rc_requirements_awards(df)
+            assert set(df["Product"].unique()) == {"IRU", "IRD", "RCU", "RCD"}
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(hours=23)
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_ir_rc_requirements_awards_2da(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_requirements_awards_2da_{date}.yaml",
+        ):
+            df = self.iso.get_ir_rc_requirements_awards_2da(date=date)
+            self._check_ir_rc_requirements_awards(df)
+            assert set(df["Product"].unique()) == {"IRU", "IRD"}
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(hours=23)
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_ir_rc_requirements_awards_3da(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_requirements_awards_3da_{date}.yaml",
+        ):
+            df = self.iso.get_ir_rc_requirements_awards_3da(date=date)
+            self._check_ir_rc_requirements_awards(df)
+            assert set(df["Product"].unique()) == {"IRU", "IRD"}
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(hours=23)
+
+    @pytest.mark.real_sleep
+    @pytest.mark.parametrize(
+        "start, end",
+        [("2026-05-01", "2026-05-03")],
+    )
+    def test_get_ir_rc_requirements_awards_dam_date_range(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_ir_rc_requirements_awards_dam_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_ir_rc_requirements_awards_dam(
+                date=start,
+                end=end,
+                sleep=15,
+            )
+            self._check_ir_rc_requirements_awards(df)
+            assert df["Interval Start"].min() == self.local_start_of_day(start)
+            assert df["Interval Start"].max() == self.local_start_of_day(
+                end,
+            ) - pd.Timedelta(hours=1)
+
     """get_fuel_mix"""
 
     # NOTE: these dates are across the DST transition which caused a bug in the past
@@ -315,6 +452,37 @@ class TestCAISO(BaseTestISO):
         assert df["Publish Time"].max() < self.local_now()
         assert df["Publish Time"].nunique() == expected_count_unique_publish_times
 
+    def _check_edam_wind_solar_forecast(self, df: pd.DataFrame) -> None:
+        assert df.shape[0] > 0
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "BAA",
+            "Solar",
+            "Wind",
+        ]
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        assert isinstance(df.loc[0]["Publish Time"], pd.Timestamp)
+        assert df.loc[0]["Publish Time"].tz is not None
+
+        assert pd.api.types.is_numeric_dtype(df["Solar"])
+        assert pd.api.types.is_numeric_dtype(df["Wind"])
+
+        assert df["BAA"].notna().all()
+        assert not df.duplicated(subset=["Interval Start", "BAA"]).any()
+
+        assert (
+            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
+        ).all()
+
     def test_get_renewables_forecast_dam_today(self):
         with caiso_vcr.use_cassette(
             "test_get_renewables_forecast_dam_today.yaml",
@@ -378,6 +546,33 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_renewables_forecast_dam(start, end=end)
 
             self._check_solar_and_wind_forecast(df, 1)
+
+    """get_edam_wind_solar_forecast"""
+
+    def test_get_edam_wind_solar_forecast_today(self):
+        with caiso_vcr.use_cassette(
+            "test_get_edam_wind_solar_forecast_today.yaml",
+        ):
+            df = self.iso.get_edam_wind_solar_forecast("today")
+        self._check_edam_wind_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_today()
+        assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
+            hours=23,
+        )
+
+    @pytest.mark.parametrize("date", ["2026-05-01"])
+    def test_get_edam_wind_solar_forecast_historical_date(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_edam_wind_solar_forecast_{date}.yaml",
+        ):
+            df = self.iso.get_edam_wind_solar_forecast(date)
+        self._check_edam_wind_solar_forecast(df)
+
+        assert df["Interval Start"].min() == self.local_start_of_day(date)
+        assert df["Interval Start"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(hours=23)
 
     def test_get_renewables_forecast_hasp_latest(self):
         with caiso_vcr.use_cassette(
@@ -756,6 +951,7 @@ class TestCAISO(BaseTestISO):
         "Energy",
         "Congestion",
         "Loss",
+        "GHG",
     ]
 
     @with_markets(

@@ -15,6 +15,10 @@ from gridstatus.ercot import (
     parse_timestamp_from_friendly_name,
 )
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_COLUMNS,
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_COLUMNS,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ENERGY_BID_AWARDS_COLUMNS,
     DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_COLUMNS,
@@ -1078,7 +1082,10 @@ class TestErcot(BaseTestISO):
 
     def test_get_60_day_sced_disclosure_supplemental_correction(self):
         # Data dates Dec 5-20, 2025 (report dates Feb 3-18, 2026) need
-        # supplemental correction for ESR, Gen Resource, and Load Resource
+        # supplemental correction for ESR, Gen Resource, and Load Resource.
+        # Data dates Dec 5, 2025 - Feb 2, 2026 (report dates Feb 3 -
+        # April 3, 2026) need supplemental correction for Resource AS Offers.
+        # 2025-12-10 falls in both ranges.
         date = pd.Timestamp("2025-12-10").date()
 
         with api_vcr.use_cassette(
@@ -1091,19 +1098,23 @@ class TestErcot(BaseTestISO):
 
         check_60_day_sced_disclosure(df_dict)
 
-        # All three corrected datasets should be present
+        # All four corrected datasets should be present
         assert SCED_ESR_KEY in df_dict
         assert SCED_GEN_RESOURCE_KEY in df_dict
         assert SCED_LOAD_RESOURCE_KEY in df_dict
+        assert SCED_RESOURCE_AS_OFFERS_KEY in df_dict
 
         # Verify data is for the correct date
         esr = df_dict[SCED_ESR_KEY]
         gen = df_dict[SCED_GEN_RESOURCE_KEY]
         load = df_dict[SCED_LOAD_RESOURCE_KEY]
+        resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
 
         assert esr["SCED Timestamp"].dt.date.unique()[0] == date
         assert gen["SCED Timestamp"].dt.date.unique()[0] == date
         assert load["SCED Timestamp"].dt.date.unique()[0] == date
+        assert resource_as_offers["SCED Timestamp"].dt.date.unique()[0] == date
+        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
         # SMNE should still come from the normal disclosure
         smne = df_dict[SCED_SMNE_KEY]
@@ -1214,6 +1225,14 @@ class TestErcot(BaseTestISO):
                 "Resource Name",
             ],
         ).any()
+
+        # AS Only Awards/Offers (ENG-3684/ENG-3688) landed in the bundle on the
+        # same 2025-12-06 operating day as ESR, so we check them here too.
+        assert DAM_AS_ONLY_AWARDS_KEY in df_dict
+        assert DAM_AS_ONLY_OFFERS_KEY in df_dict
+
+        _check_dam_as_only_awards(df_dict[DAM_AS_ONLY_AWARDS_KEY])
+        _check_dam_as_only_offers(df_dict[DAM_AS_ONLY_OFFERS_KEY])
 
         # Also check the other datasets are still present
         check_60_day_dam_disclosure(df_dict)
@@ -1536,6 +1555,84 @@ class TestErcot(BaseTestISO):
 
         self._check_highest_price_as_offer_selected_sced(df)
 
+    """get_3_day_highest_price_bids_selected_sced"""
+
+    def _check_3_day_highest_price_bids_selected_sced(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Load Resource",
+            "Highest Price Dispatched by SCED",
+            "Proxy Extension",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        for col in ["QSE", "DME", "Load Resource", "Proxy Extension"]:
+            assert df.dtypes[col] == "object"
+        assert df.dtypes["Highest Price Dispatched by SCED"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
+
+    def test_get_3_day_highest_price_bids_selected_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_3_day_highest_price_bids_selected_sced_{date}.yaml",
+        ):
+            df = self.iso.get_3_day_highest_price_bids_selected_sced(date)
+
+        self._check_3_day_highest_price_bids_selected_sced(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
+    """get_3_day_highest_price_offered_sced"""
+
+    def _check_3_day_highest_price_offered_sced(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "QSE",
+            "DME",
+            "Generation Resource",
+            "LMP",
+            "Proxy Extension",
+            "Power Balance Penalty Flag",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        for col in [
+            "QSE",
+            "DME",
+            "Generation Resource",
+            "Proxy Extension",
+            "Power Balance Penalty Flag",
+        ]:
+            assert df.dtypes[col] == "object"
+        assert df.dtypes["LMP"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert set(df["Proxy Extension"].unique()).issubset({"Yes", "No"})
+        assert set(df["Power Balance Penalty Flag"].unique()).issubset({"Yes", "No"})
+
+    def test_get_3_day_highest_price_offered_sced(self):
+        date = self.local_start_of_today() - pd.DateOffset(days=4)
+
+        with api_vcr.use_cassette(
+            f"test_get_3_day_highest_price_offered_sced_{date}.yaml",
+        ):
+            df = self.iso.get_3_day_highest_price_offered_sced(date)
+
+        self._check_3_day_highest_price_offered_sced(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
     """test get_as_reports"""
 
     def test_get_as_reports(self):
@@ -1784,6 +1881,83 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] >= 0
         assert df.columns.tolist() == cols
         assert df["Publish Time"].nunique() == 3
+
+    """get_planned_outage_capacity_7_day"""
+
+    PLANNED_OUTAGE_CAPACITY_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Max POC Non IRR Non PUN",
+        "Approved POC Non IRR Non PUN",
+        "Received POC Non IRR Non PUN",
+        "Max POC IRR",
+        "Approved POC IRR",
+        "Received POC IRR",
+    ]
+
+    def _check_planned_outage_capacity(self, df):
+        assert df.columns.tolist() == self.PLANNED_OUTAGE_CAPACITY_COLUMNS
+
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Publish Time"] == "datetime64[s, US/Central]"
+
+        assert not df.duplicated(
+            subset=["Publish Time", "Interval Start"],
+        ).any()
+
+        assert df.equals(
+            df.sort_values(["Interval Start", "Publish Time"]).reset_index(drop=True),
+        )
+
+    def test_get_planned_outage_capacity_7_day(self):
+        end = (
+            pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=1)
+        ).floor("h")
+        start = end - pd.Timedelta(hours=3)
+
+        with api_vcr.use_cassette(
+            f"test_get_planned_outage_capacity_7_day_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_planned_outage_capacity_7_day(
+                date=start,
+                end=end,
+                verbose=True,
+            )
+
+        self._check_planned_outage_capacity(df)
+
+        assert df["Publish Time"].nunique() == 3
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    """get_planned_outage_capacity_future"""
+
+    def test_get_planned_outage_capacity_future(self):
+        start = self.local_start_of_today() - pd.Timedelta(days=1)
+        end = start + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_planned_outage_capacity_future_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_planned_outage_capacity_future(
+                date=start,
+                end=end,
+                verbose=True,
+            )
+
+        self._check_planned_outage_capacity(df)
+
+        assert df["Publish Time"].nunique() >= 1
+        # Daily intervals are day-aligned. A fixed 24h delta does not hold across
+        # DST transitions, so we check that each interval spans one calendar day.
+        assert (df["Interval Start"] == df["Interval Start"].dt.normalize()).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
+        assert (df["Interval Start"] > end).all()
 
     """get_wind_actual_and_forecast_hourly"""
 
@@ -2499,6 +2673,39 @@ class TestErcot(BaseTestISO):
 
         assert df["Interval End"].max() == pd.Timestamp(
             "2016-11-06 02:00:00-0600",
+            tz="US/Central",
+        )
+
+    def test_parse_doc_delivery_interval_timedelta(self):
+        """Regression test for #227: parse_doc must handle DeliveryInterval
+        data without using timedelta64[h] (unsupported in pandas >=2.0)."""
+        data_string = """DeliveryDate,DeliveryHour,DeliveryInterval,SettlementPointName,SettlementPointType,SettlementPointPrice,DSTFlag
+01/15/2023,1,1,HB_HOUSTON,HU,25.50,N
+01/15/2023,1,2,HB_HOUSTON,HU,26.00,N
+01/15/2023,1,3,HB_HOUSTON,HU,24.75,N
+01/15/2023,1,4,HB_HOUSTON,HU,25.25,N
+01/15/2023,2,1,HB_HOUSTON,HU,23.00,N
+"""
+        df = pd.read_csv(StringIO(data_string))
+        df = self.iso.parse_doc(df)
+
+        assert "Interval Start" in df.columns
+        assert len(df) == 5
+
+        # First interval: hour 0 (HourBeginning = DeliveryHour - 1 = 0),
+        # interval 1 -> 00:00 CT
+        assert df["Interval Start"].iloc[0] == pd.Timestamp(
+            "2023-01-15 00:00:00-0600",
+            tz="US/Central",
+        )
+        # Second interval of hour 1: 00:15 CT
+        assert df["Interval Start"].iloc[1] == pd.Timestamp(
+            "2023-01-15 00:15:00-0600",
+            tz="US/Central",
+        )
+        # First interval of hour 2: 01:00 CT
+        assert df["Interval Start"].iloc[4] == pd.Timestamp(
+            "2023-01-15 01:00:00-0600",
             tz="US/Central",
         )
 
@@ -3230,6 +3437,66 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max() == (
             end + pd.DateOffset(days=1) - pd.Timedelta(hours=1)
         ).tz_localize(self.iso.default_timezone)
+
+    """get_dam_asdc_aggregated"""
+
+    # Per NP4-19-CD documentation, the dataset advertises REGDN, REGUP, RRSPF,
+    # RRSFF, RRSUF, ECRSS, and ECRSM; in practice the published files also
+    # include the pre-ECRS NSPIN and NSPNM products.
+    allowed_dam_asdc_aggregated_as_types = {
+        "REGDN",
+        "REGUP",
+        "RRSPF",
+        "RRSFF",
+        "RRSUF",
+        "ECRSS",
+        "ECRSM",
+        "NSPIN",
+        "NSPNM",
+    }
+
+    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "Price",
+            "Quantity",
+        ]
+        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.dtypes["AS Type"] == "object"
+        assert df.dtypes["Price"] == "float64"
+        assert df.dtypes["Quantity"] == "float64"
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+        assert set(df["AS Type"].unique()).issubset(
+            self.allowed_dam_asdc_aggregated_as_types,
+        )
+
+    def test_get_dam_asdc_aggregated_latest(self):
+        with api_vcr.use_cassette("test_get_dam_asdc_aggregated_latest.yaml"):
+            df = self.iso.get_dam_asdc_aggregated("latest")
+        self._check_get_dam_asdc_aggregated(df)
+
+    def test_get_dam_asdc_aggregated_date_range(self):
+        date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
+        end = date + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"test_get_dam_asdc_aggregated_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_dam_asdc_aggregated(date, end)
+
+        self._check_get_dam_asdc_aggregated(df)
+
+        assert df["Interval Start"].min() == date.tz_localize(
+            self.iso.default_timezone,
+        )
+        assert df["Interval End"].max() == end.tz_localize(
+            self.iso.default_timezone,
+        )
 
     """get_as_deployment_factors_projected"""
 
@@ -4332,6 +4599,68 @@ class TestProcessScedResourceAsOffers:
         assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
+def _to_new_suffixes(df):
+    """Rename AS-price columns to ERCOT's post-March-2026 suffixes."""
+    old_to_new = {
+        "_URS": "_REGUP",
+        "_DRS": "_REGDN",
+        "_RRSPF": "_RRSPFR",
+        "_RRSUF": "_RRSUFR",
+        "_RRSFF": "_RRSFFR",
+        "_NS": "_NSPIN",
+    }
+
+    def rename(col):
+        for old, new in old_to_new.items():
+            if col.endswith(old):
+                return col[: -len(old)] + new
+        return col
+
+    return df.rename(columns=rename)
+
+
+class TestProcessScedResourceAsOffersNewSuffixes:
+    """ERCOT renamed the AS-price column suffixes in late March 2026
+    (_URS->_REGUP, _DRS->_REGDN, _NS->_NSPIN, _RRSPF->_RRSPFR, etc.). The
+    parser renames them back, so the new layout produces the same result as the
+    old one. Before the fix every offer type collapsed to "Online", producing
+    duplicate (SCED Timestamp, Resource Name, Curve Type) keys.
+    """
+
+    _ROWS = [
+        _AEEC_ANTLP_3_ONRES_CORRECTED,
+        _AEEC_ANTLP_3_REGDN_CORRECTED,
+        _AEEC_ANTLP_3_OFFNS_CORRECTED,
+    ]
+
+    def test_curve_types_match_old_layout(self):
+        """Renamed columns classify into the same three curve types."""
+        df = _to_new_suffixes(_make_sced_resource_as_offers_df(self._ROWS))
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == ["Online", "Regulation Down", "Offline"]
+
+    def test_no_duplicate_primary_keys(self):
+        """The three offer rows at one timestamp resolve to distinct keys."""
+        df = _to_new_suffixes(_make_sced_resource_as_offers_df(self._ROWS))
+        result = process_sced_resource_as_offers(df)
+        pk = ["SCED Timestamp", "Resource Name", "Curve Type"]
+        assert not result.duplicated(subset=pk).any()
+
+    def test_curves_and_columns_match_old_layout(self):
+        """Renamed columns produce identical output to the old layout."""
+        old = process_sced_resource_as_offers(
+            _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED]),
+        )
+        new = process_sced_resource_as_offers(
+            _to_new_suffixes(
+                _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED]),
+            ),
+        )
+        assert new.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+        for col in [c for c in new.columns if c.endswith("Offer Curve")]:
+            assert old[col].iloc[0] == new[col].iloc[0], col
+
+
 def check_60_day_dam_disclosure(df_dict):
     assert df_dict is not None
 
@@ -4389,6 +4718,63 @@ def check_60_day_dam_disclosure(df_dict):
     assert not dam_load_resource_as_offers.duplicated(
         subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
     ).any()
+
+
+_AS_ONLY_PK = ["Interval Start", "QSE", "AS Type", "Offer ID"]
+
+
+def _check_dam_as_only_awards(df):
+    assert df.columns.tolist() == DAM_AS_ONLY_AWARDS_COLUMNS
+    assert len(df) > 0
+
+    # Hour Ending - 1 hour => exactly 1-hour intervals
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+
+    # Primary-key components non-null and unique
+    for pk_col in _AS_ONLY_PK:
+        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
+    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+
+    # All quantity/price columns parse as numeric
+    for col in [
+        "Quantity1 Award",
+        "Quantity2 Award",
+        "Quantity3 Award",
+        "Quantity4 Award",
+        "Quantity5 Award",
+        "Total Award",
+        "MCPC",
+    ]:
+        assert pd.api.types.is_numeric_dtype(df[col]), f"{col} is not numeric"
+
+    # Total Award should equal the sum of Quantity1..5 Award per row
+    quantity_cols = [f"Quantity{i} Award" for i in range(1, 6)]
+    assert np.allclose(
+        df[quantity_cols].sum(axis=1).astype(float),
+        df["Total Award"].astype(float),
+    )
+
+
+def _check_dam_as_only_offers(df):
+    assert df.columns.tolist() == DAM_AS_ONLY_OFFERS_COLUMNS
+    assert len(df) > 0
+
+    assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
+
+    for pk_col in _AS_ONLY_PK:
+        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
+    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+
+    # Every non-null Offer Curve must be a non-empty list of [mw, price] pairs
+    non_null = df["Offer Curve"].dropna()
+    assert len(non_null) > 0
+    for curve in non_null:
+        assert isinstance(curve, list) and len(curve) > 0
+        for point in curve:
+            assert len(point) == 2
+            mw, price = point
+            assert isinstance(mw, (int, float))
+            assert isinstance(price, (int, float))
 
 
 def _list_to_pg_string(lst):

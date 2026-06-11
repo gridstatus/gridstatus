@@ -100,11 +100,6 @@ class PJM(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get fuel mix for a date or date range  in hourly intervals"""
-
-        if date == "latest":
-            mix = self.get_fuel_mix("today")
-            return mix.tail(1).reset_index(drop=True)
-
         # earliest date available appears to be 1/1/2016
         data = {
             "fields": "datetime_beginning_utc,fuel_type,is_renewable,mw",
@@ -150,11 +145,9 @@ class PJM(ISOBase):
             EKPC, JC, ME, PE, PEP, PJM MID ATLANTIC REGION, PJM RTO,
             PJM SOUTHERN REGION, PJM WESTERN REGION, PL, PN, PS, RECO.
         """
-
-        if date == "latest":
-            return self.get_load("today", verbose=verbose)
-
         # more hourly historical load here: https://dataminer2.pjm.com/feed/hrl_load_metered/definition
+        if date == "latest":
+            raise NotSupported(f"{self.name} does not support 'latest'")
 
         # todo can support a load area
         data = {
@@ -216,8 +209,6 @@ class PJM(ISOBase):
 
         Today's forecast updates every every half hour on the quarter E.g. 1:15 and 1:45
         """
-        if date == "latest":
-            return self.get_load_forecast("today", verbose=verbose)
 
         if not utils.is_today(date, tz=self.default_timezone):
             raise NotSupported(
@@ -292,11 +283,6 @@ class PJM(ISOBase):
         """
         Load forecast made today extending for 2 hours in 5 minute intervals.
         """
-        if date == "latest":
-            return self.get_load_forecast_5_min(
-                "today",
-                verbose=verbose,
-            )
 
         params = {
             "fields": (
@@ -420,7 +406,7 @@ class PJM(ISOBase):
 
     @lmp_config(
         supports={
-            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["today", "historical"],
             Markets.REAL_TIME_HOURLY: ["today", "historical"],
             Markets.DAY_AHEAD_HOURLY: ["today", "historical"],
         },
@@ -466,13 +452,6 @@ class PJM(ISOBase):
                 'ZONE', 'LOAD', 'GEN', 'AGGREGATE', 'INTERFACE', 'EXT',
                 'HUB', 'EHV', 'TIE', 'RESIDUAL_METERED_EDC'.
         """
-        if date == "latest":
-            return self._latest_lmp_from_today(
-                market=market,
-                locations=locations,
-                location_type=location_type,
-                verbose=verbose,
-            )
 
         if locations == "hubs":
             locations = self.hub_node_ids
@@ -641,6 +620,105 @@ class PJM(ISOBase):
         return data
 
     @support_date_range(frequency="365D")
+    def get_lmp_real_time_unverified_5_min(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        locations: str | list | None = "hubs",
+        location_type: str | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time unverified 5-minute LMPs for a date range.
+
+        Mirrors the output shape of ``get_lmp(market=REAL_TIME_5_MIN)`` but
+        always hits ``rt_unverified_fivemin_lmps`` so callers can pull the
+        freshest data (verified is delayed ~25 minutes).
+        """
+        if locations == "hubs":
+            locations = self.hub_node_ids
+
+        params = {
+            "fields": (
+                "congestion_price_rt,datetime_beginning_ept,"
+                "datetime_beginning_utc,marginal_loss_price_rt,occ_check,"
+                "pnode_id,pnode_name,ref_caseid_used_multi_interval,"
+                "total_lmp_rt,type"
+            ),
+        }
+
+        if location_type:
+            location_type = location_type.upper()
+            if location_type not in self.location_types:
+                raise ValueError(
+                    f"location_type must be one of {self.location_types}",
+                )
+            warnings.warn(
+                (
+                    "When using Real Time 5 Minute market, location_type filter"
+                    " will happen after all data is downloaded"
+                ),
+            )
+            locations = None
+
+        if locations and locations != "ALL":
+            params["pnode_id"] = ";".join(map(str, locations))
+
+        data = self._get_pjm_json(
+            "rt_unverified_fivemin_lmps",
+            start=date,
+            end=end,
+            params=params,
+            verbose=verbose,
+            interval_duration_min=5,
+        )
+
+        data["system_energy_price_rt"] = (
+            data["total_lmp_rt"]
+            - data["congestion_price_rt"]
+            - data["marginal_loss_price_rt"]
+        )
+
+        data = data.rename(columns={"type": "Location Type"})
+        if location_type:
+            data = data[data["Location Type"] == location_type]
+
+        if locations is not None and locations != "ALL":
+            data["Location"] = data["pnode_id"]
+            data = utils.filter_lmp_locations(data, map(int, locations))
+
+        data = self._add_pnode_info_to_lmp_data(data)
+
+        data = data.rename(
+            columns={
+                "pnode_id": "Location Id",
+                "pnode_name": "Location Name",
+                "pnode_short_name": "Location Short Name",
+                "total_lmp_rt": "LMP",
+                "system_energy_price_rt": "Energy",
+                "congestion_price_rt": "Congestion",
+                "marginal_loss_price_rt": "Loss",
+            },
+        )
+        data["Market"] = Markets.REAL_TIME_5_MIN.value
+
+        return data[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location Id",
+                "Location Name",
+                "Location Short Name",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ].sort_values("Interval Start")
+
+    @support_date_range(frequency="365D")
     def get_lmp_real_time_unverified_hourly(
         self,
         date: str | pd.Timestamp,
@@ -650,9 +728,6 @@ class PJM(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get real-time unverified hourly LMPs"""
-
-        if date == "latest":
-            date = "today"
 
         params = {
             "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",  # noqa: E501
@@ -723,9 +798,6 @@ class PJM(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get 5 minute LMPs from the Integrated Forward Market (IFM)"""
-
-        if date == "latest":
-            return self.get_it_sced_lmp_5_min("today", verbose=verbose)
 
         params = {
             "fields": (
@@ -938,6 +1010,9 @@ class PJM(ISOBase):
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
     ):
+        if start == "latest":
+            raise NotSupported(f"{self.name} does not support 'latest'")
+
         default_params = {
             "startRow": start_row,
             "rowCount": row_count,
@@ -1015,12 +1090,13 @@ class PJM(ISOBase):
 
             # PJM API is inclusive of end,
             # so we need to drop where end timestamp is included
-            df = df[
-                df["Interval Start"].dt.strftime(
-                    "%Y-%m-%d %H:%M",
-                )
-                != end.strftime("%Y-%m-%d %H:%M")
-            ]
+            if end is not None:
+                df = df[
+                    df["Interval Start"].dt.strftime(
+                        "%Y-%m-%d %H:%M",
+                    )
+                    != end.strftime("%Y-%m-%d %H:%M")
+                ]
 
             if "datetime_ending_utc" in df.columns:
                 df["Interval End"] = (
@@ -1135,8 +1211,6 @@ class PJM(ISOBase):
         Returns:
             pd.DataFrame: A DataFrame with the solar forecast data.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "hourly_solar_power_forecast",
@@ -1174,8 +1248,6 @@ class PJM(ISOBase):
         Returns:
             pd.DataFrame: A DataFrame with the solar forecast data.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "five_min_solar_power_forecast",
@@ -1239,8 +1311,6 @@ class PJM(ISOBase):
         Returns:
             pd.DataFrame: A DataFrame with the wind forecast data.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "hourly_wind_power_forecast",
@@ -1278,8 +1348,6 @@ class PJM(ISOBase):
         Returns:
             pd.DataFrame: A DataFrame with the wind forecast data.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "five_min_wind_power_forecast",
@@ -1332,8 +1400,6 @@ class PJM(ISOBase):
         Retrieves the generation outage data
         From: https://dataminer2.pjm.com/feed/gen_outages_by_type/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "gen_outages_by_type",
@@ -1394,8 +1460,6 @@ class PJM(ISOBase):
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_rto/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             endpoint="ops_sum_frcst_peak_rto",
@@ -1461,8 +1525,6 @@ class PJM(ISOBase):
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_area/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             endpoint="ops_sum_frcst_peak_area",
@@ -1538,8 +1600,6 @@ class PJM(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with 5 minute solar generation data.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "five_min_solar_generation",
@@ -1595,8 +1655,6 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with instantaneous wind generation data
                 in 15 second intervals.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "instantaneous_wind_gen",
@@ -1652,8 +1710,6 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with reserve market quantities
                 in 15 second intervals.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "operational_reserves",
@@ -1711,8 +1767,6 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with transfer interface information
             in 5 minute intervals.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "transfer_interface_infor",
@@ -1778,8 +1832,6 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with transmission limit information
             in 5 minute intervals, when data is available.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "transmission_limits",
@@ -1854,8 +1906,6 @@ class PJM(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with solar generation information.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "solar_gen",
@@ -1916,8 +1966,6 @@ class PJM(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with wind generation information.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "wind_gen",
@@ -1986,8 +2034,6 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with day-ahead ancillary service
             market results.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "da_reserve_market_results",
@@ -2079,8 +2125,6 @@ class PJM(ISOBase):
             pandas.DataFrame: A DataFrame with real-time ancillary service
             market results.
         """
-        if date == "latest":
-            date = "today"
 
         # Make sure start and end are both before or both after Sep 1, 2022
         # when data granularity changes
@@ -2195,12 +2239,6 @@ class PJM(ISOBase):
         Returns:
             DataFrame with hourly AS market results.
         """
-        if date == "latest":
-            raise ValueError(
-                "'latest' not supported. Data only available from "
-                f"{self.AS_MARKET_RESULTS_START_DATE} to "
-                f"{self.AS_MARKET_RESULTS_GRANULARITY_CHANGE_DATE}.",
-            )
 
         # Validate date range
         start_date = pd.Timestamp(self.AS_MARKET_RESULTS_START_DATE).tz_localize(
@@ -2246,8 +2284,6 @@ class PJM(ISOBase):
 
         https://dataminer2.pjm.com/feed/hrl_load_metered/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "hrl_load_metered",
@@ -2302,8 +2338,6 @@ class PJM(ISOBase):
 
         https://dataminer2.pjm.com/feed/frcstd_gen_outages/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "frcstd_gen_outages",
@@ -2486,8 +2520,6 @@ class PJM(ISOBase):
         Retrieves the day ahead demand bids data from:
         https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "hrl_dmd_bids",
@@ -2523,8 +2555,6 @@ class PJM(ISOBase):
         Retrieves the area control error data from:
         https://dataminer2.pjm.com/feed/area_control_error/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "area_control_error",
@@ -2553,8 +2583,6 @@ class PJM(ISOBase):
         Retrieves the dispatched reserves preliminary data from:
         https://dataminer2.pjm.com/feed/dispatched_reserves/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "dispatched_reserves",
@@ -2614,13 +2642,6 @@ class PJM(ISOBase):
         Retrieves the dispatched reserves verified data from:
         https://dataminer2.pjm.com/feed/rt_dispatch_reserves/definition
         """
-        if date == "latest":
-            # TODO: This is a hack to get the data for the previous day
-            # because the data is not available for the current day. Thinking about
-            # adding a "yesterday" to @support_date_range
-            date = (
-                pd.Timestamp.now(self.default_timezone) - pd.Timedelta(days=1)
-            ).strftime("%Y-%m-%d")
 
         df = self._get_pjm_json(
             "rt_dispatch_reserves",
@@ -2679,29 +2700,6 @@ class PJM(ISOBase):
         Retrieves the PJM Regulation Market Monthly data from:
         https://dataminer2.pjm.com/feed/reg_market_results/definition
         """
-        if date == "latest":
-            current_date = pd.Timestamp.now(self.default_timezone).replace(
-                day=1,
-                hour=0,
-                minute=0,
-                second=0,
-                microsecond=0,
-            ) + pd.tseries.offsets.MonthEnd(0)
-
-            while current_date > pd.Timestamp("2024-01-01").tz_localize(
-                self.default_timezone,
-            ):
-                try:
-                    return self.get_regulation_market_monthly(
-                        date=current_date.strftime("%Y-%m-%d"),
-                        end=end,
-                        verbose=verbose,
-                    )
-                except NoDataFoundException:
-                    logger.warning(
-                        f"No regulation market monthly data found for {current_date.strftime('%Y-%m-%d')}, trying previous month",
-                    )
-                    current_date = current_date - pd.DateOffset(months=1)
 
         df = self._get_pjm_json(
             "reg_market_results",
@@ -2789,12 +2787,6 @@ class PJM(ISOBase):
         https://api.pjm.com/api/v1/reg_prices
         """
 
-        if date == "latest":
-            return self.get_regulation_prices_5_min(
-                "today",
-                verbose=verbose,
-            )
-
         params = {
             "fields": (
                 "datetime_beginning_utc,area,reserve_quantity,reserve_requirement,market_clearing_price,market_capped_clearing_price,capability_clearing_price,performance_clearing_price"
@@ -2847,8 +2839,6 @@ class PJM(ISOBase):
         Retrieves the PJM Tie Flows 5 Minute data from:
         https://dataminer2.pjm.com/feed/tie_flows/definition
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "five_min_tie_flows",
@@ -2897,10 +2887,6 @@ class PJM(ISOBase):
         Retrieves the instantaneous dispatch rate data from:
         https://dataminer2.pjm.com/feed/inst_dispatch_rate/definition
         """
-        if date == "latest":
-            # Get latest 5 minutes
-            date = pd.Timestamp.now(tz=self.default_timezone) - pd.Timedelta(minutes=5)
-            end = pd.Timestamp.now(tz=self.default_timezone)
 
         df = self._get_pjm_json(
             "inst_dispatch_rates",
@@ -2943,8 +2929,6 @@ class PJM(ISOBase):
         Retrieves the hourly net exports by state data from:
         https://dataminer2.pjm.com/feed/state_net_interchange/definition
         """
-        if date == "latest":
-            return self.get_hourly_net_exports_by_state("today")
 
         df = self._get_pjm_json(
             "state_net_interchange",
@@ -2975,17 +2959,6 @@ class PJM(ISOBase):
         Retrieves the hourly transfer limits and flows data from:
         https://dataminer2.pjm.com/feed/transfer_limits_and_flows/definition
         """
-        if date == "latest":
-            # NB: Most recent complete month
-            today = pd.Timestamp.now(tz=self.default_timezone)
-            first_of_month = today.replace(day=1) - pd.DateOffset(months=1)
-            end_of_month = (
-                first_of_month + pd.DateOffset(months=1) - pd.DateOffset(days=1)
-            )
-            return self.get_hourly_transfer_limits_and_flows(
-                first_of_month,
-                end=end_of_month,
-            )
 
         df = self._get_pjm_json(
             "transfer_limits_and_flows",
@@ -3025,16 +2998,6 @@ class PJM(ISOBase):
         Retrieves the actual and scheduled interchange summary data from:
         https://dataminer2.pjm.com/feed/actual_and_scheduled_interchange_summary/definition
         """
-        if date == "latest":
-            # NB: Most recent full week, back to the previous Sunday at 8am default timezone
-            today = pd.Timestamp.now(tz=self.default_timezone)
-            start = today - pd.Timedelta(days=today.dayofweek)
-            start = start - pd.Timedelta(days=7)
-            start = start.replace(hour=8, minute=0, second=0, microsecond=0)
-            if today.hour < 8:
-                start = start - pd.Timedelta(days=7)
-            end = start + pd.Timedelta(days=7)
-            return self.get_actual_and_scheduled_interchange_summary(start, end=end)
 
         df = self._get_pjm_json(
             "act_sch_interchange",
@@ -3076,17 +3039,6 @@ class PJM(ISOBase):
         Retrieves the scheduled interchange real time data from:
         https://dataminer2.pjm.com/feed/rt_scheduled_interchange/definition
         """
-        if date == "latest":
-            try:
-                return self.get_scheduled_interchange_real_time("today")
-            except NoDataFoundException:
-                logger.warning(
-                    "No scheduled interchange real time data found for today, trying yesterday...",
-                )
-                yesterday = pd.Timestamp.now(
-                    tz=self.default_timezone,
-                ).date() - pd.Timedelta(days=1)
-                return self.get_scheduled_interchange_real_time(yesterday)
 
         df = self._get_pjm_json(
             "rt_scheduled_interchange",
@@ -3119,8 +3071,6 @@ class PJM(ISOBase):
         Retrieves the interface flows and limit day ahead data from:
         https://dataminer2.pjm.com/feed/da_interface_flows_and_limits/definition
         """
-        if date == "latest":
-            return self.get_interface_flows_and_limits_day_ahead("today")
 
         df = self._get_pjm_json(
             "da_interface_flows_and_limits",
@@ -3154,15 +3104,6 @@ class PJM(ISOBase):
         Retrieves the projected peak tie flow data from:
         https://dataminer2.pjm.com/feed/ops_sum_prjctd_tie_flow/definition
         """
-        if date == "latest":
-            now = pd.Timestamp.now(tz=self.default_timezone)
-            if now.hour >= 5:
-                return self.get_projected_peak_tie_flow("today")
-            else:
-                yesterday = pd.Timestamp.now(
-                    tz=self.default_timezone,
-                ).date() - pd.Timedelta(days=1)
-                return self.get_projected_peak_tie_flow(yesterday)
 
         df = self._get_pjm_json(
             "ops_sum_prjctd_tie_flow",
@@ -3219,15 +3160,6 @@ class PJM(ISOBase):
         Retrieves the actual operational statistics data from:
         https://dataminer2.pjm.com/feed/ops_sum_prev_period/definition
         """
-        if date == "latest":
-            now = pd.Timestamp.now(tz=self.default_timezone)
-            if now.hour >= 5:
-                return self.get_actual_operational_statistics("today")
-            else:
-                yesterday = pd.Timestamp.now(
-                    tz=self.default_timezone,
-                ).date() - pd.Timedelta(days=1)
-                return self.get_actual_operational_statistics(yesterday)
 
         df = self._get_pjm_json(
             "ops_sum_prev_period",
@@ -3529,17 +3461,6 @@ class PJM(ISOBase):
         Retrieves the daily generation capacity data from:
         https://dataminer2.pjm.com/feed/day_gen_capacity/definition
         """
-        if date == "latest":
-            try:
-                return self.get_generation_capacity_daily("today")
-            except NoDataFoundException:
-                yesterday = (
-                    pd.Timestamp.now(tz=self.default_timezone).normalize()
-                    - pd.Timedelta(days=1)
-                ).date()
-                return self.get_generation_capacity_daily(
-                    pd.Timestamp(yesterday, tz=self.default_timezone),
-                )
 
         df = self._get_pjm_json(
             "day_gen_capacity",
@@ -3592,17 +3513,6 @@ class PJM(ISOBase):
         Retrieves the daily cleared virtual transactions data from:
         https://dataminer2.pjm.com/feed/day_inc_dec_utc/definition
         """
-        if date == "latest":
-            try:
-                return self.get_cleared_virtuals_daily("today")
-            except NoDataFoundException:
-                yesterday = (
-                    pd.Timestamp.now(tz=self.default_timezone).normalize()
-                    - pd.Timedelta(days=1)
-                ).date()
-                return self.get_cleared_virtuals_daily(
-                    pd.Timestamp(yesterday, tz=self.default_timezone),
-                )
         if end is None:
             end = date + pd.DateOffset(days=1)
             end = end - pd.DateOffset(seconds=1)
@@ -3677,15 +3587,8 @@ class PJM(ISOBase):
         Retrieves the hourly day-ahead increment and decrement bids data from:
         https://dataminer2.pjm.com/feed/hrl_da_incs_decs/definition
 
-        Note: This data has a 4-month publication delay. When requesting "latest",
-        data from 5 months ago (first of the month) is returned.
+        Note: This data has a 4-month publication delay.
         """
-        if date == "latest":
-            delayed_date = pd.Timestamp.now(tz=self.default_timezone) - pd.DateOffset(
-                months=5,
-            )
-            delayed_date = delayed_date.replace(day=1)
-            return self.get_inc_and_dec_bids_day_ahead_hourly(delayed_date)
 
         df = self._get_pjm_json(
             "hrl_da_incs_decs",
@@ -3944,8 +3847,6 @@ class PJM(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with 5-minute PAI intervals data.
         """
-        if date == "latest":
-            date = "today"
 
         df = self._get_pjm_json(
             "fivemin_pai_interval",
@@ -4002,8 +3903,6 @@ class PJM(ISOBase):
         Returns:
             pandas.DataFrame: A DataFrame with 5-minute marginal emission rates data.
         """
-        if date == "latest":
-            date = pd.Timestamp.now().replace(minute=0, second=0, microsecond=0)
 
         date_ts = utils._handle_date(date)
         archive_date = _get_pjm_archive_date(Markets.REAL_TIME_5_MIN)
@@ -4141,205 +4040,6 @@ class PJM(ISOBase):
                 "Emergency High",
                 "Voltage Drop Warning Percent",
                 "Voltage Drop Limit Percent",
-            ]
-        ]
-
-        return df
-
-    FTR_OPTION_PATHS_MONTHLY_URL = (
-        "https://www.pjm.com/pjmfiles/pub/"
-        "account/auction-user-info/downloads/option-paths.csv"
-    )
-
-    def get_ftr_option_paths_monthly(
-        self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Gets the monthly FTR option paths data from PJM.
-
-        Contains valid source-sink pairs for FTR options in PJM monthly
-        auctions. Only ``date="latest"`` is supported.
-
-        Source:
-        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/option-paths.csv
-
-        Arguments:
-            date (str): Only "latest" is supported. Defaults to "latest".
-            end: Not supported. Defaults to None.
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-            pd.DataFrame: DataFrame with columns: Publish Date, Source Node,
-                Source PNODE ID, Sink Node, Sink PNODE ID
-        """
-        if date != "latest":
-            raise NotSupported(
-                f"{self.name} only supports date='latest' for"
-                " get_ftr_option_paths_monthly",
-            )
-
-        url = self.FTR_OPTION_PATHS_MONTHLY_URL
-        logger.info(f"Requesting {url}...")
-
-        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
-        response.raise_for_status()
-
-        return self._parse_ftr_option_paths_monthly(response.text)
-
-    def _parse_ftr_option_paths_monthly(
-        self,
-        csv_content: str,
-    ) -> pd.DataFrame:
-        lines = csv_content.split("\n")
-
-        # First line: "Date Posted - YYYYMMDD,,,"
-        first_line = lines[0].strip()
-        date_str = first_line.split(" - ")[1].split(",")[0]
-        publish_date = pd.Timestamp(date_str).date().isoformat()
-
-        # Read CSV starting from row 2 (header row)
-        csv_data = "\n".join(lines[1:])
-        df = pd.read_csv(io.StringIO(csv_data))
-
-        df.columns = df.columns.str.strip()
-
-        df = df.rename(
-            columns={
-                "Source PnodeID  (Information purposes only)": "Source PNODE ID",
-                "Sink PnodeID  (Information purposes only)": "Sink PNODE ID",
-            },
-        )
-
-        df["Publish Date"] = publish_date
-
-        df = df[
-            [
-                "Publish Date",
-                "Source Node",
-                "Source PNODE ID",
-                "Sink Node",
-                "Sink PNODE ID",
-            ]
-        ]
-
-        return df
-
-    FTR_SOURCE_SINK_MONTHLY_PROMPT_URL = (
-        "https://www.pjm.com/pjmfiles/pub/"
-        "account/auction-user-info/downloads/ftr-source-sink-prompt.csv"
-    )
-
-    FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL = (
-        "https://www.pjm.com/pjmfiles/pub/"
-        "account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv"
-    )
-
-    def get_ftr_source_sink_monthly_prompt(
-        self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Gets the monthly FTR source/sink data for the prompt month from PJM.
-
-        Contains valid source/sinks for obligations in the prompt month
-        FTR auction. Only ``date="latest"`` is supported.
-
-        Source:
-        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-prompt.csv
-
-        Arguments:
-            date (str): Only "latest" is supported. Defaults to "latest".
-            end: Not supported. Defaults to None.
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-            pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
-                PNODE ID
-        """
-        if date != "latest":
-            raise NotSupported(
-                f"{self.name} only supports date='latest' for"
-                " get_ftr_source_sink_monthly_prompt",
-            )
-
-        url = self.FTR_SOURCE_SINK_MONTHLY_PROMPT_URL
-        logger.info(f"Requesting {url}...")
-
-        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
-        response.raise_for_status()
-
-        return self._parse_ftr_source_sink(response.text)
-
-    def get_ftr_source_sink_monthly_non_prompt(
-        self,
-        date: str | pd.Timestamp = "latest",
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Gets the monthly FTR source/sink data for non-prompt months from PJM.
-
-        Contains valid source/sinks for obligations in the non-prompt month
-        FTR auction. Only ``date="latest"`` is supported.
-
-        Source:
-        https://www.pjm.com/pjmfiles/pub/account/auction-user-info/downloads/ftr-source-sink-nonprompt.csv
-
-        Arguments:
-            date (str): Only "latest" is supported. Defaults to "latest".
-            end: Not supported. Defaults to None.
-            verbose (bool, optional): print verbose output. Defaults to False.
-
-        Returns:
-            pd.DataFrame: DataFrame with columns: Publish Date, Obligation Name,
-                PNODE ID
-        """
-        if date != "latest":
-            raise NotSupported(
-                f"{self.name} only supports date='latest' for"
-                " get_ftr_source_sink_monthly_non_prompt",
-            )
-
-        url = self.FTR_SOURCE_SINK_MONTHLY_NON_PROMPT_URL
-        logger.info(f"Requesting {url}...")
-
-        response = requests.get(url, timeout=REQUEST_TIMEOUT, allow_redirects=True)
-        response.raise_for_status()
-
-        return self._parse_ftr_source_sink(response.text)
-
-    def _parse_ftr_source_sink(
-        self,
-        csv_content: str,
-    ) -> pd.DataFrame:
-        lines = csv_content.split("\n")
-
-        # First line: "Date Posted - YYYYMMDD,"
-        first_line = lines[0].strip()
-        date_str = first_line.split(" - ")[1].split(",")[0]
-        publish_date = pd.Timestamp(date_str).date().isoformat()
-
-        # Read CSV starting from row 2 (header row)
-        csv_data = "\n".join(lines[1:])
-        df = pd.read_csv(io.StringIO(csv_data))
-
-        df.columns = df.columns.str.strip()
-
-        df = df.rename(
-            columns={
-                "PnodeID  (Information purposes only)": "PNODE ID",
-            },
-        )
-
-        df["Publish Date"] = publish_date
-
-        df = df[
-            [
-                "Publish Date",
-                "Obligation Name",
-                "PNODE ID",
             ]
         ]
 

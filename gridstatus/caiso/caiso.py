@@ -3,6 +3,7 @@ import io
 import re
 import time
 import warnings
+import xml.etree.ElementTree as ElementTree
 from typing import Literal
 from zipfile import ZipFile
 
@@ -1331,6 +1332,122 @@ class CAISO(ISOBase):
             publish_time_offset=pd.Timedelta(minutes=22.5),
         )
 
+    @support_date_range(frequency="DAY_START")
+    def get_edam_wind_solar_forecast(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead, hourly, BAA-level wind and solar forecasts for balancing
+        areas participating in the extended day-ahead market (EDAM).
+
+        Data at: http://oasis.caiso.com/mrioasis/logon.do at Energy >
+        EDAM > Wind and Solar Forecast.
+
+        Per the OASIS Publications Schedule, the report is published every
+        30 minutes between 6:00 and 10:00 AM Pacific. The Publish Time on
+        each row is the actual publish timestamp pulled from the
+        ``MessageHeader.TimeDate`` of the corresponding XML report, not a
+        derived offset.
+
+        Args:
+            date (str | pd.Timestamp): date to return data
+            end (str | pd.Timestamp | None, optional): last date of range to return data.
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: hourly EDAM wind and solar forecasts by BAA
+        """
+        rows = self._fetch_edam_wind_solar_forecast_xml(
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+        df = pd.DataFrame(rows)
+        df["Solar"] = pd.to_numeric(df["Solar"])
+        df["Wind"] = pd.to_numeric(df["Wind"])
+        df["Interval Start"] = df["Interval Start"].dt.tz_convert(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval End"].dt.tz_convert(
+            self.default_timezone,
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "BAA",
+                    "Solar",
+                    "Wind",
+                ]
+            ]
+            .sort_values(["Interval Start", "BAA"])
+            .reset_index(drop=True)
+        )
+
+    def _fetch_edam_wind_solar_forecast_xml(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> list[dict]:
+        """Fetch the OASIS XML version of the EDAM Wind and Solar Forecast
+        and return a list of row dicts that include the publish timestamp
+        from each daily file's ``MessageHeader.TimeDate``.
+        """
+        start = utils._handle_date(date, self.default_timezone)
+        if end is not None:
+            end = utils._handle_date(end, self.default_timezone)
+        start_str, end_str = _caiso_handle_start_end(start, end)
+
+        url = (
+            "http://oasis.caiso.com/oasisapi/GroupZip"
+            f"?resultformat=5&version=1&groupid=EDAM_WND_SLR_FORECAST_GRP"
+            f"&startdatetime={start_str}&enddatetime={end_str}"
+        )
+        logger.info(f"Fetching URL: {url}")
+
+        # NOTE: OASIS rate-limits ~1 request per 5s; pace daily chunks to stay under it.
+        # Matches the _get_oasis retry-on-429 pattern
+        time.sleep(5)
+        r = requests.get(url, verify=True)
+        r.raise_for_status()
+
+        rows: list[dict] = []
+        ns = "{http://www.caiso.com/soa/EDAMWindAndSolarForecast_v1.xsd}"
+        with ZipFile(io.BytesIO(r.content)) as z:
+            for fname in z.namelist():
+                with z.open(fname) as fh:
+                    tree = ElementTree.parse(fh)
+                root = tree.getroot()
+                publish_time = pd.Timestamp(
+                    root.find(f"./{ns}MessageHeader/{ns}TimeDate").text,
+                )
+                for record in root.iter(f"{ns}REPORT_DATA"):
+                    fields = {child.tag.replace(ns, ""): child.text for child in record}
+                    rows.append(
+                        {
+                            "Interval Start": pd.to_datetime(
+                                fields["INTERVAL_START_GMT"],
+                                utc=True,
+                            ),
+                            "Interval End": pd.to_datetime(
+                                fields["INTERVAL_END_GMT"],
+                                utc=True,
+                            ),
+                            "Publish Time": publish_time,
+                            "BAA": fields["BAA_GRP_ID"],
+                            "Solar": fields["SOLAR"],
+                            "Wind": fields["WIND"],
+                        },
+                    )
+
+        return rows
+
     def get_pnodes(self, verbose: bool = False) -> pd.DataFrame:
         start = utils._handle_date("today")
 
@@ -1489,37 +1606,21 @@ class CAISO(ISOBase):
             "Location Type",
         ] = "DLAP"
 
-        if market == Markets.DAY_AHEAD_HOURLY:
-            df = df[
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Market",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                    "Energy",
-                    "Congestion",
-                    "Loss",
-                ]
+        df = df[
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+                "GHG",
             ]
-        else:
-            df = df[
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    "Market",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                    "Energy",
-                    "Congestion",
-                    "Loss",
-                    "GHG",
-                ]
-            ]
+        ]
 
         # data = utils.filter_lmp_locations(df, locations=location_filter)
         data = df
@@ -2007,6 +2108,223 @@ class CAISO(ISOBase):
         df.columns.name = None
 
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_prices(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return day-ahead nodal Imbalance Reserve and Reliability Capacity prices.
+
+        The Marginal Clearing Price for Reliability Capacity (RCU/RCD) is comprised
+        of Capacity, Congestion, and Loss components, while Imbalance Reserves
+        (IRU/IRD) only have Capacity and Congestion components (Loss is NaN).
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of IR/RC prices with one row per
+            (Interval Start, Location, Product). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_prices_day_ahead_hourly",
+            start=date,
+            end=end,
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Product",
+            "MCP",
+            "Capacity",
+            "Congestion",
+            "Loss",
+        ]
+
+        df = df.rename(
+            columns={
+                "NODE": "Location",
+                "PRODUCT": "Product",
+                "MARGINAL_CLEARING_PRICE": "MCP",
+                "CAPACITY_PRICE": "Capacity",
+                "CONGESTION_PRICE": "Congestion",
+                "LOSS_PRICE": "Loss",
+            },
+        )
+
+        df = df[columns]
+
+        df = df.sort_values(
+            ["Interval Start", "Location", "Product"],
+        ).reset_index(drop=True)
+
+        return df
+
+    def _parse_ir_rc_requirements_awards(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "BAA_GRP_ID": "BAA",
+                "PRODUCT_TYPE": "Product",
+            },
+        )
+
+        df = df.melt(
+            id_vars=[
+                "Interval Start",
+                "Interval End",
+                "BAA",
+                "Product",
+            ],
+            value_vars=["REQ_MW", "AGG_AWD_MW"],
+            var_name="Type",
+            value_name="MW",
+        )
+
+        df["Type"] = df["Type"].map(
+            {
+                "REQ_MW": "Requirement",
+                "AGG_AWD_MW": "Award",
+            },
+        )
+
+        df["MW"] = pd.to_numeric(df["MW"], errors="coerce")
+        df = df.dropna(subset=["MW"])
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "BAA",
+            "Product",
+            "Type",
+            "MW",
+        ]
+
+        return (
+            df[columns]
+            .sort_values(["Interval Start", "BAA", "Product", "Type"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_requirements_awards_dam(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return day-ahead hourly Imbalance Reserve requirements and
+        Imbalance Reserve and Reliability Capacity awards by BAA.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, BAA, Product, Type). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_requirements_awards",
+            start=date,
+            end=end,
+            params={"groupid": "DAM_CAP_REQ_AWRD_GRP"},
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._parse_ir_rc_requirements_awards(df)
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_requirements_awards_2da(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return two-day-ahead hourly Imbalance Reserve requirements by BAA.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, BAA, Product, Type). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_requirements_awards",
+            start=date,
+            end=end,
+            params={"groupid": "2DA_CAP_REQ_AWRD_GRP"},
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._parse_ir_rc_requirements_awards(df)
+
+    @support_date_range(frequency="DAY_START")
+    def get_ir_rc_requirements_awards_3da(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return three-day-ahead hourly Imbalance Reserve requirements by BAA.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, BAA, Product, Type). Earliest available date is
+            May 1, 2026.
+        """
+        df = self.get_oasis_dataset(
+            dataset="ir_rc_requirements_awards",
+            start=date,
+            end=end,
+            params={"groupid": "3DA_CAP_REQ_AWRD_GRP"},
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._parse_ir_rc_requirements_awards(df)
 
     @support_date_range(frequency="DAY_START")
     def get_curtailed_non_operational_generator_report(

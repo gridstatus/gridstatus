@@ -347,8 +347,42 @@ class TestMISO(BaseTestISO):
                 end_date,
             ) + pd.Timedelta(days=5)
 
+    # MISO changed the _df_al.xls layout starting with the file published on
+    # 2026-04-27 (extra blank rows/columns introduced by merged-cell formatting).
+    # 2026-04-25 covers the legacy layout, 2026-04-27 covers the new layout.
+    @pytest.mark.parametrize("past_date", ["2026-04-25", "2026-04-27"])
+    def test_get_load_forecast_2026_04_27_layout_change(self, past_date):
+        past_date = pd.Timestamp(past_date)
+        cassette_name = f"test_get_load_forecast_2026_04_27_layout_change_{past_date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_load_forecast(past_date)
+
+            assert df.columns.tolist() == self.load_forecast_cols
+            assert df["Interval Start"].min() == self.local_start_of_day(past_date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                past_date,
+            ) + pd.Timedelta(days=6)
+            assert (
+                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
+            )
+
+    # 2026-04-25 → 2026-04-27 spans the layout change: op day 2026-04-25 reads
+    # the legacy-format file and op day 2026-04-26 reads the new-format file in
+    # a single call.
+    def test_get_zonal_load_hourly_2026_04_27_layout_change(self):
+        cassette_name = "test_get_zonal_load_hourly_2026_04_27_layout_change.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            df = self.iso.get_zonal_load_hourly(
+                start="2026-04-25",
+                end="2026-04-27",
+            )
+
+            self._check_zonal_load_hourly(df)
+            assert df["Interval Start"].min() == self.local_start_of_day("2026-04-25")
+            assert df["Interval End"].max() == self.local_start_of_day("2026-04-27")
+
     def test_get_load_forecast_dst_spring_forward(self):
-        dst_start = pd.Timestamp("2022-03-13")
+        dst_start = pd.Timestamp("2025-03-09")
         cassette_name = f"test_get_load_forecast_dst_spring_forward_{dst_start.strftime('%Y-%m-%d')}.yaml"
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(dst_start)
@@ -357,7 +391,7 @@ class TestMISO(BaseTestISO):
             assert df["Interval Start"].min() == self.local_start_of_day(dst_start)
 
     def test_get_load_forecast_dst_fall_back(self):
-        dst_end = pd.Timestamp("2022-11-06")
+        dst_end = pd.Timestamp("2025-11-02")
         cassette_name = (
             f"test_get_load_forecast_dst_fall_back_{dst_end.strftime('%Y-%m-%d')}.yaml"
         )

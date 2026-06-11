@@ -21,6 +21,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
+    ISONE_TOTAL_DEMAND_COLUMNS,
 )
 
 # Default page size for API requests
@@ -277,6 +278,52 @@ class ISONEAPI:
         mix_df = utils.move_cols_to_front(mix_df, ["Time"])
 
         return mix_df
+
+    @support_date_range("DAY_START")
+    def get_marginal_fuel_type(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return marginal-fuel flags per timestamp, one boolean column per fuel type.
+
+        Args:
+            date (str | pd.Timestamp): The start date for the data request. Use "latest" for most recent data.
+            end (str | pd.Timestamp | None): The end date for the data request. Only used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: One row per timestamp. Column "Time" plus one boolean
+                column per fuel category (e.g. "Natural Gas", "Solar"). True
+                means the fuel was marginal at that timestamp; missing
+                (timestamp, fuel) pairs and timestamps with no marginal fuel
+                are False.
+        """
+        if date == "latest":
+            url = f"{self.base_url}/genfuelmix/current"
+        else:
+            url = f"{self.base_url}/genfuelmix/day/{date.strftime('%Y%m%d')}"
+
+        response = self.make_api_call(url)
+        df = pd.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
+        df["IsMarginal"] = (df["MarginalFlag"] == "Y").astype(int)
+
+        pivoted = df.pivot_table(
+            index="BeginDate",
+            columns="FuelCategory",
+            values="IsMarginal",
+            aggfunc="first",
+        ).reset_index()
+        pivoted.columns.name = None
+
+        pivoted = pivoted.rename(columns={"BeginDate": "Time"})
+        pivoted["Time"] = pivoted["Time"].apply(self.parse_problematic_datetime)
+
+        fuel_cols = sorted(c for c in pivoted.columns if c != "Time")
+        pivoted[fuel_cols] = pivoted[fuel_cols].fillna(0).astype(bool)
+
+        return utils.move_cols_to_front(pivoted, ["Time"] + fuel_cols)
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
@@ -966,6 +1013,66 @@ class ISONEAPI:
         return df[ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS].sort_values(
             ["Interval Start", "Load Zone ID"],
         )
+
+    @support_date_range("DAY_START")
+    def get_total_demand(
+        self,
+        date: str | pd.Timestamp | Literal["latest"],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute system load ("total demand") data.
+
+        Includes Total Load, Native Load, Storage Load, and the
+        behind-the-meter (estimated solar) variants, as reported by the
+        ISO-NE /fiveminutesystemload web service endpoint.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): The start date for the
+                data request. Use "latest" for most recent data.
+            end (pd.Timestamp | None): The end date for the data request. Only
+                used if date is not "latest".
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute total demand data.
+        """
+        url = self._build_url("fiveminutesystemload", date)
+        response = self.make_api_call(url, verbose=verbose)
+
+        # /current returns {"FiveMinSystemLoad": [...]}; /day nests it under
+        # "FiveMinSystemLoads". Collapse both shapes to the inner container.
+        container = response.get("FiveMinSystemLoads", response)
+        records = self._prepare_records(container.get("FiveMinSystemLoad"))
+
+        if not records:
+            raise NoDataFoundException(
+                f"No five-minute system load data found for {date}",
+            )
+
+        df = pd.DataFrame(records)
+
+        df["Interval Start"] = pd.to_datetime(
+            df["BeginDate"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "LoadMw": "Total Load",
+                "NativeLoad": "Native Load",
+                "ArdDemand": "Storage Load",
+                "SystemLoadBtmPv": "Total Load With Estimated Solar",
+                "NativeLoadBtmPv": "Native Load With Estimated Solar",
+            },
+        )
+
+        for col in ISONE_TOTAL_DEMAND_COLUMNS[2:]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df[ISONE_TOTAL_DEMAND_COLUMNS].sort_values("Interval Start")
 
     @support_date_range("HOUR_START")
     def get_lmp_real_time_5_min_prelim(

@@ -25,6 +25,8 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot_60d_utils import (
+    DAM_AS_ONLY_AWARDS_KEY,
+    DAM_AS_ONLY_OFFERS_KEY,
     DAM_ENERGY_BID_AWARDS_KEY,
     DAM_ENERGY_BIDS_KEY,
     DAM_ENERGY_ONLY_OFFER_AWARDS_KEY,
@@ -46,6 +48,8 @@ from gridstatus.ercot_60d_utils import (
     SCED_RESOURCE_AS_OFFERS_KEY,
     SCED_SMNE_KEY,
     CurveOutputFormat,
+    process_dam_as_only_awards,
+    process_dam_as_only_offers,
     process_dam_energy_bid_awards,
     process_dam_energy_bids,
     process_dam_energy_only_offer_awards,
@@ -187,6 +191,7 @@ DAM_TOTAL_ENERGY_SOLD_RTID = 12334
 # https://www.ercot.com/mp/data-products/data-product-details?id=np1-301
 COP_ADJUSTMENT_PERIOD_SNAPSHOT_RTID = 10038
 
+
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-332-CD
 REAL_TIME_CLEARING_PRICES_FOR_CAPACITY_BY_SCED_INTERVAL_RTID = 24891
 
@@ -237,6 +242,18 @@ RTD_INDICATIVE_REAL_TIME_MCPC_RTID = 24889
 # Total Capability of Resources Available to Provide Ancillary Service
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP6-328-CD
 TOTAL_CAPABILITY_OF_RESOURCES_AS_RTID = 24887
+
+# DAM Aggregated Ancillary Service Offer Curve
+# https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
+DAM_AGGREGATED_AS_OFFER_CURVE_RTID = 12330
+
+# 3-Day Highest Price Bids Selected or Dispatched in SCED
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
+THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID = 13230
+
+# 3-Day Highest Price Offered in SCED
+# https://www.ercot.com/mp/data-products/data-product-details?id=np3-916-ex
+THREE_DAY_HIGHEST_PRICE_OFFERED_SCED_RTID = 13029
 
 
 class ERCOTSevenDayLoadForecastReport(Enum):
@@ -327,6 +344,14 @@ AS_EXCLUDE_PRODUCTS = [
 # Hourly Resource Outage Capacity
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP3-233-CD
 HOURLY_RESOURCE_OUTAGE_CAPACITY_RTID = 13103
+
+# Available Resource Planned Outage Capacity Margin_7 Day
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-162-CD
+PLANNED_OUTAGE_CAPACITY_7_DAY_RTID = 22469
+
+# Available Resource Planned Outage Capacity Margin_7 Day Plus
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-161-CD
+PLANNED_OUTAGE_CAPACITY_FUTURE_RTID = 22470
 
 # Wind Power Production - Hourly Averaged Actual and Forecasted Values
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
@@ -830,7 +855,7 @@ class Ercot(ISOBase):
 
         df["Interval Start"] = pd.to_datetime(df["Oper Day"]) + (
             df["Hour Ending"] / 100 - 1
-        ).astype("timedelta64[h]")
+        ).astype(int) * pd.Timedelta(hours=1)
         df["Interval Start"] = df["Interval Start"].dt.tz_localize(
             self.default_timezone,
             # Prevent linting to is False
@@ -1504,62 +1529,74 @@ class Ercot(ISOBase):
         response = requests.get(doc_info.url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
-        """
-        Get interconnection queue for ERCOT
+    _fuel_type_map = {
+        "BIO": "Biomass",
+        "COA": "Coal",
+        "GAS": "Gas",
+        "GEO": "Geothermal",
+        "HYD": "Hydrogen",
+        "NUC": "Nuclear",
+        "OIL": "Fuel Oil",
+        "OTH": "Other",
+        "PET": "Petcoke",
+        "SOL": "Solar",
+        "WAT": "Water",
+        "WIN": "Wind",
+    }
 
-        Monthly historical data available here:
-            http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
-        """  # noqa
-        raw_data = self.get_raw_interconnection_queue(verbose)
-        # TODO other sheets for small projects, inactive, and cancelled project
-        # TODO see if this data matches up with summaries in excel file
-        # TODO historical data available as well
+    _technology_type_map = {
+        "BA": "Battery Energy Storage",
+        "CC": "Combined-Cycle",
+        "CE": "Compressed Air Energy Storage",
+        "CP": "Concentrated Solar Power",
+        "EN": "Energy Storage",
+        "FC": "Fuel Cell",
+        "GT": "Combustion (gas) Turbine, but not part of a Combined-Cycle",
+        "HY": "Hydroelectric Turbine",
+        "IC": "Internal Combustion Engine, eg. Reciprocating",
+        "OT": "Other",
+        "PV": "Photovoltaic Solar",
+        "ST": "Steam Turbine other than Combined-Cycle",
+        "WT": "Wind Turbine",
+    }
 
-        # skip rows and handle header
+    @staticmethod
+    def _find_header_row(
+        excel_file: pd.ExcelFile,
+        sheet_name: str,
+        marker: str = "INR",
+        max_rows: int = 50,
+    ) -> int:
+        """Find the row containing column headers by scanning for a marker."""
+        preview = pd.read_excel(
+            excel_file,
+            sheet_name=sheet_name,
+            header=None,
+            nrows=max_rows,
+        )
+        for i, row in preview.iterrows():
+            if marker in row.values:
+                return i
+        raise ValueError(
+            f"Could not find header row with '{marker}' in sheet '{sheet_name}'",
+        )
+
+    def _parse_large_gen(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Project Details - Large Gen' sheet."""
+        header_row = self._find_header_row(excel_file, "Project Details - Large Gen")
         queue = pd.read_excel(
-            raw_data,
+            excel_file,
             sheet_name="Project Details - Large Gen",
-            skiprows=30,
-        ).iloc[4:]
+            header=header_row,
+        )
+        queue = queue.dropna(subset=["INR"])
 
         queue["State"] = "Texas"
         queue["Queue Date"] = queue["Screening Study Started"]
+        queue["Size Category"] = "Large"
 
-        fuel_type_map = {
-            "BIO": "Biomass",
-            "COA": "Coal",
-            "GAS": "Gas",
-            "GEO": "Geothermal",
-            "HYD": "Hydrogen",
-            "NUC": "Nuclear",
-            "OIL": "Fuel Oil",
-            "OTH": "Other",
-            "PET": "Petcoke",
-            "SOL": "Solar",
-            "WAT": "Water",
-            "WIN": "Wind",
-        }
-
-        technology_type_map = {
-            "BA": "Battery Energy Storage",
-            "CC": "Combined-Cycle",
-            "CE": "Compressed Air Energy Storage",
-            "CP": "Concentrated Solar Power",
-            "EN": "Energy Storage",
-            "FC": "Fuel Cell",
-            "GT": "Combustion (gas) Turbine, but not part of a Combined-Cycle",
-            "HY": "Hydroelectric Turbine",
-            "IC": "Internal Combustion Engine, eg. Reciprocating",
-            "OT": "Other",
-            "PV": "Photovoltaic Solar",
-            "ST": "Steam Turbine other than Combined-Cycle",
-            "WT": "Wind Turbine",
-        }
-
-        queue["Fuel"] = queue["Fuel"].map(fuel_type_map)
-        queue["Technology"] = queue["Technology"].map(technology_type_map)
-
+        queue["Fuel"] = queue["Fuel"].map(self._fuel_type_map)
+        queue["Technology"] = queue["Technology"].map(self._technology_type_map)
         queue["Generation Type"] = queue["Fuel"] + " - " + queue["Technology"]
 
         queue["Status"] = (
@@ -1574,6 +1611,180 @@ class Ercot(ISOBase):
         )
 
         queue["Actual Completion Date"] = queue["Approved for Synchronization"]
+
+        return queue
+
+    def _parse_small_gen(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Project Details - Small Gen' sheet."""
+        header_row = self._find_header_row(excel_file, "Project Details - Small Gen")
+        queue = pd.read_excel(
+            excel_file,
+            sheet_name="Project Details - Small Gen",
+            header=header_row,
+        )
+        # Drop sub-header rows and empty rows
+        queue = queue.dropna(subset=["INR"])
+
+        queue["State"] = "Texas"
+        queue["Queue Date"] = queue["Model Ready Date"]
+        queue["Size Category"] = "Small"
+
+        queue["Fuel"] = queue["Fuel"].map(self._fuel_type_map)
+        queue["Technology"] = queue["Technology"].map(self._technology_type_map)
+        queue["Generation Type"] = queue["Fuel"] + " - " + queue["Technology"]
+
+        queue["Status"] = (
+            queue["IA Signed"]
+            .isna()
+            .map(
+                {
+                    True: InterconnectionQueueStatus.ACTIVE.value,
+                    False: InterconnectionQueueStatus.COMPLETED.value,
+                },
+            )
+        )
+
+        queue["Actual Completion Date"] = queue["Approved for Synchronization"]
+
+        # Add columns that don't exist in Small Gen but do in Large Gen
+        for col in [
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+        ]:
+            if col not in queue.columns:
+                queue[col] = None
+
+        return queue
+
+    def _parse_inactive_projects(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Inactive Projects' sheet."""
+        header_row = self._find_header_row(excel_file, "Inactive Projects")
+        df = pd.read_excel(
+            excel_file,
+            sheet_name="Inactive Projects",
+            header=header_row,
+        )
+        # Drop footer notes by requiring non-null Size Category (data rows)
+        df = df.dropna(subset=["INR", "Size Category"])
+
+        df = df.rename(columns={"MW **": "Capacity (MW)", "Fuel": "Fuel Raw"})
+        df["State"] = "Texas"
+        df["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
+        df["Withdrawn Date"] = df["Inactive Date"]
+        df["Withdrawal Comment"] = "Inactive"
+        df["Generation Type"] = df["Fuel Raw"]
+        df["Queue Date"] = None
+        df["Actual Completion Date"] = None
+
+        # Add columns not present in inactive sheet
+        for col in [
+            "Interconnecting Entity",
+            "POI Location",
+            "CDR Reporting Zone",
+            "Projected COD",
+            "Technology",
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "IA Signed",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+            "Approved for Energization",
+            "Approved for Synchronization",
+            "Comment",
+            "Fuel",
+        ]:
+            if col not in df.columns:
+                df[col] = None
+
+        return df
+
+    def _parse_cancelled_projects(self, excel_file: pd.ExcelFile) -> pd.DataFrame:
+        """Parse 'Cancellation Update' sheet."""
+        header_row = self._find_header_row(excel_file, "Cancellation Update")
+        df = pd.read_excel(
+            excel_file,
+            sheet_name="Cancellation Update",
+            header=header_row,
+        )
+        # Drop footer notes by requiring non-null Size Category (data rows)
+        df = df.dropna(subset=["INR", "Size Category"])
+
+        df = df.rename(columns={"MW **": "Capacity (MW)", "Fuel": "Fuel Raw"})
+        df["State"] = "Texas"
+        df["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
+        df["Withdrawn Date"] = df["Cancel Date"]
+        df["Withdrawal Comment"] = "Cancelled"
+        df["Generation Type"] = df["Fuel Raw"]
+        df["Queue Date"] = None
+        df["Actual Completion Date"] = None
+
+        # Add columns not present in cancellation sheet
+        for col in [
+            "Interconnecting Entity",
+            "POI Location",
+            "CDR Reporting Zone",
+            "Projected COD",
+            "Technology",
+            "GIM Study Phase",
+            "Screening Study Started",
+            "Screening Study Complete",
+            "FIS Requested",
+            "FIS Approved",
+            "Economic Study Required",
+            "IA Signed",
+            "Air Permit",
+            "GHG Permit",
+            "Water Availability",
+            "Meets Planning",
+            "Meets All Planning",
+            "Approved for Energization",
+            "Approved for Synchronization",
+            "Comment",
+            "Fuel",
+        ]:
+            if col not in df.columns:
+                df[col] = None
+
+        return df
+
+    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
+        """
+        Get interconnection queue for ERCOT
+
+        Includes large generation, small generation, inactive, and cancelled
+        projects from the GIS Report.
+
+        Monthly historical data available here:
+            http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
+        """  # noqa
+        raw_data = self.get_raw_interconnection_queue(verbose)
+        excel_file = pd.ExcelFile(raw_data)
+
+        large_gen = self._parse_large_gen(excel_file)
+        small_gen = self._parse_small_gen(excel_file)
+        inactive = self._parse_inactive_projects(excel_file)
+        cancelled = self._parse_cancelled_projects(excel_file)
+
+        queue = pd.concat(
+            [large_gen, small_gen, inactive, cancelled],
+            ignore_index=True,
+        )
 
         rename = {
             "INR": "Queue ID",
@@ -1590,9 +1801,8 @@ class Ercot(ISOBase):
             "Status": "Status",
         }
 
-        # todo: there are a few columns being parsed
-        # as "unamed" that aren't being included but should
         extra_columns = [
+            "Size Category",
             "Fuel",
             "Technology",
             "GIM Study Phase",
@@ -1608,22 +1818,23 @@ class Ercot(ISOBase):
             "Meets Planning",
             "Meets All Planning",
             "CDR Reporting Zone",
-            # "Construction Start", # all null
-            # "Construction End", # all null
             "Approved for Energization",
             "Approved for Synchronization",
             "Comment",
         ]
 
         missing = [
-            # todo the actual complettion date can be calculated by
-            # looking at status and other date columns
             "Withdrawal Comment",
             "Transmission Owner",
             "Summer Capacity (MW)",
             "Winter Capacity (MW)",
             "Withdrawn Date",
         ]
+
+        # Remove from missing any columns that already exist (e.g. from
+        # inactive/cancelled sheets which provide Withdrawn Date and
+        # Withdrawal Comment)
+        missing = [m for m in missing if m not in queue.columns]
 
         queue = utils.format_interconnection_df(
             queue=queue,
@@ -2408,6 +2619,14 @@ class Ercot(ISOBase):
     SCED_SUPPLEMENTAL_CORRECTION_START = pd.Timestamp("2025-12-05").date()
     SCED_SUPPLEMENTAL_CORRECTION_END = pd.Timestamp("2025-12-20").date()
 
+    # Data dates for which SCED Resource AS Offers data from the normal
+    # disclosure file is incorrect and should be replaced with data from the
+    # supplemental file. Published on April 10, 2026. Report dates
+    # Feb 3, 2026 through April 3, 2026 correspond to data dates
+    # Dec 5, 2025 through Feb 2, 2026.
+    SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_START = pd.Timestamp("2025-12-05").date()
+    SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_END = pd.Timestamp("2026-02-02").date()
+
     @support_date_range("DAY_START")
     def get_60_day_sced_disclosure(
         self,
@@ -2455,12 +2674,18 @@ class Ercot(ISOBase):
             <= date_as_date
             <= self.SCED_SUPPLEMENTAL_CORRECTION_END
         )
+        use_resource_as_offers_supplemental = (
+            self.SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_START
+            <= date_as_date
+            <= self.SCED_RESOURCE_AS_OFFERS_SUPPLEMENTAL_END
+        )
 
         data = self._handle_60_day_sced_disclosure(
             z,
             process=process,
             verbose=verbose,
             skip_esr=use_esr_correction or use_sced_supplemental,
+            skip_resource_as_offers=use_resource_as_offers_supplemental,
             output_format=output_format,
         )
 
@@ -2484,6 +2709,16 @@ class Ercot(ISOBase):
             if esr is not None:
                 data[SCED_ESR_KEY] = esr
 
+        if use_resource_as_offers_supplemental:
+            resource_as_offers = self._get_sced_resource_as_offers_supplemental_data(
+                date,
+                process=process,
+                verbose=verbose,
+                output_format=output_format,
+            )
+            if resource_as_offers is not None:
+                data[SCED_RESOURCE_AS_OFFERS_KEY] = resource_as_offers
+
         return data
 
     def _handle_60_day_sced_disclosure(
@@ -2492,6 +2727,7 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         skip_esr: bool = False,
+        skip_resource_as_offers: bool = False,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Parse a 60-day SCED disclosure zip file into DataFrames.
@@ -2501,6 +2737,9 @@ class Ercot(ISOBase):
             process: If True, apply processing functions to standardize data.
             verbose: If True, print verbose output.
             skip_esr: If True, skip ESR data extraction.
+            skip_resource_as_offers: If True, skip Resource AS Offers data
+                extraction. Used when the caller will replace this dataset
+                with a supplemental file.
             output_format: Curve output format passed to process functions.
         """
         # TODO: there are other files in the zip folder
@@ -2543,7 +2782,7 @@ class Ercot(ISOBase):
         )
         resource_as_offers = (
             pd.read_csv(z.open(resource_as_offers_file))
-            if resource_as_offers_file
+            if resource_as_offers_file and not skip_resource_as_offers
             else None
         )
 
@@ -2853,6 +3092,89 @@ class Ercot(ISOBase):
 
         return result
 
+    def _get_sced_resource_as_offers_supplemental_data(
+        self,
+        date: pd.Timestamp,
+        process: bool = False,
+        verbose: bool = False,
+        output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+    ) -> pd.DataFrame | None:
+        """Fetch SCED Resource AS Offers data from the supplemental file for
+        data dates Dec 5, 2025 through Feb 2, 2026.
+
+        The supplemental file was published on April 10, 2026 and covers
+        report dates Feb 3, 2026 through April 3, 2026. ERCOT published
+        incorrect Resource AS Offers data for those report dates in the
+        normal 60-Day SCED Disclosure zips.
+
+        Arguments:
+            date: The data date (not report date) to fetch supplemental data for
+            process: If True, process the data into standardized format
+            verbose: If True, print verbose output
+            output_format: Curve output format passed to process functions.
+
+        Returns:
+            DataFrame with corrected Resource AS Offers data, or None if the
+            supplemental file or the specific date's CSV is not found.
+        """
+        docs = self._get_documents(
+            report_type_id=SIXTY_DAY_SCED_DISCLOSURE_REPORTS_RTID,
+            constructed_name_contains=(
+                "60d_SCED_Resource_AS_OFFERS_02032026_thru_04032026_SUPPLEMENTAL"
+            ),
+            verbose=verbose,
+        )
+
+        if not docs:
+            logger.warning(
+                "SCED Resource AS Offers supplemental file not found",
+            )
+            return None
+
+        doc = max(docs, key=lambda x: x.publish_date)
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+
+        # Files are named like: 60d_SCED_Resource_AS_OFFERS-03-FEB-26.csv
+        report_date = date + pd.DateOffset(days=60)
+        date_str = report_date.strftime("%d-%b-%y").upper()
+        expected_filename = f"60d_SCED_Resource_AS_OFFERS-{date_str}.csv"
+
+        target_file = None
+        for file in z.namelist():
+            cleaned = file.replace(" ", "_")
+            if expected_filename in cleaned:
+                target_file = file
+                break
+
+        if target_file is None:
+            logger.warning(
+                "Could not find SCED Resource AS Offers supplemental file "
+                f"{expected_filename} in supplemental zip",
+            )
+            return None
+
+        if verbose:
+            logger.info(
+                f"Reading SCED Resource AS Offers supplemental data from {target_file}",
+            )
+
+        df = pd.read_csv(z.open(target_file))
+
+        # Localize SCED Timestamp (column is already named "SCED Timestamp"
+        # in the supplemental file, but rename defensively in case a future
+        # supplemental reverts to "SCED Time Stamp").
+        df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
+        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
+        df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
+            self.default_timezone,
+            ambiguous=df["Repeated Hour Flag"] == "N",
+        )
+
+        if process:
+            df = process_sced_resource_as_offers(df, output_format=output_format)
+
+        return df
+
     @support_date_range("DAY_START")
     def get_60_day_dam_disclosure(
         self,
@@ -2878,6 +3200,8 @@ class Ercot(ISOBase):
         - "dam_ptp_obligation_option_awards"
         - "dam_esr" (when available, starting 2025-12-06)
         - "dam_esr_as_offers" (when available, starting 2025-12-06)
+        - "dam_as_only_awards" (when available, starting 2025-12-06)
+        - "dam_as_only_offers" (when available, starting 2025-12-06)
 
         and values as pandas.DataFrame objects
 
@@ -2943,10 +3267,13 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
             }
 
-        # ESR files are optional (only available starting 2025-12-06)
+        # Optional files added to the disclosure bundle starting operating day
+        # 2025-12-06 (posted 2026-02-04).
         optional_files_prefix = {
             DAM_ESR_KEY: "60d_DAM_ESR_Data-",
             DAM_ESR_AS_OFFERS_KEY: "60d_DAM_ESR_ASOffers-",
+            DAM_AS_ONLY_AWARDS_KEY: "60d_DAM_AS_Only_Awards-",
+            DAM_AS_ONLY_OFFERS_KEY: "60d_DAM_AS_Only_Offers-",
         }
 
         files = {}
@@ -2990,6 +3317,8 @@ class Ercot(ISOBase):
                 DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
                 DAM_ESR_KEY: process_dam_esr,
                 DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
+                DAM_AS_ONLY_AWARDS_KEY: process_dam_as_only_awards,
+                DAM_AS_ONLY_OFFERS_KEY: process_dam_as_only_offers,
             }
 
             # These process functions accept output_format for curve extraction
@@ -3001,6 +3330,7 @@ class Ercot(ISOBase):
                 DAM_GEN_RESOURCE_AS_OFFERS_KEY,
                 DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
                 DAM_ESR_AS_OFFERS_KEY,
+                DAM_AS_ONLY_OFFERS_KEY,
             }
 
             for file_name, process_func in file_to_function.items():
@@ -3880,6 +4210,143 @@ class Ercot(ISOBase):
             )
 
         return df
+
+    @support_date_range(frequency=None)
+    def get_planned_outage_capacity_7_day(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Hourly maximum resource capacity available for planned outages within 7
+        days of the operating day, as reported by ERCOT (NP3-162-CD).
+
+        The date argument refers to the publish time of the report, which is
+        published hourly.
+
+        Arguments:
+            date (str, pd.Timestamp): publish time to download.
+            end (str, pd.Timestamp, optional): end publish time to download.
+                Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with hourly planned outage capacity data
+        """
+        return (
+            self._get_hourly_report(
+                start=date,
+                end=end,
+                report_type_id=PLANNED_OUTAGE_CAPACITY_7_DAY_RTID,
+                extension="csv",
+                handle_doc=self._handle_planned_outage_capacity_7_day,
+                verbose=verbose,
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    def _handle_planned_outage_capacity_7_day(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        df = df.rename(columns={"OperatingDate": "DeliveryDate"})
+        df = self.parse_doc(df, verbose=verbose)
+
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+
+        return self._handle_planned_outage_capacity_df(df)
+
+    @support_date_range(frequency=None)
+    def get_planned_outage_capacity_future(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Daily maximum resource capacity available for planned outages from 7 days
+        to 60 months ahead of the operating day, as reported by ERCOT (NP3-161-CD).
+
+        The date argument refers to the publish time of the report, which is
+        published twice each business day.
+
+        Arguments:
+            date (str, pd.Timestamp): publish time to download.
+            end (str, pd.Timestamp, optional): end publish time to download.
+                Defaults to None.
+            verbose (bool, optional): print verbose output. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with daily planned outage capacity data
+        """
+        return (
+            self._get_hourly_report(
+                start=date,
+                end=end,
+                report_type_id=PLANNED_OUTAGE_CAPACITY_FUTURE_RTID,
+                extension="csv",
+                handle_doc=self._handle_planned_outage_capacity_future,
+                verbose=verbose,
+            )
+            .sort_values(["Interval Start", "Publish Time"])
+            .reset_index(drop=True)
+        )
+
+    def _handle_planned_outage_capacity_future(
+        self,
+        doc: Document,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+
+        df["Interval Start"] = pd.to_datetime(
+            df["OperatingDate"],
+            format="%m/%d/%Y",
+        ).dt.tz_localize(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+
+        df.insert(
+            0,
+            "Publish Time",
+            pd.to_datetime(doc.publish_date).tz_convert(self.default_timezone),
+        )
+
+        return self._handle_planned_outage_capacity_df(df)
+
+    def _handle_planned_outage_capacity_df(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "MaxDailyResourcePOCnonIRRnonPUN": "Max POC Non IRR Non PUN",
+                "AggApprovedResourcePOCnonIRRnonPUN": "Approved POC Non IRR Non PUN",
+                "AggReceivedResourcePOCnonIRRnonPUN": "Received POC Non IRR Non PUN",
+                "MaxDailyResourcePOCIRR": "Max POC IRR",
+                "AggApprovedResourcePOCIRR": "Approved POC IRR",
+                "AggReceivedResourcePOCIRR": "Received POC IRR",
+            },
+        )
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Max POC Non IRR Non PUN",
+                "Approved POC Non IRR Non PUN",
+                "Received POC Non IRR Non PUN",
+                "Max POC IRR",
+                "Approved POC IRR",
+                "Received POC IRR",
+            ]
+        ]
 
     @support_date_range(frequency=None)
     def get_unplanned_resource_outages(
@@ -4798,6 +5265,143 @@ class Ercot(ISOBase):
                 ]
             ]
             .sort_values(["SCED Timestamp", "AS Type", "Resource Name"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("DAY_START")
+    def get_3_day_highest_price_bids_selected_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the bid price and name of the Load Resource submitting the
+        highest-priced bid selected or dispatched by SCED for the given
+        operating day.
+
+        Published daily, three days after the applicable operating day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np3-257-ex
+
+        Arguments:
+            date: operating day to fetch data for.
+            end: optional end operating day for date range queries.
+            verbose: print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns: Interval Start, Interval End,
+            SCED Timestamp, QSE, DME, Load Resource,
+            Highest Price Dispatched by SCED, Proxy Extension.
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_BIDS_SCED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        return self._handle_3_day_highest_price_bids_selected_sced(df)
+
+    def _handle_3_day_highest_price_bids_selected_sced(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCED Time Stamp": "SCED Timestamp",
+                "Repeated Hour Flag": "RepeatedHourFlag",
+            },
+        )
+        df = self._handle_sced_timestamp(df)
+
+        df["Highest Price Dispatched by SCED"] = pd.to_numeric(
+            df["Highest Price Dispatched by SCED"],
+            errors="coerce",
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Load Resource",
+                    "Highest Price Dispatched by SCED",
+                    "Proxy Extension",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "QSE", "DME", "Load Resource"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range("DAY_START")
+    def get_3_day_highest_price_offered_sced(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the offer price and name of the Generation Resource submitting
+        the highest-priced offer selected by SCED for the given operating day.
+
+        Published daily, three days after the applicable operating day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np3-916-ex
+
+        Arguments:
+            date: operating day to fetch data for.
+            end: optional end operating day for date range queries.
+            verbose: print verbose output.
+
+        Returns:
+            pandas.DataFrame with columns: Interval Start, Interval End,
+            SCED Timestamp, QSE, DME, Generation Resource, LMP,
+            Proxy Extension, Power Balance Penalty Flag.
+        """
+        report_date = date.normalize() + pd.DateOffset(days=3)
+
+        doc = self._get_document(
+            report_type_id=THREE_DAY_HIGHEST_PRICE_OFFERED_SCED_RTID,
+            date=report_date,
+            verbose=verbose,
+        )
+
+        df = self.read_doc(doc, parse=False, verbose=verbose)
+        return self._handle_3_day_highest_price_offered_sced(df)
+
+    def _handle_3_day_highest_price_offered_sced(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "SCED Time Stamp": "SCED Timestamp",
+                "Repeated Hour Flag": "RepeatedHourFlag",
+            },
+        )
+        df = self._handle_sced_timestamp(df)
+
+        df["LMP"] = pd.to_numeric(df["LMP"], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "SCED Timestamp",
+                    "QSE",
+                    "DME",
+                    "Generation Resource",
+                    "LMP",
+                    "Proxy Extension",
+                    "Power Balance Penalty Flag",
+                ]
+            ]
+            .sort_values(["SCED Timestamp", "QSE", "DME", "Generation Resource"])
             .reset_index(drop=True)
         )
 
@@ -5871,7 +6475,7 @@ class Ercot(ISOBase):
 
             doc["Interval Start"] = (
                 pd.to_datetime(doc["DeliveryDate"])
-                + doc["HourBeginning"].astype("timedelta64[h]")
+                + doc["HourBeginning"].astype(int) * pd.Timedelta(hours=1)
                 + ((doc["DeliveryInterval"] - 1) * interval_length)
             )
 
@@ -5903,7 +6507,7 @@ class Ercot(ISOBase):
             )
             doc["Interval Start"] = pd.to_datetime(doc["DeliveryDate"]) + doc[
                 "HourBeginning"
-            ].astype("timedelta64[h]")
+            ].astype(int) * pd.Timedelta(hours=1)
 
         if "TimeEnding" not in original_cols:
             try:
@@ -6415,6 +7019,67 @@ class Ercot(ISOBase):
             .sort_values(
                 ["Interval Start", "Publish Time", "AS Type", "Demand Curve Point"],
             )
+            .reset_index(drop=True)
+        )
+
+    # Published once per DAM run (daily, ~12-2 PM Central) for the next day's
+    # delivery date. Covers the AS types REGDN, REGUP, RRSPF, RRSFF, RRSUF,
+    # ECRSS, and ECRSM.
+    @support_date_range(frequency=None)
+    def get_dam_asdc_aggregated(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get DAM Aggregated Ancillary Service Offer Curve (NP4-19-CD).
+
+        The DAM Aggregated Ancillary Service Demand/Offer Curve contains the
+        aggregated offer curve (price/quantity pairs) per ancillary service
+        type for each hour of the next day's delivery, published once per DAM
+        run. ``date`` and ``end`` are interpreted as delivery dates; the DAM
+        runs the day before, so the underlying file is located by shifting the
+        posted-date filter back by one day.
+
+        https://www.ercot.com/mp/data-products/data-product-details?id=np4-19-cd
+        """
+        if date == "latest":
+            docs = self._get_documents(
+                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+                extension="csv",
+                date=date,
+                verbose=verbose,
+            )
+        else:
+            if end is None:
+                end = date + pd.DateOffset(days=1)
+
+            docs = self._get_documents(
+                report_type_id=DAM_AGGREGATED_AS_OFFER_CURVE_RTID,
+                extension="csv",
+                published_after=date - pd.Timedelta(days=1),
+                published_before=end - pd.Timedelta(days=1),
+                verbose=verbose,
+            )
+
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+        return self._handle_dam_asdc_aggregated(df)
+
+    def _handle_dam_asdc_aggregated(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.rename(
+            columns={
+                "AncillaryType": "AS Type",
+                "RepeatedHourFlag": "DSTFlag",
+            },
+        )
+        df = self.parse_doc(df)
+
+        for col in ["Price", "Quantity"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return (
+            df[["Interval Start", "Interval End", "AS Type", "Price", "Quantity"]]
+            .sort_values(["Interval Start", "AS Type", "Price"])
             .reset_index(drop=True)
         )
 

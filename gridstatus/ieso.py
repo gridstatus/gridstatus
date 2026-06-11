@@ -4278,8 +4278,13 @@ class IESO(ISOBase):
         if date == "latest":
             base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeConstrShadowPrices"
             file = "PUB_RealtimeConstrShadowPrices.xml"
+            file_last_modified = self._get_shadow_prices_file_last_modified(
+                base_url,
+                file,
+            )
             json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
             df = self._parse_real_time_shadow_prices_report(json_data)
+            df["Publish Time"] = file_last_modified
             df.sort_values(
                 ["Interval Start", "Publish Time", "Constraint"],
                 inplace=True,
@@ -4302,7 +4307,7 @@ class IESO(ISOBase):
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
             df = self._parse_real_time_shadow_prices_report(json_data)
-            df["Last Modified"] = file_last_modified
+            df["Publish Time"] = file_last_modified
             dfs.append(df)
         df = pd.concat(dfs)
         df = utils.move_cols_to_front(
@@ -4341,8 +4346,13 @@ class IESO(ISOBase):
         if date == "latest":
             base_url = f"{PUBLIC_REPORTS_URL_PREFIX}/DAConstrShadowPrices"
             file = "PUB_DAConstrShadowPrices.xml"
+            file_last_modified = self._get_shadow_prices_file_last_modified(
+                base_url,
+                file,
+            )
             json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
             df = self._parse_day_ahead_shadow_prices_report(json_data)
+            df["Publish Time"] = file_last_modified
             df.sort_values(
                 ["Interval Start", "Publish Time", "Constraint"],
                 inplace=True,
@@ -4363,8 +4373,9 @@ class IESO(ISOBase):
             last_modified=last_modified,
         )
         dfs = []
-        for json_data, _ in json_data_with_times:
+        for json_data, file_last_modified in json_data_with_times:
             df = self._parse_day_ahead_shadow_prices_report(json_data)
+            df["Publish Time"] = file_last_modified
             dfs.append(df)
         df = pd.concat(dfs)
         df = utils.move_cols_to_front(
@@ -4395,6 +4406,23 @@ class IESO(ISOBase):
         r = self._request(url)
         json_data = xmltodict.parse(r.text)
         return json_data
+
+    def _get_shadow_prices_file_last_modified(
+        self,
+        base_url: str,
+        file: str,
+    ) -> pd.Timestamp:
+        r = self._request(base_url)
+        pattern = (
+            rf'<a href="{re.escape(file)}">.*?</a>'
+            r"\s+(\d{2}-\w{3}-\d{4} \d{2}:\d{2})"
+        )
+        match = re.search(pattern, r.text)
+        if not match:
+            raise FileNotFoundError(
+                f"Could not find {file} in index at {base_url}",
+            )
+        return pd.Timestamp(match.group(1), tz=self.default_timezone)
 
     def _get_all_shadow_prices_jsons(
         self,
@@ -4450,7 +4478,8 @@ class IESO(ISOBase):
             return "connection reset" in msg or "connection aborted" in msg
 
         def _fetch_with_retries(
-            file: str, last_modified_time: str
+            file: str,
+            last_modified_time: str,
         ) -> tuple[dict, pd.Timestamp]:
             # small stagger based on filename hash so not all tasks start at once
             initial_delay = (hash(file) % 2000) / 1000.0  # 0–2s
@@ -4488,7 +4517,7 @@ class IESO(ISOBase):
                 for file, last_modified_time in filtered_files
             }
             for future in as_completed(future_to_file):
-                file, last_modified_time = future_to_file[future]
+                file, _ = future_to_file[future]
                 try:
                     json_data, ts = future.result()
                     json_data_with_times.append((json_data, ts))

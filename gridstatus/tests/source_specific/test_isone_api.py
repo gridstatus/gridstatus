@@ -9,6 +9,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
+    ISONE_TOTAL_DEMAND_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -340,6 +341,47 @@ class TestISONEAPI(TestHelperMixin):
                 assert result[col].dtype in [np.int64, np.float64]
                 assert (result[numeric_cols].sum(axis=1) > 0).all()
 
+    def test_get_marginal_fuel_type_latest(self):
+        with api_vcr.use_cassette("test_get_marginal_fuel_type_latest.yaml"):
+            result = self.iso.get_marginal_fuel_type(date="latest")
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 1
+            assert "Time" in result.columns
+            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+
+            fuel_cols = [col for col in result.columns if col != "Time"]
+            assert len(fuel_cols) > 0
+            for col in fuel_cols:
+                assert result[col].dtype == bool
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_marginal_fuel_type_date_range(self, date, end):
+        cassette_name = f"test_get_marginal_fuel_type_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_marginal_fuel_type(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert "Time" in result.columns
+
+            assert min(result["Time"]).date() == pd.Timestamp(date).date()
+            assert max(result["Time"]).date() == pd.Timestamp(
+                end,
+            ).date() - pd.Timedelta(days=1)
+
+            assert all(isinstance(t, pd.Timestamp) for t in result["Time"])
+
+            fuel_cols = [col for col in result.columns if col != "Time"]
+            assert len(fuel_cols) > 0
+            for col in fuel_cols:
+                # Cross-day concat can upgrade bool->object when a fuel
+                # category is absent on some days (e.g. Coal in newer data).
+                assert result[col].dropna().isin([True, False]).all()
+            assert (result[fuel_cols] == True).any(axis=1).sum() > 0  # noqa: E712
+
     def test_get_load_hourly_latest(self):
         with api_vcr.use_cassette("test_get_load_hourly_latest.yaml"):
             result = self.iso.get_load_hourly(date="latest")
@@ -628,6 +670,47 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_zonal_load_estimated_5_min(date=date, end=end)
 
         self._check_zonal_load_estimated_5_min(result)
+
+        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
+            self.iso.default_timezone,
+        )
+        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
+            self.iso.default_timezone,
+        ) - pd.Timedelta(minutes=5)
+
+    """get_total_demand"""
+
+    def _check_total_demand(self, df: pd.DataFrame) -> None:
+        assert list(df.columns) == ISONE_TOTAL_DEMAND_COLUMNS
+        for col in ISONE_TOTAL_DEMAND_COLUMNS[2:]:
+            assert df[col].dtype in [np.int64, np.float64]
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
+        ).all()
+        assert df["Interval Start"].is_unique
+        assert df["Interval Start"].is_monotonic_increasing
+
+    def test_get_total_demand_latest(self):
+        with api_vcr.use_cassette("test_get_total_demand_latest.yaml"):
+            result = self.iso.get_total_demand(date="latest")
+
+        self._check_total_demand(result)
+        assert len(result) == 1
+
+    @pytest.mark.parametrize(
+        "date,end",
+        DST_CHANGE_TEST_DATES,
+    )
+    def test_get_total_demand_date_range(
+        self,
+        date: str,
+        end: str,
+    ):
+        cassette_name = f"test_get_total_demand_{date}_{end}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_total_demand(date=date, end=end)
+
+        self._check_total_demand(result)
 
         assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
             self.iso.default_timezone,
