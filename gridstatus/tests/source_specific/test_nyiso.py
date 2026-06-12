@@ -890,7 +890,7 @@ class TestNYISO(BaseTestISO):
 
     def test_get_generation_outages_forecast(self):
         with nyiso_vcr.use_cassette("test_get_generation_outages_forecast.yaml"):
-            df = self.iso.get_generation_outages_forecast("today")
+            df = self.iso.get_generation_outages_forecast("latest")
 
         assert df.columns.tolist() == [
             "Interval Start",

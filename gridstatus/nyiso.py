@@ -416,14 +416,19 @@ class NYISO(ISOBase):
 
         return data
 
-    @support_date_range(frequency="DAY_START")
     def get_generation_outages_forecast(
         self,
-        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
-        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        date: str | pd.Timestamp | Literal["latest"] = "latest",
+        end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get forecasted generation outage capacity for the next 30 days."""
+        if end is not None:
+            raise ValueError(
+                "Date ranges are not supported for generation outages forecast. "
+                "Use date='latest'.",
+            )
+
         if verbose:
             logger.info(f"Requesting {GENERATION_OUTAGES_FORECAST_URL}")
 
