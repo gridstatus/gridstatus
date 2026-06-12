@@ -18,6 +18,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_CONSTRAINT_FIVE_MIN_COLUMNS,
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
+    ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
@@ -1012,6 +1013,88 @@ class ISONEAPI:
 
         return df[ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS].sort_values(
             ["Interval Start", "Load Zone ID"],
+        )
+
+    def get_load_forecast_by_zone_5_min(
+        self,
+        date: str | pd.Timestamp | Literal["latest"] = "latest",
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get five-minute zonal load forecast data for all load zones.
+
+        Args:
+            date (pd.Timestamp | Literal["latest"]): Unused. Kept for API
+                compatibility. This endpoint always returns the current forecast.
+            end (pd.Timestamp | None): Unused. Date ranges are not supported.
+            verbose (bool): Whether to print verbose logging information.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing five-minute zonal load forecast data.
+                Publish Time comes from the /info endpoint CreationDate field.
+        """
+        if end is not None:
+            raise ValueError(
+                "Date ranges are not supported for five-minute zonal load forecast. "
+                "Use date='latest'.",
+            )
+        data_url = self._build_url("fiveminutezonalloadforecast", "latest")
+
+        info_response = self.make_api_call(
+            f"{self.base_url}/fiveminutezonalloadforecast/info",
+            verbose=verbose,
+        )
+        response = self.make_api_call(data_url, verbose=verbose)
+        publish_time = pd.to_datetime(
+            info_response["ServiceInfo"]["CreationDate"],
+            utc=True,
+        ).tz_convert(self.default_timezone)
+
+        records = self._prepare_records(
+            self._safe_get(
+                response,
+                "isone_web_services",
+                "five_min_zonal_forecast_data",
+                "five_min_zonal_forecast",
+            ),
+        )
+
+        if not records:
+            raise NoDataFoundException(
+                "No five-minute zonal load forecast data found",
+            )
+
+        df = pd.DataFrame(records)
+
+        df["Interval Start"] = pd.to_datetime(
+            df["interval_begin_date"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+
+        df = df.rename(
+            columns={
+                "load_zone_id": "Load Zone ID",
+                "load_zone_name": "Load Zone Name",
+                "load_mw": "Load Forecast",
+                "btm_pv_mw": "BTM Solar Forecast",
+            },
+        )
+
+        df["Publish Time"] = publish_time
+
+        df["Load Zone ID"] = pd.to_numeric(df["Load Zone ID"], errors="coerce")
+        df["Load Forecast"] = pd.to_numeric(df["Load Forecast"], errors="coerce")
+        df["BTM Solar Forecast"] = pd.to_numeric(
+            df["BTM Solar Forecast"],
+            errors="coerce",
+        )
+
+        return (
+            df[ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS]
+            .sort_values(["Interval Start", "Load Zone Name"])
+            .reset_index(drop=True)
         )
 
     @support_date_range("DAY_START")

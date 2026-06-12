@@ -886,6 +886,64 @@ class TestNYISO(BaseTestISO):
                 (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
             ).all()
 
+    """get_generation_outages_forecast"""
+
+    def test_get_generation_outages_forecast(self):
+        with nyiso_vcr.use_cassette("test_get_generation_outages_forecast.yaml"):
+            df = self.iso.get_generation_outages_forecast("latest")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Generation Outage",
+        ]
+        assert df["Publish Time"].nunique() == 1
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(days=1)
+        ).all()
+        assert len(df) > 0
+
+    """get_zonal_load_hourly"""
+
+    def test_get_zonal_load_hourly_today(self):
+        with nyiso_vcr.use_cassette("test_get_zonal_load_hourly_today.yaml"):
+            df = self.iso.get_zonal_load_hourly("today")
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Zone",
+            "PTID",
+            "Load",
+        ]
+        assert df["Zone"].nunique() == 11
+        assert (
+            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
+        ).all()
+
+    def test_get_zonal_load_hourly_historical_date_range(self):
+        end = self.local_start_of_today() - pd.DateOffset(days=14)
+        date = end - pd.DateOffset(days=7)
+
+        with nyiso_vcr.use_cassette(
+            f"test_get_zonal_load_hourly_historical_date_range_{date.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_zonal_load_hourly(
+                start=date,
+                end=end,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Zone",
+            "PTID",
+            "Load",
+        ]
+        assert df["Interval Start"].min() == self.local_start_of_day(date.date())
+        assert df["Zone"].nunique() == 11
+
     """get_interface_limits_and_flows_5_min"""
 
     def test_get_interface_limits_and_flows_5_min_historical_date_range(self):
