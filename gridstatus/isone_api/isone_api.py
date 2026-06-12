@@ -1015,10 +1015,9 @@ class ISONEAPI:
             ["Interval Start", "Load Zone ID"],
         )
 
-    @support_date_range("DAY_START")
     def get_load_forecast_by_zone_5_min(
         self,
-        date: str | pd.Timestamp | Literal["latest"],
+        date: str | pd.Timestamp | Literal["latest"] = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -1026,16 +1025,21 @@ class ISONEAPI:
         Get five-minute zonal load forecast data for all load zones.
 
         Args:
-            date (pd.Timestamp | Literal["latest"]): The start date for the data
-                request. Use "latest" for most recent data.
-            end (pd.Timestamp | None): The end date for the data request. Only used
-                if date is not "latest".
+            date (pd.Timestamp | Literal["latest"]): Unused. Kept for API
+                compatibility. This endpoint always returns the current forecast.
+            end (pd.Timestamp | None): Unused. Date ranges are not supported.
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
             pd.DataFrame: A DataFrame containing five-minute zonal load forecast data.
         """
-        url = self._build_url("fiveminutezonalloadforecast", date)
+        if end is not None:
+            raise ValueError(
+                "Date ranges are not supported for five-minute zonal load forecast. "
+                "Use date='latest'.",
+            )
+
+        url = self._build_url("fiveminutezonalloadforecast", "latest")
         response = self.make_api_call(url, verbose=verbose)
         publish_time = pd.Timestamp.now(tz=self.default_timezone)
 
@@ -1050,7 +1054,7 @@ class ISONEAPI:
 
         if not records:
             raise NoDataFoundException(
-                f"No five-minute zonal load forecast data found for {date}",
+                "No five-minute zonal load forecast data found",
             )
 
         df = pd.DataFrame(records)
@@ -1079,8 +1083,10 @@ class ISONEAPI:
             errors="coerce",
         )
 
-        return df[ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS].sort_values(
-            ["Interval Start", "Load Zone Name"],
+        return (
+            df[ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS]
+            .sort_values(["Interval Start", "Load Zone Name"])
+            .reset_index(drop=True)
         )
 
     @support_date_range("DAY_START")

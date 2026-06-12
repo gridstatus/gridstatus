@@ -699,31 +699,7 @@ class TestISONEAPI(TestHelperMixin):
 
         self._check_load_forecast_by_zone_5_min(result)
         assert result["Load Zone Name"].nunique() == 8
-
-    @pytest.mark.parametrize(
-        "date,end",
-        [
-            ("2025-11-01", "2025-11-03"),
-            ("2025-03-08", "2025-03-10"),
-        ],
-    )
-    def test_get_load_forecast_by_zone_5_min_date_range(
-        self,
-        date: str,
-        end: str,
-    ):
-        cassette_name = f"test_get_load_forecast_by_zone_5_min_{date}_{end}.yaml"
-        with api_vcr.use_cassette(cassette_name):
-            result = self.iso.get_load_forecast_by_zone_5_min(date=date, end=end)
-
-        self._check_load_forecast_by_zone_5_min(result)
-
-        assert result["Interval Start"].min() == pd.Timestamp(date).tz_localize(
-            self.iso.default_timezone,
-        )
-        assert result["Interval Start"].max() == pd.Timestamp(end).tz_localize(
-            self.iso.default_timezone,
-        ) - pd.Timedelta(minutes=5)
+        assert result.index.tolist() == list(range(len(result)))
 
     """get_total_demand"""
 
