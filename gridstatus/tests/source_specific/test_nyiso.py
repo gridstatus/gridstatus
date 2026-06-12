@@ -896,7 +896,7 @@ class TestNYISO(BaseTestISO):
             "Interval Start",
             "Interval End",
             "Publish Time",
-            "Generation Outage MW",
+            "Generation Outage",
         ]
         assert df["Publish Time"].nunique() == 1
         assert (

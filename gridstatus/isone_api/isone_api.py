@@ -1,7 +1,6 @@
 import os
 import time
 from datetime import datetime
-from email.utils import parsedate_to_datetime
 from typing import Literal
 
 import pandas as pd
@@ -143,7 +142,6 @@ class ISONEAPI:
         api_params: dict = None,
         parse_json: bool = True,
         verbose: bool = False,
-        return_response_headers: bool = False,
     ):
         if verbose:
             log.debug(f"Requesting url: {url} with params: {api_params}")
@@ -184,12 +182,8 @@ class ISONEAPI:
                 response.raise_for_status()
 
         if parse_json:
-            if return_response_headers:
-                return response.json(), response.headers
             return response.json()
         else:
-            if return_response_headers:
-                return response.content, response.headers
             return response.content
 
     def get_locations(self) -> pd.DataFrame:
@@ -1042,14 +1036,8 @@ class ISONEAPI:
             pd.DataFrame: A DataFrame containing five-minute zonal load forecast data.
         """
         url = self._build_url("fiveminutezonalloadforecast", date)
-        response, headers = self.make_api_call(
-            url,
-            verbose=verbose,
-            return_response_headers=True,
-        )
-        publish_time = pd.Timestamp(parsedate_to_datetime(headers["Date"])).tz_convert(
-            self.default_timezone,
-        )
+        response = self.make_api_call(url, verbose=verbose)
+        publish_time = pd.Timestamp.now(tz=self.default_timezone)
 
         records = self._prepare_records(
             self._safe_get(

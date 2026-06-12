@@ -1,4 +1,3 @@
-from email.utils import parsedate_to_datetime
 from enum import StrEnum
 from io import BytesIO
 from typing import BinaryIO, Dict, Literal, NamedTuple
@@ -431,15 +430,16 @@ class NYISO(ISOBase):
         response = requests.get(GENERATION_OUTAGES_FORECAST_URL)
         response.raise_for_status()
 
-        publish_time = pd.Timestamp(
-            parsedate_to_datetime(response.headers["Last-Modified"]),
+        publish_time = pd.to_datetime(
+            response.headers["Last-Modified"],
+            utc=True,
         ).tz_convert(self.default_timezone)
 
         df = pd.read_csv(BytesIO(response.content))
         df = df.rename(
             columns={
                 "Date": "Interval Start",
-                "Forecasted Generation Outage (MW)": "Generation Outage MW",
+                "Forecasted Generation Outage (MW)": "Generation Outage",
             },
         )
         df["Interval Start"] = pd.to_datetime(df["Interval Start"]).dt.tz_localize(
@@ -448,8 +448,8 @@ class NYISO(ISOBase):
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
         df["Publish Time"] = publish_time
 
-        df["Generation Outage MW"] = pd.to_numeric(
-            df["Generation Outage MW"],
+        df["Generation Outage"] = pd.to_numeric(
+            df["Generation Outage"],
             errors="coerce",
         )
 
@@ -459,7 +459,7 @@ class NYISO(ISOBase):
                     "Interval Start",
                     "Interval End",
                     "Publish Time",
-                    "Generation Outage MW",
+                    "Generation Outage",
                 ]
             ]
             .sort_values(["Interval Start"])
