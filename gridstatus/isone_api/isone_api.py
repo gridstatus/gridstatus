@@ -1039,18 +1039,17 @@ class ISONEAPI:
                 "Date ranges are not supported for five-minute zonal load forecast. "
                 "Use date='latest'.",
             )
+        data_url = self._build_url("fiveminutezonalloadforecast", "latest")
 
-        info = self.make_api_call(
+        info_response = self.make_api_call(
             f"{self.base_url}/fiveminutezonalloadforecast/info",
             verbose=verbose,
         )
+        response = self.make_api_call(data_url, verbose=verbose)
         publish_time = pd.to_datetime(
-            info["ServiceInfo"]["CreationDate"],
+            info_response["ServiceInfo"]["CreationDate"],
             utc=True,
         ).tz_convert(self.default_timezone)
-
-        url = self._build_url("fiveminutezonalloadforecast", "latest")
-        response = self.make_api_call(url, verbose=verbose)
 
         records = self._prepare_records(
             self._safe_get(
