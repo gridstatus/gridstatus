@@ -687,7 +687,7 @@ class TestISONEAPI(TestHelperMixin):
         assert df["Load Forecast"].dtype in [np.int64, np.float64]
         assert df["BTM Solar Forecast"].dtype in [np.int64, np.float64]
         assert df["Publish Time"].nunique() == 1
-        assert df["Publish Time"] >= df["Interval Start"].min()
+        assert (df["Publish Time"] >= df["Interval Start"].min()).all()
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
