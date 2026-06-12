@@ -1,4 +1,6 @@
+from email.utils import parsedate_to_datetime
 from enum import StrEnum
+from io import BytesIO
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
 import pandas as pd
@@ -26,6 +28,10 @@ class NYISOLocationType(StrEnum):
 REFERENCE_BUS_LOCATION = "NYISO_LBMP_REFERENCE"
 
 LOAD_DATASET = "pal"
+ZONAL_LOAD_HOURLY_DATASET = "palIntegrated"
+GENERATION_OUTAGES_FORECAST_URL = (
+    "http://mis.nyiso.com/public/csv/genmaint/gen_maint_report.csv"
+)
 FUEL_MIX_DATASET = "rtfuelmix"
 LOAD_FORECAST_DATASET = "isolf"
 DAM_LMP_DATASET = "damlbmp"
@@ -55,6 +61,7 @@ class DatasetInterval(NamedTuple):
 
 DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     LOAD_DATASET: DatasetInterval("instantaneous", None),
+    ZONAL_LOAD_HOURLY_DATASET: DatasetInterval("start", 60),
     FUEL_MIX_DATASET: DatasetInterval("instantaneous", None),
     LOAD_FORECAST_DATASET: DatasetInterval("start", 60),
     DAM_LMP_DATASET: DatasetInterval("start", 60),
@@ -409,6 +416,96 @@ class NYISO(ISOBase):
         )
 
         return data
+
+    @support_date_range(frequency="DAY_START")
+    def get_generation_outages_forecast(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get forecasted generation outage capacity for the next 30 days."""
+        if verbose:
+            logger.info(f"Requesting {GENERATION_OUTAGES_FORECAST_URL}")
+
+        response = requests.get(GENERATION_OUTAGES_FORECAST_URL)
+        response.raise_for_status()
+
+        publish_time = pd.Timestamp(
+            parsedate_to_datetime(response.headers["Last-Modified"]),
+        ).tz_convert(self.default_timezone)
+
+        df = pd.read_csv(BytesIO(response.content))
+        df = df.rename(
+            columns={
+                "Date": "Interval Start",
+                "Forecasted Generation Outage (MW)": "Generation Outage MW",
+            },
+        )
+        df["Interval Start"] = pd.to_datetime(df["Interval Start"]).dt.tz_localize(
+            self.default_timezone,
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
+        df["Publish Time"] = publish_time
+
+        df["Generation Outage MW"] = pd.to_numeric(
+            df["Generation Outage MW"],
+            errors="coerce",
+        )
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Generation Outage MW",
+                ]
+            ]
+            .sort_values(["Interval Start"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="MONTH_START")
+    def get_zonal_load_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get hourly integrated real-time load by zone."""
+        data = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name=ZONAL_LOAD_HOURLY_DATASET,
+            filename="palIntegrated",
+            groupby="Name",
+            verbose=verbose,
+        )
+
+        df = data.rename(
+            columns={
+                "Name": "Zone",
+                "Integrated Load": "Load",
+            },
+        )
+
+        df["PTID"] = pd.to_numeric(df["PTID"], errors="coerce")
+        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
+
+        return (
+            df[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Zone",
+                    "PTID",
+                    "Load",
+                ]
+            ]
+            .sort_values(["Interval Start", "Zone"])
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency="MONTH_START")
     def get_interface_limits_and_flows_5_min(

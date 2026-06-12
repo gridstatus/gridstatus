@@ -97,6 +97,16 @@ ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS = [
     "Estimated BTM Solar",
 ]
 
+ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS = [
+    "Interval Start",
+    "Interval End",
+    "Publish Time",
+    "Load Zone ID",
+    "Load Zone Name",
+    "Load Forecast",
+    "BTM Solar Forecast",
+]
+
 ISONE_TOTAL_DEMAND_COLUMNS = [
     "Interval Start",
     "Interval End",
