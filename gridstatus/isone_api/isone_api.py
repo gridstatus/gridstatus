@@ -1032,6 +1032,7 @@ class ISONEAPI:
 
         Returns:
             pd.DataFrame: A DataFrame containing five-minute zonal load forecast data.
+                Publish Time comes from the /info endpoint CreationDate field.
         """
         if end is not None:
             raise ValueError(
@@ -1039,9 +1040,17 @@ class ISONEAPI:
                 "Use date='latest'.",
             )
 
+        info = self.make_api_call(
+            f"{self.base_url}/fiveminutezonalloadforecast/info",
+            verbose=verbose,
+        )
+        publish_time = pd.to_datetime(
+            info["ServiceInfo"]["CreationDate"],
+            utc=True,
+        ).tz_convert(self.default_timezone)
+
         url = self._build_url("fiveminutezonalloadforecast", "latest")
         response = self.make_api_call(url, verbose=verbose)
-        publish_time = pd.Timestamp.now(tz=self.default_timezone)
 
         records = self._prepare_records(
             self._safe_get(
