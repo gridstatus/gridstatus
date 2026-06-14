@@ -1890,6 +1890,7 @@ class Ercot(ISOBase):
 
         return self._handle_lmp(docs=docs, verbose=verbose)
 
+    @support_date_range(frequency=None)
     def get_lmp(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],

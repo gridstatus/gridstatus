@@ -82,7 +82,11 @@ class TestCAISOLmpSplit:
 
 class TestErcotLmpSplit:
     iso = gridstatus.Ercot()
-    date = "2024-01-02"
+    # ERCOT's MIS only serves these SCED reports for the most recent few days, so
+    # use a recent date (records fresh each time the cassette is regenerated).
+    date = (
+        pd.Timestamp.now(tz="US/Central").normalize() - pd.Timedelta(days=2)
+    ).strftime("%Y-%m-%d")
 
     @pytest.mark.parametrize(
         "method,location_type",
