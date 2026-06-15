@@ -1524,7 +1524,9 @@ class MISOAPI:
                 "Local Resource Zone",
                 "init",
             ]:
-                data[col] = data[col].astype(float)
+                data[col] = (
+                    pd.to_numeric(data[col], errors="coerce").round().astype("Int64")
+                )
 
         data = data.sort_values(
             ["Interval Start", "Publish Time", "Region", "Local Resource Zone"],
@@ -1672,6 +1674,18 @@ class MISOAPI:
                 "LRZ8_9_10 MTLF",
             ]
         ].sum(axis=1)
+
+        mtlf_cols = [
+            "LRZ1 MTLF",
+            "LRZ2_7 MTLF",
+            "LRZ3_5 MTLF",
+            "LRZ4 MTLF",
+            "LRZ6 MTLF",
+            "LRZ8_9_10 MTLF",
+            "MISO MTLF",
+        ]
+        for col in mtlf_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce").round().astype("Int64")
 
         return df
 

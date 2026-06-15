@@ -1066,7 +1066,7 @@ class TestMISOAPI(TestHelperMixin):
                 "Region",
                 "Local Resource Zone",
             ]:
-                assert df[col].dtype == "float64"
+                assert df[col].dtype == "Int64"
 
     @pytest.mark.integration
     def test_get_medium_term_load_forecast_hourly(self):
@@ -1132,6 +1132,7 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Region"].isin(["NORTH", "CENTRAL", "SOUTH"]).all()
         assert df["LRZ"].str.startswith("Z").all()
         assert df["Interval Start"].min() >= publish_time + pd.Timedelta(days=1)
+        assert df["Load Forecast"].dtype == "Int64"
 
     @pytest.mark.integration
     def test_get_medium_term_load_forecast_daily(self):
@@ -1215,9 +1216,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval End"].dtype == "datetime64[ns, EST]"
         assert df["Publish Time"].dtype == "datetime64[ns, EST]"
 
-        # All load columns should be float
         for col in expected_columns[3:]:
-            assert df[col].dtype == "float64"
+            assert df[col].dtype == "Int64"
 
     def test_get_medium_term_load_forecast_hourly_aggregated(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
