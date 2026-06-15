@@ -1952,6 +1952,59 @@ class TestSPP(BaseTestISO):
         assert df["Reserve Zone"].nunique() > 1
         assert df["Interval Start"].max() >= publish_time + pd.Timedelta(days=5)
 
+    @pytest.mark.integration
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual_archive(self):
+        publish_time = pd.Timestamp(
+            "2024-06-15 22:00:00",
+            tz=self.iso.default_timezone,
+        )
+
+        with api_vcr.use_cassette(
+            "test_get_solar_and_wind_forecast_by_reserve_zone_annual_archive_"
+            f"{publish_time.strftime('%Y%m%d%H')}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_by_reserve_zone(
+                date=publish_time,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "BAA",
+            "Reserve Zone",
+            "Wind Forecast",
+            "Wind Actual",
+            "Solar Forecast",
+            "Solar Actual",
+        ]
+        assert (df["Publish Time"].unique() == publish_time).all()
+        assert df["Reserve Zone"].nunique() > 1
+        assert not df.empty
+
+    @pytest.mark.integration
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual(self):
+        year = 2024
+
+        with api_vcr.use_cassette(
+            f"test_get_solar_and_wind_forecast_by_reserve_zone_annual_{year}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_by_reserve_zone_annual(
+                year=year,
+            )
+
+        assert df["Publish Time"].min().year == year
+        assert df["Publish Time"].max().year == year
+        assert df["Reserve Zone"].nunique() > 1
+        assert not df.empty
+
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual_recent_year_not_supported(
+        self,
+    ):
+        year = self.iso.now().year - 1
+        with pytest.raises(NotSupported, match="Annual archive is only available"):
+            self.iso.get_solar_and_wind_forecast_by_reserve_zone_annual(year=year)
+
     def test_get_solar_and_wind_forecast_mid_term_historical(self):
         now = self.iso.now()
 
