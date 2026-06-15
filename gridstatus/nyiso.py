@@ -361,6 +361,9 @@ class NYISO(ISOBase):
 
         Source: https://mis.nyiso.com/public/P-70Clist.htm
         """
+        if date == "latest":
+            raise ValueError("Latest not supported for BTM installed capacity")
+
         data = self._download_nyiso_archive(
             date=date,
             end=end,

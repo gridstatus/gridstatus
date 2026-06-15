@@ -721,6 +721,10 @@ class TestNYISO(BaseTestISO):
         assert df["Interval Start"].dt.normalize().nunique() == 1
         assert df["Zone"].nunique() > 1
 
+    def test_get_btm_installed_capacity_latest_not_supported(self):
+        with pytest.raises(ValueError, match="Latest not supported"):
+            self.iso.get_btm_installed_capacity(date="latest")
+
     @pytest.mark.parametrize(
         "date, end",
         [
