@@ -1474,7 +1474,7 @@ class CAISO(ISOBase):
         },
     )
     @support_date_range(frequency=_determine_lmp_frequency)
-    def get_lmp(
+    def _get_lmp(
         self,
         date: str | pd.Timestamp,
         market: str,
@@ -1629,6 +1629,93 @@ class CAISO(ISOBase):
         data.columns.name = None
 
         return data
+
+    @lmp_config(
+        supports={
+            Markets.DAY_AHEAD_HOURLY: ["latest", "today", "historical"],
+            Markets.REAL_TIME_15_MIN: ["latest", "today", "historical"],
+            Markets.REAL_TIME_5_MIN: ["latest", "today", "historical"],
+        },
+    )
+    def get_lmp(
+        self,
+        date: str | pd.Timestamp,
+        market: str,
+        locations: list = None,
+        sleep: int = 5,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ):
+        """Deprecated. Use the per-dataset methods instead:
+        :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_real_time_15_min`,
+        :meth:`get_lmp_day_ahead_hourly`.
+        """
+        warnings.warn(
+            "CAISO.get_lmp is deprecated; use the per-dataset methods "
+            "get_lmp_real_time_5_min, get_lmp_real_time_15_min, or "
+            "get_lmp_day_ahead_hourly instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_lmp(
+            date,
+            market=market,
+            locations=locations,
+            sleep=sleep,
+            end=end,
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_5_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time 5-minute LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            market=Markets.REAL_TIME_5_MIN,
+            locations="ALL",
+            sleep=sleep,
+            end=end,
+            verbose=verbose,
+        )
+
+    def get_lmp_real_time_15_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time 15-minute LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            market=Markets.REAL_TIME_15_MIN,
+            locations="ALL",
+            sleep=sleep,
+            end=end,
+            verbose=verbose,
+        )
+
+    def get_lmp_day_ahead_hourly(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get day-ahead hourly LMPs for all nodes."""
+        return self._get_lmp(
+            date,
+            market=Markets.DAY_AHEAD_HOURLY,
+            locations="ALL",
+            sleep=sleep,
+            end=end,
+            verbose=verbose,
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_storage(

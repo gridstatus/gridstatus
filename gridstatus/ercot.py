@@ -1,6 +1,7 @@
 import datetime
 import io
 import time
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import BinaryIO, Callable, List, Literal
@@ -1837,7 +1838,7 @@ class Ercot(ISOBase):
         return queue
 
     @support_date_range(frequency=None)
-    def get_lmp(
+    def _get_lmp(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
@@ -1879,6 +1880,58 @@ class Ercot(ISOBase):
         )
 
         return self._handle_lmp(docs=docs, verbose=verbose)
+
+    @support_date_range(frequency=None)
+    def get_lmp(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Deprecated. Use the per-dataset methods instead:
+        :meth:`get_lmp_by_settlement_point`, :meth:`get_lmp_by_bus`.
+        """
+        warnings.warn(
+            "ERCOT.get_lmp is deprecated; use the per-dataset methods "
+            "get_lmp_by_settlement_point or get_lmp_by_bus instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._get_lmp(
+            date,
+            end=end,
+            location_type=location_type,
+            verbose=verbose,
+        )
+
+    def get_lmp_by_settlement_point(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time SCED LMPs by settlement point (every five minutes)."""
+        return self._get_lmp(
+            date,
+            end=end,
+            location_type=SETTLEMENT_POINT_LOCATION_TYPE,
+            verbose=verbose,
+        )
+
+    def get_lmp_by_bus(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get real-time SCED LMPs by electrical bus (every five minutes)."""
+        return self._get_lmp(
+            date,
+            end=end,
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+            verbose=verbose,
+        )
 
     def _handle_lmp(
         self,

@@ -173,7 +173,8 @@ class ISOBase:
         raise NotImplementedError()
 
     def _latest_lmp_from_today(self, market, locations, **kwargs):
-        lmp_df = self.get_lmp(
+        lmp_method = getattr(self, "_get_lmp", self.get_lmp)
+        lmp_df = lmp_method(
             date="today",
             market=market,
             locations=locations,
