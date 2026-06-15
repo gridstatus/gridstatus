@@ -5,6 +5,7 @@
 ### Breaking Changes
 
 * Removed the `save_to` parameter from data retrieval methods. Data is no longer written to CSV files as it is fetched; callers should save the returned DataFrame themselves (e.g. with `df.to_csv(...)`). The `load_folder` utility remains available for loading previously saved CSV folders.
+* Removed `MISOAPI.get_medium_term_load_forecast_hourly`. Use `get_load_forecast_mid_term_by_region` instead, which fetches the mid-term load forecast by publish date across the full horizon. Use `max_offset=1` to fetch only the first forecast day after the publish date. in [#892](https://github.com/gridstatus/gridstatus/pull/892)
 
 ### Additions (New Features/Datasets)
 

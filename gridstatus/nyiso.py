@@ -40,6 +40,7 @@ REAL_TIME_HOURLY_LMP_DATASET = "rtlbmp"
 REAL_TIME_EVENTS_DATASET = "RealTimeEvents"
 BTM_SOLAR_ACTUAL_DATASET = "btmactualforecast"
 BTM_SOLAR_FORECAST_DATASET = "btmdaforecast"
+BTM_INSTALLED_CAPACITY_DATASET = "btminstalledcapacitytracking"
 INTERFACE_LIMITS_AND_FLOWS_DATASET = "ExternalLimitsFlows"
 LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET = "eriecirculationrt"
 LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET = "eriecirculationda"
@@ -70,6 +71,7 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     REAL_TIME_EVENTS_DATASET: DatasetInterval("instantaneous", None),
     BTM_SOLAR_ACTUAL_DATASET: DatasetInterval("start", 60),
     BTM_SOLAR_FORECAST_DATASET: DatasetInterval("start", 60),
+    BTM_INSTALLED_CAPACITY_DATASET: DatasetInterval("start", 1440),
     INTERFACE_LIMITS_AND_FLOWS_DATASET: DatasetInterval("start", 5),
     LAKE_ERIE_CIRCULATION_REAL_TIME_DATASET: DatasetInterval("instantaneous", None),
     LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
@@ -347,6 +349,43 @@ class NYISO(ISOBase):
         df.columns.name = None
 
         return df
+
+    @support_date_range(frequency="DAY_START")
+    def get_btm_installed_capacity(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns NYISO's daily estimate of installed behind-the-meter solar capacity
+        by zone.
+
+        Source: https://mis.nyiso.com/public/P-70Clist.htm
+        """
+        if date == "latest":
+            raise ValueError("Latest not supported for BTM installed capacity")
+
+        data = self._download_nyiso_archive(
+            date=date,
+            end=end,
+            dataset_name=BTM_INSTALLED_CAPACITY_DATASET,
+            filename="btminstalledcapacitytracking",
+            verbose=verbose,
+        )
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Zone Name",
+                "MW Value",
+            ]
+        ].rename(
+            columns={
+                "Zone Name": "Zone",
+                "MW Value": "MW",
+            },
+        )
 
     @support_date_range(frequency="MONTH_START")
     def get_load_forecast(

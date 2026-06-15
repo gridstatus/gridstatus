@@ -1522,8 +1522,11 @@ class MISOAPI:
                 "Publish Time",
                 "Region",
                 "Local Resource Zone",
+                "init",
             ]:
-                data[col] = data[col].astype(float)
+                data[col] = (
+                    pd.to_numeric(data[col], errors="coerce").round().astype("Int64")
+                )
 
         data = data.sort_values(
             ["Interval Start", "Publish Time", "Region", "Local Resource Zone"],
@@ -1540,20 +1543,63 @@ class MISOAPI:
         ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
-    def get_medium_term_load_forecast_hourly(
+    def get_load_forecast_mid_term_by_region(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-        publish_time: str | pd.Timestamp | None = None,
+        max_offset: int = 7,
     ) -> pd.DataFrame:
-        return self._get_medium_term_load_forecast(
-            date,
-            end=end,
-            verbose=verbose,
-            publish_time=publish_time,
-            time_resolution=HOURLY_RESOLUTION,
-        )
+        """Get hourly mid-term load forecast by region and LRZ for a publish date.
+
+        The ``date`` parameter is the forecast run publish date (``init`` date), not
+        the forecast interval date. Each publish date is queried across the available
+        forecast horizon.
+
+        Args:
+            max_offset: Number of forecast days after the publish date to include.
+                Defaults to 7 (the full mid-term horizon). Use 1 to fetch only the
+                first forecast day.
+        """
+        publish_time = utils._handle_date(date, self.default_timezone).normalize()
+        all_dfs: list[pd.DataFrame] = []
+
+        for offset in range(1, max_offset + 1):
+            forecast_date = publish_time + pd.DateOffset(days=offset)
+            df = self._get_medium_term_load_forecast(
+                date=forecast_date,
+                verbose=verbose,
+                publish_time=publish_time,
+                time_resolution=HOURLY_RESOLUTION,
+            )
+            if not df.empty:
+                all_dfs.append(df)
+
+        if not all_dfs:
+            return pd.DataFrame(
+                columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Region",
+                    "LRZ",
+                    "Load Forecast",
+                ],
+            )
+
+        data = pd.concat(all_dfs, ignore_index=True)
+        data = data.rename(columns={"Local Resource Zone": "LRZ"})
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "LRZ",
+                "Load Forecast",
+            ]
+        ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_medium_term_load_forecast_hourly_aggregated(
@@ -1571,11 +1617,12 @@ class MISOAPI:
         LRZ1 MTLF, LRZ2_7 MTLF, LRZ3_5 MTLF, LRZ4 MTLF, LRZ6 MTLF,
         LRZ8_9_10 MTLF, MISO MTLF
         """
-        df = self.get_medium_term_load_forecast_hourly(
+        df = self._get_medium_term_load_forecast(
             date=date,
             end=end,
             verbose=verbose,
             publish_time=publish_time,
+            time_resolution=HOURLY_RESOLUTION,
         )
 
         # Map individual zones to aggregated LRZ format
@@ -1618,6 +1665,18 @@ class MISOAPI:
                 "LRZ8_9_10 MTLF",
             ]
         ].sum(axis=1)
+
+        mtlf_cols = [
+            "LRZ1 MTLF",
+            "LRZ2_7 MTLF",
+            "LRZ3_5 MTLF",
+            "LRZ4 MTLF",
+            "LRZ6 MTLF",
+            "LRZ8_9_10 MTLF",
+            "MISO MTLF",
+        ]
+        for col in mtlf_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce").round().astype("Int64")
 
         return df
 
@@ -1731,11 +1790,12 @@ class MISOAPI:
             )
 
         # Get medium-term load forecast
-        load_forecast = self.get_medium_term_load_forecast_hourly(
+        load_forecast = self._get_medium_term_load_forecast(
             date,
             end=end,
             verbose=verbose,
             publish_time=publish_time,
+            time_resolution=HOURLY_RESOLUTION,
         )
 
         # Get outage forecast
