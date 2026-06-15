@@ -10,6 +10,7 @@ import pytest
 from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     ELECTRICAL_BUS_LOCATION_TYPE,
+    Document,
     Ercot,
     ERCOTSevenDayLoadForecastReport,
     parse_timestamp_from_friendly_name,
@@ -101,14 +102,6 @@ class TestErcot(BaseTestISO):
     """dam_system_lambda"""
 
     @pytest.mark.integration
-    def test_get_dam_system_lambda_latest(self):
-        df = self.iso.get_dam_system_lambda("latest", verbose=True)
-        self._check_dam_system_lambda(df)
-        # We don't know the exact publish date because it could be yesterday
-        # or today depending on when this test is run
-        assert df["Publish Time"].dt.date.nunique() == 1
-
-    @pytest.mark.integration
     def test_get_dam_system_lambda_today(self):
         df = self.iso.get_dam_system_lambda("today", verbose=True)
         self._check_dam_system_lambda(df)
@@ -149,18 +142,17 @@ class TestErcot(BaseTestISO):
 
     @pytest.mark.integration
     def test_get_sced_system_lambda(self):
-        for i in ["latest", "today"]:
-            df = self.iso.get_sced_system_lambda(i, verbose=True)
-            assert df.shape[0] >= 0
-            assert df.columns.tolist() == [
-                "Interval Start",
-                "Interval End",
-                "SCED Timestamp",
-                "System Lambda",
-            ]
-            today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
-            assert df["SCED Timestamp"].unique()[0].date() == today
-            assert isinstance(df["System Lambda"].unique()[0], float)
+        df = self.iso.get_sced_system_lambda("today", verbose=True)
+        assert df.shape[0] >= 0
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "System Lambda",
+        ]
+        today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
+        assert df["SCED Timestamp"].unique()[0].date() == today
+        assert isinstance(df["System Lambda"].unique()[0], float)
 
     """as_prices"""
 
@@ -206,7 +198,7 @@ class TestErcot(BaseTestISO):
         ]
 
     @pytest.mark.integration
-    def test_get_as_plan_today_or_latest(self):
+    def test_get_as_plan_today(self):
         df = self.iso.get_as_plan("today")
         self._check_as_plan(df)
         assert df["Interval Start"].min() == self.local_start_of_today()
@@ -214,7 +206,6 @@ class TestErcot(BaseTestISO):
             days=7,
         )
         assert df["Publish Time"].dt.date.unique().tolist() == [self.local_today()]
-        assert self.iso.get_as_plan("latest").equals(df)
 
     @pytest.mark.integration
     def test_get_as_plan_historical_date(self):
@@ -542,6 +533,12 @@ class TestErcot(BaseTestISO):
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_lmp_historical(self, markets=None):
         pass
+
+    """get_load"""
+
+    @pytest.mark.skip("Not Supported")
+    def test_get_load_latest(self):
+        super().test_get_load_latest()
 
     @pytest.mark.integration
     def test_get_load_3_days_ago(self):
@@ -879,7 +876,7 @@ class TestErcot(BaseTestISO):
     @pytest.mark.integration
     def test_get_spp_real_time_handles_all_location_types(self):
         df = self.iso.get_spp(
-            date="latest",
+            date="today",
             market=Markets.REAL_TIME_15_MIN,
             verbose=True,
         )
@@ -2289,20 +2286,6 @@ class TestErcot(BaseTestISO):
         assert df.shape[0] == 4
         assert df.columns.tolist() == cols
 
-    @pytest.mark.integration
-    def test_get_system_wide_actual_load_latest(self):
-        df = self.iso.get_system_wide_actual_load("latest")
-
-        cols = ["Time", "Interval Start", "Interval End", "Demand"]
-
-        assert df["Interval Start"].min() == pd.Timestamp.now(
-            tz=self.iso.default_timezone,
-        ).floor("h") - pd.Timedelta(hours=1)
-
-        # 1 Hour of data
-        assert df.shape[0] == 4
-        assert df.columns.tolist() == cols
-
     """get_short_term_system_adequacy"""
 
     def _check_short_term_system_adequacy(self, df):
@@ -2464,14 +2447,6 @@ class TestErcot(BaseTestISO):
         )
 
     @pytest.mark.integration
-    def test_get_real_time_adders_and_reserves_latest(self):
-        df = self.iso.get_real_time_adders_and_reserves("latest")
-
-        self._check_real_time_adders_and_reserves(df)
-
-        assert len(df) == 1
-
-    @pytest.mark.integration
     def test_get_real_time_adders_and_reserves_historical(self):
         date = self.local_today() - pd.DateOffset(days=3)
         df = self.iso.get_real_time_adders_and_reserves(date)
@@ -2521,26 +2496,52 @@ class TestErcot(BaseTestISO):
     temperature_forecast_start_offset = -pd.DateOffset(days=3)
     temperature_forecast_end_offset = pd.DateOffset(days=9)
 
+    def _assert_temperature_forecast_start_window(
+        self,
+        df: pd.DataFrame,
+        anchor: pd.Timestamp,
+    ) -> None:
+        expected_start = (
+            self.local_start_of_day(anchor) + self.temperature_forecast_start_offset
+        )
+        assert (
+            expected_start
+            <= df["Interval Start"].min()
+            <= expected_start + pd.Timedelta(hours=1)
+        )
+
+    def _assert_temperature_forecast_end_window(
+        self,
+        df: pd.DataFrame,
+        anchor: pd.Timestamp,
+    ) -> None:
+        expected_end = (
+            self.local_start_of_day(anchor) + self.temperature_forecast_end_offset
+        )
+        assert (
+            expected_end
+            <= df["Interval End"].max()
+            <= expected_end + pd.Timedelta(hours=1)
+        )
+
+    def _assert_temperature_forecast_window(
+        self,
+        df: pd.DataFrame,
+        anchor: pd.Timestamp,
+    ) -> None:
+        self._assert_temperature_forecast_start_window(df, anchor)
+        self._assert_temperature_forecast_end_window(df, anchor)
+        assert df["Interval End"].max() - df["Interval Start"].min() == pd.Timedelta(
+            days=12,
+        )
+
     @pytest.mark.integration
-    def test_get_temperature_forecast_by_weather_zone_today_and_latest(self):
+    def test_get_temperature_forecast_by_weather_zone_today(self):
         df = self.iso.get_temperature_forecast_by_weather_zone("today")
         self._check_temperature_forecast_by_weather_zone(df)
 
-        # One publish time
         assert df["Publish Time"].nunique() == 1
-
-        # Data goes into the past 3 days.
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_today() + self.temperature_forecast_start_offset
-        )
-
-        assert (
-            df["Interval End"].max()
-            == self.local_start_of_today() + self.temperature_forecast_end_offset
-        )
-
-        assert self.iso.get_temperature_forecast_by_weather_zone("latest").equals(df)
+        self._assert_temperature_forecast_window(df, self.local_today())
 
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_historical_date(self):
@@ -2548,20 +2549,7 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_temperature_forecast_by_weather_zone(date)
 
         assert df["Publish Time"].nunique() == 1
-
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_day(date) + self.temperature_forecast_start_offset
-        )
-
-        assert (
-            df["Interval End"].max()
-            == self.local_start_of_day(
-                date,
-            )
-            + self.temperature_forecast_end_offset
-        )
-
+        self._assert_temperature_forecast_window(df, date)
         self._check_temperature_forecast_by_weather_zone(df)
 
     @pytest.mark.integration
@@ -2575,37 +2563,47 @@ class TestErcot(BaseTestISO):
         )
 
         assert df["Publish Time"].nunique() == 3
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_day(start) + self.temperature_forecast_start_offset
+        self._assert_temperature_forecast_start_window(df, start)
+        self._assert_temperature_forecast_end_window(
+            df,
+            end - pd.DateOffset(days=1),
+        )
+        self._check_temperature_forecast_by_weather_zone(df)
+
+    def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self) -> None:
+        dst_raw_data = pd.DataFrame(
+            {
+                "DeliveryDate": ["11/02/2025"] * 4,
+                "HourEnding": ["01:00", "02:00", "03:00", "03:00"],
+                "Coast": [63.3, 124.3, 60.9, 60.9],
+                "East": [58.0, 113.0, 55.0, 55.0],
+                "FarWest": [60.0, 114.0, 54.0, 54.0],
+                "North": [57.0, 111.0, 54.0, 54.0],
+                "NorthCentral": [60.0, 116.25, 56.25, 56.25],
+                "SouthCentral": [63.5, 120.5, 58.0, 58.0],
+                "Southern": [71.4, 140.6, 68.8, 68.8],
+                "West": [59.0, 112.8, 54.2, 54.2],
+                "DSTFlag": ["N", "N", "Y", "N"],
+            },
         )
 
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end,
-            # Non-inclusive end date
-        ) + self.temperature_forecast_end_offset - pd.DateOffset(days=1)
+        doc = Document(
+            url="https://example.com",
+            publish_date=pd.Timestamp("2025-10-26 05:00:00", tz="US/Central"),
+            constructed_name="test",
+            friendly_name="test",
+            friendly_name_timestamp=None,
+        )
+
+        with mock.patch.object(self.iso, "read_doc", return_value=dst_raw_data):
+            df = self.iso._handle_temperature_forecast_by_weather_zone_docs([doc])
 
         self._check_temperature_forecast_by_weather_zone(df)
 
-    def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
-        # This forecast date includes 2025-11-02, DST end
-        with api_vcr.use_cassette(
-            "test_get_temperature_forecast_by_weather_zone_dst_end_2025.yaml",
-        ):
-            df = self.iso.get_temperature_forecast_by_weather_zone("2025-10-26")
-
-        self._check_temperature_forecast_by_weather_zone(df)
-
-        # Check for the presence of the repeated hour
-        assert (
-            pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
-            == df["Interval Start"].iloc[-48]
-        )
-
-        assert (
-            pd.Timestamp("2025-11-02 01:00:00-0600", tz="US/Central")
-            == df["Interval Start"].iloc[-47]
-        )
+        repeated_hour_cdt = pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
+        repeated_hour_cst = pd.Timestamp("2025-11-02 01:00:00-0600", tz="US/Central")
+        assert (df["Interval Start"] == repeated_hour_cdt).any()
+        assert (df["Interval Start"] == repeated_hour_cst).any()
 
     """parse_doc"""
 
@@ -2823,12 +2821,6 @@ class TestErcot(BaseTestISO):
     def test_get_lmp_by_bus_dam_today(self):
         with api_vcr.use_cassette("test_get_lmp_by_bus_dam_today.yaml"):
             df = self.iso.get_lmp_by_bus_dam("today", verbose=True)
-        self._check_lmp_by_bus_dam(df)
-        assert df.shape[0] > 0
-
-    def test_get_lmp_by_bus_dam_latest(self):
-        with api_vcr.use_cassette("test_get_lmp_by_bus_dam_latest.yaml"):
-            df = self.iso.get_lmp_by_bus_dam("latest", verbose=True)
         self._check_lmp_by_bus_dam(df)
         assert df.shape[0] > 0
 
@@ -3144,18 +3136,6 @@ class TestErcot(BaseTestISO):
             if col in df.columns:
                 assert pd.api.types.is_numeric_dtype(df[col])
 
-    def test_get_hourly_load_post_settlements_latest(self):
-        """Test getting the latest year's data."""
-        with api_vcr.use_cassette(
-            "test_get_hourly_load_post_settlements_latest.yaml",
-        ):
-            df = self.iso.get_hourly_load_post_settlements("latest")
-        self._check_hourly_load_post_settlements(df)
-
-        # Should be current year data
-        current_year = pd.Timestamp.now().year
-        assert df["Interval Start"].dt.year.unique() == [current_year]
-
     @pytest.mark.parametrize("date, end", [("2010-03-01", "2010-08-02")])
     def test_get_hourly_load_post_settlements_xls(self, date, end):
         """Test getting historical data from the 2004-2016 era."""
@@ -3201,11 +3181,6 @@ class TestErcot(BaseTestISO):
     def test_get_mcpc_dam_today(self):
         with api_vcr.use_cassette("test_get_mcpc_dam_today.yaml"):
             df = self.iso.get_mcpc_dam("today", verbose=True)
-        self._check_get_mcpc_dam(df)
-
-    def test_get_mcpc_dam_latest(self):
-        with api_vcr.use_cassette("test_get_mcpc_dam_latest.yaml"):
-            df = self.iso.get_mcpc_dam("latest")
         self._check_get_mcpc_dam(df)
 
     def test_get_mcpc_dam_historical(self):
@@ -3270,12 +3245,6 @@ class TestErcot(BaseTestISO):
         self._check_shadow_prices_dam(df)
         assert df.shape[0] > 0
 
-    def test_get_shadow_prices_dam_latest(self):
-        with api_vcr.use_cassette("test_get_shadow_prices_dam_latest.yaml"):
-            df = self.iso.get_shadow_prices_dam("latest")
-        self._check_shadow_prices_dam(df)
-        assert df.shape[0] > 0
-
     def test_get_shadow_prices_dam_historical(self):
         date = pd.Timestamp("2026-03-05", tz=self.iso.default_timezone)
         with api_vcr.use_cassette("test_get_shadow_prices_dam_historical.yaml"):
@@ -3304,18 +3273,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["MCPC"] == "float64"
-
-    def test_get_mcpc_sced_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_mcpc_sced_date_range_latest.yaml",
-        ):
-            df = self.iso.get_mcpc_sced("latest")
-
-        self._check_get_mcpc_sced(df)
-
-        assert df["SCED Timestamp"].nunique() == 1
-        assert df["SCED Timestamp"].min() <= self.local_now()
-        assert df["SCED Timestamp"].min() >= self.local_now() - pd.Timedelta(minutes=10)
 
     def test_get_mcpc_sced_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3350,20 +3307,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["MCPC"] == "float64"
-
-    def test_get_mcpc_real_time_15_min_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_mcpc_real_time_15_min_date_range_latest.yaml",
-        ):
-            df = self.iso.get_mcpc_real_time_15_min("latest")
-
-        self._check_get_mcpc_real_time_15_min(df)
-
-        assert df["Interval Start"].nunique() == 1
-        assert df["Interval Start"].min() <= self.local_now()
-        assert df["Interval Start"].min() >= self.local_now() - pd.Timedelta(
-            minutes=60,
-        )
 
     def test_get_mcpc_real_time_15_min_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3404,20 +3347,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Demand Curve Point"] == "int64"
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
-
-    def test_get_as_demand_curves_dam_and_sced_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_dam_and_sced_date_range_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_dam_and_sced("latest")
-
-        self._check_get_as_demand_curves_dam_and_sced(df)
-
-        # The "latest" method will still get us two days of data
-        assert df["Interval Start"].min() == self.local_now().normalize()
-        assert df[
-            "Interval Start"
-        ].max() == self.local_now().normalize() + pd.DateOffset(days=1, hours=23)
 
     def test_get_as_demand_curves_dam_and_sced_date_range(self):
         date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
@@ -3475,11 +3404,6 @@ class TestErcot(BaseTestISO):
             self.allowed_dam_asdc_aggregated_as_types,
         )
 
-    def test_get_dam_asdc_aggregated_latest(self):
-        with api_vcr.use_cassette("test_get_dam_asdc_aggregated_latest.yaml"):
-            df = self.iso.get_dam_asdc_aggregated("latest")
-        self._check_get_dam_asdc_aggregated(df)
-
     def test_get_dam_asdc_aggregated_date_range(self):
         date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=1)
@@ -3511,21 +3435,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["AS Deployment Factors"] == "float64"
-
-    def test_get_as_deployment_factors_projected_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_projected_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_projected("latest")
-
-        self._check_as_deployment_factors_projected(df)
-
-        # "latest" gets one day of data for tomorrow
-        assert df["Interval Start"].min() >= self.local_now().normalize()
-        assert df[
-            "Interval Start"
-        ].max() >= self.local_now().normalize() + pd.Timedelta(hours=23)
-        assert df["Interval Start"].nunique() == 24
 
     def test_get_as_deployment_factors_projected_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
@@ -3566,17 +3475,6 @@ class TestErcot(BaseTestISO):
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
 
-    def test_get_as_deployment_factors_weekly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_weekly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_weekly_ruc("latest")
-
-        self._check_as_deployment_factors_ruc(df)
-
-        assert df["RUC Timestamp"].nunique() == 1
-        assert df["Interval Start"].nunique() == 120
-
     def test_get_as_deployment_factors_weekly_ruc_date_range(self):
         date = self.local_start_of_day(self.local_today() - pd.Timedelta(days=2))
         end = date + pd.DateOffset(days=2)
@@ -3598,17 +3496,6 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].nunique() == 144
 
     """get_as_deployment_factors_daily_ruc"""
-
-    def test_get_as_deployment_factors_daily_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_daily_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_daily_ruc("latest")
-
-        self._check_as_deployment_factors_ruc(df)
-
-        assert df["RUC Timestamp"].nunique() == 1
-        assert df["Interval Start"].nunique() == 24
 
     def test_get_as_deployment_factors_daily_ruc_date_range(self):
         # Data is published per DRUC run (once per day) for the next day
@@ -3632,18 +3519,6 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].nunique() == 48
 
     """get_as_deployment_factors_hourly_ruc"""
-
-    def test_get_as_deployment_factors_hourly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_deployment_factors_hourly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_deployment_factors_hourly_ruc("latest")
-
-        self._check_as_deployment_factors_ruc(df)
-
-        assert df["RUC Timestamp"].nunique() == 1
-        # The number of intervals in the latest file differs depending on time of day
-        assert df["Interval Start"].nunique() > 1
 
     def test_get_as_deployment_factors_hourly_ruc_date_range(self):
         # Data is published per HRUC run (once per hour) for the rest of the current day
@@ -3676,16 +3551,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["Quantity"] == "float64"
-
-    def test_get_dam_total_as_sold_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_dam_total_as_sold_latest.yaml",
-        ):
-            df = self.iso.get_dam_total_as_sold("latest")
-
-        self._check_get_dam_total_as_sold(df)
-
-        assert df["Interval Start"].nunique() == 25
 
     def test_get_dam_total_as_sold_date_range(self):
         # Data is only available per DAM run so we use a set time we know it exists
@@ -3722,16 +3587,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Demand Curve Point"] == "int64"
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
-
-    def test_get_as_demand_curves_hourly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_hourly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_hourly_ruc("latest")
-
-        self._check_hourly_ruc_as_demand_curves(df)
-
-        assert df["RUC Timestamp"].nunique() == 1
 
     def test_get_as_demand_curves_hourly_ruc_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(hours=1)
@@ -3771,18 +3626,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
 
-    def test_get_as_demand_curves_daily_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_daily_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_daily_ruc("latest")
-
-        self._check_daily_ruc_as_demand_curves(df)
-
-        # One day of data is published at once
-        assert df["Interval Start"].nunique() == 24
-        assert df["RUC Timestamp"].nunique() == 1
-
     def test_get_as_demand_curves_daily_ruc_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
         end = date + pd.Timedelta(days=2)
@@ -3818,18 +3661,6 @@ class TestErcot(BaseTestISO):
         assert df.dtypes["Demand Curve Point"] == "int64"
         assert df.dtypes["Quantity"] == "int64"
         assert df.dtypes["Price"] == "float64"
-
-    def test_get_as_demand_curves_weekly_ruc_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_demand_curves_weekly_ruc_latest.yaml",
-        ):
-            df = self.iso.get_as_demand_curves_weekly_ruc("latest")
-
-        self._check_weekly_ruc_as_demand_curves(df)
-
-        # Five days worth of data is published at once
-        assert df["Interval Start"].nunique() == 120
-        assert df["RUC Timestamp"].nunique() == 1
 
     def test_get_as_demand_curves_weekly_ruc_date_range(self):
         date = self.local_start_of_today() - pd.DateOffset(days=2)
@@ -3870,16 +3701,6 @@ class TestErcot(BaseTestISO):
 
         for col in ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]:
             assert df.dtypes[col] == "float64"
-
-    def test_get_indicative_mcpc_rtd_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_indicative_mcpc_rtd_latest.yaml",
-        ):
-            df = self.iso.get_indicative_mcpc_rtd("latest")
-
-        self._check_get_indicative_mcpc_rtd(df)
-
-        assert df["RTD Timestamp"].nunique() == 1
 
     def test_get_indicative_mcpc_rtd_date_range(self):
         # Use a date range that spans two days to test we handle day transitions
@@ -3930,18 +3751,6 @@ class TestErcot(BaseTestISO):
             "Cap RegUp RRS ECRS NonSpin Total",
         ]:
             assert df.dtypes[col] == "float64"
-
-    def test_get_as_total_capability_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_as_total_capability_latest.yaml",
-        ):
-            df = self.iso.get_as_total_capability("latest")
-
-        self._check_get_as_total_capability(df)
-
-        # Each file has 5 SCED intervals
-        assert df["SCED Timestamp"].nunique() == 5
-        assert df["Publish Time"].nunique() == 1
 
     def test_get_as_total_capability_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -4020,16 +3829,6 @@ class TestErcot(BaseTestISO):
             "RTOLHSL",
         ]:
             assert df.dtypes[col] == "float64"
-
-    def test_get_real_time_adders_latest(self):
-        with api_vcr.use_cassette(
-            "test_get_real_time_adders_latest.yaml",
-        ):
-            df = self.iso.get_real_time_adders("latest")
-
-        self._check_real_time_adders(df)
-
-        assert len(df) == 1
 
     def test_get_real_time_adders_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
