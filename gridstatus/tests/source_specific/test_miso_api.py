@@ -1069,49 +1069,6 @@ class TestMISOAPI(TestHelperMixin):
                 assert df[col].dtype == "Int64"
 
     @pytest.mark.integration
-    def test_get_medium_term_load_forecast_hourly(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
-
-        with api_vcr.use_cassette(
-            f"get_medium_term_load_forecast_hourly_{date.date()}",
-        ):
-            df = self.iso.get_medium_term_load_forecast_hourly(date)
-
-        self._check_test_medium_term_load_forecast(df)
-
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == date + pd.Timedelta(
-            hours=23,
-        )
-        assert df["Interval End"].max() == date + pd.Timedelta(
-            days=1,
-        )
-
-    @pytest.mark.integration
-    def test_get_medium_term_load_forecast_hourly_with_publish_time(self):
-        date = self.local_start_of_today() - pd.Timedelta(days=1)
-        publish_time = date - pd.Timedelta(days=2)
-
-        with api_vcr.use_cassette(
-            f"test_get_medium_term_load_forecast_hourly_with_publish_time_{date.date()}",
-        ):
-            df = self.iso.get_medium_term_load_forecast_hourly(
-                date,
-                publish_time=publish_time,
-            )
-
-        self._check_test_medium_term_load_forecast(df)
-
-        assert df["Interval Start"].min() == date
-        assert df["Interval Start"].max() == date + pd.Timedelta(
-            hours=23,
-        )
-        assert df["Interval End"].max() == date + pd.Timedelta(
-            days=1,
-        )
-        assert df["Publish Time"].min() == publish_time
-
-    @pytest.mark.integration
     def test_get_load_forecast_mid_term_by_region(self):
         publish_time = self.local_start_of_today() - pd.Timedelta(days=2)
 
@@ -1133,6 +1090,22 @@ class TestMISOAPI(TestHelperMixin):
         assert df["LRZ"].str.startswith("Z").all()
         assert df["Interval Start"].min() >= publish_time + pd.Timedelta(days=1)
         assert df["Load Forecast"].dtype == "Int64"
+
+    @pytest.mark.integration
+    def test_get_load_forecast_mid_term_by_region_max_offset(self):
+        publish_time = self.local_start_of_today() - pd.Timedelta(days=2)
+        forecast_date = publish_time + pd.Timedelta(days=1)
+
+        with api_vcr.use_cassette(
+            f"get_load_forecast_mid_term_by_region_{publish_time.date()}",
+        ):
+            df = self.iso.get_load_forecast_mid_term_by_region(
+                publish_time,
+                max_offset=1,
+            )
+
+        assert df["Interval Start"].min() >= forecast_date
+        assert df["Interval Start"].max() < forecast_date + pd.Timedelta(days=1)
 
     @pytest.mark.integration
     def test_get_medium_term_load_forecast_daily(self):
@@ -1310,8 +1283,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].dtype == "datetime64[ns, EST]"
         assert df["Interval End"].dtype == "datetime64[ns, EST]"
 
-        for col in ["MTLF", "Outage"]:
-            assert df[col].dtype == "float64"
+        assert df["MTLF"].dtype == "Int64"
+        assert df["Outage"].dtype == "float64"
 
     def test_get_look_ahead_hourly(self):
         # Look ahead is for today and future dates
@@ -1334,7 +1307,10 @@ class TestMISOAPI(TestHelperMixin):
         # Try to get look ahead for yesterday - should raise NotSupported
         yesterday = self.local_start_of_today() - pd.Timedelta(days=1)
 
-        with pytest.raises(NotSupported, match="only available for future dates"):
+        with pytest.raises(
+            NotSupported,
+            match="only available for today and future dates",
+        ):
             self.iso.get_look_ahead_hourly(yesterday)
 
     def test_get_pricing_nodes(self):
