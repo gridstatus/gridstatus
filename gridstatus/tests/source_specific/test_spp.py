@@ -12,6 +12,8 @@ from gridstatus.spp import (
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
     BAAEnum,
+    _reserve_zone_forecast_archive_cutoff,
+    _reserve_zone_forecast_date_range_frequency,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -2004,6 +2006,85 @@ class TestSPP(BaseTestISO):
         year = self.iso.now().year - 1
         with pytest.raises(NotSupported, match="Annual archive is only available"):
             self.iso.get_solar_and_wind_forecast_by_reserve_zone_annual(year=year)
+
+    def test_reserve_zone_forecast_date_range_frequency(self):
+        cutoff = _reserve_zone_forecast_archive_cutoff(self.iso)
+        annual_start = cutoff - pd.Timedelta(days=365)
+        recent_start = cutoff + pd.Timedelta(days=1)
+
+        assert (
+            _reserve_zone_forecast_date_range_frequency(
+                {"self": self.iso, "date": annual_start},
+            )
+            == "YEAR_START"
+        )
+        assert (
+            _reserve_zone_forecast_date_range_frequency(
+                {
+                    "self": self.iso,
+                    "date": annual_start,
+                    "end": annual_start + pd.Timedelta(days=5),
+                },
+            )
+            == "YEAR_START"
+        )
+        assert (
+            _reserve_zone_forecast_date_range_frequency(
+                {
+                    "self": self.iso,
+                    "date": recent_start,
+                    "end": recent_start + pd.Timedelta(days=5),
+                },
+            )
+            == "HOUR_START"
+        )
+        assert (
+            _reserve_zone_forecast_date_range_frequency(
+                {
+                    "self": self.iso,
+                    "date": annual_start,
+                    "end": recent_start + pd.Timedelta(days=5),
+                },
+            )
+            == "YEAR_START"
+        )
+
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual_range_single_download(
+        self,
+    ):
+        start = pd.Timestamp("2024-06-01", tz=self.iso.default_timezone)
+        end = start + pd.Timedelta(days=5)
+        sample_publish_time = pd.Timestamp(
+            "2024-06-01 10:00:00",
+            tz=self.iso.default_timezone,
+        )
+        sample_df = pd.DataFrame(
+            {
+                "Interval Start": [sample_publish_time],
+                "Interval End": [sample_publish_time + pd.Timedelta(hours=1)],
+                "Publish Time": [sample_publish_time],
+                "BAA": ["SPP"],
+                "Reserve Zone": ["ZONE1"],
+                "Wind Forecast": [1.0],
+                "Wind Actual": [1.0],
+                "Solar Forecast": [1.0],
+                "Solar Actual": [1.0],
+            },
+        )
+
+        with patch.object(
+            self.iso,
+            "_load_reserve_zone_forecast_annual",
+            return_value=sample_df,
+        ) as mock_load:
+            df = self.iso.get_solar_and_wind_forecast_by_reserve_zone(
+                date=start,
+                end=end,
+            )
+
+        mock_load.assert_called_once_with(2024, verbose=False)
+        assert df is not None
+        assert (df["Publish Time"] == sample_publish_time).all()
 
     def test_get_solar_and_wind_forecast_mid_term_historical(self):
         now = self.iso.now()
