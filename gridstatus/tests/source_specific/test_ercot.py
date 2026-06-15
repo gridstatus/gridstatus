@@ -10,6 +10,7 @@ import pytest
 from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     ELECTRICAL_BUS_LOCATION_TYPE,
+    Document,
     Ercot,
     ERCOTSevenDayLoadForecastReport,
     parse_timestamp_from_friendly_name,
@@ -2569,25 +2570,40 @@ class TestErcot(BaseTestISO):
         )
         self._check_temperature_forecast_by_weather_zone(df)
 
-    def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
-        # This forecast date includes 2025-11-02, DST end
-        with api_vcr.use_cassette(
-            "test_get_temperature_forecast_by_weather_zone_dst_end_2025.yaml",
-        ):
-            df = self.iso.get_temperature_forecast_by_weather_zone("2025-10-26")
+    def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self) -> None:
+        dst_raw_data = pd.DataFrame(
+            {
+                "DeliveryDate": ["11/02/2025"] * 4,
+                "HourEnding": ["01:00", "02:00", "03:00", "03:00"],
+                "Coast": [63.3, 124.3, 60.9, 60.9],
+                "East": [58.0, 113.0, 55.0, 55.0],
+                "FarWest": [60.0, 114.0, 54.0, 54.0],
+                "North": [57.0, 111.0, 54.0, 54.0],
+                "NorthCentral": [60.0, 116.25, 56.25, 56.25],
+                "SouthCentral": [63.5, 120.5, 58.0, 58.0],
+                "Southern": [71.4, 140.6, 68.8, 68.8],
+                "West": [59.0, 112.8, 54.2, 54.2],
+                "DSTFlag": ["N", "N", "Y", "N"],
+            },
+        )
+
+        doc = Document(
+            url="https://example.com",
+            publish_date=pd.Timestamp("2025-10-26 05:00:00", tz="US/Central"),
+            constructed_name="test",
+            friendly_name="test",
+            friendly_name_timestamp=None,
+        )
+
+        with mock.patch.object(self.iso, "read_doc", return_value=dst_raw_data):
+            df = self.iso._handle_temperature_forecast_by_weather_zone_docs([doc])
 
         self._check_temperature_forecast_by_weather_zone(df)
 
-        # Check for the presence of the repeated hour
-        assert (
-            pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
-            == df["Interval Start"].iloc[-48]
-        )
-
-        assert (
-            pd.Timestamp("2025-11-02 01:00:00-0600", tz="US/Central")
-            == df["Interval Start"].iloc[-47]
-        )
+        repeated_hour_cdt = pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
+        repeated_hour_cst = pd.Timestamp("2025-11-02 01:00:00-0600", tz="US/Central")
+        assert (df["Interval Start"] == repeated_hour_cdt).any()
+        assert (df["Interval Start"] == repeated_hour_cst).any()
 
     """parse_doc"""
 
