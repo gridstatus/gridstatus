@@ -2495,36 +2495,52 @@ class TestErcot(BaseTestISO):
     temperature_forecast_start_offset = -pd.DateOffset(days=3)
     temperature_forecast_end_offset = pd.DateOffset(days=9)
 
-    @pytest.mark.integration
-    def test_get_temperature_forecast_by_weather_zone_today(self):
-        df = self.iso.get_temperature_forecast_by_weather_zone("today")
-        self._check_temperature_forecast_by_weather_zone(df)
-
-        # One publish time
-        assert df["Publish Time"].nunique() == 1
-
+    def _assert_temperature_forecast_start_window(
+        self,
+        df: pd.DataFrame,
+        anchor: pd.Timestamp,
+    ) -> None:
         expected_start = (
-            self.local_start_of_today() + self.temperature_forecast_start_offset
+            self.local_start_of_day(anchor) + self.temperature_forecast_start_offset
         )
-        expected_end = (
-            self.local_start_of_today() + self.temperature_forecast_end_offset
-        )
-
-        # Data goes into the past 3 days. The forecast window may shift by an
-        # hour depending on publication timing, but the span (12 days) is fixed.
         assert (
             expected_start
             <= df["Interval Start"].min()
             <= expected_start + pd.Timedelta(hours=1)
+        )
+
+    def _assert_temperature_forecast_end_window(
+        self,
+        df: pd.DataFrame,
+        anchor: pd.Timestamp,
+    ) -> None:
+        expected_end = (
+            self.local_start_of_day(anchor) + self.temperature_forecast_end_offset
         )
         assert (
             expected_end
             <= df["Interval End"].max()
             <= expected_end + pd.Timedelta(hours=1)
         )
+
+    def _assert_temperature_forecast_window(
+        self,
+        df: pd.DataFrame,
+        anchor: pd.Timestamp,
+    ) -> None:
+        self._assert_temperature_forecast_start_window(df, anchor)
+        self._assert_temperature_forecast_end_window(df, anchor)
         assert df["Interval End"].max() - df["Interval Start"].min() == pd.Timedelta(
             days=12,
         )
+
+    @pytest.mark.integration
+    def test_get_temperature_forecast_by_weather_zone_today(self):
+        df = self.iso.get_temperature_forecast_by_weather_zone("today")
+        self._check_temperature_forecast_by_weather_zone(df)
+
+        assert df["Publish Time"].nunique() == 1
+        self._assert_temperature_forecast_window(df, self.local_today())
 
     @pytest.mark.integration
     def test_get_temperature_forecast_by_weather_zone_historical_date(self):
@@ -2532,20 +2548,7 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_temperature_forecast_by_weather_zone(date)
 
         assert df["Publish Time"].nunique() == 1
-
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_day(date) + self.temperature_forecast_start_offset
-        )
-
-        assert (
-            df["Interval End"].max()
-            == self.local_start_of_day(
-                date,
-            )
-            + self.temperature_forecast_end_offset
-        )
-
+        self._assert_temperature_forecast_window(df, date)
         self._check_temperature_forecast_by_weather_zone(df)
 
     @pytest.mark.integration
@@ -2559,16 +2562,11 @@ class TestErcot(BaseTestISO):
         )
 
         assert df["Publish Time"].nunique() == 3
-        assert (
-            df["Interval Start"].min()
-            == self.local_start_of_day(start) + self.temperature_forecast_start_offset
+        self._assert_temperature_forecast_start_window(df, start)
+        self._assert_temperature_forecast_end_window(
+            df,
+            end - pd.DateOffset(days=1),
         )
-
-        assert df["Interval End"].max() == self.local_start_of_day(
-            end,
-            # Non-inclusive end date
-        ) + self.temperature_forecast_end_offset - pd.DateOffset(days=1)
-
         self._check_temperature_forecast_by_weather_zone(df)
 
     def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self):
