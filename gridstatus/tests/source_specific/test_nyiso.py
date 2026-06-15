@@ -700,6 +700,51 @@ class TestNYISO(BaseTestISO):
             assert df.columns.tolist() == columns
             assert df.shape[0] >= 0
 
+    def test_get_btm_installed_capacity(self):
+        two_days_ago = pd.Timestamp.now(tz="US/Eastern").date() - pd.Timedelta(days=2)
+
+        with nyiso_vcr.use_cassette(
+            f"test_get_btm_installed_capacity_{two_days_ago}.yaml",
+        ):
+            df = self.iso.get_btm_installed_capacity(
+                date=two_days_ago,
+                verbose=True,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Zone",
+            "MW",
+        ]
+        assert not df.empty
+        assert df["Interval Start"].dt.normalize().nunique() == 1
+        assert df["Zone"].nunique() > 1
+
+    @pytest.mark.parametrize(
+        "date, end",
+        [
+            ("2023-08-15", "2023-08-17"),
+        ],
+    )
+    def test_get_btm_installed_capacity_historical_date_range(self, date, end):
+        with nyiso_vcr.use_cassette(
+            f"test_get_btm_installed_capacity_historical_date_range_{date}_{end}.yaml",
+        ):
+            df = self.iso.get_btm_installed_capacity(
+                start=date,
+                end=end,
+                verbose=True,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Zone",
+            "MW",
+        ]
+        assert not df.empty
+
     @pytest.mark.parametrize(
         "date, end",
         [

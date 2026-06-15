@@ -46,6 +46,10 @@ BASE_SOLAR_AND_WIND_MID_TERM_URL = (
     f"{FILE_BROWSER_DOWNLOAD_URL}/midterm-resource-forecast?path="
 )
 
+BASE_RESERVE_ZONE_FORECAST_URL = (
+    f"{FILE_BROWSER_DOWNLOAD_URL}/resource-forecast-by-reserve-zone?path="
+)
+
 BASE_LOAD_FORECAST_SHORT_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/stlf-vs-actual?path="
 
 BASE_LOAD_FORECAST_MID_TERM_URL = f"{FILE_BROWSER_DOWNLOAD_URL}/mtlf-vs-actual?path="
@@ -863,6 +867,37 @@ class SPP(ISOBase):
 
         return df
 
+    @support_date_range("HOUR_START")
+    def get_solar_and_wind_forecast_by_reserve_zone(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        """Returns hourly solar and wind forecasts and actuals by reserve zone.
+
+        Data from https://portal.spp.org/pages/resource-forecast-by-reserve-zone.
+        The ``date`` parameter is the publish hour of the source file.
+        """
+        result = self._get_mid_term_forecast_data(
+            date,
+            base_url=BASE_RESERVE_ZONE_FORECAST_URL,
+            file_prefix="RF_RESERVE_ZONE",
+            buffer_minutes=10,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        return self._post_process_solar_and_wind_forecast_by_reserve_zone(
+            df,
+            url,
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
     def get_load_by_baa(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1026,6 +1061,61 @@ class SPP(ISOBase):
         return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"]).reset_index(
             drop=True,
         )
+
+    def _post_process_solar_and_wind_forecast_by_reserve_zone(
+        self,
+        df: pd.DataFrame,
+        url: str,
+        end_time_col: str,
+        interval_duration: pd.Timedelta,
+    ) -> pd.DataFrame:
+        df.columns = [col.strip() for col in df.columns]
+
+        df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
+
+        df["Publish Time"] = pd.Timestamp(
+            re.search(r"[0-9]{12}", url).group(0),
+        ).tz_localize(
+            tz=self.default_timezone,
+            ambiguous=not url.endswith("d.csv"),
+        )
+
+        df.columns = [col.strip() for col in df.columns]
+
+        df = df.rename(
+            columns={
+                "ReserveZone": "Reserve Zone",
+                "WindForecastMW": "Wind Forecast",
+                "WindActualMW": "Wind Actual",
+                "SolarForecastMW": "Solar Forecast",
+                "SolarActualMW": "Solar Actual",
+            },
+        )
+
+        df = (
+            utils.move_cols_to_front(
+                df,
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "BAA",
+                    "Reserve Zone",
+                ],
+            )
+            .drop(columns=["Time", "IntervalEnd", "Interval"], errors="ignore")
+            .sort_values(["Interval Start", "Publish Time", "Reserve Zone"])
+        )
+
+        return df.dropna(
+            subset=[
+                "Wind Forecast",
+                "Wind Actual",
+                "Solar Forecast",
+                "Solar Actual",
+            ],
+            how="all",
+        ).reset_index(drop=True)
 
     def _mid_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
         # Explicitly set the minutes to 00.

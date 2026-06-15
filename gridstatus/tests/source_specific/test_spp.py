@@ -1923,6 +1923,33 @@ class TestSPP(BaseTestISO):
 
         self._check_solar_and_wind_forecast(latest, "MID_TERM")
 
+    def test_get_solar_and_wind_forecast_by_reserve_zone_historical(self):
+        publish_time = self.iso.now().normalize() - pd.Timedelta(days=3)
+        publish_time = publish_time.replace(hour=10, minute=0, second=0, microsecond=0)
+
+        with api_vcr.use_cassette(
+            "test_get_solar_and_wind_forecast_by_reserve_zone_historical_"
+            f"{publish_time.strftime('%Y%m%d%H')}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_by_reserve_zone(
+                date=publish_time,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "BAA",
+            "Reserve Zone",
+            "Wind Forecast",
+            "Wind Actual",
+            "Solar Forecast",
+            "Solar Actual",
+        ]
+        assert (df["Publish Time"].unique() == publish_time).all()
+        assert df["Reserve Zone"].nunique() > 1
+        assert df["Interval Start"].max() >= publish_time + pd.Timedelta(days=5)
+
     def test_get_solar_and_wind_forecast_mid_term_historical(self):
         now = self.iso.now()
 

@@ -1522,6 +1522,7 @@ class MISOAPI:
                 "Publish Time",
                 "Region",
                 "Local Resource Zone",
+                "init",
             ]:
                 data[col] = data[col].astype(float)
 
@@ -1554,6 +1555,59 @@ class MISOAPI:
             publish_time=publish_time,
             time_resolution=HOURLY_RESOLUTION,
         )
+
+    @support_date_range(frequency="DAY_START")
+    def get_load_forecast_mid_term_by_region(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get hourly mid-term load forecast by region and LRZ for a publish date.
+
+        The ``date`` parameter is the forecast run publish date (``init`` date), not
+        the forecast interval date. Each publish date is queried across the available
+        forecast horizon.
+        """
+        publish_time = utils._handle_date(date, self.default_timezone).normalize()
+        all_dfs: list[pd.DataFrame] = []
+
+        for offset in range(1, 8):
+            forecast_date = publish_time + pd.DateOffset(days=offset)
+            df = self._get_medium_term_load_forecast(
+                date=forecast_date,
+                verbose=verbose,
+                publish_time=publish_time,
+                time_resolution=HOURLY_RESOLUTION,
+            )
+            if not df.empty:
+                all_dfs.append(df)
+
+        if not all_dfs:
+            return pd.DataFrame(
+                columns=[
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Region",
+                    "LRZ",
+                    "Load Forecast",
+                ],
+            )
+
+        data = pd.concat(all_dfs, ignore_index=True)
+        data = data.rename(columns={"Local Resource Zone": "LRZ"})
+
+        return data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "LRZ",
+                "Load Forecast",
+            ]
+        ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_medium_term_load_forecast_hourly_aggregated(

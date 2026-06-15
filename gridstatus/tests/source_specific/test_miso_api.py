@@ -1112,6 +1112,28 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Publish Time"].min() == publish_time
 
     @pytest.mark.integration
+    def test_get_load_forecast_mid_term_by_region(self):
+        publish_time = self.local_start_of_today() - pd.Timedelta(days=2)
+
+        with api_vcr.use_cassette(
+            f"get_load_forecast_mid_term_by_region_{publish_time.date()}",
+        ):
+            df = self.iso.get_load_forecast_mid_term_by_region(publish_time)
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Region",
+            "LRZ",
+            "Load Forecast",
+        ]
+        assert (df["Publish Time"] == publish_time.normalize()).all()
+        assert df["Region"].isin(["NORTH", "CENTRAL", "SOUTH"]).all()
+        assert df["LRZ"].str.startswith("Z").all()
+        assert df["Interval Start"].min() >= publish_time + pd.Timedelta(days=1)
+
+    @pytest.mark.integration
     def test_get_medium_term_load_forecast_daily(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
 
