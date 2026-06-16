@@ -91,6 +91,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests that pull from an external API (deselect with '-m \"not integration\"')",
     "real_sleep: do not mock time.sleep for retries/throttling (use when re-recording VCR cassettes against rate-limited APIs)",
+    "caiso_oasis: CAISO OASIS tests that share a rate limit; adds cooldown between tests when VCR_RECORD_MODE=all",
 ]
 
 [tool.ruff]

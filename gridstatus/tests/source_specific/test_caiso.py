@@ -67,12 +67,17 @@ class TestCAISO(BaseTestISO):
         ).any()
         assert pd.api.types.is_numeric_dtype(df["MW"])
 
+    @pytest.mark.caiso_oasis
+    @pytest.mark.real_sleep
     @pytest.mark.parametrize("date", ["2026-06-10"])
     def test_get_aggregated_generation_outages(self, date):
         with caiso_vcr.use_cassette(
             f"test_get_aggregated_generation_outages_{date}.yaml",
         ):
-            df = self.iso.get_aggregated_generation_outages(date=date)
+            df = self.iso.get_aggregated_generation_outages(
+                date=date,
+                sleep=15,
+            )
             self._check_aggregated_generation_outages(df)
             assert df["Publish Time"].nunique() == 1
             assert df["Publish Time"].iloc[0] == self.local_start_of_day(date)
@@ -81,10 +86,11 @@ class TestCAISO(BaseTestISO):
                 date,
             ) + pd.Timedelta(days=30)
 
+    @pytest.mark.caiso_oasis
     @pytest.mark.real_sleep
     @pytest.mark.parametrize(
         "start, end",
-        [("2026-06-10", "2026-06-12")],
+        [("2026-06-08", "2026-06-10")],
     )
     def test_get_aggregated_generation_outages_date_range(self, start, end):
         with caiso_vcr.use_cassette(
