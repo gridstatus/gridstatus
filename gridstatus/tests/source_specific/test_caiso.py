@@ -23,6 +23,81 @@ class TestCAISO(BaseTestISO):
 
     trading_hub_locations = CAISO().trading_hub_locations
 
+    """get_aggregated_generation_outages"""
+
+    AGGREGATED_GENERATION_OUTAGES_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Fuel Category",
+        "Trading Hub",
+        "MW",
+    ]
+
+    def _check_aggregated_generation_outages(self, df: pd.DataFrame) -> None:
+        assert df.columns.tolist() == self.AGGREGATED_GENERATION_OUTAGES_COLUMNS
+        assert df.shape[0] > 0
+        assert set(df["Trading Hub"].unique()) == {
+            "NP15",
+            "PACE",
+            "PACW",
+            "SP15",
+            "ZP26",
+        }
+        assert set(df["Fuel Category"].unique()).issubset(
+            {
+                "Aggregated",
+                "Hydro",
+                "Not Avail",
+                "Renewable",
+                "Thermal",
+            },
+        )
+        interval_minutes = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        assert (interval_minutes == 60).all()
+        assert not df.duplicated(
+            subset=[
+                "Interval Start",
+                "Publish Time",
+                "Fuel Category",
+                "Trading Hub",
+            ],
+        ).any()
+        assert pd.api.types.is_numeric_dtype(df["MW"])
+
+    @pytest.mark.parametrize("date", ["2026-06-10"])
+    def test_get_aggregated_generation_outages(self, date):
+        with caiso_vcr.use_cassette(
+            f"test_get_aggregated_generation_outages_{date}.yaml",
+        ):
+            df = self.iso.get_aggregated_generation_outages(date=date)
+            self._check_aggregated_generation_outages(df)
+            assert df["Publish Time"].nunique() == 1
+            assert df["Publish Time"].iloc[0] == self.local_start_of_day(date)
+            assert df["Interval Start"].min() == self.local_start_of_day(date)
+            assert df["Interval End"].max() == self.local_start_of_day(
+                date,
+            ) + pd.Timedelta(days=30)
+
+    @pytest.mark.real_sleep
+    @pytest.mark.parametrize(
+        "start, end",
+        [("2026-06-10", "2026-06-12")],
+    )
+    def test_get_aggregated_generation_outages_date_range(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_aggregated_generation_outages_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_aggregated_generation_outages(
+                date=start,
+                end=end,
+                sleep=15,
+            )
+            self._check_aggregated_generation_outages(df)
+            assert df["Publish Time"].nunique() == 2
+
     """get_as"""
 
     @pytest.mark.parametrize("date", ["2022-10-15", "2022-10-16"])

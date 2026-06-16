@@ -61,6 +61,16 @@ OASIS_DATASET_CONFIG = {
             ],
         },
     },
+    "aggregated_generation_outages": {
+        "query": {
+            "path": "GroupZip",
+            "resultformat": 6,
+            "version": 1,
+        },
+        "params": {
+            "groupid": "AGGR_OUTAGE_SCH_GRP",
+        },
+    },
     "as_clearing_prices": {
         "query": {
             "path": "SingleZip",
