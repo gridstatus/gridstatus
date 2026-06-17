@@ -3,10 +3,15 @@
 Follow the steps below and only output the final Report Out section.
 
 1. **Collect Inputs**
-   - Review changes in this branch only
-   - Base branch for the diff: `$ARGUMENTS` (default to `main` if empty)
-   - Use `git diff <base>...HEAD` to show all changes
-   - Note any context the user provided (goal, constraints, known tradeoffs)
+   - Review changes in this branch only.
+   - Base branch for the diff: `$ARGUMENTS` (default to `main` if empty).
+   - Always diff against the latest base from origin, and review the most recent local state of the branch (committed *and* uncommitted):
+     - Fetch the base so the comparison reflects current remote state: `git fetch origin <base>`.
+     - Resolve the base ref to `origin/<base>`, falling back to the local `<base>` ref only if it does not exist on origin.
+     - Find the fork point: `mb=$(git merge-base <base_ref> HEAD)`.
+     - Diff the merge-base against the working tree so committed and uncommitted changes are both captured: `git diff "$mb"` (changed files: `git diff --name-only "$mb"`; untracked: `git ls-files --others --exclude-standard`).
+   - This is exactly what a PR from this branch into the up-to-date base would show, plus any local work-in-progress.
+   - Note any context the user provided (goal, constraints, known tradeoffs).
 
 2. **Load Guidelines**
    - Read the workspace `../CLAUDE.md` for monorepo-wide rules
