@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
-from gridstatus import NYISO, Markets
+from gridstatus import NYISO, Markets, NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -748,6 +748,10 @@ class TestNYISO(BaseTestISO):
             "MW",
         ]
         assert not df.empty
+
+    def test_get_btm_installed_capacity_missing_month_raises(self):
+        with pytest.raises(NoDataFoundException, match="No data found"):
+            self.iso.get_btm_installed_capacity(date="2023-09-15")
 
     @pytest.mark.parametrize(
         "date, end",

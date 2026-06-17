@@ -2,6 +2,7 @@ import warnings
 from enum import StrEnum
 from io import BytesIO
 from typing import BinaryIO, Dict, Literal, NamedTuple
+from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
 import requests
@@ -12,6 +13,7 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
+    NoDataFoundException,
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
@@ -350,7 +352,7 @@ class NYISO(ISOBase):
 
         return df
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency="MONTH_START")
     def get_btm_installed_capacity(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -1391,6 +1393,30 @@ class NYISO(ISOBase):
                 f"Invalid location type. Expected one of: {location_types}",
             )
 
+    def _get_nyiso_monthly_zip(
+        self,
+        month: str,
+        dataset_name: str,
+        filename: str,
+        verbose: bool = False,
+    ) -> ZipFile | None:
+        zip_url = (
+            f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
+        )
+        logger.info(f"Requesting {zip_url}")
+        try:
+            response = requests.get(zip_url, timeout=60)
+            if response.status_code != 200:
+                logger.info(
+                    f"Monthly archive not found: {zip_url} "
+                    f"(status {response.status_code})",
+                )
+                return None
+            return ZipFile(BytesIO(response.content))
+        except BadZipFile:
+            logger.info(f"Monthly archive is not a zip file: {zip_url}")
+            return None
+
     def _download_nyiso_archive(
         self,
         date: str | pd.Timestamp,
@@ -1450,9 +1476,6 @@ class NYISO(ISOBase):
             if add_file_date:
                 df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
-            zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
-            z = utils.get_zip_folder(zip_url, verbose=verbose)
-
             all_dfs = []
             if end is None:
                 date_range = [date]
@@ -1470,12 +1493,30 @@ class NYISO(ISOBase):
                 if end.month == date.month:
                     date_range += [end]
 
+            zip_cache: dict[str, ZipFile | None] = {}
+
             for d in date_range:
                 d = gridstatus.utils._handle_date(d, tz=self.default_timezone)
                 month = d.strftime("%Y%m01")
                 day = d.strftime("%Y%m%d")
 
+                if month not in zip_cache:
+                    zip_cache[month] = self._get_nyiso_monthly_zip(
+                        month=month,
+                        dataset_name=dataset_name,
+                        filename=filename,
+                        verbose=verbose,
+                    )
+
+                z = zip_cache[month]
+                if z is None:
+                    continue
+
                 csv_filename = f"{day}{filename}.csv"
+                zip_url = (
+                    f"http://mis.nyiso.com/public/csv/{dataset_name}/"
+                    f"{month}{filename}_csv.zip"
+                )
                 if csv_filename not in z.namelist():
                     logger.info(f"{csv_filename} not found in {zip_url}")
                     continue
@@ -1489,6 +1530,11 @@ class NYISO(ISOBase):
                     )
                 df = self._handle_time(df, dataset_name, groupby=groupby)
                 all_dfs.append(df)
+
+            if not all_dfs:
+                raise NoDataFoundException(
+                    f"No data found for {dataset_name} between {date} and {end}",
+                )
 
             df = pd.concat(all_dfs)
 
