@@ -13,28 +13,28 @@ authors = [
 keywords = ["energy", "independent system operator"]
 license = { file = "LICENSE" }
 dependencies = [
-    "requests >=2.33,<3",
+    "requests >=2.34,<3",
     "pandas ~=2.2",
-    "beautifulsoup4 ~=4.13",
+    "beautifulsoup4 ~=4.15",
     "tabulate ~=0.9",
-    "tqdm ~=4.67",
+    "tqdm ~=4.68",
     "openpyxl ~=3.1",
-    "pdfplumber ~=0.11",
+    "pdfplumber ~=0.11.10",
     "lxml >=5.3,<7",
     "plotly ~=6.0",
-    "termcolor ~=3.0",
-    "xlrd ~=2.0",
+    "termcolor ~=3.3",
+    "xlrd ~=2.0.2",
     "xmltodict ~=0.14",
     "zipp ~=3.21",
     "certifi ~=2025.1",
     "setuptools >=78.1.1,<79",
     "cryptography >=46.0.6,<47",
-    "urllib3 >=2.6.3,<3",
+    "urllib3 >=2.7.0,<3",
     "virtualenv >=20.36.1,<21",
-    "frozendict ~=2.4",
+    "frozendict ~=2.4.7",
     "rpds-py >= 0.30.0; python_version >= '3.14'",
     "h11 >=0.16.0,<1",
-    "filelock >=3.20.3,<4",
+    "filelock >=3.29.4,<4",
 ]
 
 [dependency-groups]
