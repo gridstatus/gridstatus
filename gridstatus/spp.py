@@ -182,6 +182,64 @@ def _binding_constraints_real_time_5_min_frequency(args_dict: dict) -> str:
     return "5_MIN"
 
 
+def _reserve_zone_forecast_archive_cutoff(iso: ISOBase) -> pd.Timestamp:
+    return pd.Timestamp(
+        year=iso.now().year - 1,
+        month=1,
+        day=1,
+        tz=iso.default_timezone,
+    )
+
+
+def _reserve_zone_forecast_date_range_frequency(args_dict: dict) -> str:
+    iso = args_dict["self"]
+    start = utils._handle_date(args_dict["date"], iso.default_timezone)
+
+    if "end" not in args_dict:
+        if iso._reserve_zone_forecast_uses_annual_archive(start):
+            return "YEAR_START"
+        return "HOUR_START"
+
+    end = utils._handle_date(args_dict["end"], iso.default_timezone)
+    cutoff = _reserve_zone_forecast_archive_cutoff(iso)
+
+    if start >= cutoff:
+        return "HOUR_START"
+
+    if end <= cutoff:
+        return "YEAR_START"
+
+    return "YEAR_START"
+
+
+def _reserve_zone_forecast_update_dates(
+    dates: list[pd.Timestamp | None],
+    args_dict: dict,
+) -> list[pd.Timestamp | None]:
+    iso = args_dict["self"]
+    cutoff = _reserve_zone_forecast_archive_cutoff(iso)
+    new_dates: list[pd.Timestamp | None] = []
+
+    for i, date in enumerate(dates):
+        if i + 1 == len(dates):
+            if not new_dates or new_dates[-1] is not None:
+                new_dates.append(date)
+            break
+
+        new_dates.append(date)
+        next_date = dates[i + 1]
+
+        if date is not None and next_date is not None and date < cutoff < next_date:
+            new_dates.append(cutoff)
+            new_dates.append(None)
+            new_dates.append(cutoff)
+
+    if new_dates and new_dates[-1] is None:
+        new_dates = new_dates[:-1]
+
+    return new_dates
+
+
 class SPP(ISOBase):
     """Southwest Power Pool (SPP)"""
 
@@ -741,6 +799,328 @@ class SPP(ISOBase):
 
         return df, url
 
+    def _reserve_zone_forecast_uses_annual_archive(
+        self,
+        date: pd.Timestamp,
+    ) -> bool:
+        return date.year < self.now().year - 1
+
+    def _reserve_zone_forecast_publish_suffix(
+        self,
+        floored_date: pd.Timestamp,
+    ) -> str:
+        add_d = (
+            floored_date.year == 2025
+            and floored_date.month == 11
+            and floored_date.day == 2
+            and floored_date.hour == 2
+        )
+        return (
+            f"{floored_date.strftime('%Y%m%d')}"
+            f"{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}"
+        )
+
+    def _reserve_zone_forecast_publish_time_from_suffix(
+        self,
+        suffix: str,
+    ) -> pd.Timestamp | None:
+        ts_str = suffix.removesuffix("d")
+        try:
+            return pd.Timestamp(ts_str).tz_localize(
+                tz=self.default_timezone,
+                ambiguous=not suffix.endswith("d"),
+            )
+        except pytz.exceptions.NonExistentTimeError:
+            return None
+
+    def _load_reserve_zone_forecast_annual(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        url = (
+            f"{FILE_BROWSER_DOWNLOAD_URL}/resource-forecast-by-reserve-zone"
+            f"?path=/{year}/{year}.zip"
+        )
+
+        def process_csv(df: pd.DataFrame, file_name: str) -> pd.DataFrame:
+            match = re.search(r"RF_RESERVE_ZONE-([0-9]{12}d?)", file_name)
+            if match is None:
+                raise ValueError(
+                    f"Could not parse reserve zone forecast publish time from {file_name}",
+                )
+
+            publish_suffix = match.group(1)
+            synthetic_url = (
+                f"{BASE_RESERVE_ZONE_FORECAST_URL}/{year}/"
+                f"RF_RESERVE_ZONE-{publish_suffix}.csv"
+            )
+
+            try:
+                return self._post_process_solar_and_wind_forecast_by_reserve_zone(
+                    df,
+                    url=synthetic_url,
+                    end_time_col="GMTIntervalEnd",
+                    interval_duration=pd.Timedelta(hours=1),
+                )
+            except pytz.exceptions.NonExistentTimeError:
+                return pd.DataFrame()
+
+        annual_df = utils.download_csvs_from_zip_url(
+            url,
+            process_csv=process_csv,
+            verbose=verbose,
+        )
+
+        if annual_df.empty:
+            return annual_df
+
+        return annual_df
+
+    def _get_cached_reserve_zone_forecast_annual(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        cache = getattr(self, "_reserve_zone_forecast_annual_cache", None)
+        if cache is None:
+            cache = {}
+            self._reserve_zone_forecast_annual_cache = cache
+
+        if year not in cache:
+            cache[year] = self._load_reserve_zone_forecast_annual(
+                year,
+                verbose=verbose,
+            )
+
+        return cache[year]
+
+    def _get_reserve_zone_forecast_data_from_annual(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        floored_date = self._handle_dst_floor_date(date, "h")
+        year = floored_date.year
+
+        publish_suffix = self._reserve_zone_forecast_publish_suffix(floored_date)
+        publish_time = self._reserve_zone_forecast_publish_time_from_suffix(
+            publish_suffix,
+        )
+        if publish_time is None:
+            return None
+
+        annual_df = self._get_cached_reserve_zone_forecast_annual(
+            year,
+            verbose=verbose,
+        )
+        df = annual_df[annual_df["Publish Time"] == publish_time]
+        if df.empty:
+            return None
+
+        return df.reset_index(drop=True)
+
+    def _get_reserve_zone_forecast_data_from_annual_range(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        start = self._handle_dst_floor_date(start, "h")
+        end = self._handle_dst_floor_date(end, "h")
+
+        if start >= end:
+            return None
+
+        all_df: list[pd.DataFrame] = []
+
+        for year in range(start.year, end.year + 1):
+            if not self._reserve_zone_forecast_uses_annual_archive(
+                pd.Timestamp(
+                    year=year,
+                    month=6,
+                    day=1,
+                    tz=self.default_timezone,
+                ),
+            ):
+                break
+
+            year_start = pd.Timestamp(
+                year=year,
+                month=1,
+                day=1,
+                tz=self.default_timezone,
+            )
+            year_end = pd.Timestamp(
+                year=year + 1,
+                month=1,
+                day=1,
+                tz=self.default_timezone,
+            )
+            range_start = max(start, year_start)
+            range_end = min(end, year_end)
+
+            if range_start >= range_end:
+                continue
+
+            annual_df = self._get_cached_reserve_zone_forecast_annual(
+                year,
+                verbose=verbose,
+            )
+            df = annual_df[
+                (annual_df["Publish Time"] >= range_start)
+                & (annual_df["Publish Time"] < range_end)
+            ]
+            if not df.empty:
+                all_df.append(df)
+
+        if not all_df:
+            return None
+
+        return (
+            pd.concat(all_df)
+            .drop_duplicates()
+            .sort_values(["Publish Time", "Interval Start", "Reserve Zone"])
+            .reset_index(drop=True)
+        )
+
+    def _get_reserve_zone_forecast_data_hourly_range(
+        self,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        start = self._handle_dst_floor_date(start, "h")
+        end = self._handle_dst_floor_date(end, "h")
+
+        if start >= end:
+            return None
+
+        all_df: list[pd.DataFrame] = []
+        current = start
+
+        while current < end:
+            if current > self.now():
+                break
+
+            result = self._get_mid_term_forecast_data(
+                current,
+                base_url=BASE_RESERVE_ZONE_FORECAST_URL,
+                file_prefix="RF_RESERVE_ZONE",
+                buffer_minutes=10,
+            )
+
+            if result is not None:
+                df, url = result
+                processed = self._post_process_solar_and_wind_forecast_by_reserve_zone(
+                    df,
+                    url,
+                    end_time_col="GMTIntervalEnd",
+                    interval_duration=pd.Timedelta(hours=1),
+                )
+                if processed is not None and not processed.empty:
+                    all_df.append(processed)
+
+            current += pd.Timedelta(hours=1)
+
+        if not all_df:
+            return None
+
+        return (
+            pd.concat(all_df)
+            .drop_duplicates()
+            .sort_values(["Publish Time", "Interval Start", "Reserve Zone"])
+            .reset_index(drop=True)
+        )
+
+    def _get_reserve_zone_forecast_data(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame | None:
+        if date == "latest":
+            date = self.now() - pd.Timedelta(minutes=10)
+
+        if date > self.now():
+            return None
+
+        date = utils._handle_date(date, self.default_timezone)
+
+        if end is not None:
+            end = utils._handle_date(end, self.default_timezone)
+
+            if date >= end:
+                return None
+
+            cutoff = _reserve_zone_forecast_archive_cutoff(self)
+
+            if date < cutoff and end <= cutoff:
+                return self._get_reserve_zone_forecast_data_from_annual_range(
+                    date,
+                    end,
+                    verbose=verbose,
+                )
+
+            if date >= cutoff:
+                return self._get_reserve_zone_forecast_data_hourly_range(
+                    date,
+                    end,
+                    verbose=verbose,
+                )
+
+            annual_df = self._get_reserve_zone_forecast_data_from_annual_range(
+                date,
+                min(end, cutoff),
+                verbose=verbose,
+            )
+            hourly_df = self._get_reserve_zone_forecast_data_hourly_range(
+                max(date, cutoff),
+                end,
+                verbose=verbose,
+            )
+
+            if annual_df is None and hourly_df is None:
+                return None
+
+            if annual_df is None:
+                return hourly_df
+
+            if hourly_df is None:
+                return annual_df
+
+            return (
+                pd.concat([annual_df, hourly_df])
+                .drop_duplicates()
+                .sort_values(["Publish Time", "Interval Start", "Reserve Zone"])
+                .reset_index(drop=True)
+            )
+
+        if self._reserve_zone_forecast_uses_annual_archive(date):
+            return self._get_reserve_zone_forecast_data_from_annual(
+                date,
+                verbose=verbose,
+            )
+
+        result = self._get_mid_term_forecast_data(
+            date,
+            base_url=BASE_RESERVE_ZONE_FORECAST_URL,
+            file_prefix="RF_RESERVE_ZONE",
+            buffer_minutes=10,
+        )
+
+        if result is None:
+            return None
+
+        df, url = result
+
+        return self._post_process_solar_and_wind_forecast_by_reserve_zone(
+            df,
+            url,
+            end_time_col="GMTIntervalEnd",
+            interval_duration=pd.Timedelta(hours=1),
+        )
+
     def _post_process_load_forecast(
         self,
         df: pd.DataFrame,
@@ -867,7 +1247,10 @@ class SPP(ISOBase):
 
         return df
 
-    @support_date_range("HOUR_START")
+    @support_date_range(
+        frequency=_reserve_zone_forecast_date_range_frequency,
+        update_dates=_reserve_zone_forecast_update_dates,
+    )
     def get_solar_and_wind_forecast_by_reserve_zone(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -878,25 +1261,36 @@ class SPP(ISOBase):
 
         Data from https://portal.spp.org/pages/resource-forecast-by-reserve-zone.
         The ``date`` parameter is the publish hour of the source file.
+
+        For the current and previous calendar years, data is fetched from hourly
+        CSV files. Older years are served from annual zip archives, with date
+        ranges split by year so each archive is downloaded at most once.
         """
-        result = self._get_mid_term_forecast_data(
+        return self._get_reserve_zone_forecast_data(
             date,
-            base_url=BASE_RESERVE_ZONE_FORECAST_URL,
-            file_prefix="RF_RESERVE_ZONE",
-            buffer_minutes=10,
+            end=end,
+            verbose=verbose,
         )
 
-        if result is None:
-            return None
+    def get_solar_and_wind_forecast_by_reserve_zone_annual(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Returns hourly solar and wind forecasts and actuals by reserve zone
+        for a full year from the annual zip archive.
 
-        df, url = result
+        Use ``get_solar_and_wind_forecast_by_reserve_zone`` for the current and
+        previous calendar years.
+        """
+        if year >= self.now().year - 1:
+            raise NotSupported(
+                f"Annual archive is only available for years before "
+                f"{self.now().year - 1}. Use get_solar_and_wind_forecast_by_reserve_zone "
+                f"for {year}.",
+            )
 
-        return self._post_process_solar_and_wind_forecast_by_reserve_zone(
-            df,
-            url,
-            end_time_col="GMTIntervalEnd",
-            interval_duration=pd.Timedelta(hours=1),
-        )
+        return self._load_reserve_zone_forecast_annual(year, verbose=verbose)
 
     def get_load_by_baa(
         self,
@@ -1091,6 +1485,11 @@ class SPP(ISOBase):
                 "SolarActualMW": "Solar Actual",
             },
         )
+
+        if "BAA" not in df.columns:
+            df["BAA"] = BAAEnum.SPP.value
+        else:
+            df["BAA"] = df["BAA"].fillna(BAAEnum.SPP.value)
 
         df = (
             utils.move_cols_to_front(

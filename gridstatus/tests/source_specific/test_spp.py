@@ -12,6 +12,8 @@ from gridstatus.spp import (
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
     BAAEnum,
+    _reserve_zone_forecast_archive_cutoff,
+    _reserve_zone_forecast_date_range_frequency,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -1951,6 +1953,93 @@ class TestSPP(BaseTestISO):
         assert (df["Publish Time"].unique() == publish_time).all()
         assert df["Reserve Zone"].nunique() > 1
         assert df["Interval Start"].max() >= publish_time + pd.Timedelta(days=5)
+
+    def test_reserve_zone_forecast_date_range_frequency(self):
+        tz = self.iso.default_timezone
+        cutoff = _reserve_zone_forecast_archive_cutoff(self.iso)
+
+        assert (
+            _reserve_zone_forecast_date_range_frequency(
+                {
+                    "self": self.iso,
+                    "date": pd.Timestamp("2022-01-01", tz=tz),
+                    "end": pd.Timestamp("2023-01-01", tz=tz),
+                },
+            )
+            == "YEAR_START"
+        )
+        assert (
+            _reserve_zone_forecast_date_range_frequency(
+                {
+                    "self": self.iso,
+                    "date": cutoff,
+                    "end": cutoff + pd.Timedelta(days=7),
+                },
+            )
+            == "HOUR_START"
+        )
+
+    @pytest.mark.integration
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual_archive(self):
+        publish_time = pd.Timestamp(
+            "2024-06-15 22:00:00",
+            tz=self.iso.default_timezone,
+        )
+
+        with api_vcr.use_cassette(
+            "test_get_solar_and_wind_forecast_by_reserve_zone_annual_archive_"
+            f"{publish_time.strftime('%Y%m%d%H')}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_by_reserve_zone(
+                date=publish_time,
+            )
+
+        assert df.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "BAA",
+            "Reserve Zone",
+            "Wind Forecast",
+            "Wind Actual",
+            "Solar Forecast",
+            "Solar Actual",
+        ]
+        assert (df["Publish Time"].unique() == publish_time).all()
+        assert df["Reserve Zone"].nunique() > 1
+        assert not df.empty
+
+    @pytest.mark.integration
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual_range_single_download(
+        self,
+    ):
+        start = pd.Timestamp("2024-01-01", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2024-01-02", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            "test_get_solar_and_wind_forecast_by_reserve_zone_annual_range_2024.yaml",
+        ):
+            with patch.object(
+                self.iso,
+                "_load_reserve_zone_forecast_annual",
+                wraps=self.iso._load_reserve_zone_forecast_annual,
+            ) as load_annual:
+                df = self.iso.get_solar_and_wind_forecast_by_reserve_zone(
+                    date=start,
+                    end=end,
+                )
+
+        assert load_annual.call_count == 1
+        assert not df.empty
+        assert df["Publish Time"].min() >= start
+        assert df["Publish Time"].max() < end
+
+    def test_get_solar_and_wind_forecast_by_reserve_zone_annual_recent_year_not_supported(
+        self,
+    ):
+        year = self.iso.now().year - 1
+        with pytest.raises(NotSupported, match="Annual archive is only available"):
+            self.iso.get_solar_and_wind_forecast_by_reserve_zone_annual(year=year)
 
     def test_get_solar_and_wind_forecast_mid_term_historical(self):
         now = self.iso.now()
