@@ -844,11 +844,9 @@ class SPP(ISOBase):
         )
 
         def process_csv(df: pd.DataFrame, file_name: str) -> pd.DataFrame:
-            match = re.search(r"RF_RESERVE_ZONE-([0-9]{12}d?)", file_name)
+            match = re.search(r"RF_RESERVE_ZONE[_-]([0-9]{12}d?)", file_name)
             if match is None:
-                raise ValueError(
-                    f"Could not parse reserve zone forecast publish time from {file_name}",
-                )
+                return pd.DataFrame()
 
             publish_suffix = match.group(1)
             synthetic_url = (
