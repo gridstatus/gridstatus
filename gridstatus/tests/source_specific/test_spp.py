@@ -12,8 +12,11 @@ from gridstatus.spp import (
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
     BAAEnum,
+    _is_mid_term_dst_end_d_publish_hour,
+    _is_mid_term_dst_end_repeat_publish_hour,
     _reserve_zone_forecast_archive_cutoff,
     _reserve_zone_forecast_date_range_frequency,
+    _should_skip_reserve_zone_dst_end_duplicate_csv,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -1978,6 +1981,57 @@ class TestSPP(BaseTestISO):
             )
             == "HOUR_START"
         )
+
+    def test_reserve_zone_forecast_dst_helpers(self):
+        tz = self.iso.default_timezone
+
+        assert _is_mid_term_dst_end_d_publish_hour(
+            pd.Timestamp("2025-11-02 02:00:00", tz=tz),
+            tz,
+        )
+        assert _is_mid_term_dst_end_d_publish_hour(
+            pd.Timestamp("2022-11-06 02:00:00", tz=tz),
+            tz,
+        )
+        assert not _is_mid_term_dst_end_d_publish_hour(
+            pd.Timestamp("2025-11-02 01:00:00-0500"),
+            tz,
+        )
+        assert _is_mid_term_dst_end_repeat_publish_hour(
+            pd.Timestamp("2025-11-02 01:00:00-0600"),
+            tz,
+        )
+        assert not _is_mid_term_dst_end_repeat_publish_hour(
+            pd.Timestamp("2025-11-02 01:00:00-0500"),
+            tz,
+        )
+        assert _should_skip_reserve_zone_dst_end_duplicate_csv(
+            "202211060200",
+            tz,
+        )
+        assert not _should_skip_reserve_zone_dst_end_duplicate_csv(
+            "202211060200d",
+            tz,
+        )
+
+    @pytest.mark.integration
+    def test_get_solar_and_wind_forecast_by_reserve_zone_dst_ending(self):
+        start = "2025-11-02 01:00:00-0500"
+        end = "2025-11-02 03:00:00-0600"
+
+        with api_vcr.use_cassette(
+            f"test_get_solar_and_wind_forecast_by_reserve_zone_dst_ending_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_solar_and_wind_forecast_by_reserve_zone(
+                date=start,
+                end=end,
+            )
+
+        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 02:00:00-0600")
+        assert df["Publish Time"].nunique() == 2
+        assert df["Reserve Zone"].nunique() > 1
+        assert not df.empty
 
     @pytest.mark.integration
     def test_get_solar_and_wind_forecast_by_reserve_zone_annual_archive(self):

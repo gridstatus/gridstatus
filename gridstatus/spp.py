@@ -191,6 +191,43 @@ def _reserve_zone_forecast_archive_cutoff(iso: ISOBase) -> pd.Timestamp:
     )
 
 
+def _is_mid_term_dst_end_d_publish_hour(
+    floored_date: pd.Timestamp,
+    timezone: str,
+) -> bool:
+    local = floored_date.tz_convert(timezone)
+    return utils.is_dst_end(local.normalize()) and local.hour == 2
+
+
+def _is_mid_term_dst_end_repeat_publish_hour(
+    floored_date: pd.Timestamp,
+    timezone: str,
+) -> bool:
+    local = floored_date.tz_convert(timezone)
+    return (
+        utils.is_dst_end(local.normalize())
+        and local.hour == 1
+        and local.dst() == pd.Timedelta(0)
+    )
+
+
+def _should_skip_reserve_zone_dst_end_duplicate_csv(
+    publish_suffix: str,
+    timezone: str,
+) -> bool:
+    if publish_suffix.endswith("d") or len(publish_suffix) != 12:
+        return False
+
+    if not publish_suffix.endswith("0200"):
+        return False
+
+    publish_dt = pd.Timestamp(publish_suffix).tz_localize(
+        timezone,
+        ambiguous=False,
+    )
+    return utils.is_dst_end(publish_dt.normalize())
+
+
 def _reserve_zone_forecast_date_range_frequency(args_dict: dict) -> str:
     iso = args_dict["self"]
     start = utils._handle_date(args_dict["date"], iso.default_timezone)
@@ -780,16 +817,17 @@ class SPP(ISOBase):
 
         floored_date = self._handle_dst_floor_date(date, "h")
 
-        # For mid-term hourly forecasts during 2025 DST end there is a 0200d file.
-        # Special case for DST end on 2025-11-02
-        add_d = (
-            floored_date.year == 2025
-            and floored_date.month == 11
-            and floored_date.day == 2
-            and floored_date.hour == 2
+        if _is_mid_term_dst_end_repeat_publish_hour(
+            floored_date,
+            self.default_timezone,
+        ):
+            return None
+
+        add_d = _is_mid_term_dst_end_d_publish_hour(
+            floored_date,
+            self.default_timezone,
         )
 
-        # Explicitly set the minutes to 00 in the URL
         url = base_url + floored_date.strftime(
             f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}.csv",
         )
@@ -809,11 +847,9 @@ class SPP(ISOBase):
         self,
         floored_date: pd.Timestamp,
     ) -> str:
-        add_d = (
-            floored_date.year == 2025
-            and floored_date.month == 11
-            and floored_date.day == 2
-            and floored_date.hour == 2
+        add_d = _is_mid_term_dst_end_d_publish_hour(
+            floored_date,
+            self.default_timezone,
         )
         return (
             f"{floored_date.strftime('%Y%m%d')}"
@@ -849,6 +885,12 @@ class SPP(ISOBase):
                 return pd.DataFrame()
 
             publish_suffix = match.group(1)
+            if _should_skip_reserve_zone_dst_end_duplicate_csv(
+                publish_suffix,
+                self.default_timezone,
+            ):
+                return pd.DataFrame()
+
             synthetic_url = (
                 f"{BASE_RESERVE_ZONE_FORECAST_URL}/{year}/"
                 f"RF_RESERVE_ZONE-{publish_suffix}.csv"
@@ -899,6 +941,13 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame | None:
         floored_date = self._handle_dst_floor_date(date, "h")
+
+        if _is_mid_term_dst_end_repeat_publish_hour(
+            floored_date,
+            self.default_timezone,
+        ):
+            return None
+
         year = floored_date.year
 
         publish_suffix = self._reserve_zone_forecast_publish_suffix(floored_date)
@@ -1019,7 +1068,9 @@ class SPP(ISOBase):
                 if processed is not None and not processed.empty:
                     all_df.append(processed)
 
-            current += pd.Timedelta(hours=1)
+            current = (current.tz_convert("UTC") + pd.Timedelta(hours=1)).tz_convert(
+                self.default_timezone,
+            )
 
         if not all_df:
             return None
