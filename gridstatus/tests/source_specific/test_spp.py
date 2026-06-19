@@ -890,6 +890,30 @@ class TestSPP(BaseTestISO):
         ).normalize() + pd.Timedelta(days=1)
         assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
+    def test_get_day_ahead_operating_reserve_prices_annual(self):
+        year = 2020
+        with api_vcr.use_cassette(
+            f"test_get_day_ahead_operating_reserve_prices_annual_{year}.yaml",
+        ):
+            df = self.iso.get_day_ahead_operating_reserve_prices_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
+        assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+        assert not df[["Interval Start", "Reserve Zone"]].duplicated().any()
+
+    def test_get_day_ahead_operating_reserve_prices_annual_2013(self):
+        year = 2013
+        with api_vcr.use_cassette(
+            f"test_get_day_ahead_operating_reserve_prices_annual_{year}.yaml",
+        ):
+            df = self.iso.get_day_ahead_operating_reserve_prices_annual(year=year)
+
+        assert df["Interval Start"].min().date() == pd.Timestamp("2013-05-29").date()
+        assert df["Interval Start"].max().date() == pd.Timestamp(f"{year}-12-31").date()
+        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+        assert not df[["Interval Start", "Reserve Zone"]].duplicated().any()
+
     """get_as_prices_real_time_5_min"""
 
     REAL_TIME_MCP_COLUMNS = [

@@ -27,7 +27,17 @@ FS_DAM_LMP_BY_BUS = "da-lmp-by-bus"
 LMP_BY_SETTLEMENT_LOCATION_WEIS = "lmp-by-settlement-location-weis"
 OPERATING_RESERVES = "operating-reserves"
 RTBM_MCP = "rtbm-mcp"
+DA_MCP = "da-mcp"
 DA_BINDING_CONSTRAINTS = "da-binding-constraints"
+DA_MCP_REVISION_PATTERN = re.compile(r"R(\d+)")
+DA_MCP_CORRECTION_COLUMN = "_correction"
+DA_MCP_RESOURCE_PRODUCT_MAP = {
+    "REGUP": "RegUP",
+    "REGDN": "RegDN",
+    "SPIN": "Spin",
+    "SUPP": "Supp",
+}
+DA_MCP_RESOURCE_RESERVE_ZONES = [1, 2, 3, 4]
 RTBM_BINDING_CONSTRAINTS = "rtbm-binding-constraints"
 
 HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
@@ -2052,6 +2062,9 @@ class SPP(ISOBase):
         Posting is updated each day after the DA Market results are posted.
         Available at https://portal.spp.org/pages/da-mcp#
 
+        For historical data before individual daily files are available, use
+        get_day_ahead_operating_reserve_prices_annual.
+
         Args:
             date: date to get data for
             end: end date
@@ -2065,12 +2078,155 @@ class SPP(ISOBase):
                 "Latest not supported for Day Ahead Marginal Clearing Prices",
             )
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_MCP}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return self._process_day_ahead_operating_reserve_prices(df)
+
+    def _should_include_da_mcp_zip_file(
+        self,
+        name: str,
+        namelist: list[str],
+    ) -> bool:
+        if not name.endswith(".csv") or "RePrice" in name:
+            return False
+
+        filename = name.split("/")[-1]
+        if "-R" not in filename:
+            return True
+
+        base_name = "-".join(filename.split("-")[0:3])
+        matches = [x for x in namelist if base_name in x.split("/")[-1]]
+        revision_numbers = [
+            int(match.group(1))
+            for x in matches
+            if (match := DA_MCP_REVISION_PATTERN.search(x.split("/")[-1]))
+        ]
+        if not revision_numbers:
+            return True
+
+        max_revision = max(revision_numbers)
+        return f"R{max_revision}" in filename
+
+    def _normalize_da_mcp_zip_file(self, df: pd.DataFrame) -> pd.DataFrame:
+        if "Resource" in df.columns and "AS Product" in df.columns:
+            pivoted = (
+                df.groupby(["Interval", "AS Product"], as_index=False)["MCP"]
+                .first()
+                .pivot(index="Interval", columns="AS Product", values="MCP")
+                .reset_index()
+                .rename(columns=DA_MCP_RESOURCE_PRODUCT_MAP)
+            )
+            zones = pd.DataFrame({"Reserve Zone": DA_MCP_RESOURCE_RESERVE_ZONES})
+            pivoted["_merge_key"] = 1
+            zones["_merge_key"] = 1
+            df = pivoted.merge(zones, on="_merge_key").drop(columns="_merge_key")
+
+        if "GMTIntervalEnd" not in df.columns:
+            is_first_occurrence = (
+                df.groupby(["Reserve Zone", "Interval"]).cumcount() == 0
+                if "Reserve Zone" in df.columns
+                else df.groupby("Interval").cumcount() == 0
+            )
+            df["GMTIntervalEnd"] = (
+                pd.to_datetime(df["Interval"], format="mixed")
+                .dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=is_first_occurrence,
+                )
+                .dt.tz_convert("GMT")
+            )
+        elif df["GMTIntervalEnd"].isna().any():
+            missing = df["GMTIntervalEnd"].isna()
+            is_first_occurrence = (
+                df.loc[missing].groupby(["Reserve Zone", "Interval"]).cumcount() == 0
+            )
+            df.loc[missing, "GMTIntervalEnd"] = (
+                pd.to_datetime(df.loc[missing, "Interval"], format="mixed")
+                .dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=is_first_occurrence,
+                )
+                .dt.tz_convert("GMT")
+            )
+
+        return df
+
+    def _fetch_day_ahead_operating_reserve_prices_from_zip(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_MCP}?path=/{year}/{year}.zip"  # noqa
+        zip_folder = utils.get_zip_folder(url, verbose=verbose)
+        namelist = zip_folder.namelist()
+        dfs: list[pd.DataFrame] = []
+
+        for name in namelist:
+            if not self._should_include_da_mcp_zip_file(name, namelist):
+                continue
+
+            file_df = pd.read_csv(zip_folder.open(name))
+            file_df = self._normalize_da_mcp_zip_file(file_df)
+
+            if "-R" in name.split("/")[-1]:
+                file_df[DA_MCP_CORRECTION_COLUMN] = True
+
+            dfs.append(file_df)
+
+        if not dfs:
+            raise NoDataFoundException(
+                f"No day-ahead MCP data found in annual zip for year {year}",
+            )
+
+        return pd.concat(dfs, ignore_index=True)
+
+    def _process_day_ahead_operating_reserve_prices_annual(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        if DA_MCP_CORRECTION_COLUMN in df.columns:
+            df["Interval"] = pd.to_datetime(df["Interval"])
+            df = df.sort_values("Interval").reset_index(drop=True)
+            df[DA_MCP_CORRECTION_COLUMN] = df[DA_MCP_CORRECTION_COLUMN].fillna(
+                False,
+            )
+            corrected_intervals = df.loc[
+                df[DA_MCP_CORRECTION_COLUMN],
+                "Interval",
+            ]
+            rows_to_delete = df.loc[
+                (df["Interval"].isin(corrected_intervals))
+                & (~df[DA_MCP_CORRECTION_COLUMN])
+            ].index
+            df = df.drop(rows_to_delete)
+
+        return self._process_day_ahead_operating_reserve_prices(df)
+
+    def get_day_ahead_operating_reserve_prices_annual(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Day Ahead Marginal Clearing Prices for a year. Starting 2013.
+
+        Recent data is available via get_day_ahead_operating_reserve_prices.
+        Annual zip files are available through 2024.
+
+        Args:
+            year: year to get data for
+            verbose: print url
+
+        Returns:
+            pd.DataFrame: Day Ahead Marginal Clearing Prices
+        """
+        df = self._fetch_day_ahead_operating_reserve_prices_from_zip(
+            year=year,
+            verbose=verbose,
+        )
+        return self._process_day_ahead_operating_reserve_prices_annual(df)
 
     def _process_day_ahead_operating_reserve_prices(
         self,
@@ -2103,8 +2259,11 @@ class SPP(ISOBase):
             column_mapping.values(),
         )
 
-        # Older datasets might not have all the reserve types
-        return df[[c for c in cols_to_keep if c in df]]
+        for col in column_mapping.values():
+            if col not in df.columns:
+                df[col] = pd.NA
+
+        return df[cols_to_keep]
 
     @support_date_range("5_MIN")
     def get_lmp_real_time_weis(
