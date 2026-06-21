@@ -1725,7 +1725,6 @@ class CAISO(ISOBase):
             verbose=verbose,
         )
 
-    @support_date_range(frequency="31D")
     def get_price_corrections(
         self,
         date: str | pd.Timestamp,
@@ -1740,6 +1739,10 @@ class CAISO(ISOBase):
         time the message was published (not the trade date being corrected), so
         a message published today may reference a trade date several days or
         weeks earlier.
+
+        The report has a small maximum query range and returns "no data" rather
+        than an error when it is exceeded, so the request is chunked into short
+        windows via ``max_query_frequency`` in ``OASIS_DATASET_CONFIG``.
 
         Arguments:
             date (datetime.date, str): start of the publish-time window.
@@ -1759,6 +1762,10 @@ class CAISO(ISOBase):
             CAISO market run id, e.g. ``DAM``, ``RTD``, ``RTPD``), ``Trade Date``
             (the corrected operating day; ``NaT`` for administrative messages
             that do not name one) and ``Message`` (the full message text).
+
+        Raises:
+            NoDataFoundException: if no correction messages were published in the
+                window.
         """
         df = self.get_oasis_dataset(
             dataset="price_corrections",
@@ -1769,7 +1776,14 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
-        return self._parse_price_corrections(df)
+        result = self._parse_price_corrections(df)
+
+        if result.empty:
+            raise NoDataFoundException(
+                f"No CAISO price corrections published between {date} and {end}",
+            )
+
+        return result
 
     def _parse_price_corrections(self, df: pd.DataFrame) -> pd.DataFrame:
         """Reconstruct ATL_PRC_CORR_MSG messages into one row per message.

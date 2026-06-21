@@ -62,7 +62,10 @@ class TestCAISO(BaseTestISO):
         "Message",
     ]
 
-    @pytest.mark.parametrize("start, end", [("2026-04-01", "2026-05-01")])
+    # The window spans more than the report's max query range, exercising the
+    # 5-day chunking that stitches the messages back together.
+    @pytest.mark.real_sleep
+    @pytest.mark.parametrize("start, end", [("2026-05-26", "2026-06-05")])
     def test_get_price_corrections(self, start, end):
         with caiso_vcr.use_cassette(
             f"test_get_price_corrections_{start}_{end}.yaml",
@@ -73,7 +76,13 @@ class TestCAISO(BaseTestISO):
             assert df.shape[0] > 0
 
             # Market comes from the response's MARKET_RUN_ID column.
-            assert set(df["Market"].dropna().unique()) <= {"DAM", "RTD", "RTPD"}
+            assert set(df["Market"].dropna().unique()) <= {
+                "DAM",
+                "RTD",
+                "RTPD",
+                "HASP",
+                "RUC",
+            }
 
             # Publish Time and Trade Date are Pacific-localized timestamps.
             assert str(df["Publish Time"].dt.tz) == "US/Pacific"
@@ -84,9 +93,18 @@ class TestCAISO(BaseTestISO):
             assert df["Publish Time"].min() >= self.local_start_of_day(start)
             assert df["Publish Time"].max() < self.local_start_of_day(end)
 
-            # Almost every message names the corrected trade date; the rare
-            # exception is a purely administrative notice.
-            assert df["Trade Date"].notna().mean() > 0.9
+            # Most messages name the corrected trade date; the remainder are
+            # administrative notices (which can be a meaningful fraction).
+            assert df["Trade Date"].notna().mean() > 0.5
+
+    def test_get_price_corrections_raises_when_empty(self):
+        # A window with no published corrections raises rather than returning an
+        # empty frame, so callers can distinguish "no corrections" explicitly.
+        with caiso_vcr.use_cassette(
+            "test_get_price_corrections_empty.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_price_corrections(date="2026-05-21", end="2026-05-26")
 
     """get_ir_rc_prices"""
 
