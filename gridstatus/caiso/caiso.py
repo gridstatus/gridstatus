@@ -33,6 +33,14 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
+# In ATL_PRC_CORR_MSG messages the corrected operating day is written into the
+# free-text body as e.g. "Trade Date: 03/30/2026" or "trade day 4/1/2026". The
+# date is anchored to the "Trade Date"/"trade day" prefix so unrelated dates in
+# the message (such as a future publish date) are not picked up.
+PRICE_CORRECTION_TRADE_DATE_REGEX = re.compile(
+    r"[Tt]rade [Dd](?:ate|ay):?\s*(\d{1,2}/\d{1,2}/\d{4})",
+)
+
 
 def _determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
@@ -1716,6 +1724,113 @@ class CAISO(ISOBase):
             end=end,
             verbose=verbose,
         )
+
+    @support_date_range(frequency="31D")
+    def get_price_corrections(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return CAISO price correction messages (OASIS ``ATL_PRC_CORR_MSG``).
+
+        CAISO publishes a message whenever it reprices an operating day. Each
+        message names the affected market and trade date and is filtered by the
+        time the message was published (not the trade date being corrected), so
+        a message published today may reference a trade date several days or
+        weeks earlier.
+
+        Arguments:
+            date (datetime.date, str): start of the publish-time window.
+
+            end (datetime.date, str): end of the publish-time window. If None,
+                returns only ``date``. Defaults to None.
+
+            sleep (int): seconds to sleep between requests to avoid the OASIS
+                rate limit. Defaults to 4.
+
+            verbose (bool, optional): print out url being fetched. Defaults to
+                False.
+
+        Returns:
+            pandas.DataFrame: one row per correction message with columns
+            ``Publish Time`` (when the message was posted), ``Market`` (the
+            CAISO market run id, e.g. ``DAM``, ``RTD``, ``RTPD``), ``Trade Date``
+            (the corrected operating day; ``NaT`` for administrative messages
+            that do not name one) and ``Message`` (the full message text).
+        """
+        df = self.get_oasis_dataset(
+            dataset="price_corrections",
+            start=date,
+            end=end,
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        return self._parse_price_corrections(df)
+
+    def _parse_price_corrections(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Reconstruct ATL_PRC_CORR_MSG messages into one row per message.
+
+        The OASIS CSV puts the multi-line message body in the ``MSG_TEXT`` field,
+        but some messages are not quoted and the parser spills their body across
+        rows where only the first column is populated and the time columns are
+        empty. A row with a populated ``MSG_TIME_GMT`` therefore starts a new
+        message; rows without one are continuation fragments of the message
+        above them.
+        """
+        columns = ["Publish Time", "Market", "Trade Date", "Message"]
+
+        if df.empty:
+            return pd.DataFrame(columns=columns)
+
+        records = []
+        current = None
+        for row in df.itertuples(index=False):
+            market = getattr(row, "MARKET_RUN_ID", None)
+            publish_time = getattr(row, "MSG_TIME_GMT", None)
+            message = getattr(row, "MSG_TEXT", None)
+
+            if pd.notna(publish_time):
+                if current is not None:
+                    records.append(current)
+                current = {
+                    "Publish Time": publish_time,
+                    "Market": market if pd.notna(market) else None,
+                    "Message": "" if pd.isna(message) else str(message),
+                }
+            elif current is not None:
+                # Continuation fragment: its text spilled into the leading
+                # columns. Append whatever is populated to the running body.
+                for fragment in (market, message):
+                    if pd.notna(fragment):
+                        current["Message"] += "\n" + str(fragment)
+
+        if current is not None:
+            records.append(current)
+
+        result = pd.DataFrame.from_records(records)
+        result["Trade Date"] = result["Message"].apply(self._parse_trade_date)
+        result["Publish Time"] = result["Publish Time"].dt.tz_convert(
+            self.default_timezone,
+        )
+
+        return (
+            result[columns]
+            .sort_values(["Publish Time", "Trade Date"])
+            .reset_index(drop=True)
+        )
+
+    @staticmethod
+    def _parse_trade_date(message: str) -> pd.Timestamp:
+        """Extract the corrected operating day from a message body as a
+        Pacific-localized midnight timestamp, or ``NaT`` if none is present."""
+        match = PRICE_CORRECTION_TRADE_DATE_REGEX.search(message or "")
+        if not match:
+            return pd.NaT
+        return pd.Timestamp(match.group(1)).tz_localize(CAISO.default_timezone)
 
     @support_date_range(frequency="DAY_START")
     def get_storage(

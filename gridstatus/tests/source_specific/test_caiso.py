@@ -53,6 +53,41 @@ class TestCAISO(BaseTestISO):
                 df = self.iso.get_as_procurement(date, market=market)
                 self._check_as_data(df, market)
 
+    """get_price_corrections"""
+
+    PRICE_CORRECTIONS_COLUMNS = [
+        "Publish Time",
+        "Market",
+        "Trade Date",
+        "Message",
+    ]
+
+    @pytest.mark.parametrize("start, end", [("2026-04-01", "2026-05-01")])
+    def test_get_price_corrections(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_price_corrections_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_price_corrections(date=start, end=end)
+
+            assert df.columns.tolist() == self.PRICE_CORRECTIONS_COLUMNS
+            assert df.shape[0] > 0
+
+            # Market comes from the response's MARKET_RUN_ID column.
+            assert set(df["Market"].dropna().unique()) <= {"DAM", "RTD", "RTPD"}
+
+            # Publish Time and Trade Date are Pacific-localized timestamps.
+            assert str(df["Publish Time"].dt.tz) == "US/Pacific"
+            assert str(df["Trade Date"].dt.tz) == "US/Pacific"
+
+            # The report is filtered by publish time, so every message falls in
+            # the requested window.
+            assert df["Publish Time"].min() >= self.local_start_of_day(start)
+            assert df["Publish Time"].max() < self.local_start_of_day(end)
+
+            # Almost every message names the corrected trade date; the rare
+            # exception is a purely administrative notice.
+            assert df["Trade Date"].notna().mean() > 0.9
+
     """get_ir_rc_prices"""
 
     IR_RC_PRICES_COLUMNS = [
