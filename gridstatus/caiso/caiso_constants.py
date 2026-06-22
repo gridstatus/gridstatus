@@ -477,24 +477,6 @@ OASIS_DATASET_CONFIG = {
             "schedule": "ALL",
         },
     },
-    # Price correction messages CAISO publishes when it reprices an operating
-    # day. The report is filtered by message (publish) time, not trade date. No
-    # market_run_id parameter is sent because passing "ALL" returns no data; the
-    # market is read from the MARKET_RUN_ID column of the response instead.
-    # The report silently returns "no data" once the query range exceeds ~10
-    # days, so it is chunked into 5-day windows to stay safely under that limit.
-    "price_corrections": {
-        "query": {
-            "path": "SingleZip",
-            "resultformat": 6,
-            "queryname": "ATL_PRC_CORR_MSG",
-            "version": 3,
-        },
-        "params": {},
-        "meta": {
-            "max_query_frequency": "5D",
-        },
-    },
 }
 
 

@@ -33,13 +33,10 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
-# In ATL_PRC_CORR_MSG messages the corrected operating day is written into the
-# free-text body as e.g. "Trade Date: 03/30/2026" or "trade day 4/1/2026". The
-# date is anchored to the "Trade Date"/"trade day" prefix so unrelated dates in
-# the message (such as a future publish date) are not picked up.
-PRICE_CORRECTION_TRADE_DATE_REGEX = re.compile(
-    r"[Tt]rade [Dd](?:ate|ay):?\s*(\d{1,2}/\d{1,2}/\d{4})",
-)
+# The PRC_CORR_GRP summary lists every market/correction-method combination for a
+# trade date; combinations with no corrections carry this sentinel in the reason
+# column and are dropped during parsing.
+PRICE_CORRECTION_NO_RECORDS_REASON = "No records found for report."
 
 
 def _determine_lmp_frequency(args: dict) -> str:
@@ -1732,22 +1729,24 @@ class CAISO(ISOBase):
         sleep: int = 4,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Return CAISO price correction messages (OASIS ``ATL_PRC_CORR_MSG``).
+        """Return CAISO price corrections (OASIS ``PRC_CORR_GRP`` summary).
 
-        CAISO publishes a message whenever it reprices an operating day. Each
-        message names the affected market and trade date and is filtered by the
-        time the message was published (not the trade date being corrected), so
-        a message published today may reference a trade date several days or
-        weeks earlier.
+        CAISO reprices an operating day when it detects an error in published
+        prices and posts a structured summary of every correction to the
+        ``PRC_CORR_GRP`` report group. Each row describes a single corrected
+        interval: the trade date (operating day) and market that were
+        corrected, the hour ending and interval, the correction method and
+        reason, and the time the correction was generated.
 
-        The report has a small maximum query range and returns "no data" rather
-        than an error when it is exceeded, so the request is chunked into short
-        windows via ``max_query_frequency`` in ``OASIS_DATASET_CONFIG``.
+        The report is keyed by trade date and serves one day per request, so a
+        range is fetched one day at a time. A correction is typically generated
+        several days to two weeks after the trade date, so ``Report Generated``
+        is the column to use when selecting recently issued corrections.
 
         Arguments:
-            date (datetime.date, str): start of the publish-time window.
+            date (datetime.date, str): start of the trade-date range.
 
-            end (datetime.date, str): end of the publish-time window. If None,
+            end (datetime.date, str): end of the trade-date range. If None,
                 returns only ``date``. Defaults to None.
 
             sleep (int): seconds to sleep between requests to avoid the OASIS
@@ -1757,94 +1756,155 @@ class CAISO(ISOBase):
                 False.
 
         Returns:
-            pandas.DataFrame: one row per correction message with columns
-            ``Publish Time`` (when the message was posted), ``Market`` (the
-            CAISO market run id, e.g. ``DAM``, ``RTD``, ``RTPD``), ``Trade Date``
-            (the corrected operating day; ``NaT`` for administrative messages
-            that do not name one) and ``Message`` (the full message text).
+            pandas.DataFrame: one row per corrected interval with columns
+            ``Trade Date`` (the corrected operating day), ``Hour Ending``,
+            ``Interval``, ``Market`` (e.g. ``DAM``, ``RTD``, ``RTPD``),
+            ``Affected Area``, ``Correction Method``, ``Correction Count``,
+            ``Energy Type``, ``Correction Reason`` and ``Report Generated``
+            (when the correction was issued). ``Trade Date`` and
+            ``Report Generated`` are Pacific-localized timestamps.
 
         Raises:
-            NoDataFoundException: if no correction messages were published in the
-                window.
+            NoDataFoundException: if no corrections were issued for the range.
         """
-        df = self.get_oasis_dataset(
-            dataset="price_corrections",
-            start=date,
+        df = self._get_price_corrections_grouped(
+            date=date,
             end=end,
             sleep=sleep,
             verbose=verbose,
-            raw_data=False,
         )
 
         result = self._parse_price_corrections(df)
 
         if result.empty:
             raise NoDataFoundException(
-                f"No CAISO price corrections published between {date} and {end}",
+                f"No CAISO price corrections for trade dates between {date} and {end}",
             )
 
         return result
 
-    def _parse_price_corrections(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Reconstruct ATL_PRC_CORR_MSG messages into one row per message.
+    @support_date_range(frequency="DAY_START")
+    def _get_price_corrections_grouped(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Fetch the ``PRC_CORR_GRP`` summary for a single trade date.
 
-        The OASIS CSV puts the multi-line message body in the ``MSG_TEXT`` field,
-        but some messages are not quoted and the parser spills their body across
-        rows where only the first column is populated and the time columns are
-        empty. A row with a populated ``MSG_TIME_GMT`` therefore starts a new
-        message; rows without one are continuation fragments of the message
-        above them.
+        ``@support_date_range`` calls this once per day and concatenates the
+        results, so range handling lives in the decorator.
         """
-        columns = ["Publish Time", "Market", "Trade Date", "Message"]
+        return self._get_oasis_group_zip(
+            group_id="PRC_CORR_GRP",
+            version=1,
+            date=date,
+            sleep=sleep,
+            verbose=verbose,
+        )
+
+    def _get_oasis_group_zip(
+        self,
+        group_id: str,
+        version: int,
+        date: pd.Timestamp,
+        sleep: int = 4,
+        verbose: bool = False,
+        max_retries: int = 3,
+    ) -> pd.DataFrame:
+        """Fetch a single trade date from an OASIS ``GroupZip`` report group.
+
+        The group endpoint serves one trade date per request and returns a
+        small response, so it is never too large. A "no data" response
+        therefore means the group has not been generated for the date yet or a
+        transient rate limit, both of which are retried; a persistent "no data"
+        is returned as an empty frame.
+        """
+        start, _ = _caiso_handle_start_end(date)
+        url = (
+            "http://oasis.caiso.com/oasisapi/GroupZip?resultformat=6"
+            f"&groupid={group_id}&version={version}&startdatetime={start}"
+        )
+
+        if verbose:
+            print(f"Fetching URL: {url}")
+        logger.info(f"Fetching URL: {url}")
+
+        retry_num = 0
+        while retry_num <= max_retries:
+            response = requests.get(url, verify=True)
+
+            if response.status_code == 200:
+                archive = ZipFile(io.BytesIO(response.content))
+                contents = archive.read(archive.namelist()[0])
+                # An error XML rather than a CSV means no data is available for
+                # the trade date yet, or a transient rate limit.
+                if not (b"<?xml" in contents[:200] and b"ERR_CODE" in contents[:600]):
+                    return pd.read_csv(io.BytesIO(contents))
+                logger.info(f"No price corrections for {date.date()} yet")
+
+            retry_num += 1
+            time.sleep(sleep)
+
+        return pd.DataFrame()
+
+    def _parse_price_corrections(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Standardize ``PRC_CORR_GRP`` rows.
+
+        Each trade date lists every market/correction-method combination;
+        combinations with no corrections are placeholder rows marked with a
+        sentinel reason and are dropped here so only actual corrections remain.
+        """
+        columns = [
+            "Trade Date",
+            "Hour Ending",
+            "Interval",
+            "Market",
+            "Affected Area",
+            "Correction Method",
+            "Correction Count",
+            "Energy Type",
+            "Correction Reason",
+            "Report Generated",
+        ]
 
         if df.empty:
             return pd.DataFrame(columns=columns)
 
-        records = []
-        current = None
-        for row in df.itertuples(index=False):
-            market = getattr(row, "MARKET_RUN_ID", None)
-            publish_time = getattr(row, "MSG_TIME_GMT", None)
-            message = getattr(row, "MSG_TEXT", None)
+        df = df[df["CORRECTION_REASON"] != PRICE_CORRECTION_NO_RECORDS_REASON]
 
-            if pd.notna(publish_time):
-                if current is not None:
-                    records.append(current)
-                current = {
-                    "Publish Time": publish_time,
-                    "Market": market if pd.notna(market) else None,
-                    "Message": "" if pd.isna(message) else str(message),
-                }
-            elif current is not None:
-                # Continuation fragment: its text spilled into the leading
-                # columns. Append whatever is populated to the running body.
-                for fragment in (market, message):
-                    if pd.notna(fragment):
-                        current["Message"] += "\n" + str(fragment)
+        if df.empty:
+            return pd.DataFrame(columns=columns)
 
-        if current is not None:
-            records.append(current)
-
-        result = pd.DataFrame.from_records(records)
-        result["Trade Date"] = result["Message"].apply(self._parse_trade_date)
-        result["Publish Time"] = result["Publish Time"].dt.tz_convert(
-            self.default_timezone,
+        result = pd.DataFrame(
+            {
+                "Trade Date": pd.to_datetime(df["TRADE_DATE"]).dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=True,
+                    nonexistent="shift_forward",
+                ),
+                "Hour Ending": df["HOUR_ENDING"].astype("Int64"),
+                "Interval": df["INTERVAL"].astype("Int64"),
+                "Market": df["MARKET"],
+                "Affected Area": df["AFFECTED_AREA"],
+                "Correction Method": df["CORRECTION_METHOD"],
+                "Correction Count": df["CORRECTION_COUNT"].astype("Int64"),
+                "Energy Type": df["ENERGY_TYPECODE"],
+                "Correction Reason": df["CORRECTION_REASON"],
+                "Report Generated": pd.to_datetime(
+                    df["REPORT_GENERATED"],
+                ).dt.tz_localize(
+                    self.default_timezone,
+                    ambiguous=True,
+                    nonexistent="shift_forward",
+                ),
+            },
         )
 
-        return (
-            result[columns]
-            .sort_values(["Publish Time", "Trade Date"])
-            .reset_index(drop=True)
-        )
-
-    @staticmethod
-    def _parse_trade_date(message: str) -> pd.Timestamp:
-        """Extract the corrected operating day from a message body as a
-        Pacific-localized midnight timestamp, or ``NaT`` if none is present."""
-        match = PRICE_CORRECTION_TRADE_DATE_REGEX.search(message or "")
-        if not match:
-            return pd.NaT
-        return pd.Timestamp(match.group(1)).tz_localize(CAISO.default_timezone)
+        return result.sort_values(
+            ["Trade Date", "Market", "Hour Ending", "Interval"],
+        ).reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_storage(

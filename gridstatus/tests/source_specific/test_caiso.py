@@ -56,16 +56,22 @@ class TestCAISO(BaseTestISO):
     """get_price_corrections"""
 
     PRICE_CORRECTIONS_COLUMNS = [
-        "Publish Time",
-        "Market",
         "Trade Date",
-        "Message",
+        "Hour Ending",
+        "Interval",
+        "Market",
+        "Affected Area",
+        "Correction Method",
+        "Correction Count",
+        "Energy Type",
+        "Correction Reason",
+        "Report Generated",
     ]
 
-    # The window spans more than the report's max query range, exercising the
-    # 5-day chunking that stitches the messages back together.
+    # PRC_CORR_GRP serves one trade date per request, so the range exercises the
+    # per-day fetch and concatenation.
     @pytest.mark.real_sleep
-    @pytest.mark.parametrize("start, end", [("2026-05-26", "2026-06-05")])
+    @pytest.mark.parametrize("start, end", [("2026-06-01", "2026-06-13")])
     def test_get_price_corrections(self, start, end):
         with caiso_vcr.use_cassette(
             f"test_get_price_corrections_{start}_{end}.yaml",
@@ -75,36 +81,32 @@ class TestCAISO(BaseTestISO):
             assert df.columns.tolist() == self.PRICE_CORRECTIONS_COLUMNS
             assert df.shape[0] > 0
 
-            # Market comes from the response's MARKET_RUN_ID column.
-            assert set(df["Market"].dropna().unique()) <= {
-                "DAM",
-                "RTD",
-                "RTPD",
-                "HASP",
-                "RUC",
-            }
+            # Market comes from the PRC_CORR_GRP MARKET column.
+            assert set(df["Market"].unique()) <= {"DAM", "RTD", "RTPD", "HASP", "RUC"}
 
-            # Publish Time and Trade Date are Pacific-localized timestamps.
-            assert str(df["Publish Time"].dt.tz) == "US/Pacific"
+            # Trade Date and Report Generated are Pacific-localized timestamps.
             assert str(df["Trade Date"].dt.tz) == "US/Pacific"
+            assert str(df["Report Generated"].dt.tz) == "US/Pacific"
 
-            # The report is filtered by publish time, so every message falls in
-            # the requested window.
-            assert df["Publish Time"].min() >= self.local_start_of_day(start)
-            assert df["Publish Time"].max() < self.local_start_of_day(end)
+            # The report is keyed by trade date, so every correction falls in the
+            # requested range (end exclusive).
+            assert df["Trade Date"].min() >= pd.Timestamp(start, tz="US/Pacific")
+            assert df["Trade Date"].max() < pd.Timestamp(end, tz="US/Pacific")
 
-            # Most messages name the corrected trade date; the remainder are
-            # administrative notices (which can be a meaningful fraction).
-            assert df["Trade Date"].notna().mean() > 0.5
+            # Placeholder "no corrections" rows are dropped, and a correction is
+            # never generated before its trade date.
+            assert "No records found for report." not in set(df["Correction Reason"])
+            assert (df["Report Generated"] >= df["Trade Date"]).all()
 
     def test_get_price_corrections_raises_when_empty(self):
-        # A window with no published corrections raises rather than returning an
-        # empty frame, so callers can distinguish "no corrections" explicitly.
+        # Future trade dates have no issued corrections, so the method raises
+        # rather than returning an empty frame, letting callers distinguish
+        # "no corrections" explicitly.
         with caiso_vcr.use_cassette(
             "test_get_price_corrections_empty.yaml",
         ):
             with pytest.raises(NoDataFoundException):
-                self.iso.get_price_corrections(date="2026-05-21", end="2026-05-26")
+                self.iso.get_price_corrections(date="2026-07-01", end="2026-07-04")
 
     """get_ir_rc_prices"""
 
