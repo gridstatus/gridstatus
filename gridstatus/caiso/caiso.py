@@ -2312,6 +2312,75 @@ class CAISO(ISOBase):
         return df
 
     @support_date_range(frequency="DAY_START")
+    def get_aggregated_generation_outages(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return hourly aggregated generator outages by fuel category and trading hub.
+
+        Each query returns roughly 30 days of forward-looking outage schedules
+        published on the requested date(s).
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            sleep (int, optional): seconds to sleep between requests.
+                Defaults to 4.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with one row per
+            (Interval Start, Publish Time, Fuel Category, Trading Hub).
+        """
+        df = self.get_oasis_dataset(
+            dataset="aggregated_generation_outages",
+            date=date,
+            end=end,
+            raw_data=False,
+            sleep=sleep,
+            verbose=verbose,
+        )
+
+        if df.empty:
+            return df
+
+        df["Publish Time"] = pd.to_datetime(
+            df["REPORT_DATE_GMT"],
+            utc=True,
+        ).dt.tz_convert(self.default_timezone)
+
+        df = df.rename(
+            columns={
+                "FUEL_CATEGORY": "Fuel Category",
+                "TRADING_HUB": "Trading Hub",
+            },
+        )
+
+        df["MW"] = pd.to_numeric(df["MW"])
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Fuel Category",
+            "Trading Hub",
+            "MW",
+        ]
+
+        return (
+            df[columns]
+            .sort_values(["Interval Start", "Trading Hub", "Fuel Category"])
+            .reset_index(drop=True)
+        )
+
+    @support_date_range(frequency="DAY_START")
     def get_as_prices(
         self,
         date: str | pd.Timestamp,
