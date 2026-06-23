@@ -1767,14 +1767,14 @@ class CAISO(ISOBase):
         Raises:
             NoDataFoundException: if no corrections were issued for the range.
         """
-        df = self._get_price_corrections_grouped(
+        raw = self._get_price_corrections_raw(
             date=date,
             end=end,
             sleep=sleep,
             verbose=verbose,
         )
 
-        result = self._parse_price_corrections(df)
+        result = self._parse_price_corrections(raw)
 
         if result.empty:
             raise NoDataFoundException(
@@ -1784,106 +1784,60 @@ class CAISO(ISOBase):
         return result
 
     @support_date_range(frequency="DAY_START")
-    def _get_price_corrections_grouped(
+    def _get_price_corrections_raw(
         self,
         date: pd.Timestamp,
         end: pd.Timestamp | None = None,
         sleep: int = 4,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Fetch the ``PRC_CORR_GRP`` summary for a single trade date.
-
-        ``@support_date_range`` calls this once per day and concatenates the
-        results, so range handling lives in the decorator.
-        """
-        return self._get_oasis_group_zip(
-            group_id="PRC_CORR_GRP",
-            version=1,
-            date=date,
-            sleep=sleep,
-            verbose=verbose,
-        )
-
-    def _get_oasis_group_zip(
-        self,
-        group_id: str,
-        version: int,
-        date: pd.Timestamp,
-        sleep: int = 4,
-        verbose: bool = False,
-        max_retries: int = 3,
-    ) -> pd.DataFrame:
-        """Fetch a single trade date from an OASIS ``GroupZip`` report group.
-
-        The group endpoint serves one trade date per request and returns a
-        small response, so it is never too large. A "no data" response
-        therefore means the group has not been generated for the date yet or a
-        transient rate limit, both of which are retried; a persistent "no data"
-        is returned as an empty frame.
+        """Fetch the ``PRC_CORR_GRP`` summary for one trade date; the decorator
+        iterates and concatenates a range. A "no data" response (the group is
+        not generated for the date yet, or a transient rate limit) is retried,
+        then returns an empty frame.
         """
         start, _ = _caiso_handle_start_end(date)
         url = (
             "http://oasis.caiso.com/oasisapi/GroupZip?resultformat=6"
-            f"&groupid={group_id}&version={version}&startdatetime={start}"
+            f"&groupid=PRC_CORR_GRP&version=1&startdatetime={start}"
         )
-
         if verbose:
             print(f"Fetching URL: {url}")
         logger.info(f"Fetching URL: {url}")
 
-        retry_num = 0
-        while retry_num <= max_retries:
+        for _ in range(4):
             response = requests.get(url, verify=True)
-
             if response.status_code == 200:
                 archive = ZipFile(io.BytesIO(response.content))
                 contents = archive.read(archive.namelist()[0])
-                # An error XML rather than a CSV means no data is available for
-                # the trade date yet, or a transient rate limit.
-                if not (b"<?xml" in contents[:200] and b"ERR_CODE" in contents[:600]):
+                # A data response is a CSV; "no data" is an XML error document.
+                if b"ERR_CODE" not in contents[:600]:
                     return pd.read_csv(io.BytesIO(contents))
-                logger.info(f"No price corrections for {date.date()} yet")
-
-            retry_num += 1
             time.sleep(sleep)
 
         return pd.DataFrame()
 
     def _parse_price_corrections(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Standardize ``PRC_CORR_GRP`` rows.
-
-        Each trade date lists every market/correction-method combination;
-        combinations with no corrections are placeholder rows marked with a
-        sentinel reason and are dropped here so only actual corrections remain.
+        """Rename and type the ``PRC_CORR_GRP`` columns, dropping the placeholder
+        rows that mark market/method combinations with no correction for the day.
         """
-        columns = [
-            "Trade Date",
-            "Hour Ending",
-            "Interval",
-            "Market",
-            "Affected Area",
-            "Correction Method",
-            "Correction Count",
-            "Energy Type",
-            "Correction Reason",
-            "Report Generated",
-        ]
-
         if df.empty:
-            return pd.DataFrame(columns=columns)
+            return df
 
         df = df[df["CORRECTION_REASON"] != PRICE_CORRECTION_NO_RECORDS_REASON]
-
         if df.empty:
-            return pd.DataFrame(columns=columns)
+            return df
+
+        def to_pacific(column: pd.Series) -> pd.Series:
+            return pd.to_datetime(column).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+                nonexistent="shift_forward",
+            )
 
         result = pd.DataFrame(
             {
-                "Trade Date": pd.to_datetime(df["TRADE_DATE"]).dt.tz_localize(
-                    self.default_timezone,
-                    ambiguous=True,
-                    nonexistent="shift_forward",
-                ),
+                "Trade Date": to_pacific(df["TRADE_DATE"]),
                 "Hour Ending": df["HOUR_ENDING"].astype("Int64"),
                 "Interval": df["INTERVAL"].astype("Int64"),
                 "Market": df["MARKET"],
@@ -1892,16 +1846,9 @@ class CAISO(ISOBase):
                 "Correction Count": df["CORRECTION_COUNT"].astype("Int64"),
                 "Energy Type": df["ENERGY_TYPECODE"],
                 "Correction Reason": df["CORRECTION_REASON"],
-                "Report Generated": pd.to_datetime(
-                    df["REPORT_GENERATED"],
-                ).dt.tz_localize(
-                    self.default_timezone,
-                    ambiguous=True,
-                    nonexistent="shift_forward",
-                ),
+                "Report Generated": to_pacific(df["REPORT_GENERATED"]),
             },
         )
-
         return result.sort_values(
             ["Trade Date", "Market", "Hour Ending", "Interval"],
         ).reset_index(drop=True)
