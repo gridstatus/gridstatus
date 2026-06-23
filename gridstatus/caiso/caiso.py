@@ -33,6 +33,11 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
+# The PRC_CORR_GRP summary lists every market/correction-method combination for a
+# trade date; combinations with no corrections carry this sentinel in the reason
+# column and are dropped during parsing.
+PRICE_CORRECTION_NO_RECORDS_REASON = "No records found for report."
+
 
 def _determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
@@ -1716,6 +1721,137 @@ class CAISO(ISOBase):
             end=end,
             verbose=verbose,
         )
+
+    def get_price_corrections(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return CAISO price corrections (OASIS ``PRC_CORR_GRP`` summary).
+
+        CAISO reprices an operating day when it detects an error in published
+        prices and posts a structured summary of every correction to the
+        ``PRC_CORR_GRP`` report group. Each row describes a single corrected
+        interval: the trade date (operating day) and market that were
+        corrected, the hour ending and interval, the correction method and
+        reason, and the time the correction was generated.
+
+        The report is keyed by trade date and serves one day per request, so a
+        range is fetched one day at a time. A correction is typically generated
+        several days to two weeks after the trade date, so ``Report Generated``
+        is the column to use when selecting recently issued corrections.
+
+        Arguments:
+            date (datetime.date, str): start of the trade-date range.
+
+            end (datetime.date, str): end of the trade-date range. If None,
+                returns only ``date``. Defaults to None.
+
+            sleep (int): seconds to sleep between requests to avoid the OASIS
+                rate limit. Defaults to 4.
+
+            verbose (bool, optional): print out url being fetched. Defaults to
+                False.
+
+        Returns:
+            pandas.DataFrame: one row per corrected interval with columns
+            ``Trade Date`` (the corrected operating day), ``Hour Ending``,
+            ``Interval``, ``Market`` (e.g. ``DAM``, ``RTD``, ``RTPD``),
+            ``Affected Area``, ``Correction Method``, ``Correction Count``,
+            ``Energy Type``, ``Correction Reason`` and ``Report Generated``
+            (when the correction was issued). ``Trade Date`` and
+            ``Report Generated`` are Pacific-localized timestamps.
+
+        Raises:
+            NoDataFoundException: if no corrections were issued for the range.
+        """
+        raw = self._get_price_corrections_raw(
+            date=date,
+            end=end,
+            sleep=sleep,
+            verbose=verbose,
+        )
+
+        result = self._parse_price_corrections(raw)
+
+        if result.empty:
+            raise NoDataFoundException(
+                f"No CAISO price corrections for trade dates between {date} and {end}",
+            )
+
+        return result
+
+    @support_date_range(frequency="DAY_START")
+    def _get_price_corrections_raw(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        sleep: int = 4,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Fetch the ``PRC_CORR_GRP`` summary for one trade date; the decorator
+        iterates and concatenates a range. A "no data" response (the group is
+        not generated for the date yet, or a transient rate limit) is retried,
+        then returns an empty frame.
+        """
+        start, _ = _caiso_handle_start_end(date)
+        url = (
+            "http://oasis.caiso.com/oasisapi/GroupZip?resultformat=6"
+            f"&groupid=PRC_CORR_GRP&version=1&startdatetime={start}"
+        )
+        if verbose:
+            print(f"Fetching URL: {url}")
+        logger.info(f"Fetching URL: {url}")
+
+        for _ in range(4):
+            response = requests.get(url, verify=True)
+            if response.status_code == 200:
+                archive = ZipFile(io.BytesIO(response.content))
+                contents = archive.read(archive.namelist()[0])
+                # A data response is a CSV; "no data" is an XML error document.
+                if b"ERR_CODE" not in contents[:600]:
+                    return pd.read_csv(io.BytesIO(contents))
+            time.sleep(sleep)
+
+        return pd.DataFrame()
+
+    def _parse_price_corrections(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Rename and type the ``PRC_CORR_GRP`` columns, dropping the placeholder
+        rows that mark market/method combinations with no correction for the day.
+        """
+        if df.empty:
+            return df
+
+        df = df[df["CORRECTION_REASON"] != PRICE_CORRECTION_NO_RECORDS_REASON]
+        if df.empty:
+            return df
+
+        def to_pacific(column: pd.Series) -> pd.Series:
+            return pd.to_datetime(column).dt.tz_localize(
+                self.default_timezone,
+                ambiguous=True,
+                nonexistent="shift_forward",
+            )
+
+        result = pd.DataFrame(
+            {
+                "Trade Date": to_pacific(df["TRADE_DATE"]),
+                "Hour Ending": df["HOUR_ENDING"].astype("Int64"),
+                "Interval": df["INTERVAL"].astype("Int64"),
+                "Market": df["MARKET"],
+                "Affected Area": df["AFFECTED_AREA"],
+                "Correction Method": df["CORRECTION_METHOD"],
+                "Correction Count": df["CORRECTION_COUNT"].astype("Int64"),
+                "Energy Type": df["ENERGY_TYPECODE"],
+                "Correction Reason": df["CORRECTION_REASON"],
+                "Report Generated": to_pacific(df["REPORT_GENERATED"]),
+            },
+        )
+        return result.sort_values(
+            ["Trade Date", "Market", "Hour Ending", "Interval"],
+        ).reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_storage(
