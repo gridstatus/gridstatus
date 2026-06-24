@@ -29,9 +29,12 @@ class TestCAISO(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "Fuel Category",
         "Trading Hub",
-        "MW",
+        "Aggregated",
+        "Hydro",
+        "Not Available",
+        "Renewable",
+        "Thermal",
     ]
 
     def _check_aggregated_generation_outages(self, df: pd.DataFrame) -> None:
@@ -44,15 +47,6 @@ class TestCAISO(BaseTestISO):
             "SP15",
             "ZP26",
         }
-        assert set(df["Fuel Category"].unique()).issubset(
-            {
-                "Aggregated",
-                "Hydro",
-                "Not Avail",
-                "Renewable",
-                "Thermal",
-            },
-        )
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
@@ -61,11 +55,11 @@ class TestCAISO(BaseTestISO):
             subset=[
                 "Interval Start",
                 "Publish Time",
-                "Fuel Category",
                 "Trading Hub",
             ],
         ).any()
-        assert pd.api.types.is_numeric_dtype(df["MW"])
+        for column in ["Aggregated", "Hydro", "Not Available", "Renewable", "Thermal"]:
+            assert pd.api.types.is_numeric_dtype(df[column])
 
     @pytest.mark.caiso_oasis
     @pytest.mark.real_sleep
