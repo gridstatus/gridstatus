@@ -333,39 +333,36 @@ class ISONEAPI:
 
         return utils.move_cols_to_front(pivoted, ["Time"] + fuel_cols)
 
-    def _morning_report_tie_columns(
+    @support_date_range("DAY_START")
+    def get_morning_report(
         self,
-        records: dict | list[dict] | None,
-        api_field_suffix_pairs: dict[str, str],
-    ) -> dict[str, object]:
-        """Pivot TieDelivery or InterchangeDetail arrays into wide tie columns."""
-        columns = {
-            f"{tie} {suffix}": None
-            for tie in ISONE_MORNING_REPORT_TIE_NAMES
-            for suffix in api_field_suffix_pairs.values()
-        }
-        if not records:
-            return columns
-
-        ties = pd.json_normalize(self._prepare_records(records))
-        ties["TieName"] = ties["TieName"].map(
-            lambda name: ISONE_MORNING_REPORT_TIE_ALIASES.get(
-                str(name).strip().casefold(),
-                str(name).strip(),
-            ),
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get ISO-NE's daily morning report for the operating day."""
+        url = f"{self.base_url}/morningreport/day/{date.strftime('%Y%m%d')}/all"
+        response = self.make_api_call(url, verbose=verbose)
+        reports = self._prepare_records(
+            self._safe_get(response, "MorningReports", "MorningReport"),
         )
-        for api_field, suffix in api_field_suffix_pairs.items():
-            if api_field not in ties.columns:
-                continue
-            values = ties.set_index("TieName")[api_field]
-            for tie in ISONE_MORNING_REPORT_TIE_NAMES:
-                column = f"{tie} {suffix}"
-                if tie in values.index:
-                    columns[column] = values.loc[tie]
-        return columns
+        if not reports:
+            raise NoDataFoundException(f"No morning report data found for {date}")
 
+        report = next(
+            (
+                item
+                for item in reports
+                if str(item.get("ReportType", "")).upper()
+                in {"MR", "MORNING REPORT", "MORNINGREPORT"}
+            ),
+            reports[0],
+        )
+        df = pd.DataFrame([self._parse_morning_report(report)])
+        return df[ISONE_MORNING_REPORT_COLUMNS]
+
+    # NB: Flatten one MorningReport JSON object into the daily wide-row output schema.
     def _parse_morning_report(self, report: dict) -> dict[str, object]:
-        """Flatten one MorningReport API record into the daily wide-row schema."""
         tz = self.default_timezone
 
         begin_date = pd.to_datetime(report["BeginDate"], utc=True).tz_convert(tz)
@@ -425,33 +422,36 @@ class ISONEAPI:
 
         return row
 
-    @support_date_range("DAY_START")
-    def get_morning_report(
+    # NB: Pivot TieDelivery or InterchangeDetail arrays into wide `{Interface} {suffix}` columns.
+    def _morning_report_tie_columns(
         self,
-        date: str | pd.Timestamp,
-        end: str | pd.Timestamp | None = None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        """Get ISO-NE's daily morning report for the operating day."""
-        url = f"{self.base_url}/morningreport/day/{date.strftime('%Y%m%d')}/all"
-        response = self.make_api_call(url, verbose=verbose)
-        reports = self._prepare_records(
-            self._safe_get(response, "MorningReports", "MorningReport"),
-        )
-        if not reports:
-            raise NoDataFoundException(f"No morning report data found for {date}")
+        records: dict | list[dict] | None,
+        api_field_suffix_pairs: dict[str, str],
+    ) -> dict[str, object]:
+        columns = {
+            f"{tie} {suffix}": None
+            for tie in ISONE_MORNING_REPORT_TIE_NAMES
+            for suffix in api_field_suffix_pairs.values()
+        }
+        if not records:
+            return columns
 
-        report = next(
-            (
-                item
-                for item in reports
-                if str(item.get("ReportType", "")).upper()
-                in {"MR", "MORNING REPORT", "MORNINGREPORT"}
+        ties = pd.json_normalize(self._prepare_records(records))
+        ties["TieName"] = ties["TieName"].map(
+            lambda name: ISONE_MORNING_REPORT_TIE_ALIASES.get(
+                str(name).strip().casefold(),
+                str(name).strip(),
             ),
-            reports[0],
         )
-        df = pd.DataFrame([self._parse_morning_report(report)])
-        return df[ISONE_MORNING_REPORT_COLUMNS]
+        for api_field, suffix in api_field_suffix_pairs.items():
+            if api_field not in ties.columns:
+                continue
+            values = ties.set_index("TieName")[api_field]
+            for tie in ISONE_MORNING_REPORT_TIE_NAMES:
+                column = f"{tie} {suffix}"
+                if tie in values.index:
+                    columns[column] = values.loc[tie]
+        return columns
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(
