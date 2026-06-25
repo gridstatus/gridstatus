@@ -2291,6 +2291,12 @@ class CAISO(ISOBase):
             if column not in df.columns:
                 df[column] = np.nan
 
+        component_sum = df[["Hydro", "Not Available", "Renewable", "Thermal"]].sum(
+            axis=1,
+            min_count=1,
+        )
+        df["Aggregated"] = df["Aggregated"].combine_first(component_sum)
+
         return df[
             [
                 "Interval Start",
@@ -2315,10 +2321,12 @@ class CAISO(ISOBase):
     ) -> pd.DataFrame:
         """Return hourly aggregated generator outages by trading hub.
 
-        Outage MW is split across fuel-category columns (Thermal, Renewable,
-        Hydro, Aggregated, and Not Available). Each query returns roughly 30
-        days of forward-looking outage schedules published on the requested
-        date(s).
+        Outage MW is reported with an ``Aggregated`` hub-total column plus
+        fuel-category breakdown columns where CAISO provides them. Some hubs
+        (e.g. ZP26) publish only the aggregate; others publish Thermal,
+        Renewable, Hydro, and sometimes Not Available. ``Aggregated`` uses the
+        published value when present, otherwise the sum of the breakdown
+        columns.
 
         Arguments:
             date (datetime.date, str): date to return data
