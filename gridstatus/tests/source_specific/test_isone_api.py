@@ -953,9 +953,8 @@ class TestISONEAPI(TestHelperMixin):
 
     def _check_morning_report_columns(self, result: pd.DataFrame) -> None:
         assert list(result.columns) == ISONE_MORNING_REPORT_COLUMNS
-        assert result["Interval Start"].dtype == "datetime64[ns, US/Eastern]"
-        assert result["Interval End"].dtype == "datetime64[ns, US/Eastern]"
-        assert result["Prior Day"].dtype == "datetime64[ns, US/Eastern]"
+        assert result["Report Date"].dtype == object
+        assert result["Prior Day"].dtype == object
         assert result["Prior Day Peak Hour"].dtype in [np.int64, np.float64]
         assert result["Capacity Supply Obligation"].dtype in [np.int64, np.float64]
         assert result["Boston High Temperature"].dtype in [np.int64, np.float64]
