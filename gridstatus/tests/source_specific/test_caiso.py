@@ -29,9 +29,12 @@ class TestCAISO(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "Fuel Category",
         "Trading Hub",
-        "MW",
+        "Aggregated",
+        "Hydro",
+        "Not Available",
+        "Renewable",
+        "Thermal",
     ]
 
     def _check_aggregated_generation_outages(self, df: pd.DataFrame) -> None:
@@ -44,15 +47,6 @@ class TestCAISO(BaseTestISO):
             "SP15",
             "ZP26",
         }
-        assert set(df["Fuel Category"].unique()).issubset(
-            {
-                "Aggregated",
-                "Hydro",
-                "Not Avail",
-                "Renewable",
-                "Thermal",
-            },
-        )
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
@@ -61,11 +55,26 @@ class TestCAISO(BaseTestISO):
             subset=[
                 "Interval Start",
                 "Publish Time",
-                "Fuel Category",
                 "Trading Hub",
             ],
         ).any()
-        assert pd.api.types.is_numeric_dtype(df["MW"])
+        assert df["Aggregated"].notna().all()
+        breakdown_hubs = {"NP15", "PACE", "PACW", "SP15"}
+        breakdown = df[df["Trading Hub"].isin(breakdown_hubs)]
+        component_sum = breakdown[
+            ["Hydro", "Not Available", "Renewable", "Thermal"]
+        ].sum(axis=1, min_count=1)
+        assert (breakdown["Aggregated"] == component_sum).all()
+        assert df.loc[df["Trading Hub"] == "ZP26", "Aggregated"].notna().all()
+        assert df.loc[df["Trading Hub"] == "ZP26", "Thermal"].isna().all()
+        for column in [
+            "Aggregated",
+            "Hydro",
+            "Not Available",
+            "Renewable",
+            "Thermal",
+        ]:
+            assert pd.api.types.is_numeric_dtype(df[column])
 
     @pytest.mark.caiso_oasis
     @pytest.mark.real_sleep

@@ -2258,6 +2258,59 @@ class CAISO(ISOBase):
         df = df.replace("", np.nan)
         return df
 
+    def _pivot_aggregated_generation_outages(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df = df.copy()
+        df["Fuel Category"] = df["Fuel Category"].replace(
+            {"Not Avail": "Not Available"},
+        )
+
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Trading Hub",
+            ],
+            columns="Fuel Category",
+            values="MW",
+            aggfunc="first",
+        ).reset_index()
+
+        df.columns.name = None
+
+        for column in [
+            "Aggregated",
+            "Hydro",
+            "Not Available",
+            "Renewable",
+            "Thermal",
+        ]:
+            if column not in df.columns:
+                df[column] = np.nan
+
+        component_sum = df[["Hydro", "Not Available", "Renewable", "Thermal"]].sum(
+            axis=1,
+            min_count=1,
+        )
+        df["Aggregated"] = df["Aggregated"].combine_first(component_sum)
+
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Trading Hub",
+                "Aggregated",
+                "Hydro",
+                "Not Available",
+                "Renewable",
+                "Thermal",
+            ]
+        ]
+
     @support_date_range(frequency="DAY_START")
     def get_aggregated_generation_outages(
         self,
@@ -2266,10 +2319,14 @@ class CAISO(ISOBase):
         sleep: int = 4,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Return hourly aggregated generator outages by fuel category and trading hub.
+        """Return hourly aggregated generator outages by trading hub.
 
-        Each query returns roughly 30 days of forward-looking outage schedules
-        published on the requested date(s).
+        Outage MW is reported with an ``Aggregated`` hub-total column plus
+        fuel-category breakdown columns where CAISO provides them. Some hubs
+        (e.g. ZP26) publish only the aggregate; others publish Thermal,
+        Renewable, Hydro, and sometimes Not Available. ``Aggregated`` uses the
+        published value when present, otherwise the sum of the breakdown
+        columns.
 
         Arguments:
             date (datetime.date, str): date to return data
@@ -2284,7 +2341,8 @@ class CAISO(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame with one row per
-            (Interval Start, Publish Time, Fuel Category, Trading Hub).
+            (Interval Start, Publish Time, Trading Hub), with outage MW by
+            fuel category in separate columns.
         """
         df = self.get_oasis_dataset(
             dataset="aggregated_generation_outages",
@@ -2312,18 +2370,9 @@ class CAISO(ISOBase):
 
         df["MW"] = pd.to_numeric(df["MW"])
 
-        columns = [
-            "Interval Start",
-            "Interval End",
-            "Publish Time",
-            "Fuel Category",
-            "Trading Hub",
-            "MW",
-        ]
-
         return (
-            df[columns]
-            .sort_values(["Interval Start", "Trading Hub", "Fuel Category"])
+            self._pivot_aggregated_generation_outages(df)
+            .sort_values(["Interval Start", "Trading Hub"])
             .reset_index(drop=True)
         )
 
