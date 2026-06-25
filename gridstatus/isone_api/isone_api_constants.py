@@ -188,8 +188,7 @@ ISONE_MORNING_REPORT_CITY_FIELDS = {
 }
 
 ISONE_MORNING_REPORT_COLUMNS = [
-    "Interval Start",
-    "Interval End",
+    "Report Date",
     "Prior Day",
     "Prior Day Peak Hour",
     "Prior Day Peak MW",

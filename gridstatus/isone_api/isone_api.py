@@ -366,8 +366,7 @@ class ISONEAPI:
         tz = self.default_timezone
 
         begin_date = pd.to_datetime(report["BeginDate"], utc=True).tz_convert(tz)
-        interval_start = begin_date.normalize()
-        interval_end = interval_start + pd.Timedelta(days=1)
+        report_date = begin_date.normalize().date()
 
         prior_peak_time = report.get("PeakLoadYesterdayHour")
         if prior_peak_time is None or (
@@ -377,12 +376,11 @@ class ISONEAPI:
             prior_day_peak_hour = None
         else:
             prior_peak_time = pd.to_datetime(prior_peak_time, utc=True).tz_convert(tz)
-            prior_day = prior_peak_time.normalize()
+            prior_day = prior_peak_time.normalize().date()
             prior_day_peak_hour = prior_peak_time.hour + 1
 
         row: dict[str, object] = {
-            "Interval Start": interval_start,
-            "Interval End": interval_end,
+            "Report Date": report_date,
             "Prior Day": prior_day,
             "Prior Day Peak Hour": prior_day_peak_hour,
         }
