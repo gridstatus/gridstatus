@@ -361,8 +361,8 @@ class ISONEAPI:
         df = pd.DataFrame([self._parse_morning_report(report)])
         return df[ISONE_MORNING_REPORT_COLUMNS]
 
-    # NB: Flatten one MorningReport JSON object into the daily wide-row output schema.
     def _parse_morning_report(self, report: dict) -> dict[str, object]:
+        """Flatten one MorningReport JSON object into the daily wide-row output schema."""
         tz = self.default_timezone
 
         begin_date = pd.to_datetime(report["BeginDate"], utc=True).tz_convert(tz)
@@ -422,12 +422,12 @@ class ISONEAPI:
 
         return row
 
-    # NB: Pivot TieDelivery or InterchangeDetail arrays into wide `{Interface} {suffix}` columns.
     def _morning_report_tie_columns(
         self,
         records: dict | list[dict] | None,
         api_field_suffix_pairs: dict[str, str],
     ) -> dict[str, object]:
+        """Pivot TieDelivery or InterchangeDetail arrays into wide tie columns."""
         columns = {
             f"{tie} {suffix}": None
             for tie in ISONE_MORNING_REPORT_TIE_NAMES
