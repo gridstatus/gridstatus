@@ -127,6 +127,66 @@ ISONE_MORNING_REPORT_TIE_NAMES = [
     "Phase 2",
 ]
 
+ISONE_MORNING_REPORT_TIE_ALIASES = {
+    "highgate": "Highgate",
+    "nb": "NB",
+    "necec": "NECEC",
+    "nyiso ac": "NYISO AC",
+    "nyiso csc": "NYISO CSC",
+    "nyiso nnc": "NYISO NNC",
+    "phase 2": "Phase 2",
+    "phase ii": "Phase 2",
+}
+
+ISONE_MORNING_REPORT_SCALAR_MAP = {
+    "PeakLoadYesterdayMw": "Prior Day Peak MW",
+    "CsoMw": "Capacity Supply Obligation",
+    "CapAdditionsMw": "Capacity Additions EcoMax Above CSO",
+    "GenOutagesReductionMW": "Generation Outages and Reductions Planned and Forced",
+    "GenPlannedOutagesReductionMW": "Generation Outages and Reductions Planned",
+    "GenForcedOutagesReductionMW": "Generation Outages and Reductions Forced",
+    "UncommittedAvailGenMw": "Uncommitted Available Generation Non Fast Start",
+    "UncommittedGenBeforePeakMw": (
+        "Uncommitted Available Generation Non Fast Start Before Peak"
+    ),
+    "DRRCapacityMw": "DRR Capacity",
+    "UncommitedAvailDRRMw": "Uncommitted Available DRR",
+    "NetCapDeliveryMw": "Net Capacity Deliveries",
+    "TotAvailCapMw": "Total Available Capacity",
+    "PeakLoadTodayMw": "Peak Hour Peak Load Forecast",
+    "TotalOperReserveReqMw": "Total Operating Reserve Requirement",
+    "CapRequiredMw": "Capacity Required",
+    "SurplusDeficiencyMw": "Surplus or Deficiency",
+    "ReplReserveRequiredMw": "Replacement Reserve Requirement",
+    "ExcessCommitMw": "Excess Commitment Surplus or Deficiency",
+    "LargestFirstContMw": "Largest First Contingency MW",
+    "AmsPeakLoadExpMw": "Annual Maintenance Schedule Peak Load Exposure MW",
+    "TenMinReserveReqMw": "Ten Minute Reserve Requirement",
+    "TenMinReserveEstMw": "Ten Minute Reserve Estimate",
+    "ThirtyMinReserveReqMw": "Thirty Minute Reserve Requirement",
+    "ThirtyMinReserveEstMw": "Thirty Minute Reserve Estimate",
+    "ExpActOp4Mw": "Expected Actions of OP 4",
+    "AddlCapAvailOp4ActMw": "Additional Capacity Available from OP 4 Actions",
+    "UnitCommMinOrrCount": "Units Committed for Minimum OR and RR",
+    "NonMrktSensComnts": "Comments",
+}
+
+ISONE_MORNING_REPORT_TIE_DELIVERY_FIELD = {
+    "TieFlowMw": "Capacity Deliveries",
+}
+
+ISONE_MORNING_REPORT_INTERCHANGE_FIELDS = {
+    "ImportLimitInMw": "Import Limit MW",
+    "ExportLimitOutMw": "Export Limit MW",
+    "ScheduledMw": "Scheduled Contract MW",
+}
+
+ISONE_MORNING_REPORT_CITY_FIELDS = {
+    "WeatherConditions": "Conditions",
+    "WindDirSpeed": "Wind",
+    "HighTemperature": "High Temperature",
+}
+
 ISONE_MORNING_REPORT_COLUMNS = [
     "Interval Start",
     "Interval End",

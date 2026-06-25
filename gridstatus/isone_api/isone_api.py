@@ -19,7 +19,12 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS,
+    ISONE_MORNING_REPORT_CITY_FIELDS,
     ISONE_MORNING_REPORT_COLUMNS,
+    ISONE_MORNING_REPORT_INTERCHANGE_FIELDS,
+    ISONE_MORNING_REPORT_SCALAR_MAP,
+    ISONE_MORNING_REPORT_TIE_ALIASES,
+    ISONE_MORNING_REPORT_TIE_DELIVERY_FIELD,
     ISONE_MORNING_REPORT_TIE_NAMES,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
@@ -328,186 +333,95 @@ class ISONEAPI:
 
         return utils.move_cols_to_front(pivoted, ["Time"] + fuel_cols)
 
-    _MORNING_REPORT_TIE_NAME_MAP = {
-        "highgate": "Highgate",
-        "nb": "NB",
-        "necec": "NECEC",
-        "nyiso ac": "NYISO AC",
-        "nyiso csc": "NYISO CSC",
-        "nyiso nnc": "NYISO NNC",
-        "phase 2": "Phase 2",
-        "phase ii": "Phase 2",
-    }
-
-    @staticmethod
-    def _normalize_morning_report_tie_name(tie_name: str) -> str:
-        normalized = ISONEAPI._MORNING_REPORT_TIE_NAME_MAP.get(
-            tie_name.strip().casefold(),
-            tie_name.strip(),
-        )
-        return normalized
-
-    @staticmethod
-    def _pivot_morning_report_tie_records(
+    def _morning_report_tie_columns(
+        self,
         records: dict | list[dict] | None,
-        name_key: str,
-        value_key: str,
-        column_suffix: str,
-    ) -> dict[str, float | None]:
-        prepared = ISONEAPI._prepare_records(records or [])
-        values: dict[str, float | None] = {
-            f"{tie} {column_suffix}": None for tie in ISONE_MORNING_REPORT_TIE_NAMES
+        api_field_suffix_pairs: dict[str, str],
+    ) -> dict[str, object]:
+        """Pivot TieDelivery or InterchangeDetail arrays into wide tie columns."""
+        columns = {
+            f"{tie} {suffix}": None
+            for tie in ISONE_MORNING_REPORT_TIE_NAMES
+            for suffix in api_field_suffix_pairs.values()
         }
-        for record in prepared:
-            tie_name = ISONEAPI._normalize_morning_report_tie_name(record[name_key])
-            column = f"{tie_name} {column_suffix}"
-            if column in values:
-                values[column] = record.get(value_key)
-        return values
+        if not records:
+            return columns
 
-    @staticmethod
-    def _parse_morning_report_datetime(
-        value: str | pd.Timestamp | None,
-        timezone: str,
-    ) -> pd.Timestamp | None:
-        if value is None or (isinstance(value, float) and pd.isna(value)):
-            return None
-        if isinstance(value, pd.Timestamp):
-            timestamp = value
-        else:
-            timestamp = pd.to_datetime(value, utc=True)
-        if timestamp.tz is None:
-            timestamp = timestamp.tz_localize(timezone)
-        else:
-            timestamp = timestamp.tz_convert(timezone)
-        return timestamp
-
-    def _select_morning_report(self, reports: list[dict]) -> dict:
-        for report in reports:
-            report_type = str(report.get("ReportType", "")).upper()
-            if report_type in {"MR", "MORNING REPORT", "MORNINGREPORT"}:
-                return report
-        return reports[0]
-
-    def _parse_morning_report_row(self, report: dict) -> dict[str, object]:
-        begin_date = self._parse_morning_report_datetime(
-            report.get("BeginDate"),
-            self.default_timezone,
+        ties = pd.json_normalize(self._prepare_records(records))
+        ties["TieName"] = ties["TieName"].map(
+            lambda name: ISONE_MORNING_REPORT_TIE_ALIASES.get(
+                str(name).strip().casefold(),
+                str(name).strip(),
+            ),
         )
+        for api_field, suffix in api_field_suffix_pairs.items():
+            if api_field not in ties.columns:
+                continue
+            values = ties.set_index("TieName")[api_field]
+            for tie in ISONE_MORNING_REPORT_TIE_NAMES:
+                column = f"{tie} {suffix}"
+                if tie in values.index:
+                    columns[column] = values.loc[tie]
+        return columns
+
+    def _parse_morning_report(self, report: dict) -> dict[str, object]:
+        """Flatten one MorningReport API record into the daily wide-row schema."""
+        tz = self.default_timezone
+
+        begin_date = pd.to_datetime(report["BeginDate"], utc=True).tz_convert(tz)
         interval_start = begin_date.normalize()
         interval_end = interval_start + pd.Timedelta(days=1)
 
-        prior_peak_time = self._parse_morning_report_datetime(
-            report.get("PeakLoadYesterdayHour"),
-            self.default_timezone,
-        )
-        prior_day = prior_peak_time.normalize() if prior_peak_time is not None else None
-        prior_day_peak_hour = (
-            prior_peak_time.hour + 1 if prior_peak_time is not None else None
-        )
+        prior_peak_time = report.get("PeakLoadYesterdayHour")
+        if prior_peak_time is None or (
+            isinstance(prior_peak_time, float) and pd.isna(prior_peak_time)
+        ):
+            prior_day = None
+            prior_day_peak_hour = None
+        else:
+            prior_peak_time = pd.to_datetime(prior_peak_time, utc=True).tz_convert(tz)
+            prior_day = prior_peak_time.normalize()
+            prior_day_peak_hour = prior_peak_time.hour + 1
 
         row: dict[str, object] = {
             "Interval Start": interval_start,
             "Interval End": interval_end,
             "Prior Day": prior_day,
             "Prior Day Peak Hour": prior_day_peak_hour,
-            "Prior Day Peak MW": report.get("PeakLoadYesterdayMw"),
-            "Capacity Supply Obligation": report.get("CsoMw"),
-            "Capacity Additions EcoMax Above CSO": report.get("CapAdditionsMw"),
-            "Generation Outages and Reductions Planned and Forced": report.get(
-                "GenOutagesReductionMW",
-            ),
-            "Generation Outages and Reductions Planned": report.get(
-                "GenPlannedOutagesReductionMW",
-            ),
-            "Generation Outages and Reductions Forced": report.get(
-                "GenForcedOutagesReductionMW",
-            ),
-            "Uncommitted Available Generation Non Fast Start": report.get(
-                "UncommittedAvailGenMw",
-            ),
-            "Uncommitted Available Generation Non Fast Start Before Peak": report.get(
-                "UncommittedGenBeforePeakMw",
-            ),
-            "DRR Capacity": report.get("DRRCapacityMw"),
-            "Uncommitted Available DRR": report.get("UncommitedAvailDRRMw"),
-            "Net Capacity Deliveries": report.get("NetCapDeliveryMw"),
-            "Total Available Capacity": report.get("TotAvailCapMw"),
-            "Peak Hour Peak Load Forecast": report.get("PeakLoadTodayMw"),
-            "Total Operating Reserve Requirement": report.get("TotalOperReserveReqMw"),
-            "Capacity Required": report.get("CapRequiredMw"),
-            "Surplus or Deficiency": report.get("SurplusDeficiencyMw"),
-            "Replacement Reserve Requirement": report.get("ReplReserveRequiredMw"),
-            "Excess Commitment Surplus or Deficiency": report.get("ExcessCommitMw"),
-            "Largest First Contingency MW": report.get("LargestFirstContMw"),
-            "Annual Maintenance Schedule Peak Load Exposure MW": report.get(
-                "AmsPeakLoadExpMw",
-            ),
-            "Ten Minute Reserve Requirement": report.get("TenMinReserveReqMw"),
-            "Ten Minute Reserve Estimate": report.get("TenMinReserveEstMw"),
-            "Thirty Minute Reserve Requirement": report.get("ThirtyMinReserveReqMw"),
-            "Thirty Minute Reserve Estimate": report.get("ThirtyMinReserveEstMw"),
-            "Expected Actions of OP 4": report.get("ExpActOp4Mw"),
-            "Additional Capacity Available from OP 4 Actions": report.get(
-                "AddlCapAvailOp4ActMw",
-            ),
-            "Units Committed for Minimum OR and RR": report.get("UnitCommMinOrrCount"),
-            "Comments": report.get("NonMrktSensComnts"),
         }
-
         row.update(
-            self._pivot_morning_report_tie_records(
+            {
+                output: report.get(source)
+                for source, output in ISONE_MORNING_REPORT_SCALAR_MAP.items()
+            },
+        )
+        row.update(
+            self._morning_report_tie_columns(
                 report.get("TieDelivery"),
-                name_key="TieName",
-                value_key="TieFlowMw",
-                column_suffix="Capacity Deliveries",
+                ISONE_MORNING_REPORT_TIE_DELIVERY_FIELD,
             ),
         )
         row.update(
-            self._pivot_morning_report_tie_records(
+            self._morning_report_tie_columns(
                 report.get("InterchangeDetail"),
-                name_key="TieName",
-                value_key="ImportLimitInMw",
-                column_suffix="Import Limit MW",
-            ),
-        )
-        row.update(
-            self._pivot_morning_report_tie_records(
-                report.get("InterchangeDetail"),
-                name_key="TieName",
-                value_key="ExportLimitOutMw",
-                column_suffix="Export Limit MW",
-            ),
-        )
-        row.update(
-            self._pivot_morning_report_tie_records(
-                report.get("InterchangeDetail"),
-                name_key="TieName",
-                value_key="ScheduledMw",
-                column_suffix="Scheduled Contract MW",
+                ISONE_MORNING_REPORT_INTERCHANGE_FIELDS,
             ),
         )
 
-        city_forecasts = self._prepare_records(report.get("CityForecastDetail") or [])
-        city_values: dict[str, object] = {
-            "Boston Conditions": None,
-            "Boston Wind": None,
-            "Boston High Temperature": None,
-            "Hartford Conditions": None,
-            "Hartford Wind": None,
-            "Hartford High Temperature": None,
-        }
-        for city in city_forecasts:
-            city_name = str(city.get("CityName", "")).casefold()
-            if city_name == "boston":
-                city_values["Boston Conditions"] = city.get("WeatherConditions")
-                city_values["Boston Wind"] = city.get("WindDirSpeed")
-                city_values["Boston High Temperature"] = city.get("HighTemperature")
-            elif city_name == "hartford":
-                city_values["Hartford Conditions"] = city.get("WeatherConditions")
-                city_values["Hartford Wind"] = city.get("WindDirSpeed")
-                city_values["Hartford High Temperature"] = city.get("HighTemperature")
-        row.update(city_values)
+        cities = pd.json_normalize(
+            self._prepare_records(report.get("CityForecastDetail") or []),
+        )
+        for city_key, prefix in [("boston", "Boston"), ("hartford", "Hartford")]:
+            for api_field, suffix in ISONE_MORNING_REPORT_CITY_FIELDS.items():
+                row[f"{prefix} {suffix}"] = None
+            if cities.empty or "CityName" not in cities.columns:
+                continue
+            match = cities.loc[cities["CityName"].str.casefold() == city_key]
+            if match.empty:
+                continue
+            city_row = match.iloc[0]
+            for api_field, suffix in ISONE_MORNING_REPORT_CITY_FIELDS.items():
+                row[f"{prefix} {suffix}"] = city_row.get(api_field)
 
         return row
 
@@ -527,8 +441,16 @@ class ISONEAPI:
         if not reports:
             raise NoDataFoundException(f"No morning report data found for {date}")
 
-        report = self._select_morning_report(reports)
-        df = pd.DataFrame([self._parse_morning_report_row(report)])
+        report = next(
+            (
+                item
+                for item in reports
+                if str(item.get("ReportType", "")).upper()
+                in {"MR", "MORNING REPORT", "MORNINGREPORT"}
+            ),
+            reports[0],
+        )
+        df = pd.DataFrame([self._parse_morning_report(report)])
         return df[ISONE_MORNING_REPORT_COLUMNS]
 
     @support_date_range("DAY_START")
