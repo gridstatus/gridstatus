@@ -12,6 +12,11 @@
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 
+### Maintenance
+
+* Removed unused runtime dependencies (`setuptools`, `virtualenv`, `h11`, `zipp`, `filelock`) — none are imported and nothing in the runtime tree requires them, so they no longer ship to consumers. Resolves the `setuptools <79` cap reported in [#901](https://github.com/gridstatus/gridstatus/issues/901).
+* Bumped dependencies to patched versions to clear open Dependabot security alerts: runtime `cryptography` (>=48.0.1), `urllib3` (>=2.7.0), `lxml` (>=6.1.0), and `idna` (>=3.15); and dev tooling `jupyterlab`, `jupyter-server`, `notebook`, `nbconvert`, `bleach`, `mistune`, `pillow`, `tornado`, `vcrpy`, and `pytest`.
+
 ## v0.36.0 - April 20, 2026
 
 ### Additions (New Features/Datasets)
