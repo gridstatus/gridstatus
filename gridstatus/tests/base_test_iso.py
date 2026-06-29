@@ -9,6 +9,17 @@ from gridstatus.base import GridStatus, _interconnection_columns
 class TestHelperMixin:
     iso = None
 
+    @staticmethod
+    def _as_pandas(df):
+        """Accept either a pandas or polars frame, returning pandas for assertions.
+
+        Lets the shared checks validate methods that return polars (when an ISO
+        is constructed with return_polars=True) without importing polars here.
+        """
+        if type(df).__module__.split(".")[0] == "polars":
+            return df.to_pandas()
+        return df
+
     def local_now(self):
         return pd.Timestamp.now(tz=self.iso.default_timezone)
 
@@ -22,6 +33,7 @@ class TestHelperMixin:
         return self.local_start_of_day(self.local_today())
 
     def _check_ordered_by_time(self, df, col):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] > 0
         assert df[col].is_monotonic_increasing
@@ -33,6 +45,7 @@ class TestHelperMixin:
         skip_column_named_time=False,
         sced=False,
     ):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
 
         if instant_or_interval == "interval":
@@ -334,6 +347,7 @@ class BaseTestISO(TestHelperMixin):
     """other"""
 
     def _check_fuel_mix(self, df):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
         assert df.columns.name is None
 
@@ -347,6 +361,7 @@ class BaseTestISO(TestHelperMixin):
         self._check_time_columns(df, instant_or_interval=time_type)
 
     def _check_load(self, df):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] >= 0
 

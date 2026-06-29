@@ -115,17 +115,19 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         if date == "latest":
-            return (
-                self.get_fuel_mix("today", verbose=verbose)
-                .tail(1)
-                .reset_index(drop=True)
-            )
+            today = self.get_fuel_mix("today", verbose=verbose)
+            if self.return_polars:
+                return today.tail(1)
+            return today.tail(1).reset_index(drop=True)
 
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
         )
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
+
+        if self.return_polars:
+            return self._maybe_to_pandas(self._fuel_mix_polars(df))
 
         df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
 
@@ -158,6 +160,44 @@ class ISONE(ISOBase):
 
         return mix_df
 
+    def _fuel_mix_polars(self, df):
+        """Polars implementation of get_fuel_mix's transform.
+
+        The naive timestamps are localized with the shared ambiguous-infer
+        helper (grouped by fuel category, matching the pandas groupby) then
+        pivoted wide. Datetime parsing stays in pandas because it is the
+        I/O-bound CSV step; the reshaping runs in polars.
+        """
+        import polars as pl
+
+        naive = pd.to_datetime(df["Date"] + " " + df["Time"])
+        pl_df = pl.DataFrame(
+            {
+                "Date": naive.to_numpy(),
+                "Fuel Category": df["Fuel Category"].astype(str).to_numpy(),
+                "Gen Mw": pd.to_numeric(df["Gen Mw"], errors="coerce").to_numpy(),
+            },
+        )
+
+        pl_df = utils.localize_ambiguous_infer_polars(
+            pl_df,
+            "Date",
+            self.default_timezone,
+            group_cols=["Fuel Category"],
+        )
+
+        mix_df = pl_df.pivot(
+            "Fuel Category",
+            index="Date",
+            values="Gen Mw",
+            aggregate_function="first",
+        )
+
+        mix_df = mix_df.rename({"Date": "Time"}).fill_null(0)
+
+        fuel_cols = sorted(c for c in mix_df.columns if c != "Time")
+        return mix_df.select(["Time", *fuel_cols]).sort("Time")
+
     @support_date_range(frequency="DAY_START")
     def get_load(self, date, end=None, verbose=False):
         """Return load at a previous date in 5 minute intervals"""
@@ -169,6 +209,9 @@ class ISONE(ISOBase):
         date_str = date.strftime("%Y%m%d")
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"  # noqa
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
+
+        if self.return_polars:
+            return self._maybe_to_pandas(self._load_polars(data))
 
         data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
@@ -187,6 +230,31 @@ class ISONE(ISOBase):
 
         return df
 
+    def _load_polars(self, data):
+        """Polars implementation of get_load's transform."""
+        import polars as pl
+
+        naive = pd.to_datetime(data["Date/Time"])
+        pl_df = pl.DataFrame(
+            {
+                "Time": naive.to_numpy(),
+                "Load": pd.to_numeric(data["Native Load"], errors="coerce").to_numpy(),
+            },
+        )
+
+        pl_df = utils.localize_ambiguous_infer_polars(
+            pl_df,
+            "Time",
+            self.default_timezone,
+        )
+
+        pl_df = pl_df.with_columns(
+            pl.col("Time").alias("Interval Start"),
+            (pl.col("Time") + pl.duration(minutes=5)).alias("Interval End"),
+        )
+
+        return pl_df.select(["Time", "Interval Start", "Interval End", "Load"])
+
     @support_date_range(frequency="DAY_START")
     def get_btm_solar(self, date, end=None, verbose=False):
         """Return BTM solar at a previous date in 5 minute intervals"""
@@ -196,6 +264,19 @@ class ISONE(ISOBase):
             series="actual",
             verbose=verbose,
         )
+
+        if self.return_polars:
+            import polars as pl
+
+            df = df.with_columns(
+                (pl.col("NativeLoadBtmPv") - pl.col("Load")).alias("BTM Solar"),
+            ).with_columns(
+                pl.col("Time").alias("Interval Start"),
+                (pl.col("Time") + pl.duration(minutes=5)).alias("Interval End"),
+            )
+            return self._maybe_to_pandas(
+                df.select(["Time", "Interval Start", "Interval End", "BTM Solar"]),
+            )
 
         df["BTM Solar"] = df["NativeLoadBtmPv"] - df["Load"]
 
@@ -214,6 +295,25 @@ class ISONE(ISOBase):
             series="forecast",
             verbose=verbose,
         )
+
+        if self.return_polars:
+            import polars as pl
+
+            df = df.with_columns(
+                pl.col("Time").alias("Interval Start"),
+                (pl.col("Time") + pl.duration(hours=1)).alias("Interval End"),
+            )
+            return self._maybe_to_pandas(
+                df.select(
+                    [
+                        "Time",
+                        "Interval Start",
+                        "Interval End",
+                        "Forecast Time",
+                        "Load Forecast",
+                    ],
+                ),
+            )
 
         df["Interval Start"] = df["Time"]
         df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
@@ -860,7 +960,19 @@ class ISONE(ISOBase):
             verbose=verbose,
         )
 
-        data = pd.DataFrame(raw_data[0]["data"][series])
+        if series == "actual":
+            mw_rename = "Load"
+        elif series == "forecast":
+            mw_rename = "Load Forecast"
+        else:
+            raise ValueError(f"Unrecognized series: {series}")
+
+        records = raw_data[0]["data"][series]
+
+        if self.return_polars:
+            return self._system_load_polars(records, mw_rename)
+
+        data = pd.DataFrame(records)
 
         # must convert this way rather than use pd.to_datetime
         # to handle DST transitions
@@ -874,12 +986,6 @@ class ISONE(ISOBase):
             data["CreationDate"] = data["CreationDate"].apply(
                 lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
             )
-        if series == "actual":
-            mw_rename = "Load"
-        elif series == "forecast":
-            mw_rename = "Load Forecast"
-        else:
-            raise ValueError(f"Unrecognized series: {series}")
 
         data = data.rename(
             columns={
@@ -890,6 +996,42 @@ class ISONE(ISOBase):
         )
 
         return data
+
+    def _system_load_polars(self, records, mw_rename):
+        """Polars implementation of _get_system_load's frame construction.
+
+        ``BeginDate``/``CreationDate`` are offset-aware ISO strings, so polars
+        parses and converts them directly (no ambiguous-DST handling needed).
+        """
+        import polars as pl
+
+        pl_df = pl.DataFrame(records)
+
+        # ISONE returns offset-aware ISO timestamps (e.g. 2024-01-01T00:00:00.000-05:00).
+        # polars requires an explicit format when the offset is part of the data.
+        iso_offset_format = "%Y-%m-%dT%H:%M:%S%.f%z"
+
+        pl_df = pl_df.with_columns(
+            pl.col("BeginDate")
+            .str.to_datetime(format=iso_offset_format)
+            .dt.convert_time_zone(self.default_timezone),
+        )
+
+        if "CreationDate" in pl_df.columns:
+            pl_df = pl_df.with_columns(
+                pl.col("CreationDate")
+                .str.to_datetime(format=iso_offset_format)
+                .dt.convert_time_zone(self.default_timezone),
+            )
+
+        rename = {
+            "BeginDate": "Time",
+            "Mw": mw_rename,
+            "CreationDate": "Forecast Time",
+        }
+        rename = {k: v for k, v in rename.items() if k in pl_df.columns}
+
+        return pl_df.rename(rename)
 
     def _create_interval_start_from_hour_start(self, data):
         # for DST end transitions isone uses 02X to represent repeated 1am hour

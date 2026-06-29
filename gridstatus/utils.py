@@ -27,6 +27,30 @@ RED_X_HTML_ENTITY: str = "&#10060;"
 all_isos: list[ISOBase] = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
 
 
+def is_polars(obj: object) -> bool:
+    """Return whether ``obj`` is a polars DataFrame without importing polars.
+
+    Checking the module name avoids a hard polars dependency for the default
+    pandas code path: gridstatus only imports polars lazily when an ISO is
+    constructed with ``return_polars=True``.
+    """
+    return type(obj).__module__.split(".")[0] == "polars"
+
+
+def concat_dataframes(dfs: list) -> object:
+    """Concatenate a list of frames, dispatching on pandas vs polars.
+
+    Used by ``support_date_range`` to combine per-chunk results regardless of
+    whether the decorated method produced pandas or polars frames.
+    """
+    if dfs and is_polars(dfs[0]):
+        import polars as pl
+
+        return pl.concat(dfs, how="vertical_relaxed")
+
+    return pd.concat(dfs).reset_index(drop=True)
+
+
 def list_isos() -> pd.DataFrame:
     """List available ISOs"""
 
@@ -195,6 +219,19 @@ def filter_lmp_locations(
         df (pandas.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
+    if is_polars(df):
+        import polars as pl
+
+        if location_type != "ALL" and location_type is not None:
+            if isinstance(location_type, str):
+                location_type = [location_type]
+            df = df.filter(pl.col("Location Type").is_in(location_type))
+
+        if locations != "ALL" and locations is not None:
+            df = df.filter(pl.col("Location").is_in(locations))
+
+        return df
+
     if location_type != "ALL" and location_type is not None:
         if isinstance(location_type, str):
             location_type = [location_type]
@@ -281,6 +318,25 @@ def format_interconnection_df(
     assert set(rename.keys()).issubset(queue.columns), set(
         rename.keys(),
     ) - set(queue.columns)
+
+    if is_polars(queue):
+        import polars as pl
+
+        queue = queue.rename(rename)
+        columns = _interconnection_columns.copy()
+
+        if extra:
+            for e in extra:
+                assert e in queue.columns, f"Extra column {e} does not exist"
+            columns += extra
+
+        if missing:
+            for m in missing:
+                assert m not in queue.columns, "Missing column already exists"
+                queue = queue.with_columns(pl.lit(None).alias(m))
+
+        return queue.select(columns)
+
     queue = queue.rename(columns=rename)
     columns = _interconnection_columns.copy()
 
@@ -364,7 +420,48 @@ def get_interconnection_queues() -> pd.DataFrame:
 
 def move_cols_to_front(df: pd.DataFrame, cols_to_move: list[str]) -> pd.DataFrame:
     """Move columns to front of DataFrame"""
+    if is_polars(df):
+        rest = [c for c in df.columns if c not in cols_to_move]
+        return df.select(cols_to_move + rest)
+
     cols = list(df.columns)
     for c in cols_to_move:
         cols.remove(c)
     return df[cols_to_move + cols]
+
+
+def localize_ambiguous_infer_polars(
+    df: object,
+    time_col: str,
+    tz: str,
+    group_cols: list[str] | None = None,
+) -> object:
+    """Localize a naive polars datetime column, mimicking pandas ``ambiguous="infer"``.
+
+    pandas infers ambiguous (fall-back DST) timestamps by assuming the values
+    are monotonic increasing within each group: the first occurrence of a
+    repeated wall-clock time is the pre-transition (earliest) offset and later
+    occurrences are post-transition (latest). polars has no "infer" option, so
+    we reproduce it by ranking duplicate naive timestamps within each group and
+    passing per-row "earliest"/"latest" to ``replace_time_zone``. The value is
+    ignored for non-ambiguous rows.
+    """
+    import polars as pl
+
+    sort_cols = [*group_cols, time_col] if group_cols else [time_col]
+    over_cols = [*group_cols, time_col] if group_cols else [time_col]
+
+    df = df.sort(sort_cols)
+    df = df.with_columns(
+        pl.int_range(pl.len()).over(over_cols).alias("_dup_rank"),
+    )
+    df = df.with_columns(
+        pl.when(pl.col("_dup_rank") > 0)
+        .then(pl.lit("latest"))
+        .otherwise(pl.lit("earliest"))
+        .alias("_ambiguous"),
+    )
+    df = df.with_columns(
+        pl.col(time_col).dt.replace_time_zone(tz, ambiguous=pl.col("_ambiguous")),
+    )
+    return df.drop(["_dup_rank", "_ambiguous"])

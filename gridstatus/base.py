@@ -92,12 +92,38 @@ _interconnection_columns = [
 ]
 
 
+def _is_polars(obj: object) -> bool:
+    """Return whether ``obj`` is a polars frame without importing polars."""
+    return type(obj).__module__.split(".")[0] == "polars"
+
+
 class ISOBase:
     markets = []
     status_homepage = None
     interconnection_homepage = None
 
     default_timezone = None
+
+    # Opt-in polars support. Defaults to False so public methods return pandas
+    # (unchanged for OSS users). Set per-instance via the constructor. Declared
+    # as a class attribute so it is always defined even for ISO subclasses whose
+    # __init__ does not call super().__init__().
+    return_polars = False
+
+    def __init__(self, return_polars: bool = False) -> None:
+        self.return_polars = return_polars
+
+    def _maybe_to_pandas(self, df: object) -> object:
+        """Convert a polars frame to pandas unless ``return_polars`` is set.
+
+        Migrated methods build their result in polars internally and return it
+        through this helper so the public default stays pandas.
+        """
+        if self.return_polars:
+            return df
+        if _is_polars(df):
+            return df.to_pandas()
+        return df
 
     def local_now(self):
         return pd.Timestamp.now(tz=self.default_timezone)
@@ -180,6 +206,21 @@ class ISOBase:
             locations=locations,
             **kwargs,
         )
+
+        if _is_polars(lmp_df):
+            col_order = lmp_df.columns
+            # Special case to handle PJM 5 min LMPs
+            grouper_column_name = (
+                "Location" if "Location" in col_order else "Location Id"
+            )
+            # Assume sorted in ascending order; maintain_order keeps the last
+            # row per group, matching pandas groupby().last().
+            latest_df = lmp_df.group_by(
+                grouper_column_name,
+                maintain_order=True,
+            ).last()
+            return latest_df.select(col_order)
+
         col_order = lmp_df.columns.tolist()
 
         # Special case to handle PJM 5 min LMPs
@@ -192,6 +233,11 @@ class ISOBase:
 
     def _latest_from_today(self, method, *args, **kwargs):
         data = method(date="today", *args, **kwargs)
+
+        if _is_polars(data):
+            row = data.tail(1).to_dicts()[0]
+            return {k.lower(): v for k, v in row.items()}
+
         latest = data.iloc[-1]
 
         latest.index = latest.index.str.lower()
