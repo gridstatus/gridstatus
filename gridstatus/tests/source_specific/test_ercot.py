@@ -1885,12 +1885,15 @@ class TestErcot(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "Max POC Non IRR Non PUN",
-        "Approved POC Non IRR Non PUN",
-        "Received POC Non IRR Non PUN",
-        "Max POC IRR",
-        "Approved POC IRR",
-        "Received POC IRR",
+        "POL Non IRR Non PUN",
+        "Approved POL Non IRR Non PUN",
+        "Received POL Non IRR Non PUN",
+        "POL IRR",
+        "Approved POL IRR",
+        "Received POL IRR",
+        "POL ESR",
+        "Approved POL ESR",
+        "Received POL ESR",
     ]
 
     def _check_planned_outage_capacity(self, df):
