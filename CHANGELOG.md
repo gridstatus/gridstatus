@@ -12,6 +12,9 @@
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 
+#### MISO
+* MISO Area Control Error dataset via `MISO.get_area_control_error`
+
 ## v0.36.0 - April 20, 2026
 
 ### Additions (New Features/Datasets)

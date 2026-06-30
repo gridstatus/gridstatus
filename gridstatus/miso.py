@@ -1951,6 +1951,52 @@ class MISO(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range(frequency=None)
+    def get_area_control_error(
+        self,
+        date: str | pd.Timestamp = "latest",
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get the MISO Area Control Error (ACE).
+
+        Real-time system-level area control error in MW, published as instantaneous
+        observations roughly every 30 seconds. The source endpoint only serves a
+        rolling window of recent observations, so only "latest" is supported.
+
+        Args:
+            date: Only "latest" is supported.
+            end: Not supported.
+            verbose: If True, prints additional information during data retrieval.
+
+        Returns:
+            DataFrame with columns "Time" and "Area Control Error".
+        """
+        if date != "latest":
+            raise NotSupported(
+                "Only latest MISO area control error data is available. Use 'latest' "
+                "as date.",
+            )
+
+        url = "https://public-api.misoenergy.org/api/Ace"
+
+        response = self._get_json(url, verbose=verbose)
+
+        df = pd.DataFrame(response["ACE"])
+
+        df["Time"] = pd.to_datetime(
+            df["instantEST"],
+            format="%Y-%m-%d %I:%M:%S %p",
+        ).dt.tz_localize(self.default_timezone)
+
+        df["Area Control Error"] = pd.to_numeric(df["value"])
+
+        return (
+            df[["Time", "Area Control Error"]]
+            .sort_values("Time")
+            .reset_index(drop=True)
+        )
+
     @support_date_range(frequency="DAY_START")
     def get_multiday_operating_margin(
         self,
