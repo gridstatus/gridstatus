@@ -4,7 +4,7 @@ import re
 import urllib
 import warnings
 import zipfile
-from typing import Any, BinaryIO, Dict
+from typing import BinaryIO, Dict
 
 import pandas as pd
 import requests
@@ -1982,10 +1982,7 @@ class MISO(ISOBase):
 
         response = self._get_json(url, verbose=verbose)
 
-        return self._parse_area_control_error(response)
-
-    def _parse_area_control_error(self, raw_json: Dict[str, Any]) -> pd.DataFrame:
-        df = pd.DataFrame(raw_json["ACE"])
+        df = pd.DataFrame(response["ACE"])
 
         df["Time"] = pd.to_datetime(
             df["instantEST"],
