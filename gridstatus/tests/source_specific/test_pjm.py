@@ -3258,8 +3258,8 @@ class TestPJM(BaseTestISO):
             return_value=mock_response,
         ) as mock_get:
             df = self.iso.get_emergency_postings(
-                start="2016-01-01",
-                stop="2016-12-31",
+                date="2016-01-01",
+                end="2016-12-31",
             )
 
         mock_get.assert_called_once()
@@ -3269,16 +3269,6 @@ class TestPJM(BaseTestISO):
         }
         assert len(df) == 1
         assert df["Message ID"].iloc[0] == 1
-
-    def test_get_emergency_postings_rejects_url_with_date_range(self):
-        with pytest.raises(
-            ValueError,
-            match="Cannot pass url with start/stop",
-        ):
-            self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-                start="2016-01-01",
-            )
 
     """get_voltage_limits"""
 

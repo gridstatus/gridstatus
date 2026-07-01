@@ -3781,69 +3781,44 @@ class PJM(ISOBase):
     def get_emergency_postings(
         self,
         url: str | None = None,
-        start: str | pd.Timestamp | None = None,
-        stop: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         """
         Retrieves PJM emergency procedure postings.
 
-        When ``start`` or ``stop`` is provided, uses the public REST endpoint
-        documented in the PJM CLI user guide. Otherwise, triggers the public
-        "Export To XML" button on the guest dashboard (current ~3-day window).
+        When ``date`` is provided, uses the public REST endpoint documented in
+        the PJM CLI user guide. Otherwise, triggers the public "Export To XML"
+        button on the guest dashboard (current ~3-day window).
 
         The XML contains Publish Time, Canceled Time, proper UTC start/end
         timestamps, and individual Region elements (one DataFrame row per
         message-region pair).
         """
-        if start is not None or stop is not None:
-            if url is not None:
-                raise ValueError(
-                    "Cannot pass url with start/stop; use the REST date range instead.",
-                )
-            xml_bytes = self._fetch_emergency_postings_rest(start=start, stop=stop)
+        if date is not None:
+            start = pd.Timestamp(date)
+            params = {
+                "start": f"{start.month:02d}-{start.day:02d}-{start.year}",
+            }
+            if end is not None:
+                stop = pd.Timestamp(end)
+                params["stop"] = f"{stop.month:02d}-{stop.day:02d}-{stop.year}"
+
+            logger.info(
+                f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL} with params {params}...",
+            )
+            response = requests.get(
+                EMERGENCY_POSTINGS_PUBLIC_REST_URL,
+                params=params,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
+                timeout=REQUEST_TIMEOUT,
+            )
+            response.raise_for_status()
+            xml_bytes = response.content
         else:
             fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
             xml_bytes = self._fetch_emergency_xml(fetch_url)
         return self._parse_emergency_xml(xml_bytes)
-
-    @staticmethod
-    def _format_emergency_postings_date(
-        value: str | pd.Timestamp,
-    ) -> str:
-        ts = pd.Timestamp(value)
-        return f"{ts.month:02d}-{ts.day:02d}-{ts.year}"
-
-    def _fetch_emergency_postings_rest(
-        self,
-        start: str | pd.Timestamp | None,
-        stop: str | pd.Timestamp | None,
-    ) -> bytes:
-        params: dict[str, str] = {}
-        if start is not None:
-            params["start"] = self._format_emergency_postings_date(start)
-        if stop is not None:
-            params["stop"] = self._format_emergency_postings_date(stop)
-
-        logger.info(
-            "GET emergency postings REST from %s with params %s...",
-            EMERGENCY_POSTINGS_PUBLIC_REST_URL,
-            params,
-        )
-        response = requests.get(
-            EMERGENCY_POSTINGS_PUBLIC_REST_URL,
-            params=params,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
-            timeout=REQUEST_TIMEOUT,
-        )
-        response.raise_for_status()
-
-        content_type = response.headers.get("Content-Type", "")
-        if "xml" not in content_type:
-            raise NoDataFoundException(
-                f"Expected XML response but got Content-Type: {content_type}",
-            )
-
-        return response.content
 
     def _fetch_emergency_xml(self, url: str) -> bytes:
         session = requests.Session()
