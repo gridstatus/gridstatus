@@ -683,8 +683,6 @@ class EIA:
             "data": FACILITY_FUEL_DATA_FIELDS,
             "offset": 0,
             "length": page_size,
-            # pagination breaks if not sorted because
-            # api doesn't return in stable order across requests
             "sort": [
                 {"column": col, "direction": "asc"}
                 for col in ["period", "plantCode", "fuel2002", "fuelType", "primeMover"]
