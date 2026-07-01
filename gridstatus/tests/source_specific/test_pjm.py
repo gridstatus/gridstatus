@@ -3246,6 +3246,30 @@ class TestPJM(BaseTestISO):
             == "frmButtons:lnkDownload"
         )
 
+    def test_get_emergency_postings_rest_date_range(self):
+        mock_response = mock.Mock()
+        mock_response.content = self.SAMPLE_XML
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/xml"}
+        mock_response.raise_for_status = mock.Mock()
+
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_response,
+        ) as mock_get:
+            df = self.iso.get_emergency_postings(
+                start="2016-01-01",
+                stop="2016-12-31",
+            )
+
+        mock_get.assert_called_once()
+        assert mock_get.call_args.kwargs["params"] == {
+            "start": "01-01-2016",
+            "stop": "12-31-2016",
+        }
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 1
+
     """get_voltage_limits"""
 
     def _check_voltage_limits(self, df):

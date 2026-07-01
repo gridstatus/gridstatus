@@ -24,6 +24,7 @@ from gridstatus.lmp_config import lmp_config
 from gridstatus.pjm_constants import (
     DEFAULT_RETRIES,
     EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
+    EMERGENCY_POSTINGS_PUBLIC_REST_URL,
     HUB_NODE_IDS,
     LOCATION_TYPES,
     PRICE_NODE_IDS,
@@ -3777,22 +3778,68 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
+    def get_emergency_postings(
+        self,
+        url: str | None = None,
+        start: str | pd.Timestamp | None = None,
+        stop: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
         """
-        Retrieves PJM emergency procedure postings by triggering the public
-        "Export To XML" button on the guest dashboard.
+        Retrieves PJM emergency procedure postings.
 
-        Two-step flow (no credentials required):
-          1. GET the guest dashboard to obtain a session cookie and JSF ViewState.
-          2. POST ``frmButtons:lnkDownload`` to download the XML export.
+        When ``start`` or ``stop`` is provided, uses the public REST endpoint
+        documented in the PJM CLI user guide. Otherwise, triggers the public
+        "Export To XML" button on the guest dashboard (current ~3-day window).
 
         The XML contains Publish Time, Canceled Time, proper UTC start/end
         timestamps, and individual Region elements (one DataFrame row per
         message-region pair).
         """
-        fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
-        xml_bytes = self._fetch_emergency_xml(fetch_url)
+        if start is not None or stop is not None:
+            xml_bytes = self._fetch_emergency_postings_rest(start=start, stop=stop)
+        else:
+            fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
+            xml_bytes = self._fetch_emergency_xml(fetch_url)
         return self._parse_emergency_xml(xml_bytes)
+
+    @staticmethod
+    def _format_emergency_postings_date(
+        value: str | pd.Timestamp,
+    ) -> str:
+        ts = pd.Timestamp(value)
+        return f"{ts.month:02d}-{ts.day:02d}-{ts.year}"
+
+    def _fetch_emergency_postings_rest(
+        self,
+        start: str | pd.Timestamp | None,
+        stop: str | pd.Timestamp | None,
+    ) -> bytes:
+        params: dict[str, str] = {}
+        if start is not None:
+            params["start"] = self._format_emergency_postings_date(start)
+        if stop is not None:
+            params["stop"] = self._format_emergency_postings_date(stop)
+
+        logger.info(
+            "GET emergency postings REST from %s with params %s...",
+            EMERGENCY_POSTINGS_PUBLIC_REST_URL,
+            params,
+        )
+        response = requests.get(
+            EMERGENCY_POSTINGS_PUBLIC_REST_URL,
+            params=params,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "")
+        if "xml" not in content_type:
+            raise NoDataFoundException(
+                f"Expected XML response but got Content-Type: {content_type}",
+            )
+
+        return response.content
 
     def _fetch_emergency_xml(self, url: str) -> bytes:
         session = requests.Session()
