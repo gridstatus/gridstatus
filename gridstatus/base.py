@@ -105,27 +105,6 @@ class ISOBase:
 
     default_timezone = None
 
-    # Opt-in polars support. Defaults to False so public methods return pandas
-    # (unchanged for OSS users). Set per-instance via the constructor. Declared
-    # as a class attribute so it is always defined even for ISO subclasses whose
-    # __init__ does not call super().__init__().
-    return_polars = False
-
-    def __init__(self, return_polars: bool = False) -> None:
-        self.return_polars = return_polars
-
-    def _maybe_to_pandas(self, df: object) -> object:
-        """Convert a polars frame to pandas unless ``return_polars`` is set.
-
-        Migrated methods build their result in polars internally and return it
-        through this helper so the public default stays pandas.
-        """
-        if self.return_polars:
-            return df
-        if _is_polars(df):
-            return df.to_pandas()
-        return df
-
     def local_now(self):
         return pd.Timestamp.now(tz=self.default_timezone)
 

@@ -73,6 +73,17 @@ class TestUtilsDispatch:
             "2023-11-05 07:00",
         ]
 
+    def test_create_interval_start_from_hour_start_polars(self):
+        df = pl.DataFrame(
+            {
+                "Date": ["2024-01-01", "2024-01-01"],
+                "Hour Ending": ["1", "02X"],
+            },
+        )
+        out = utils.create_interval_start_from_hour_start_polars(df)
+        starts = out["Interval Start"].dt.strftime("%Y-%m-%d %H:%M").to_list()
+        assert starts == ["2024-01-01 00:00", "2024-01-01 01:00"]
+
 
 def _fuel_mix_raw():
     return pd.DataFrame(

@@ -456,3 +456,71 @@ def localize_ambiguous_infer_polars(
         pl.col(time_col).dt.replace_time_zone(tz, ambiguous=pl.col("_ambiguous")),
     )
     return df.drop(["_dup_rank", "_ambiguous"])
+
+
+def create_interval_start_from_hour_start_polars(df: pl.DataFrame) -> pl.DataFrame:
+    """Build naive Interval Start from ISONE Date and Hour Ending columns."""
+    return df.with_columns(
+        pl.col("Hour Ending")
+        .cast(pl.Utf8)
+        .str.replace("02X", "02")
+        .cast(pl.Int64)
+        .sub(1)
+        .alias("Hour Start"),
+    ).with_columns(
+        (
+            pl.col("Date").str.to_datetime(strict=False)
+            + pl.duration(hours=pl.col("Hour Start"))
+        ).alias("Interval Start"),
+    )
+
+
+def localize_interval_start_polars(
+    df: pl.DataFrame,
+    time_col: str,
+    tz: str,
+    group_cols: list[str] | None = None,
+    date_col: str | None = None,
+    hour_start_col: str = "Hour Start",
+) -> pl.DataFrame:
+    """Localize naive interval starts, handling ISONE DST fall-back and spring-forward."""
+    sort_cols = [*group_cols, time_col] if group_cols else [time_col]
+    over_cols = [*group_cols, time_col] if group_cols else [time_col]
+
+    df = df.sort(sort_cols)
+    df = df.with_columns(
+        pl.int_range(pl.len()).over(over_cols).alias("_dup_rank"),
+    )
+    df = df.with_columns(
+        pl.when(pl.col("_dup_rank") > 0)
+        .then(pl.lit("latest"))
+        .otherwise(pl.lit("earliest"))
+        .alias("_ambiguous"),
+    )
+    df = df.with_columns(
+        pl.col(time_col).dt.replace_time_zone(
+            tz,
+            ambiguous=pl.col("_ambiguous"),
+            nonexistent="null",
+        ),
+    )
+    df = df.drop(["_dup_rank", "_ambiguous"])
+
+    if date_col is None or df.filter(pl.col(time_col).is_null()).height == 0:
+        return df
+
+    fixed = (
+        df.filter(pl.col(time_col).is_null())
+        .with_columns(
+            (
+                pl.col(date_col).str.to_datetime(strict=False)
+                + pl.duration(hours=pl.col(hour_start_col) - 1)
+            ).alias(time_col),
+        )
+        .with_columns(
+            pl.col(time_col).dt.replace_time_zone(tz),
+        )
+    )
+
+    good = df.filter(pl.col(time_col).is_not_null())
+    return pl.concat([good, fixed], how="diagonal")

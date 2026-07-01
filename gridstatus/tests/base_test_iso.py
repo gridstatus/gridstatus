@@ -223,21 +223,21 @@ class BaseTestISO(TestHelperMixin):
     # is not available for the selected date.
     def test_get_lmp_historical(self, market=None, date_str="2022-07-22"):
         if market is not None:
-            hist = self.iso.get_lmp(date_str, market=market)
+            hist = self._as_pandas(self.iso.get_lmp(date_str, market=market))
             assert isinstance(hist, pd.DataFrame)
             self._check_lmp_columns(hist, market)
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_latest(self, market=None):
         if market is not None:
-            df = self.iso.get_lmp("latest", market=market)
+            df = self._as_pandas(self.iso.get_lmp("latest", market=market))
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_today(self, market=None):
         if market is not None:
-            df = self.iso.get_lmp("today", market=market)
+            df = self._as_pandas(self.iso.get_lmp("today", market=market))
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
@@ -430,6 +430,7 @@ class BaseTestISO(TestHelperMixin):
     ]
 
     def _check_lmp_columns(self, df, market):
+        df = self._as_pandas(df)
         # todo in future all ISO should return same columns
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)
