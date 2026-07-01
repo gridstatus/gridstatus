@@ -3778,47 +3778,44 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
+    @support_date_range(frequency="YEAR_START")
     def get_emergency_postings(
         self,
-        url: str | None = None,
-        date: str | pd.Timestamp | None = None,
+        date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
     ) -> pd.DataFrame:
         """
         Retrieves PJM emergency procedure postings.
 
-        When ``date`` is provided, uses the public REST endpoint documented in
-        the PJM CLI user guide. Otherwise, triggers the public "Export To XML"
-        button on the guest dashboard (current ~3-day window).
+        When ``date`` is ``"latest"``, triggers the public "Export To XML" button
+        on the guest dashboard (current ~3-day window). Otherwise, uses the
+        public REST endpoint documented in the PJM CLI user guide.
 
         The XML contains Publish Time, Canceled Time, proper UTC start/end
         timestamps, and individual Region elements (one DataFrame row per
         message-region pair).
         """
-        if date is not None:
-            start = pd.Timestamp(date)
-            params = {
-                "start": f"{start.month:02d}-{start.day:02d}-{start.year}",
-            }
-            if end is not None:
-                stop = pd.Timestamp(end)
-                params["stop"] = f"{stop.month:02d}-{stop.day:02d}-{stop.year}"
+        if date == "latest":
+            xml_bytes = self._fetch_emergency_xml(
+                EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
+            )
+            return self._parse_emergency_xml(xml_bytes)
 
-            logger.info(
-                f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL} with params {params}...",
-            )
-            response = requests.get(
-                EMERGENCY_POSTINGS_PUBLIC_REST_URL,
-                params=params,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
-                timeout=REQUEST_TIMEOUT,
-            )
-            response.raise_for_status()
-            xml_bytes = response.content
-        else:
-            fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
-            xml_bytes = self._fetch_emergency_xml(fetch_url)
-        return self._parse_emergency_xml(xml_bytes)
+        logger.info(
+            f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL}...",
+        )
+        response = requests.get(
+            EMERGENCY_POSTINGS_PUBLIC_REST_URL,
+            params={
+                "start": date.strftime("%m-%d-%Y"),
+                "stop": end.strftime("%m-%d-%Y"),
+            },
+            headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return self._parse_emergency_xml(response.content)
 
     def _fetch_emergency_xml(self, url: str) -> bytes:
         session = requests.Session()

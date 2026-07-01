@@ -3184,9 +3184,7 @@ class TestPJM(BaseTestISO):
             self.SAMPLE_XML,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            df = self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-            )
+            df = self.iso.get_emergency_postings(date="latest")
 
         assert df.columns.tolist() == self.expected_emergency_postings_cols
         assert len(df) == 1
@@ -3223,9 +3221,7 @@ class TestPJM(BaseTestISO):
             xml,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            df = self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-            )
+            df = self.iso.get_emergency_postings(date="latest")
 
         assert len(df) == 2
         assert set(df["Region"]) == {"SOUTHERN", "MIDATL"}
@@ -3237,7 +3233,7 @@ class TestPJM(BaseTestISO):
             self.SAMPLE_XML,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            self.iso.get_emergency_postings(url="https://example.test/dashboard.jsf")
+            self.iso.get_emergency_postings(date="latest")
 
         post_call = mock_session.post.call_args
         assert post_call.kwargs["data"]["javax.faces.ViewState"] == "123:456"
