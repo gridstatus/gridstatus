@@ -3778,7 +3778,7 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-    @support_date_range(frequency="YEAR_START")
+    @support_date_range(frequency=None)
     def get_emergency_postings(
         self,
         date: str | pd.Timestamp,
