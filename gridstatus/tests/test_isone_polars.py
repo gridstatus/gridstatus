@@ -76,7 +76,7 @@ class TestUtilsDispatch:
     def test_create_interval_start_from_hour_start_polars(self):
         df = pl.DataFrame(
             {
-                "Date": ["2024-01-01", "2024-01-01"],
+                "Date": ["01/01/2024", "01/01/2024"],
                 "Hour Ending": ["1", "02X"],
             },
         )

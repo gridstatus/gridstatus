@@ -458,6 +458,9 @@ def localize_ambiguous_infer_polars(
     return df.drop(["_dup_rank", "_ambiguous"])
 
 
+_ISONE_DATE_FORMAT = "%m/%d/%Y"
+
+
 def create_interval_start_from_hour_start_polars(df: pl.DataFrame) -> pl.DataFrame:
     """Build naive Interval Start from ISONE Date and Hour Ending columns."""
     return df.with_columns(
@@ -469,7 +472,7 @@ def create_interval_start_from_hour_start_polars(df: pl.DataFrame) -> pl.DataFra
         .alias("Hour Start"),
     ).with_columns(
         (
-            pl.col("Date").str.to_datetime(strict=False)
+            pl.col("Date").str.to_datetime(format=_ISONE_DATE_FORMAT, strict=False)
             + pl.duration(hours=pl.col("Hour Start"))
         ).alias("Interval Start"),
     )
@@ -501,7 +504,7 @@ def localize_interval_start_polars(
         pl.col(time_col).dt.replace_time_zone(
             tz,
             ambiguous=pl.col("_ambiguous"),
-            nonexistent="null",
+            non_existent="null",
         ),
     )
     df = df.drop(["_dup_rank", "_ambiguous"])
@@ -513,7 +516,10 @@ def localize_interval_start_polars(
         df.filter(pl.col(time_col).is_null())
         .with_columns(
             (
-                pl.col(date_col).str.to_datetime(strict=False)
+                pl.col(date_col).str.to_datetime(
+                    format=_ISONE_DATE_FORMAT,
+                    strict=False,
+                )
                 + pl.duration(hours=pl.col(hour_start_col) - 1)
             ).alias(time_col),
         )
