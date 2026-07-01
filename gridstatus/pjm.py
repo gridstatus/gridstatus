@@ -3796,6 +3796,10 @@ class PJM(ISOBase):
         message-region pair).
         """
         if start is not None or stop is not None:
+            if url is not None:
+                raise ValueError(
+                    "Cannot pass url with start/stop; use the REST date range instead.",
+                )
             xml_bytes = self._fetch_emergency_postings_rest(start=start, stop=stop)
         else:
             fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
