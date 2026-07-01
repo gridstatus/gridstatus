@@ -9,6 +9,9 @@
 
 ### Additions (New Features/Datasets)
 
+#### EIA
+* EIA Facility Fuel (EIA-923) dataset in [#912](https://github.com/gridstatus/gridstatus/pull/912)
+
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 
