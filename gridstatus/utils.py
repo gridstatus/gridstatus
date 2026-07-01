@@ -5,6 +5,7 @@ from typing import Callable
 from zipfile import ZipFile
 
 import pandas as pd
+import polars as pl
 import requests
 import tqdm
 
@@ -28,13 +29,8 @@ all_isos: list[ISOBase] = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
 
 
 def is_polars(obj: object) -> bool:
-    """Return whether ``obj`` is a polars DataFrame without importing polars.
-
-    Checking the module name avoids a hard polars dependency for the default
-    pandas code path: gridstatus only imports polars lazily when an ISO is
-    constructed with ``return_polars=True``.
-    """
-    return type(obj).__module__.split(".")[0] == "polars"
+    """Return whether ``obj`` is a polars DataFrame."""
+    return isinstance(obj, pl.DataFrame)
 
 
 def concat_dataframes(dfs: list) -> object:
@@ -44,8 +40,6 @@ def concat_dataframes(dfs: list) -> object:
     whether the decorated method produced pandas or polars frames.
     """
     if dfs and is_polars(dfs[0]):
-        import polars as pl
-
         return pl.concat(dfs, how="vertical_relaxed")
 
     return pd.concat(dfs).reset_index(drop=True)
@@ -220,8 +214,6 @@ def filter_lmp_locations(
         locations: "ALL" or list of locations to filter "Location" column by
     """
     if is_polars(df):
-        import polars as pl
-
         if location_type != "ALL" and location_type is not None:
             if isinstance(location_type, str):
                 location_type = [location_type]
@@ -320,8 +312,6 @@ def format_interconnection_df(
     ) - set(queue.columns)
 
     if is_polars(queue):
-        import polars as pl
-
         queue = queue.rename(rename)
         columns = _interconnection_columns.copy()
 
@@ -446,8 +436,6 @@ def localize_ambiguous_infer_polars(
     passing per-row "earliest"/"latest" to ``replace_time_zone``. The value is
     ignored for non-ambiguous rows.
     """
-    import polars as pl
-
     sort_cols = [*group_cols, time_col] if group_cols else [time_col]
     over_cols = [*group_cols, time_col] if group_cols else [time_col]
 

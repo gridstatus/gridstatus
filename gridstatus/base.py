@@ -3,6 +3,7 @@ from enum import Enum, StrEnum
 from typing import BinaryIO
 
 import pandas as pd
+import polars as pl
 import requests
 
 from gridstatus.gs_logging import logger
@@ -93,8 +94,8 @@ _interconnection_columns = [
 
 
 def _is_polars(obj: object) -> bool:
-    """Return whether ``obj`` is a polars frame without importing polars."""
-    return type(obj).__module__.split(".")[0] == "polars"
+    """Return whether ``obj`` is a polars DataFrame."""
+    return isinstance(obj, pl.DataFrame)
 
 
 class ISOBase:

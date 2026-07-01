@@ -834,6 +834,8 @@ dependencies = [
     { name = "pandas" },
     { name = "pdfplumber" },
     { name = "plotly" },
+    { name = "polars" },
+    { name = "pyarrow" },
     { name = "requests" },
     { name = "rpds-py", version = "0.30.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "setuptools" },
@@ -845,12 +847,6 @@ dependencies = [
     { name = "xlrd" },
     { name = "xmltodict" },
     { name = "zipp" },
-]
-
-[package.optional-dependencies]
-polars = [
-    { name = "polars" },
-    { name = "pyarrow" },
 ]
 
 [package.dev-dependencies]
@@ -867,9 +863,7 @@ dev = [
     { name = "nbconvert" },
     { name = "notebook" },
     { name = "pillow" },
-    { name = "polars" },
     { name = "pre-commit" },
-    { name = "pyarrow" },
     { name = "pygments" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -907,8 +901,8 @@ requires-dist = [
     { name = "pandas", specifier = "~=2.2" },
     { name = "pdfplumber", specifier = "~=0.11" },
     { name = "plotly", specifier = "~=6.0" },
-    { name = "polars", marker = "extra == 'polars'", specifier = "~=1.38" },
-    { name = "pyarrow", marker = "extra == 'polars'", specifier = ">=15" },
+    { name = "polars", specifier = "~=1.38" },
+    { name = "pyarrow", specifier = ">=15" },
     { name = "requests", specifier = ">=2.33,<3" },
     { name = "rpds-py", marker = "python_full_version >= '3.14'", specifier = ">=0.30.0" },
     { name = "setuptools", specifier = ">=78.1.1,<79" },
@@ -921,7 +915,6 @@ requires-dist = [
     { name = "xmltodict", specifier = "~=0.14" },
     { name = "zipp", specifier = "~=3.21" },
 ]
-provides-extras = ["polars"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -936,9 +929,7 @@ dev = [
     { name = "nbconvert", specifier = ">=7.17.0,<8" },
     { name = "notebook", specifier = "~=7.4" },
     { name = "pillow", specifier = ">=12.1.1,<13" },
-    { name = "polars", specifier = "~=1.38" },
     { name = "pre-commit", specifier = "~=4.2" },
-    { name = "pyarrow", specifier = ">=15" },
     { name = "pygments", specifier = ">=2.20.0,<3" },
     { name = "pytest", specifier = "~=8.3" },
     { name = "pytest-cov", specifier = "~=6.1" },

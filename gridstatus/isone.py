@@ -3,6 +3,7 @@ import warnings
 from typing import BinaryIO
 
 import pandas as pd
+import polars as pl
 import requests
 from bs4 import BeautifulSoup
 
@@ -168,8 +169,6 @@ class ISONE(ISOBase):
         pivoted wide. Datetime parsing stays in pandas because it is the
         I/O-bound CSV step; the reshaping runs in polars.
         """
-        import polars as pl
-
         naive = pd.to_datetime(df["Date"] + " " + df["Time"])
         pl_df = pl.DataFrame(
             {
@@ -232,8 +231,6 @@ class ISONE(ISOBase):
 
     def _load_polars(self, data):
         """Polars implementation of get_load's transform."""
-        import polars as pl
-
         naive = pd.to_datetime(data["Date/Time"])
         pl_df = pl.DataFrame(
             {
@@ -266,8 +263,6 @@ class ISONE(ISOBase):
         )
 
         if self.return_polars:
-            import polars as pl
-
             df = df.with_columns(
                 (pl.col("NativeLoadBtmPv") - pl.col("Load")).alias("BTM Solar"),
             ).with_columns(
@@ -297,8 +292,6 @@ class ISONE(ISOBase):
         )
 
         if self.return_polars:
-            import polars as pl
-
             df = df.with_columns(
                 pl.col("Time").alias("Interval Start"),
                 (pl.col("Time") + pl.duration(hours=1)).alias("Interval End"),
@@ -1003,8 +996,6 @@ class ISONE(ISOBase):
         ``BeginDate``/``CreationDate`` are offset-aware ISO strings, so polars
         parses and converts them directly (no ambiguous-DST handling needed).
         """
-        import polars as pl
-
         pl_df = pl.DataFrame(records)
 
         # ISONE returns offset-aware ISO timestamps (e.g. 2024-01-01T00:00:00.000-05:00).
