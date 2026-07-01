@@ -36,9 +36,7 @@ class TestISONE(BaseTestISO):
 
     def test_get_fuel_mix_nov_7_2022(self):
         data = self.iso.get_fuel_mix(date="Nov 7, 2022")
-        # make sure no nan values are returned
-        # nov 7 is a known data where nan values are returned
-        assert not data.isna().any().any()
+        assert not self._as_pandas(data).isna().any().any()
 
     def test_fuel_mix_across_dst_transition(self):
         # these dates are across the DST transition
@@ -59,7 +57,7 @@ class TestISONE(BaseTestISO):
     def test_get_btm_solar(self):
         df = self.iso.get_btm_solar(date="today", verbose=VERBOSE)
 
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -75,7 +73,7 @@ class TestISONE(BaseTestISO):
 
         assert df.shape[0] == df.drop_duplicates().shape[0]
 
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",

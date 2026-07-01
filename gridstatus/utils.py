@@ -39,8 +39,11 @@ def concat_dataframes(dfs: list) -> object:
     Used by ``support_date_range`` to combine per-chunk results regardless of
     whether the decorated method produced pandas or polars frames.
     """
-    if dfs and is_polars(dfs[0]):
-        return pl.concat(dfs, how="vertical_relaxed")
+    if not dfs:
+        return pd.DataFrame()
+
+    if is_polars(dfs[0]):
+        return pl.concat(dfs, how="diagonal")
 
     return pd.concat(dfs).reset_index(drop=True)
 

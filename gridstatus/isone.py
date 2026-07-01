@@ -116,10 +116,7 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         if date == "latest":
-            today = self.get_fuel_mix("today", verbose=verbose)
-            if self.return_polars:
-                return today.tail(1)
-            return today.tail(1).reset_index(drop=True)
+            return self.get_fuel_mix("today", verbose=verbose).tail(1)
 
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
@@ -127,48 +124,6 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        if self.return_polars:
-            return self._maybe_to_pandas(self._fuel_mix_polars(df))
-
-        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
-
-        # groupby FuelCategory to make it possible to infer DST changes
-        df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
-            lambda x: x.dt.tz_localize(
-                self.default_timezone,
-                ambiguous="infer",
-            ),
-        )
-
-        mix_df = df.pivot_table(
-            index="Date",
-            columns="Fuel Category",
-            values="Gen Mw",
-            aggfunc="first",
-        ).reset_index()
-        mix_df.columns.name = None
-
-        # assume instant in time, unclear if this is correct
-        mix_df = mix_df.rename(columns={"Date": "Time"})
-
-        mix_df = mix_df.fillna(0)
-
-        # move time columns front
-        mix_df = utils.move_cols_to_front(
-            mix_df,
-            ["Time"],
-        )
-
-        return mix_df
-
-    def _fuel_mix_polars(self, df):
-        """Polars implementation of get_fuel_mix's transform.
-
-        The naive timestamps are localized with the shared ambiguous-infer
-        helper (grouped by fuel category, matching the pandas groupby) then
-        pivoted wide. Datetime parsing stays in pandas because it is the
-        I/O-bound CSV step; the reshaping runs in polars.
-        """
         naive = pd.to_datetime(df["Date"] + " " + df["Time"])
         pl_df = pl.DataFrame(
             {
@@ -209,40 +164,17 @@ class ISONE(ISOBase):
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"  # noqa
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        if self.return_polars:
-            return self._maybe_to_pandas(self._load_polars(data))
-
-        data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
+        localized = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
             ambiguous="infer",
         )
-
-        # todo what is the difference between Native Load and Asset Related Load?
-        df = data[["Date/Time", "Native Load"]].rename(
-            columns={"Date/Time": "Time", "Native Load": "Load"},
-        )
-
-        df["Interval Start"] = df["Time"]
-        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
-
-        df = df[["Time", "Interval Start", "Interval End", "Load"]]
-
-        return df
-
-    def _load_polars(self, data):
-        """Polars implementation of get_load's transform."""
-        naive = pd.to_datetime(data["Date/Time"])
-        pl_df = pl.DataFrame(
-            {
-                "Time": naive.to_numpy(),
-                "Load": pd.to_numeric(data["Native Load"], errors="coerce").to_numpy(),
-            },
-        )
-
-        pl_df = utils.localize_ambiguous_infer_polars(
-            pl_df,
-            "Time",
-            self.default_timezone,
+        pl_df = pl.from_pandas(
+            pd.DataFrame(
+                {
+                    "Time": localized,
+                    "Load": pd.to_numeric(data["Native Load"], errors="coerce"),
+                },
+            ),
         )
 
         pl_df = pl_df.with_columns(
@@ -262,23 +194,11 @@ class ISONE(ISOBase):
             verbose=verbose,
         )
 
-        if self.return_polars:
-            df = df.with_columns(
-                (pl.col("NativeLoadBtmPv") - pl.col("Load")).alias("BTM Solar"),
-            ).with_columns(
-                pl.col("Time").alias("Interval Start"),
-                (pl.col("Time") + pl.duration(minutes=5)).alias("Interval End"),
-            )
-            return self._maybe_to_pandas(
-                df.select(["Time", "Interval Start", "Interval End", "BTM Solar"]),
-            )
-
-        df["BTM Solar"] = df["NativeLoadBtmPv"] - df["Load"]
-
-        df["Interval Start"] = df["Time"]
-        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
-
-        return df[["Time", "Interval Start", "Interval End", "BTM Solar"]]
+        return df.with_columns(
+            (pl.col("NativeLoadBtmPv") - pl.col("Load")).alias("BTM Solar"),
+            pl.col("Time").alias("Interval Start"),
+            (pl.col("Time") + pl.duration(minutes=5)).alias("Interval End"),
+        ).select(["Time", "Interval Start", "Interval End", "BTM Solar"])
 
     @support_date_range(frequency="DAY_START")
     def get_load_forecast(self, date, end=None, verbose=False):
@@ -291,37 +211,18 @@ class ISONE(ISOBase):
             verbose=verbose,
         )
 
-        if self.return_polars:
-            df = df.with_columns(
-                pl.col("Time").alias("Interval Start"),
-                (pl.col("Time") + pl.duration(hours=1)).alias("Interval End"),
-            )
-            return self._maybe_to_pandas(
-                df.select(
-                    [
-                        "Time",
-                        "Interval Start",
-                        "Interval End",
-                        "Forecast Time",
-                        "Load Forecast",
-                    ],
-                ),
-            )
-
-        df["Interval Start"] = df["Time"]
-        df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
-
-        df = df[
+        return df.with_columns(
+            pl.col("Time").alias("Interval Start"),
+            (pl.col("Time") + pl.duration(hours=1)).alias("Interval End"),
+        ).select(
             [
                 "Time",
                 "Interval Start",
                 "Interval End",
                 "Forecast Time",
                 "Load Forecast",
-            ]
-        ]
-
-        return df
+            ],
+        )
 
     def get_solar_forecast(self, date, end=None, verbose=False):
         """Return solar forecast published on a specific date
@@ -962,40 +863,6 @@ class ISONE(ISOBase):
 
         records = raw_data[0]["data"][series]
 
-        if self.return_polars:
-            return self._system_load_polars(records, mw_rename)
-
-        data = pd.DataFrame(records)
-
-        # must convert this way rather than use pd.to_datetime
-        # to handle DST transitions
-        data["BeginDate"] = data["BeginDate"].apply(
-            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
-        )
-
-        # for times earlier this creation date is after the forecasted interval
-        # for all historical data
-        if "CreationDate" in data.columns:
-            data["CreationDate"] = data["CreationDate"].apply(
-                lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
-            )
-
-        data = data.rename(
-            columns={
-                "BeginDate": "Time",
-                "Mw": mw_rename,
-                "CreationDate": "Forecast Time",
-            },
-        )
-
-        return data
-
-    def _system_load_polars(self, records, mw_rename):
-        """Polars implementation of _get_system_load's frame construction.
-
-        ``BeginDate``/``CreationDate`` are offset-aware ISO strings, so polars
-        parses and converts them directly (no ambiguous-DST handling needed).
-        """
         pl_df = pl.DataFrame(records)
 
         # ISONE returns offset-aware ISO timestamps (e.g. 2024-01-01T00:00:00.000-05:00).

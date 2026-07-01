@@ -1,9 +1,4 @@
-"""Offline tests for the opt-in polars path (ENG-3958 POC).
-
-These tests mock the ISONE network helpers so they run without network access
-and assert that the polars path (ISONE(return_polars=True)) produces frames
-equivalent to the default pandas path for the migrated methods.
-"""
+"""Offline tests for ISONE methods that return polars frames."""
 
 import pandas as pd
 import polars as pl
@@ -17,22 +12,10 @@ from gridstatus.isone import ISONE
 TZ = ISONE.default_timezone
 
 
-def _normalize(df):
-    """Convert a (possibly polars) frame to pandas and reset its index."""
+def _to_pandas(df: object) -> pd.DataFrame:
     if utils.is_polars(df):
-        df = df.to_pandas()
+        return df.to_pandas()
     return df.reset_index(drop=True)
-
-
-def _assert_parity(pandas_df, polars_df):
-    pl_as_pd = _normalize(polars_df)
-    assert utils.is_polars(polars_df)
-    assert list(pl_as_pd.columns) == list(pandas_df.columns)
-    assert_frame_equal(
-        pl_as_pd,
-        _normalize(pandas_df),
-        check_dtype=False,
-    )
 
 
 class TestUtilsDispatch:
@@ -65,8 +48,6 @@ class TestUtilsDispatch:
         assert out.to_dicts() == [{"Location": "A", "Location Type": "Z", "v": 1}]
 
     def test_localize_ambiguous_infer_polars_dst_fall_back(self):
-        # Nov 5 2023 fall-back: the repeated 01:00 wall time should map to the
-        # pre-transition (EDT, 05:00 UTC) then post-transition (EST, 06:00 UTC).
         naive = pd.to_datetime(
             pd.Series(
                 [
@@ -93,14 +74,6 @@ class TestUtilsDispatch:
         ]
 
 
-class TestISONEReturnPolarsFlag:
-    def test_default_is_pandas(self):
-        assert ISONE().return_polars is False
-
-    def test_opt_in(self):
-        assert ISONE(return_polars=True).return_polars is True
-
-
 def _fuel_mix_raw():
     return pd.DataFrame(
         {
@@ -122,7 +95,6 @@ def _load_raw():
 
 
 def _load_dst_raw():
-    # Fall-back transition: the 01:xx hour repeats.
     times = [
         "2023-11-05 00:55:00",
         "2023-11-05 01:00:00",
@@ -151,45 +123,69 @@ def _system_load_records(series):
     return [{"data": {series: base}}]
 
 
-class TestISONEPolarsParity:
+class TestISONEPolarsMethods:
     @pytest.mark.parametrize("raw_factory", [_fuel_mix_raw])
-    def test_get_fuel_mix_parity(self, monkeypatch, raw_factory):
+    def test_get_fuel_mix_returns_polars(self, monkeypatch, raw_factory):
         monkeypatch.setattr(
             isone_module,
             "_make_request",
             lambda url, skiprows, verbose: raw_factory().copy(),
         )
-        pandas_df = ISONE().get_fuel_mix(date="2024-01-01")
-        polars_df = ISONE(return_polars=True).get_fuel_mix(date="2024-01-01")
-        _assert_parity(pandas_df, polars_df)
+        df = ISONE().get_fuel_mix(date="2024-01-01")
+        assert utils.is_polars(df)
+        assert df.columns == ["Time", "Solar", "Wind"]
+        assert df.height == 2
 
     @pytest.mark.parametrize("raw_factory", [_load_raw, _load_dst_raw])
-    def test_get_load_parity(self, monkeypatch, raw_factory):
+    def test_get_load_returns_polars(self, monkeypatch, raw_factory):
         monkeypatch.setattr(
             isone_module,
             "_make_request",
             lambda url, skiprows, verbose: raw_factory().copy(),
         )
-        pandas_df = ISONE().get_load(date="2023-11-05")
-        polars_df = ISONE(return_polars=True).get_load(date="2023-11-05")
-        _assert_parity(pandas_df, polars_df)
+        df = ISONE().get_load(date="2023-11-05")
+        assert utils.is_polars(df)
+        assert list(df.columns) == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Load",
+        ]
+        assert df.height == len(raw_factory())
 
-    def test_get_load_forecast_parity(self, monkeypatch):
+    def test_get_load_forecast_returns_polars(self, monkeypatch):
         monkeypatch.setattr(
             isone_module,
             "_make_wsclient_request",
             lambda url, data, verbose=False: _system_load_records("forecast"),
         )
-        pandas_df = ISONE().get_load_forecast(date="2024-01-01")
-        polars_df = ISONE(return_polars=True).get_load_forecast(date="2024-01-01")
-        _assert_parity(pandas_df, polars_df)
+        df = ISONE().get_load_forecast(date="2024-01-01")
+        assert utils.is_polars(df)
+        assert set(df.columns) == {
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Forecast Time",
+            "Load Forecast",
+        }
 
-    def test_get_btm_solar_parity(self, monkeypatch):
+    def test_get_btm_solar_returns_polars(self, monkeypatch):
         monkeypatch.setattr(
             isone_module,
             "_make_wsclient_request",
             lambda url, data, verbose=False: _system_load_records("actual"),
         )
-        pandas_df = ISONE().get_btm_solar(date="2024-01-01")
-        polars_df = ISONE(return_polars=True).get_btm_solar(date="2024-01-01")
-        _assert_parity(pandas_df, polars_df)
+        df = ISONE().get_btm_solar(date="2024-01-01")
+        assert utils.is_polars(df)
+        out = _to_pandas(df)
+        assert list(out.columns) == [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "BTM Solar",
+        ]
+        assert_frame_equal(
+            out[["BTM Solar"]],
+            pd.DataFrame({"BTM Solar": [10.0, 10.0]}),
+            check_dtype=False,
+        )
