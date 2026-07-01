@@ -3266,6 +3266,27 @@ class TestPJM(BaseTestISO):
         assert len(df) == 1
         assert df["Message ID"].iloc[0] == 1
 
+    def test_get_emergency_postings_rest_empty(self):
+        empty_xml = (
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            b"<ns2:EmergencyProcedures "
+            b'xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1"/>'
+        )
+        mock_response = mock.Mock()
+        mock_response.content = empty_xml
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/xml"}
+        mock_response.raise_for_status = mock.Mock()
+
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_response,
+        ):
+            df = self.iso.get_emergency_postings(date="2026-01-01")
+
+        assert df.empty
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
+
     """get_voltage_limits"""
 
     def _check_voltage_limits(self, df):

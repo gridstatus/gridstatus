@@ -3781,7 +3781,7 @@ class PJM(ISOBase):
     @support_date_range(frequency="YEAR_START")
     def get_emergency_postings(
         self,
-        date: str | pd.Timestamp = "latest",
+        date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -3801,6 +3801,9 @@ class PJM(ISOBase):
                 EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
             )
             return self._parse_emergency_xml(xml_bytes)
+
+        if end is None:
+            end = date
 
         logger.info(
             f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL}...",
@@ -3889,7 +3892,21 @@ class PJM(ISOBase):
                 )
 
         if not rows:
-            raise NoDataFoundException("No emergency procedure messages found in XML")
+            return pd.DataFrame(
+                columns=[
+                    "Message ID",
+                    "Applicable Start",
+                    "Applicable End",
+                    "Publish Time",
+                    "Message Type",
+                    "Priority",
+                    "Region",
+                    "Effective Start",
+                    "Effective End",
+                    "Canceled Time",
+                    "Emergency Message",
+                ],
+            )
 
         df = pd.DataFrame(rows)
         for col in (
