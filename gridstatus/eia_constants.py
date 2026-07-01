@@ -139,6 +139,76 @@ CANCELED_OR_POSTPONED_GENERATOR_COLUMNS = [
     "Longitude",
 ]
 
+FACILITY_FUEL_DATA_FIELDS = [
+    "average-heat-content",
+    "consumption-for-eg",
+    "consumption-for-eg-btu",
+    "generation",
+    "gross-generation",
+    "total-consumption",
+    "total-consumption-btu",
+]
+
+FACILITY_FUEL_COLUMN_RENAMES = {
+    "plantCode": "Plant Code",
+    "plantName": "Plant Name",
+    "fuel2002": "Fuel Code",
+    "fuelType": "Fuel Type",
+    "fuelTypeDescription": "Fuel Type Description",
+    "state": "Plant State",
+    "primeMover": "Prime Mover",
+    "average-heat-content": "Average Heat Content",
+    "average-heat-content-units": "Average Heat Content Units",
+    "consumption-for-eg": "Consumption for EG",
+    "consumption-for-eg-units": "Consumption for EG Units",
+    "consumption-for-eg-btu": "Consumption for EG Btu",
+    "consumption-for-eg-btu-units": "Consumption for EG Btu Units",
+    "generation": "Generation",
+    "generation-units": "Generation Units",
+    "gross-generation": "Gross Generation",
+    "gross-generation-units": "Gross Generation Units",
+    "total-consumption": "Total Consumption",
+    "total-consumption-units": "Total Consumption Units",
+    "total-consumption-btu": "Total Consumption Btu",
+    "total-consumption-btu-units": "Total Consumption Btu Units",
+}
+
+FACILITY_FUEL_COLUMNS = [
+    "Period",
+    "Updated At",
+    "Plant Code",
+    "Plant Name",
+    "Fuel Code",
+    "Fuel Type",
+    "Fuel Type Description",
+    "Plant State",
+    "Prime Mover",
+    "Average Heat Content",
+    "Average Heat Content Units",
+    "Consumption for EG",
+    "Consumption for EG Units",
+    "Consumption for EG Btu",
+    "Consumption for EG Btu Units",
+    "Generation",
+    "Generation Units",
+    "Gross Generation",
+    "Gross Generation Units",
+    "Total Consumption",
+    "Total Consumption Units",
+    "Total Consumption Btu",
+    "Total Consumption Btu Units",
+]
+
+FACILITY_FUEL_FLOAT_COLUMNS = [
+    "Average Heat Content",
+    "Consumption for EG",
+    "Consumption for EG Btu",
+    "Generation",
+    "Gross Generation",
+    "Total Consumption",
+    "Total Consumption Btu",
+]
+
 GENERATOR_FLOAT_COLUMNS = [
     "Nameplate Capacity",
     "Net Summer Capacity",
