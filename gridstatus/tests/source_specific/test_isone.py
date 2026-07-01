@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 
 from gridstatus import ISONE
 from gridstatus.base import Markets
@@ -36,9 +37,7 @@ class TestISONE(BaseTestISO):
 
     def test_get_fuel_mix_nov_7_2022(self):
         data = self.iso.get_fuel_mix(date="Nov 7, 2022")
-        # make sure no nan values are returned
-        # nov 7 is a known data where nan values are returned
-        assert not data.isna().any().any()
+        assert not self._as_pandas(data).isna().any().any()
 
     def test_fuel_mix_across_dst_transition(self):
         # these dates are across the DST transition
@@ -59,7 +58,7 @@ class TestISONE(BaseTestISO):
     def test_get_btm_solar(self):
         df = self.iso.get_btm_solar(date="today", verbose=VERBOSE)
 
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -75,7 +74,7 @@ class TestISONE(BaseTestISO):
 
         assert df.shape[0] == df.drop_duplicates().shape[0]
 
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -139,10 +138,12 @@ class TestISONE(BaseTestISO):
             "_select_intervals_for_data_request",
             return_value=[],
         ):
-            df = self.iso.get_lmp(
-                date=(date, end),
-                market=Markets.REAL_TIME_5_MIN,
-                verbose=VERBOSE,
+            df = self._as_pandas(
+                self.iso.get_lmp(
+                    date=(date, end),
+                    market=Markets.REAL_TIME_5_MIN,
+                    verbose=VERBOSE,
+                ),
             )
 
         # Rolling data goes back 4 hours and should go up to the current time or close
@@ -164,7 +165,7 @@ class TestISONE(BaseTestISO):
     """get_wind_forecast"""
 
     def test_get_wind_forecast_today(self):
-        df = self.iso.get_wind_forecast(date="today", verbose=VERBOSE)
+        df = self._as_pandas(self.iso.get_wind_forecast(date="today", verbose=VERBOSE))
         now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
 
         forecast_length = df["Interval Start"].max() - df["Interval Start"].min()
@@ -181,8 +182,9 @@ class TestISONE(BaseTestISO):
         self._check_solar_or_wind_forecast(df, resource_type="Wind")
 
     def test_get_wind_forecast_latest(self):
-        assert self.iso.get_wind_forecast(date="latest", verbose=VERBOSE).equals(
-            self.iso.get_wind_forecast(date="today", verbose=VERBOSE),
+        assert_frame_equal(
+            self._as_pandas(self.iso.get_wind_forecast(date="latest", verbose=VERBOSE)),
+            self._as_pandas(self.iso.get_wind_forecast(date="today", verbose=VERBOSE)),
         )
 
     def test_get_wind_forecast_historical_date_range(self):
@@ -193,9 +195,11 @@ class TestISONE(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(days=5)
 
-        df = self.iso.get_wind_forecast(
-            date=(five_days_ago, two_days_ago),
-            verbose=VERBOSE,
+        df = self._as_pandas(
+            self.iso.get_wind_forecast(
+                date=(five_days_ago, two_days_ago),
+                verbose=VERBOSE,
+            ),
         )
 
         assert (
@@ -221,7 +225,9 @@ class TestISONE(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(days=4)
 
-        df = self.iso.get_wind_forecast(date=four_days_ago, verbose=VERBOSE)
+        df = self._as_pandas(
+            self.iso.get_wind_forecast(date=four_days_ago, verbose=VERBOSE),
+        )
 
         assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
         assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
@@ -235,7 +241,7 @@ class TestISONE(BaseTestISO):
     """get_solar_forecast"""
 
     def test_get_solar_forecast_today(self):
-        df = self.iso.get_solar_forecast(date="today", verbose=VERBOSE)
+        df = self._as_pandas(self.iso.get_solar_forecast(date="today", verbose=VERBOSE))
         now = pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
 
         forecast_length = df["Interval Start"].max() - df["Interval Start"].min()
@@ -252,8 +258,11 @@ class TestISONE(BaseTestISO):
         self._check_solar_or_wind_forecast(df, resource_type="Solar")
 
     def test_get_solar_forecast_latest(self):
-        assert self.iso.get_solar_forecast(date="latest", verbose=VERBOSE).equals(
-            self.iso.get_solar_forecast(date="today", verbose=VERBOSE),
+        assert_frame_equal(
+            self._as_pandas(
+                self.iso.get_solar_forecast(date="latest", verbose=VERBOSE),
+            ),
+            self._as_pandas(self.iso.get_solar_forecast(date="today", verbose=VERBOSE)),
         )
 
     def test_get_solar_forecast_historical_date_range(self):
@@ -264,9 +273,11 @@ class TestISONE(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(days=5)
 
-        df = self.iso.get_solar_forecast(
-            date=(five_days_ago, two_days_ago),
-            verbose=VERBOSE,
+        df = self._as_pandas(
+            self.iso.get_solar_forecast(
+                date=(five_days_ago, two_days_ago),
+                verbose=VERBOSE,
+            ),
         )
 
         assert (
@@ -292,7 +303,9 @@ class TestISONE(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(days=4)
 
-        df = self.iso.get_solar_forecast(date=four_days_ago, verbose=VERBOSE)
+        df = self._as_pandas(
+            self.iso.get_solar_forecast(date=four_days_ago, verbose=VERBOSE),
+        )
 
         assert df["Publish Time"].unique() == four_days_ago + pd.Timedelta(hours=10)
         assert df["Interval Start"].min() == four_days_ago + pd.Timedelta(hours=10)
@@ -315,6 +328,7 @@ class TestISONE(BaseTestISO):
             super().test_get_storage_today()
 
     def _check_solar_or_wind_forecast(self, df, resource_type):
+        df = self._as_pandas(df)
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",
@@ -396,6 +410,7 @@ class TestISONE(BaseTestISO):
 
     def _check_get_reserve_zone_prices_designations_real_time_5_min_final(self, df):
         """Helper method with common checks for reserve zone data"""
+        df = self._as_pandas(df)
         assert df.columns.tolist() == [
             "Interval Start",
             "Interval End",

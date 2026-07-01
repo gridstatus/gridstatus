@@ -3,6 +3,7 @@ from enum import Enum, StrEnum
 from typing import BinaryIO
 
 import pandas as pd
+import polars as pl
 import requests
 
 from gridstatus.gs_logging import logger
@@ -90,6 +91,11 @@ _interconnection_columns = [
     "Withdrawal Comment",
     "Actual Completion Date",
 ]
+
+
+def _is_polars(obj: object) -> bool:
+    """Return whether ``obj`` is a polars DataFrame."""
+    return isinstance(obj, pl.DataFrame)
 
 
 class ISOBase:
@@ -180,6 +186,21 @@ class ISOBase:
             locations=locations,
             **kwargs,
         )
+
+        if _is_polars(lmp_df):
+            col_order = lmp_df.columns
+            # Special case to handle PJM 5 min LMPs
+            grouper_column_name = (
+                "Location" if "Location" in col_order else "Location Id"
+            )
+            # Assume sorted in ascending order; maintain_order keeps the last
+            # row per group, matching pandas groupby().last().
+            latest_df = lmp_df.group_by(
+                grouper_column_name,
+                maintain_order=True,
+            ).last()
+            return latest_df.select(col_order)
+
         col_order = lmp_df.columns.tolist()
 
         # Special case to handle PJM 5 min LMPs
@@ -192,6 +213,11 @@ class ISOBase:
 
     def _latest_from_today(self, method, *args, **kwargs):
         data = method(date="today", *args, **kwargs)
+
+        if _is_polars(data):
+            row = data.tail(1).to_dicts()[0]
+            return {k.lower(): v for k, v in row.items()}
+
         latest = data.iloc[-1]
 
         latest.index = latest.index.str.lower()

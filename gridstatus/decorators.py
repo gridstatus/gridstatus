@@ -302,9 +302,9 @@ class support_date_range:
                             df[k] = []
                         df[k].append(v)
                 for k, v in df.items():
-                    df[k] = pd.concat(v).reset_index(drop=True)
+                    df[k] = utils.concat_dataframes(v)
             else:
-                df = pd.concat(all_df).reset_index(drop=True)
+                df = utils.concat_dataframes(all_df)
 
             return df
 

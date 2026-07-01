@@ -9,6 +9,13 @@ from gridstatus.base import GridStatus, _interconnection_columns
 class TestHelperMixin:
     iso = None
 
+    @staticmethod
+    def _as_pandas(df):
+        """Accept either a pandas or polars frame, returning pandas for assertions."""
+        if type(df).__module__.split(".")[0] == "polars":
+            return df.to_pandas()
+        return df
+
     def local_now(self):
         return pd.Timestamp.now(tz=self.iso.default_timezone)
 
@@ -22,6 +29,7 @@ class TestHelperMixin:
         return self.local_start_of_day(self.local_today())
 
     def _check_ordered_by_time(self, df, col):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] > 0
         assert df[col].is_monotonic_increasing
@@ -33,6 +41,7 @@ class TestHelperMixin:
         skip_column_named_time=False,
         sced=False,
     ):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
 
         if instant_or_interval == "interval":
@@ -97,7 +106,7 @@ class BaseTestISO(TestHelperMixin):
     def test_get_fuel_mix_historical(self, time_column="Time"):
         # date string works
         date_str = "04/03/2022"
-        df = self.iso.get_fuel_mix(date_str)
+        df = self._as_pandas(self.iso.get_fuel_mix(date_str))
 
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0][time_column].strftime("%m/%d/%Y") == date_str
@@ -106,7 +115,7 @@ class BaseTestISO(TestHelperMixin):
 
         # timestamp object works
         date_obj = pd.to_datetime("2019/11/19")
-        df = self.iso.get_fuel_mix(date_obj)
+        df = self._as_pandas(self.iso.get_fuel_mix(date_obj))
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0][time_column].strftime(
             "%Y%m%d",
@@ -116,7 +125,7 @@ class BaseTestISO(TestHelperMixin):
 
         # datetime object works
         date_obj = pd.to_datetime("2021/05/09").date()
-        df = self.iso.get_fuel_mix(date_obj)
+        df = self._as_pandas(self.iso.get_fuel_mix(date_obj))
         assert isinstance(df, pd.DataFrame)
         assert df.loc[0][time_column].strftime(
             "%Y%m%d",
@@ -132,7 +141,9 @@ class BaseTestISO(TestHelperMixin):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        df = self.iso.get_fuel_mix(date=start.date(), end=end.date())
+        df = self._as_pandas(
+            self.iso.get_fuel_mix(date=start.date(), end=end.date()),
+        )
         self._check_fuel_mix(df)
 
         # make sure right number of days are returned
@@ -151,7 +162,9 @@ class BaseTestISO(TestHelperMixin):
 
         # add one minute since pjm is exclusive of end date
         # and does not include the whole day like other isos
-        df = self.iso.get_fuel_mix(start=start, end=yesterday + pd.Timedelta(minutes=1))
+        df = self._as_pandas(
+            self.iso.get_fuel_mix(start=start, end=yesterday + pd.Timedelta(minutes=1)),
+        )
 
         assert df[time_column].max() >= yesterday.replace(hour=0, minute=0, second=0)
         assert df[time_column].min() <= start
@@ -165,13 +178,13 @@ class BaseTestISO(TestHelperMixin):
         ) - pd.Timedelta(days=1)
         start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
-        df = self.iso.get_fuel_mix(start=start, end=end)
+        df = self._as_pandas(self.iso.get_fuel_mix(start=start, end=end))
         # ignore last row, since it is sometime midnight of next day
         assert df[time_column].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_latest(self, time_column="Time"):
-        df = self.iso.get_fuel_mix("latest")
+        df = self._as_pandas(self.iso.get_fuel_mix("latest"))
         assert isinstance(df, pd.DataFrame)
         assert isinstance(df[time_column].iloc[0], pd.Timestamp)
         assert df.index.name is None
@@ -210,21 +223,21 @@ class BaseTestISO(TestHelperMixin):
     # is not available for the selected date.
     def test_get_lmp_historical(self, market=None, date_str="2022-07-22"):
         if market is not None:
-            hist = self.iso.get_lmp(date_str, market=market)
+            hist = self._as_pandas(self.iso.get_lmp(date_str, market=market))
             assert isinstance(hist, pd.DataFrame)
             self._check_lmp_columns(hist, market)
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_latest(self, market=None):
         if market is not None:
-            df = self.iso.get_lmp("latest", market=market)
+            df = self._as_pandas(self.iso.get_lmp("latest", market=market))
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_today(self, market=None):
         if market is not None:
-            df = self.iso.get_lmp("today", market=market)
+            df = self._as_pandas(self.iso.get_lmp("today", market=market))
             assert isinstance(df, pd.DataFrame)
             self._check_lmp_columns(df, market)
 
@@ -238,12 +251,16 @@ class BaseTestISO(TestHelperMixin):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        data = self.iso.get_load(date=start.date(), end=end.date())
+        data = self._as_pandas(
+            self.iso.get_load(date=start.date(), end=end.date()),
+        )
         self._check_load(data)
         # make sure right number of days are returned
         assert data["Time"].dt.day.nunique() == num_days
 
-        data_tuple = self.iso.get_load(date=(start.date(), end.date()))
+        data_tuple = self._as_pandas(
+            self.iso.get_load(date=(start.date(), end.date())),
+        )
 
         assert data_tuple.equals(data)
 
@@ -254,12 +271,12 @@ class BaseTestISO(TestHelperMixin):
 
         # date string works
         date_str = test_date.strftime("%Y%m%d")
-        df = self.iso.get_load(date_str)
+        df = self._as_pandas(self.iso.get_load(date_str))
         self._check_load(df)
         assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
 
         # timestamp object works
-        df = self.iso.get_load(test_date)
+        df = self._as_pandas(self.iso.get_load(test_date))
 
         self._check_load(df)
         assert df.loc[0]["Time"].strftime(
@@ -267,20 +284,20 @@ class BaseTestISO(TestHelperMixin):
         ) == test_date.strftime("%Y%m%d")
 
         # datetime object works
-        df = self.iso.get_load(test_date)
+        df = self._as_pandas(self.iso.get_load(test_date))
         self._check_load(df)
         assert df.loc[0]["Time"].strftime(
             "%Y%m%d",
         ) == test_date.strftime("%Y%m%d")
 
     def test_get_load_latest(self):
-        df = self.iso.get_load("latest")
+        df = self._as_pandas(self.iso.get_load("latest"))
         self._check_load(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         assert df["Time"].max().date() == today
 
     def test_get_load_today(self):
-        df = self.iso.get_load("today")
+        df = self._as_pandas(self.iso.get_load("today"))
         self._check_load(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
 
@@ -334,6 +351,7 @@ class BaseTestISO(TestHelperMixin):
     """other"""
 
     def _check_fuel_mix(self, df):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
         assert df.columns.name is None
 
@@ -347,6 +365,7 @@ class BaseTestISO(TestHelperMixin):
         self._check_time_columns(df, instant_or_interval=time_type)
 
     def _check_load(self, df):
+        df = self._as_pandas(df)
         assert isinstance(df, pd.DataFrame)
         assert df.shape[0] >= 0
 
@@ -367,6 +386,7 @@ class BaseTestISO(TestHelperMixin):
         assert is_numeric_dtype(df["Load"])
 
     def _check_forecast(self, df, expected_columns=None):
+        df = self._as_pandas(df)
         if expected_columns is not None:
             assert set(df.columns) == set(expected_columns)
         else:
@@ -410,6 +430,7 @@ class BaseTestISO(TestHelperMixin):
     ]
 
     def _check_lmp_columns(self, df, market):
+        df = self._as_pandas(df)
         # todo in future all ISO should return same columns
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)

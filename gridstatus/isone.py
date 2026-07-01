@@ -3,6 +3,7 @@ import warnings
 from typing import BinaryIO
 
 import pandas as pd
+import polars as pl
 import requests
 from bs4 import BeautifulSoup
 
@@ -115,11 +116,7 @@ class ISONE(ISOBase):
         Provided at frequent, but irregular intervals by ISONE
         """
         if date == "latest":
-            return (
-                self.get_fuel_mix("today", verbose=verbose)
-                .tail(1)
-                .reset_index(drop=True)
-            )
+            return self.get_fuel_mix("today", verbose=verbose).tail(1)
 
         url = "https://www.iso-ne.com/transform/csv/genfuelmix?start=" + date.strftime(
             "%Y%m%d",
@@ -127,36 +124,33 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        df["Date"] = pd.to_datetime(df["Date"] + " " + df["Time"])
-
-        # groupby FuelCategory to make it possible to infer DST changes
-        df["Date"] = df.groupby("Fuel Category", group_keys=False)["Date"].apply(
-            lambda x: x.dt.tz_localize(
-                self.default_timezone,
-                ambiguous="infer",
-            ),
+        naive = pd.to_datetime(df["Date"] + " " + df["Time"])
+        pl_df = pl.DataFrame(
+            {
+                "Date": naive.to_numpy(),
+                "Fuel Category": df["Fuel Category"].astype(str).to_numpy(),
+                "Gen Mw": pd.to_numeric(df["Gen Mw"], errors="coerce").to_numpy(),
+            },
         )
 
-        mix_df = df.pivot_table(
+        pl_df = utils.localize_ambiguous_infer_polars(
+            pl_df,
+            "Date",
+            self.default_timezone,
+            group_cols=["Fuel Category"],
+        )
+
+        mix_df = pl_df.pivot(
+            "Fuel Category",
             index="Date",
-            columns="Fuel Category",
             values="Gen Mw",
-            aggfunc="first",
-        ).reset_index()
-        mix_df.columns.name = None
-
-        # assume instant in time, unclear if this is correct
-        mix_df = mix_df.rename(columns={"Date": "Time"})
-
-        mix_df = mix_df.fillna(0)
-
-        # move time columns front
-        mix_df = utils.move_cols_to_front(
-            mix_df,
-            ["Time"],
+            aggregate_function="first",
         )
 
-        return mix_df
+        mix_df = mix_df.rename({"Date": "Time"}).fill_null(0)
+
+        fuel_cols = sorted(c for c in mix_df.columns if c != "Time")
+        return mix_df.select(["Time", *fuel_cols]).sort("Time")
 
     @support_date_range(frequency="DAY_START")
     def get_load(self, date, end=None, verbose=False):
@@ -170,22 +164,25 @@ class ISONE(ISOBase):
         url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"  # noqa
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
+        localized = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
             self.default_timezone,
             ambiguous="infer",
         )
-
-        # todo what is the difference between Native Load and Asset Related Load?
-        df = data[["Date/Time", "Native Load"]].rename(
-            columns={"Date/Time": "Time", "Native Load": "Load"},
+        pl_df = pl.from_pandas(
+            pd.DataFrame(
+                {
+                    "Time": localized,
+                    "Load": pd.to_numeric(data["Native Load"], errors="coerce"),
+                },
+            ),
         )
 
-        df["Interval Start"] = df["Time"]
-        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
+        pl_df = pl_df.with_columns(
+            pl.col("Time").alias("Interval Start"),
+            (pl.col("Time") + pl.duration(minutes=5)).alias("Interval End"),
+        )
 
-        df = df[["Time", "Interval Start", "Interval End", "Load"]]
-
-        return df
+        return pl_df.select(["Time", "Interval Start", "Interval End", "Load"])
 
     @support_date_range(frequency="DAY_START")
     def get_btm_solar(self, date, end=None, verbose=False):
@@ -197,12 +194,11 @@ class ISONE(ISOBase):
             verbose=verbose,
         )
 
-        df["BTM Solar"] = df["NativeLoadBtmPv"] - df["Load"]
-
-        df["Interval Start"] = df["Time"]
-        df["Interval End"] = df["Time"] + pd.Timedelta(minutes=5)
-
-        return df[["Time", "Interval Start", "Interval End", "BTM Solar"]]
+        return df.with_columns(
+            (pl.col("NativeLoadBtmPv") - pl.col("Load")).alias("BTM Solar"),
+            pl.col("Time").alias("Interval Start"),
+            (pl.col("Time") + pl.duration(minutes=5)).alias("Interval End"),
+        ).select(["Time", "Interval Start", "Interval End", "BTM Solar"])
 
     @support_date_range(frequency="DAY_START")
     def get_load_forecast(self, date, end=None, verbose=False):
@@ -215,20 +211,18 @@ class ISONE(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = df["Time"]
-        df["Interval End"] = df["Time"] + pd.Timedelta(hours=1)
-
-        df = df[
+        return df.with_columns(
+            pl.col("Time").alias("Interval Start"),
+            (pl.col("Time") + pl.duration(hours=1)).alias("Interval End"),
+        ).select(
             [
                 "Time",
                 "Interval Start",
                 "Interval End",
                 "Forecast Time",
                 "Load Forecast",
-            ]
-        ]
-
-        return df
+            ],
+        )
 
     def get_solar_forecast(self, date, end=None, verbose=False):
         """Return solar forecast published on a specific date
@@ -236,16 +230,12 @@ class ISONE(ISOBase):
         Forecast is published for 7 days and generated daily by 10 am.
         https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-solar-power-forecast
         """
-        return (
-            self._get_solar_or_wind_forecast(
-                date,
-                end,
-                resource_type="Solar",
-                verbose=verbose,
-            )
-            .reset_index(drop=True)
-            .sort_values(["Interval Start", "Publish Time"])
-        )
+        return self._get_solar_or_wind_forecast(
+            date,
+            end,
+            resource_type="Solar",
+            verbose=verbose,
+        ).sort(["Interval Start", "Publish Time"])
 
     def get_wind_forecast(self, date, end=None, verbose=False):
         """Return wind forecast published on a specific date
@@ -253,16 +243,12 @@ class ISONE(ISOBase):
         Forecast is published for 7 days and generated daily by 10 am.
         https://www.iso-ne.com/isoexpress/web/reports/operations/-/tree/seven-day-wind-power-forecast
         """
-        return (
-            self._get_solar_or_wind_forecast(
-                date,
-                end,
-                resource_type="Wind",
-                verbose=verbose,
-            )
-            .reset_index(drop=True)
-            .sort_values(["Interval Start", "Publish Time"])
-        )
+        return self._get_solar_or_wind_forecast(
+            date,
+            end,
+            resource_type="Wind",
+            verbose=verbose,
+        ).sort(["Interval Start", "Publish Time"])
 
     @support_date_range(frequency="DAY_START")
     def _get_solar_or_wind_forecast(
@@ -289,45 +275,38 @@ class ISONE(ISOBase):
         df.columns = df.iloc[0]
         df = df.drop(columns=["D", "Date"], index=[0]).reset_index(drop=True)
 
-        data = df.melt(
-            id_vars=["Hour Ending"],
-            var_name="Date",
+        pl_df = pl.from_pandas(df)
+        value_cols = [c for c in pl_df.columns if c != "Hour Ending"]
+        data = pl_df.unpivot(
+            index="Hour Ending",
+            on=value_cols,
+            variable_name="Date",
             value_name=value_name,
-        ).dropna(subset=[value_name])
+        ).drop_nulls(subset=[value_name])
 
-        data = self._create_interval_start_from_hour_start(data)
-
-        data["Interval Start"] = data["Interval Start"].dt.tz_localize(
+        data = utils.create_interval_start_from_hour_start_polars(data)
+        data = utils.localize_interval_start_polars(
+            data,
+            "Interval Start",
             self.default_timezone,
-            ambiguous="infer",
-            nonexistent="NaT",
+            date_col="Date",
         )
 
-        # Handle start of DST since the hour ending in the raw data does not exist
-        if data["Interval Start"].isna().any():
-            hour_start = data.loc[data["Interval Start"].isna(), "Hour Start"] - 1
+        data = data.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
-            data.loc[data["Interval Start"].isna(), "Interval Start"] = (
-                pd.to_datetime(data.loc[data["Interval Start"].isna(), "Date"])
-                + hour_start.astype("timedelta64[h]")
-            ).dt.tz_localize(
-                self.default_timezone,
-            )
-
-        data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
-
-        # Website says report is generally available by 10 am.
         report_datetime = date.normalize() + pd.Timedelta(hours=10)
-        data["Publish Time"] = report_datetime
+        data = data.with_columns(pl.lit(report_datetime).alias("Publish Time"))
 
         data = utils.move_cols_to_front(
             data,
             ["Interval Start", "Interval End", "Publish Time", value_name],
-        ).drop(columns=["Date", "Hour Start", "Hour Ending"])
+        ).drop(["Date", "Hour Start", "Hour Ending"])
 
-        data[value_name] = data[value_name].astype(float)
-
-        return data
+        return data.with_columns(
+            pl.col(value_name).cast(pl.Float64),
+        )
 
     def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
         """
@@ -338,29 +317,23 @@ class ISONE(ISOBase):
 
         if market == Markets.REAL_TIME_5_MIN:
             url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
-            data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
-            data.rename(
-                columns={
-                    "Local Time": "Interval Start",
-                },
-                inplace=True,
+            data = pl.from_pandas(
+                _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose),
             )
+            data = data.rename({"Local Time": "Interval Start"})
 
         elif market == Markets.REAL_TIME_HOURLY:
             url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"  # noqa
-            data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
+            data = pl.from_pandas(
+                _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose),
+            )
 
-            # reformat this data so it looks like other endpoints
-            # this way it works with process_lmp below
-            data.rename(
-                columns={
+            data = data.rename(
+                {
                     "Local Date": "Date",
                     "Local Time": "Hour Ending",
                 },
-                inplace=True,
             )
-
-            # data["Hour Ending"] = data["Hour Ending"].astype(str).str.zfill(2)
 
         else:
             raise RuntimeError("LMP Market is not supported")
@@ -425,15 +398,15 @@ class ISONE(ISOBase):
                 msg = "Loading interval {}".format(interval)
                 log(msg, verbose=verbose)
                 u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
-                # Use a try and except in case the data for previous intervals is not
-                # published yet.
                 try:
                     dfs.append(
-                        pd.read_csv(
-                            u,
-                            skiprows=[0, 1, 2, 3, 5],
-                            skipfooter=1,
-                            engine="python",
+                        pl.from_pandas(
+                            pd.read_csv(
+                                u,
+                                skiprows=[0, 1, 2, 3, 5],
+                                skipfooter=1,
+                                engine="python",
+                            ),
                         ),
                     )
                 except Exception as e:
@@ -442,41 +415,49 @@ class ISONE(ISOBase):
             data_intervals = None
 
             if dfs:
-                data_intervals = pd.concat(dfs)
-                data_intervals["Local Time"] = pd.to_datetime(
-                    date.strftime("%Y-%m-%d") + " " + data_intervals["Local Time"],
+                data_intervals = pl.concat(dfs, how="diagonal")
+                data_intervals = data_intervals.with_columns(
+                    (
+                        pl.lit(date.strftime("%Y-%m-%d "))
+                        + pl.col("Local Time").cast(pl.Utf8)
+                    )
+                    .str.to_datetime()
+                    .alias("Local Time"),
                 )
 
             if querying_for_today:
                 url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
                 msg = "Loading current interval"
                 log(msg, verbose=verbose)
-                # this request is very very slow for some reason.
-                # I suspect b/c the server is making the response dynamically
-                data_current = _make_request(
-                    url,
-                    skiprows=[0, 1, 2, 4],
-                    verbose=verbose,
+                data_current = pl.from_pandas(
+                    _make_request(
+                        url,
+                        skiprows=[0, 1, 2, 4],
+                        verbose=verbose,
+                    ),
                 )
 
-                data_current["Local Time"] = pd.to_datetime(data_current["Local Time"])
+                data_current = data_current.with_columns(
+                    pl.col("Local Time").str.to_datetime().alias("Local Time"),
+                )
 
-                if data_intervals is not None:
-                    data_current = data_current[
-                        data_current["Local Time"] > data_intervals["Local Time"].max()
-                    ]
-
-                    data = pd.concat([data_intervals, data_current])
+                if data_intervals is not None and data_intervals.height > 0:
+                    max_time = data_intervals.select(
+                        pl.col("Local Time").max(),
+                    ).item()
+                    data_current = data_current.filter(
+                        pl.col("Local Time") > max_time,
+                    )
+                    data = pl.concat([data_intervals, data_current], how="diagonal")
                 else:
-                    # Only keep data from today
-                    data_current = data_current[
-                        data_current["Local Time"].dt.date == now.date()
-                    ]
-                    data = data_current.copy()
+                    data_current = data_current.filter(
+                        pl.col("Local Time").dt.date() == now.date(),
+                    )
+                    data = data_current
             else:
-                data = data_intervals.copy()
+                data = data_intervals
 
-            data = data.rename(columns={"Local Time": "Interval Start"})
+            data = data.rename({"Local Time": "Interval Start"})
 
         elif market == Markets.REAL_TIME_HOURLY:
             if date.date() > now.date():
@@ -485,18 +466,22 @@ class ISONE(ISOBase):
                 )
 
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
-            data = _make_request(
-                url,
-                skiprows=[0, 1, 2, 3, 5],
-                verbose=verbose,
+            data = pl.from_pandas(
+                _make_request(
+                    url,
+                    skiprows=[0, 1, 2, 3, 5],
+                    verbose=verbose,
+                ),
             )
 
         elif market == Markets.DAY_AHEAD_HOURLY:
             url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"  # noqa
-            data = _make_request(
-                url,
-                skiprows=[0, 1, 2, 3, 5],
-                verbose=verbose,
+            data = pl.from_pandas(
+                _make_request(
+                    url,
+                    skiprows=[0, 1, 2, 3, 5],
+                    verbose=verbose,
+                ),
             )
 
         else:
@@ -557,7 +542,7 @@ class ISONE(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time 5-minute LMPs for all locations."""
         return self._get_lmp(
             date,
@@ -572,7 +557,7 @@ class ISONE(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time hourly LMPs for all locations."""
         return self._get_lmp(
             date,
@@ -587,7 +572,7 @@ class ISONE(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead hourly LMPs for all locations."""
         return self._get_lmp(
             date,
@@ -598,11 +583,6 @@ class ISONE(ISOBase):
         )
 
     def _process_lmp(self, data, market, timezone, locations, include_id=False):
-        # each market returns a slight different set of columns
-        # real time 5 minute has "Location ID"
-        # real time hourly has "Location" that represent location name
-        # day ahead hourly has "Location ID" and "Location Name
-
         rename = {
             "Location Name": "Location",
             "Location ID": "Location Id",
@@ -616,55 +596,55 @@ class ISONE(ISOBase):
             "Marginal Loss Component": "Loss",
         }
 
-        data.rename(columns=rename, inplace=True)
+        data = data.rename(
+            {k: v for k, v in rename.items() if k in data.columns},
+        )
+        data = data.with_columns(pl.lit(market.value).alias("Market"))
 
-        data["Market"] = market.value
-        interval = pd.Timedelta(hours=1)
         if market == Markets.REAL_TIME_5_MIN:
-            interval = pd.Timedelta(minutes=5)
+            interval_duration = pl.duration(minutes=5)
+        else:
+            interval_duration = pl.duration(hours=1)
 
         if "Hour Ending" in data.columns:
-            data = self._create_interval_start_from_hour_start(data)
-
-        def handle_date_time(s):
-            return pd.to_datetime(s).dt.tz_localize(
-                timezone,
-                ambiguous="infer",
+            data = utils.create_interval_start_from_hour_start_polars(data)
+        elif not data.schema["Interval Start"].is_temporal():
+            data = data.with_columns(
+                pl.col("Interval Start").str.to_datetime().alias("Interval Start"),
             )
 
-        # Location seems to be more unique than Location ID refer to #171
         location_groupby = "Location" if "Location" in data.columns else "Location Id"
-        # groupby location so that hours are increasing monotonically and can infer dst
-        data["Interval Start"] = data.groupby(location_groupby)[
-            "Interval Start"
-        ].transform(handle_date_time)
+        data = utils.localize_ambiguous_infer_polars(
+            data,
+            "Interval Start",
+            timezone,
+            group_cols=[location_groupby],
+        )
 
-        data["Interval End"] = data["Interval Start"] + interval
-        data["Time"] = data["Interval Start"]
+        data = data.with_columns(
+            (pl.col("Interval Start") + interval_duration).alias("Interval End"),
+            pl.col("Interval Start").alias("Time"),
+        )
 
-        # handle missing location information for some markets
         if market != Markets.DAY_AHEAD_HOURLY:
+            min_interval = data.select(pl.col("Interval Start").min()).item()
             day_ahead = self._get_lmp(
-                # query for same day in case it matters
-                date=data["Interval Start"].min().date(),
+                date=min_interval.date(),
                 market=Markets.DAY_AHEAD_HOURLY,
                 locations=locations,
                 include_id=True,
             )
-            location_mapping = day_ahead.drop_duplicates("Location Id")[
-                ["Location", "Location Id", "Location Type"]
-            ]
+            location_mapping = day_ahead.unique(
+                subset=["Location Id"],
+                keep="first",
+            ).select(["Location", "Location Id", "Location Type"])
 
             if "Location Id" in data.columns:
-                data = data.merge(
-                    location_mapping,
-                    how="left",
-                    on="Location Id",
-                )
+                data = data.join(location_mapping, on="Location Id", how="left")
             elif "Location" in data.columns:
-                data = data.merge(location_mapping, how="left", on="Location")
+                data = data.join(location_mapping, on="Location", how="left")
 
-        data = data[
+        data = data.select(
             [
                 "Time",
                 "Interval Start",
@@ -677,11 +657,11 @@ class ISONE(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
+            ],
+        )
 
         if not include_id:
-            data = data.drop(columns=["Location Id"])
+            data = data.drop("Location Id")
 
         data = utils.filter_lmp_locations(data, locations)
         return data
@@ -751,26 +731,27 @@ class ISONE(ISOBase):
         log(msg, verbose)
 
         raw_data = self.get_raw_interconnection_queue(verbose)
-        queue = pd.read_html(raw_data, attrs={"id": "publicqueue"})[0]
-
-        # only keep generator interconnection requests
-        queue["Type"] = queue["Type"].map(
-            {
-                "G": "Generation",
-                "ETU": "Elective Transmission Upgrade",
-                "TS": "Transmission Service",
-            },
+        queue = pl.from_pandas(
+            pd.read_html(raw_data, attrs={"id": "publicqueue"})[0],
         )
 
-        queue["Status"] = queue["Status"].map(
-            {
-                "W": InterconnectionQueueStatus.WITHDRAWN.value,
-                "A": InterconnectionQueueStatus.ACTIVE.value,
-                "C": InterconnectionQueueStatus.COMPLETED.value,
-            },
+        queue = queue.with_columns(
+            pl.col("Type").replace(
+                {
+                    "G": "Generation",
+                    "ETU": "Elective Transmission Upgrade",
+                    "TS": "Transmission Service",
+                },
+            ),
+            pl.col("Status").replace(
+                {
+                    "W": InterconnectionQueueStatus.WITHDRAWN.value,
+                    "A": InterconnectionQueueStatus.ACTIVE.value,
+                    "C": InterconnectionQueueStatus.COMPLETED.value,
+                },
+            ),
+            pl.col("Sync Date").alias("Proposed Completion Date"),
         )
-
-        queue["Proposed Completion Date"] = queue["Sync Date"]
 
         rename = {
             "QP": "Queue ID",
@@ -830,10 +811,7 @@ class ISONE(ISOBase):
             missing=missing,
         )
 
-        queue = queue.sort_values(
-            "Queue ID",
-            ascending=False,
-        ).reset_index(drop=True)
+        queue = queue.sort("Queue ID", descending=True)
 
         return queue
 
@@ -860,20 +838,6 @@ class ISONE(ISOBase):
             verbose=verbose,
         )
 
-        data = pd.DataFrame(raw_data[0]["data"][series])
-
-        # must convert this way rather than use pd.to_datetime
-        # to handle DST transitions
-        data["BeginDate"] = data["BeginDate"].apply(
-            lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
-        )
-
-        # for times earlier this creation date is after the forecasted interval
-        # for all historical data
-        if "CreationDate" in data.columns:
-            data["CreationDate"] = data["CreationDate"].apply(
-                lambda x: pd.Timestamp(x).tz_convert(ISONE.default_timezone),
-            )
         if series == "actual":
             mw_rename = "Load"
         elif series == "forecast":
@@ -881,35 +845,35 @@ class ISONE(ISOBase):
         else:
             raise ValueError(f"Unrecognized series: {series}")
 
-        data = data.rename(
-            columns={
-                "BeginDate": "Time",
-                "Mw": mw_rename,
-                "CreationDate": "Forecast Time",
-            },
+        records = raw_data[0]["data"][series]
+
+        pl_df = pl.DataFrame(records)
+
+        # ISONE returns offset-aware ISO timestamps (e.g. 2024-01-01T00:00:00.000-05:00).
+        # polars requires an explicit format when the offset is part of the data.
+        iso_offset_format = "%Y-%m-%dT%H:%M:%S%.f%z"
+
+        pl_df = pl_df.with_columns(
+            pl.col("BeginDate")
+            .str.to_datetime(format=iso_offset_format)
+            .dt.convert_time_zone(self.default_timezone),
         )
 
-        return data
-
-    def _create_interval_start_from_hour_start(self, data):
-        # for DST end transitions isone uses 02X to represent repeated 1am hour
-        data["Hour Start"] = (
-            data["Hour Ending"]
-            .replace(
-                "02X",
-                "02",
+        if "CreationDate" in pl_df.columns:
+            pl_df = pl_df.with_columns(
+                pl.col("CreationDate")
+                .str.to_datetime(format=iso_offset_format)
+                .dt.convert_time_zone(self.default_timezone),
             )
-            .astype(int)
-            - 1
-        )
 
-        data["Interval Start"] = pd.to_datetime(data["Date"]) + data[
-            "Hour Start"
-        ].astype(
-            "timedelta64[h]",
-        )
+        rename = {
+            "BeginDate": "Time",
+            "Mw": mw_rename,
+            "CreationDate": "Forecast Time",
+        }
+        rename = {k: v for k, v in rename.items() if k in pl_df.columns}
 
-        return data
+        return pl_df.rename(rename)
 
     def _select_intervals_for_data_request(self, date, end, intervals):
         """Filters intervals given a start and end datetime. All completed intervals
@@ -964,18 +928,17 @@ class ISONE(ISOBase):
             Total Reserve Clearing Price
         """
         if date == "latest":
-            # Try today first then yesterday then two days ago
             df = self.get_reserve_zone_prices_designations_real_time_5_min_final(
                 "today",
                 verbose=verbose,
             )
-            if df.empty:
+            if df.is_empty():
                 df = self.get_reserve_zone_prices_designations_real_time_5_min_final(
                     pd.Timestamp.now(tz=self.default_timezone).normalize()
                     - pd.Timedelta(days=1),
                     verbose=verbose,
                 )
-                if df.empty:
+                if df.is_empty():
                     df = (
                         self.get_reserve_zone_prices_designations_real_time_5_min_final(
                             pd.Timestamp.now(tz=self.default_timezone).normalize()
@@ -997,40 +960,38 @@ class ISONE(ISOBase):
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
-        # Clean up column names - remove leading spaces and quotes
-        df.columns = df.columns.str.strip().str.replace('"', "")
-
-        # Parse the datetime. Since each reserve zone id has a DST switch, we need to
-        # group by it to infer the ambiguous times
-        df["Interval Start"] = df.groupby("Reserve Zone ID", group_keys=False)[
-            "Local Time"
-        ].apply(
-            lambda x: pd.to_datetime(x).dt.tz_localize(
-                self.default_timezone,
-                ambiguous="infer",
-            ),
+        pl_df = pl.from_pandas(df)
+        pl_df = pl_df.rename(
+            {c: c.strip().replace('"', "") for c in pl_df.columns},
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
-        # Rename columns to match our standards
-        df = df.rename(
-            columns={
-                "Reserve Zone ID": "Reserve Zone ID",
-                "Reserve Zone Name": "Reserve Zone Name",
+        pl_df = pl_df.with_columns(
+            pl.col("Local Time").str.to_datetime().alias("_naive_time"),
+        )
+        pl_df = utils.localize_ambiguous_infer_polars(
+            pl_df,
+            "_naive_time",
+            self.default_timezone,
+            group_cols=["Reserve Zone ID"],
+        )
+        pl_df = pl_df.with_columns(
+            pl.col("_naive_time").alias("Interval Start"),
+            (pl.col("_naive_time") + pl.duration(minutes=5)).alias("Interval End"),
+        ).drop("_naive_time")
+
+        pl_df = pl_df.rename(
+            {
                 "Ten-Minute Spinning Requirement": "Ten Min Spin Requirement",
                 "Ten-Minute Requirement": "Ten Min Requirement",
-                "Total Requirement": "Total Requirement",
                 "Ten Minute Spinning Reserve Designated MW": "TMSR Designated MW",
                 "Ten Minute Non Spinning Reserve Designated MW": "TMNSR Designated MW",
                 "Thirty Minute OperatingReserve Designated MW": "TMOR Designated MW",
                 "Ten-Minute Spinning Reserve Clearing Price": "TMSR Clearing Price",
                 "Ten-Minute Reserve Clearing Price": "TMR Clearing Price",
-                "Total Reserve Clearing Price": "Total Reserve Clearing Price",
             },
         )
 
-        # Select and order columns
-        df = df[
+        return pl_df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1045,10 +1006,8 @@ class ISONE(ISOBase):
                 "TMSR Clearing Price",
                 "TMR Clearing Price",
                 "Total Reserve Clearing Price",
-            ]
-        ]
-
-        return df
+            ],
+        )
 
 
 def _make_request(url, skiprows, verbose):

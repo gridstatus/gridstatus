@@ -35,6 +35,8 @@ dependencies = [
     "rpds-py >= 0.30.0; python_version >= '3.14'",
     "h11 >=0.16.0,<1",
     "filelock >=3.20.3,<4",
+    "polars ~=1.38",
+    "pyarrow >=15",
 ]
 
 [dependency-groups]

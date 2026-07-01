@@ -5,6 +5,7 @@ from typing import Callable
 from zipfile import ZipFile
 
 import pandas as pd
+import polars as pl
 import requests
 import tqdm
 
@@ -25,6 +26,26 @@ GREEN_CHECKMARK_HTML_ENTITY: str = "&#x2705;"
 
 RED_X_HTML_ENTITY: str = "&#10060;"
 all_isos: list[ISOBase] = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
+
+
+def is_polars(obj: object) -> bool:
+    """Return whether ``obj`` is a polars DataFrame."""
+    return isinstance(obj, pl.DataFrame)
+
+
+def concat_dataframes(dfs: list) -> object:
+    """Concatenate a list of frames, dispatching on pandas vs polars.
+
+    Used by ``support_date_range`` to combine per-chunk results regardless of
+    whether the decorated method produced pandas or polars frames.
+    """
+    if not dfs:
+        return pd.DataFrame()
+
+    if is_polars(dfs[0]):
+        return pl.concat(dfs, how="diagonal")
+
+    return pd.concat(dfs).reset_index(drop=True)
 
 
 def list_isos() -> pd.DataFrame:
@@ -195,6 +216,17 @@ def filter_lmp_locations(
         df (pandas.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
+    if is_polars(df):
+        if location_type != "ALL" and location_type is not None:
+            if isinstance(location_type, str):
+                location_type = [location_type]
+            df = df.filter(pl.col("Location Type").is_in(location_type))
+
+        if locations != "ALL" and locations is not None:
+            df = df.filter(pl.col("Location").is_in(locations))
+
+        return df
+
     if location_type != "ALL" and location_type is not None:
         if isinstance(location_type, str):
             location_type = [location_type]
@@ -281,6 +313,23 @@ def format_interconnection_df(
     assert set(rename.keys()).issubset(queue.columns), set(
         rename.keys(),
     ) - set(queue.columns)
+
+    if is_polars(queue):
+        queue = queue.rename(rename)
+        columns = _interconnection_columns.copy()
+
+        if extra:
+            for e in extra:
+                assert e in queue.columns, f"Extra column {e} does not exist"
+            columns += extra
+
+        if missing:
+            for m in missing:
+                assert m not in queue.columns, "Missing column already exists"
+                queue = queue.with_columns(pl.lit(None).alias(m))
+
+        return queue.select(columns)
+
     queue = queue.rename(columns=rename)
     columns = _interconnection_columns.copy()
 
@@ -364,7 +413,120 @@ def get_interconnection_queues() -> pd.DataFrame:
 
 def move_cols_to_front(df: pd.DataFrame, cols_to_move: list[str]) -> pd.DataFrame:
     """Move columns to front of DataFrame"""
+    if is_polars(df):
+        rest = [c for c in df.columns if c not in cols_to_move]
+        return df.select(cols_to_move + rest)
+
     cols = list(df.columns)
     for c in cols_to_move:
         cols.remove(c)
     return df[cols_to_move + cols]
+
+
+def localize_ambiguous_infer_polars(
+    df: object,
+    time_col: str,
+    tz: str,
+    group_cols: list[str] | None = None,
+) -> object:
+    """Localize a naive polars datetime column, mimicking pandas ``ambiguous="infer"``.
+
+    pandas infers ambiguous (fall-back DST) timestamps by assuming the values
+    are monotonic increasing within each group: the first occurrence of a
+    repeated wall-clock time is the pre-transition (earliest) offset and later
+    occurrences are post-transition (latest). polars has no "infer" option, so
+    we reproduce it by ranking duplicate naive timestamps within each group and
+    passing per-row "earliest"/"latest" to ``replace_time_zone``. The value is
+    ignored for non-ambiguous rows.
+    """
+    sort_cols = [*group_cols, time_col] if group_cols else [time_col]
+    over_cols = [*group_cols, time_col] if group_cols else [time_col]
+
+    df = df.sort(sort_cols)
+    df = df.with_columns(
+        pl.int_range(pl.len()).over(over_cols).alias("_dup_rank"),
+    )
+    df = df.with_columns(
+        pl.when(pl.col("_dup_rank") > 0)
+        .then(pl.lit("latest"))
+        .otherwise(pl.lit("earliest"))
+        .alias("_ambiguous"),
+    )
+    df = df.with_columns(
+        pl.col(time_col).dt.replace_time_zone(tz, ambiguous=pl.col("_ambiguous")),
+    )
+    return df.drop(["_dup_rank", "_ambiguous"])
+
+
+_ISONE_DATE_FORMAT = "%m/%d/%Y"
+
+
+def create_interval_start_from_hour_start_polars(df: pl.DataFrame) -> pl.DataFrame:
+    """Build naive Interval Start from ISONE Date and Hour Ending columns."""
+    return df.with_columns(
+        pl.col("Hour Ending")
+        .cast(pl.Utf8)
+        .str.replace("02X", "02")
+        .cast(pl.Int64)
+        .sub(1)
+        .alias("Hour Start"),
+    ).with_columns(
+        (
+            pl.col("Date").str.to_datetime(format=_ISONE_DATE_FORMAT, strict=False)
+            + pl.duration(hours=pl.col("Hour Start"))
+        ).alias("Interval Start"),
+    )
+
+
+def localize_interval_start_polars(
+    df: pl.DataFrame,
+    time_col: str,
+    tz: str,
+    group_cols: list[str] | None = None,
+    date_col: str | None = None,
+    hour_start_col: str = "Hour Start",
+) -> pl.DataFrame:
+    """Localize naive interval starts, handling ISONE DST fall-back and spring-forward."""
+    sort_cols = [*group_cols, time_col] if group_cols else [time_col]
+    over_cols = [*group_cols, time_col] if group_cols else [time_col]
+
+    df = df.sort(sort_cols)
+    df = df.with_columns(
+        pl.int_range(pl.len()).over(over_cols).alias("_dup_rank"),
+    )
+    df = df.with_columns(
+        pl.when(pl.col("_dup_rank") > 0)
+        .then(pl.lit("latest"))
+        .otherwise(pl.lit("earliest"))
+        .alias("_ambiguous"),
+    )
+    df = df.with_columns(
+        pl.col(time_col).dt.replace_time_zone(
+            tz,
+            ambiguous=pl.col("_ambiguous"),
+            non_existent="null",
+        ),
+    )
+    df = df.drop(["_dup_rank", "_ambiguous"])
+
+    if date_col is None or df.filter(pl.col(time_col).is_null()).height == 0:
+        return df
+
+    fixed = (
+        df.filter(pl.col(time_col).is_null())
+        .with_columns(
+            (
+                pl.col(date_col).str.to_datetime(
+                    format=_ISONE_DATE_FORMAT,
+                    strict=False,
+                )
+                + pl.duration(hours=pl.col(hour_start_col) - 1)
+            ).alias(time_col),
+        )
+        .with_columns(
+            pl.col(time_col).dt.replace_time_zone(tz),
+        )
+    )
+
+    good = df.filter(pl.col(time_col).is_not_null())
+    return pl.concat([good, fixed], how="diagonal")
