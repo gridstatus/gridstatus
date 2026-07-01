@@ -20,6 +20,10 @@ from gridstatus.eia_constants import (
     CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
     EIA_FUEL_MIX_COLUMNS,
     EIA_FUEL_TYPES,
+    FACILITY_FUEL_COLUMN_RENAMES,
+    FACILITY_FUEL_COLUMNS,
+    FACILITY_FUEL_DATA_FIELDS,
+    FACILITY_FUEL_FLOAT_COLUMNS,
     GENERATOR_FLOAT_COLUMNS,
     GENERATOR_INT_COLUMNS,
     OPERATING_GENERATOR_COLUMNS,
@@ -636,6 +640,115 @@ class EIA:
         )
 
         return data
+
+    def get_facility_fuel(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Monthly electric power operations for individual power plants, by fuel
+        type and prime mover, as reported in the EIA-923 dataset.
+
+        https://www.eia.gov/electricity/data/eia923/
+
+        Args:
+            date (str or pd.Timestamp): Start month to fetch data for. Truncated
+                to the beginning of the month.
+            end (str or pd.Timestamp, optional): End month to fetch data for,
+                inclusive. Truncated to the beginning of the month. Defaults to
+                the start month.
+            verbose (bool, optional): Whether to print progress. Defaults to False.
+
+        Returns:
+            pd.DataFrame: DataFrame with monthly plant-level generation and fuel
+                consumption data.
+        """
+        date = utils._handle_date(date, "UTC")
+        start_str = date.strftime("%Y-%m")
+
+        end_str = start_str
+        if end is not None:
+            end = utils._handle_date(end, "UTC")
+            end_str = end.strftime("%Y-%m")
+
+        url = f"{self.BASE_URL}electricity/facility-fuel/data/"
+
+        page_size = 5000
+
+        params = {
+            "start": start_str,
+            "end": end_str,
+            "frequency": "monthly",
+            "data": FACILITY_FUEL_DATA_FIELDS,
+            "offset": 0,
+            "length": page_size,
+            "sort": [
+                {"column": col, "direction": "asc"}
+                for col in ["period", "plantCode", "fuel2002", "fuelType", "primeMover"]
+            ],
+        }
+
+        headers = {
+            "X-Api-Key": self.api_key,
+            "X-Params": json.dumps(params),
+        }
+
+        if verbose:
+            logger.info(f"Fetching data from {url}")
+            logger.info(f"Params: {params}")
+
+        updated_at = pd.Timestamp.utcnow().floor("s")
+
+        raw_df, total_records = self._fetch_page(url, headers)
+
+        if total_records == 0:
+            raise NoDataFoundException(
+                f"No EIA facility fuel data found between {start_str} and {end_str}",
+            )
+
+        total_pages = (total_records + page_size - 1) // page_size
+
+        if verbose:
+            logger.info(f"Total records: {total_records}")
+            logger.info(f"Total pages: {total_pages}")
+
+        page_dfs = [raw_df]
+
+        for page in range(1, total_pages):
+            params["offset"] = page * page_size
+            headers["X-Params"] = json.dumps(params)
+            page_df, _ = self._fetch_page(url, headers)
+            page_dfs.append(page_df)
+
+        df = pd.concat(page_dfs, ignore_index=True)
+
+        return self._handle_facility_fuel(df, updated_at=updated_at)
+
+    def _handle_facility_fuel(
+        self,
+        df: pd.DataFrame,
+        updated_at: pd.Timestamp,
+    ) -> pd.DataFrame:
+        df.insert(
+            0,
+            "Period",
+            pd.to_datetime(df["period"], format="%Y-%m").dt.date,
+        )
+        df.insert(1, "Updated At", updated_at)
+
+        df = df.rename(columns=FACILITY_FUEL_COLUMN_RENAMES)
+
+        df["Plant Code"] = df["Plant Code"].astype("Int64")
+
+        for col in FACILITY_FUEL_FLOAT_COLUMNS:
+            df[col] = df[col].replace({"NA": None}).astype(float)
+
+        df = df.sort_values(
+            ["Period", "Plant Code", "Fuel Code", "Fuel Type", "Prime Mover"],
+        ).reset_index(drop=True)
+
+        return df[FACILITY_FUEL_COLUMNS]
 
     def get_generators(
         self,

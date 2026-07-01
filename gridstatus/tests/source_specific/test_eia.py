@@ -10,6 +10,8 @@ from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 from gridstatus.eia_constants import (
     CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
     EIA_FUEL_MIX_COLUMNS,
+    FACILITY_FUEL_COLUMNS,
+    FACILITY_FUEL_FLOAT_COLUMNS,
     GENERATOR_FLOAT_COLUMNS,
     GENERATOR_INT_COLUMNS,
     OPERATING_GENERATOR_COLUMNS,
@@ -449,6 +451,60 @@ def _check_generators_data(
     for col in GENERATOR_INT_COLUMNS:
         if col in df.columns:
             assert pd.api.types.is_integer_dtype(df[col])
+
+
+def _check_facility_fuel_data(
+    df: pd.DataFrame,
+    expected_periods: List[datetime.date],
+):
+    assert df.columns.tolist() == FACILITY_FUEL_COLUMNS
+
+    assert df.shape[0] > 0
+    assert sorted(df["Period"].unique()) == expected_periods
+
+    assert df["Updated At"].dtype == "datetime64[us, UTC]"
+    assert df["Updated At"].nunique() == 1
+
+    assert pd.api.types.is_integer_dtype(df["Plant Code"])
+    assert df["Plant Code"].notna().all()
+
+    for col in FACILITY_FUEL_FLOAT_COLUMNS:
+        assert pd.api.types.is_float_dtype(df[col])
+
+    assert (
+        df.duplicated(
+            subset=["Period", "Plant Code", "Fuel Code", "Fuel Type", "Prime Mover"],
+        ).sum()
+        == 0
+    )
+
+
+def test_get_facility_fuel_single_month():
+    date = "2024-01-01"
+
+    with api_vcr.use_cassette("test_get_facility_fuel_single_month_2024-01"):
+        df = EIA().get_facility_fuel(date)
+
+    _check_facility_fuel_data(
+        df,
+        expected_periods=[datetime.date(2024, 1, 1)],
+    )
+
+
+def test_get_facility_fuel_date_range():
+    start = "2023-12-01"
+    end = "2024-01-01"
+
+    with api_vcr.use_cassette("test_get_facility_fuel_date_range_2023-12_2024-01"):
+        df = EIA().get_facility_fuel(start, end=end)
+
+    _check_facility_fuel_data(
+        df,
+        expected_periods=[
+            datetime.date(2023, 12, 1),
+            datetime.date(2024, 1, 1),
+        ],
+    )
 
 
 def test_get_generators_relative_date():
