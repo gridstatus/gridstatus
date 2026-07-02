@@ -4347,34 +4347,58 @@ class Ercot(ISOBase):
 
         return self._handle_planned_outage_capacity_df(df)
 
+    PLANNED_OUTAGE_CAPACITY_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "POL Non IRR Non PUN",
+        "Approved POL Non IRR Non PUN",
+        "Received POL Non IRR Non PUN",
+        "POL IRR",
+        "Approved POL IRR",
+        "Received POL IRR",
+        "POL ESR",
+        "Approved POL ESR",
+        "Received POL ESR",
+    ]
+
+    _PLANNED_OUTAGE_CAPACITY_POC_COLUMN_MAP = {
+        "MaxDailyResourcePOCnonIRRnonPUN": "POL Non IRR Non PUN",
+        "AggApprovedResourcePOCnonIRRnonPUN": "Approved POL Non IRR Non PUN",
+        "AggReceivedResourcePOCnonIRRnonPUN": "Received POL Non IRR Non PUN",
+        "MaxDailyResourcePOCIRR": "POL IRR",
+        "AggApprovedResourcePOCIRR": "Approved POL IRR",
+        "AggReceivedResourcePOCIRR": "Received POL IRR",
+    }
+
+    _PLANNED_OUTAGE_CAPACITY_POL_COLUMN_MAP = {
+        "ResourcePOLnonIRRnonPUN": "POL Non IRR Non PUN",
+        "AggApprovedResourcePOLnonIRRnonPUN": "Approved POL Non IRR Non PUN",
+        "AggReceivedResourcePOLnonIRRnonPUN": "Received POL Non IRR Non PUN",
+        "ResourcePOLIRR": "POL IRR",
+        "AggApprovedResourcePOLIRR": "Approved POL IRR",
+        "AggReceivedResourcePOLIRR": "Received POL IRR",
+        "ResourcePOLESR": "POL ESR",
+        "AggApprovedResourcePOLESR": "Approved POL ESR",
+        "AggReceivedResourcePOLESR": "Received POL ESR",
+    }
+
     def _handle_planned_outage_capacity_df(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        df = df.rename(
-            columns={
-                "MaxDailyResourcePOCnonIRRnonPUN": "Max POC Non IRR Non PUN",
-                "AggApprovedResourcePOCnonIRRnonPUN": "Approved POC Non IRR Non PUN",
-                "AggReceivedResourcePOCnonIRRnonPUN": "Received POC Non IRR Non PUN",
-                "MaxDailyResourcePOCIRR": "Max POC IRR",
-                "AggApprovedResourcePOCIRR": "Approved POC IRR",
-                "AggReceivedResourcePOCIRR": "Received POC IRR",
-            },
-        )
+        if "ResourcePOLnonIRRnonPUN" in df.columns:
+            column_map = self._PLANNED_OUTAGE_CAPACITY_POL_COLUMN_MAP
+        else:
+            column_map = self._PLANNED_OUTAGE_CAPACITY_POC_COLUMN_MAP
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Max POC Non IRR Non PUN",
-                "Approved POC Non IRR Non PUN",
-                "Received POC Non IRR Non PUN",
-                "Max POC IRR",
-                "Approved POC IRR",
-                "Received POC IRR",
-            ]
-        ]
+        df = df.rename(columns=column_map)
+
+        for column in self.PLANNED_OUTAGE_CAPACITY_COLUMNS:
+            if column not in df.columns:
+                df[column] = pd.NA
+
+        return df[self.PLANNED_OUTAGE_CAPACITY_COLUMNS]
 
     @support_date_range(frequency=None)
     def get_unplanned_resource_outages(

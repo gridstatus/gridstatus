@@ -3184,9 +3184,7 @@ class TestPJM(BaseTestISO):
             self.SAMPLE_XML,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            df = self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-            )
+            df = self.iso.get_emergency_postings(date="latest")
 
         assert df.columns.tolist() == self.expected_emergency_postings_cols
         assert len(df) == 1
@@ -3223,9 +3221,7 @@ class TestPJM(BaseTestISO):
             xml,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            df = self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-            )
+            df = self.iso.get_emergency_postings(date="latest")
 
         assert len(df) == 2
         assert set(df["Region"]) == {"SOUTHERN", "MIDATL"}
@@ -3237,7 +3233,7 @@ class TestPJM(BaseTestISO):
             self.SAMPLE_XML,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            self.iso.get_emergency_postings(url="https://example.test/dashboard.jsf")
+            self.iso.get_emergency_postings(date="latest")
 
         post_call = mock_session.post.call_args
         assert post_call.kwargs["data"]["javax.faces.ViewState"] == "123:456"
@@ -3245,6 +3241,51 @@ class TestPJM(BaseTestISO):
             post_call.kwargs["data"]["frmButtons:lnkDownload"]
             == "frmButtons:lnkDownload"
         )
+
+    def test_get_emergency_postings_rest_date_range(self):
+        mock_response = mock.Mock()
+        mock_response.content = self.SAMPLE_XML
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/xml"}
+        mock_response.raise_for_status = mock.Mock()
+
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_response,
+        ) as mock_get:
+            df = self.iso.get_emergency_postings(
+                date="2016-01-01",
+                end="2016-12-31",
+            )
+
+        mock_get.assert_called_once()
+        assert mock_get.call_args.kwargs["params"] == {
+            "start": "01-01-2016",
+            "stop": "12-31-2016",
+        }
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 1
+
+    def test_get_emergency_postings_rest_empty(self):
+        empty_xml = (
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            b"<ns2:EmergencyProcedures "
+            b'xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1"/>'
+        )
+        mock_response = mock.Mock()
+        mock_response.content = empty_xml
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/xml"}
+        mock_response.raise_for_status = mock.Mock()
+
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_response,
+        ):
+            df = self.iso.get_emergency_postings(date="2026-01-01")
+
+        assert df.empty
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
 
     """get_voltage_limits"""
 

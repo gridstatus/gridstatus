@@ -24,6 +24,7 @@ from gridstatus.lmp_config import lmp_config
 from gridstatus.pjm_constants import (
     DEFAULT_RETRIES,
     EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
+    EMERGENCY_POSTINGS_PUBLIC_REST_URL,
     HUB_NODE_IDS,
     LOCATION_TYPES,
     PRICE_NODE_IDS,
@@ -3777,22 +3778,47 @@ class PJM(ISOBase):
             .reset_index(drop=True)
         )
 
-    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
+    @support_date_range(frequency=None)
+    def get_emergency_postings(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         """
-        Retrieves PJM emergency procedure postings by triggering the public
-        "Export To XML" button on the guest dashboard.
+        Retrieves PJM emergency procedure postings.
 
-        Two-step flow (no credentials required):
-          1. GET the guest dashboard to obtain a session cookie and JSF ViewState.
-          2. POST ``frmButtons:lnkDownload`` to download the XML export.
+        When ``date`` is ``"latest"``, triggers the public "Export To XML" button
+        on the guest dashboard (current ~3-day window). Otherwise, uses the
+        public REST endpoint documented in the PJM CLI user guide.
 
         The XML contains Publish Time, Canceled Time, proper UTC start/end
         timestamps, and individual Region elements (one DataFrame row per
         message-region pair).
         """
-        fetch_url = url or EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL
-        xml_bytes = self._fetch_emergency_xml(fetch_url)
-        return self._parse_emergency_xml(xml_bytes)
+        if date == "latest":
+            xml_bytes = self._fetch_emergency_xml(
+                EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL,
+            )
+            return self._parse_emergency_xml(xml_bytes)
+
+        if end is None:
+            end = date
+
+        logger.info(
+            f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL}...",
+        )
+        response = requests.get(
+            EMERGENCY_POSTINGS_PUBLIC_REST_URL,
+            params={
+                "start": date.strftime("%m-%d-%Y"),
+                "stop": end.strftime("%m-%d-%Y"),
+            },
+            headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return self._parse_emergency_xml(response.content)
 
     def _fetch_emergency_xml(self, url: str) -> bytes:
         session = requests.Session()
@@ -3866,7 +3892,21 @@ class PJM(ISOBase):
                 )
 
         if not rows:
-            raise NoDataFoundException("No emergency procedure messages found in XML")
+            return pd.DataFrame(
+                columns=[
+                    "Message ID",
+                    "Applicable Start",
+                    "Applicable End",
+                    "Publish Time",
+                    "Message Type",
+                    "Priority",
+                    "Region",
+                    "Effective Start",
+                    "Effective End",
+                    "Canceled Time",
+                    "Emergency Message",
+                ],
+            )
 
         df = pd.DataFrame(rows)
         for col in (
