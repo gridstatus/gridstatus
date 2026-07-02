@@ -462,8 +462,13 @@ def _check_facility_fuel_data(
     assert df.shape[0] > 0
     assert sorted(df["Period"].unique()) == expected_periods
 
-    assert df["Updated At"].dtype == "datetime64[us, UTC]"
-    assert df["Updated At"].nunique() == 1
+    assert isinstance(df["Updated At"].dtype, pd.DatetimeTZDtype)
+    assert df["Updated At"].notna().all()
+
+    period_years = pd.to_datetime(df["Period"]).dt.year
+    for year, group in df.groupby(period_years):
+        assert group["Updated At"].nunique() == 1
+        assert (group["Updated At"].dt.year >= year).all()
 
     assert pd.api.types.is_integer_dtype(df["Plant Code"])
     assert df["Plant Code"].notna().all()

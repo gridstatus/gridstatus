@@ -38,6 +38,13 @@ HENRY_HUB_NATURAL_GAS_SPOT_PRICES_PATH = "natural-gas/pri/fut"
 # Physical location of Henry Hub is Louisiana
 HENRY_HUB_TIMEZONE = "US/Central"
 
+FACILITY_FUEL_ZIP_URLS = [
+    "https://www.eia.gov/electricity/data/eia923/xls/f923_{year}.zip",
+    "https://www.eia.gov/electricity/data/eia923/xls/f923_{year}er.zip",
+    "https://www.eia.gov/electricity/data/eia923/archive/xls/f923_{year}.zip",
+    "https://www.eia.gov/electricity/data/eia923/archive/xls/f906920_{year}.zip",
+]
+
 
 class EIA:
     BASE_URL = "https://api.eia.gov/v2/"
@@ -652,6 +659,10 @@ class EIA:
 
         https://www.eia.gov/electricity/data/eia923/
 
+        The Updated At column is the Last-Modified time of the per-year EIA-923
+        zip file that contains each row's period, falling back to the fetch time
+        if the file cannot be found.
+
         Args:
             date (str or pd.Timestamp): Start month to fetch data for. Truncated
                 to the beginning of the month.
@@ -698,7 +709,10 @@ class EIA:
             logger.info(f"Fetching data from {url}")
             logger.info(f"Params: {params}")
 
-        updated_at = pd.Timestamp.utcnow().floor("s")
+        updated_at_by_year = {
+            year: self._get_facility_fuel_updated_at(year, verbose=verbose)
+            for year in range(date.year, (end or date).year + 1)
+        }
 
         raw_df, total_records = self._fetch_page(url, headers)
 
@@ -723,19 +737,50 @@ class EIA:
 
         df = pd.concat(page_dfs, ignore_index=True)
 
-        return self._handle_facility_fuel(df, updated_at=updated_at)
+        return self._handle_facility_fuel(df, updated_at_by_year=updated_at_by_year)
+
+    def _get_facility_fuel_updated_at(
+        self,
+        year: int,
+        verbose: bool = False,
+    ) -> pd.Timestamp:
+        """Get the publication time of a year of EIA-923 data from the
+        Last-Modified header of the per-year zip file on the EIA-923 page.
+
+        The zip file URL moves as the release cycle progresses (current year,
+        early release, archive, and the pre-2008 form 906/920 naming), so try
+        each known location. URLs that don't exist redirect to a landing page
+        instead of returning a 404.
+        """
+        for url_template in FACILITY_FUEL_ZIP_URLS:
+            zip_url = url_template.format(year=year)
+            response = self.session.head(zip_url, allow_redirects=False)
+
+            if response.status_code == 200 and "Last-Modified" in response.headers:
+                if verbose:
+                    logger.info(f"Using Last-Modified of {zip_url} as Updated At")
+                return pd.to_datetime(response.headers["Last-Modified"], utc=True)
+
+        logger.warning(
+            f"Could not find an EIA-923 zip file for {year}. "
+            "Using the fetch time as Updated At.",
+        )
+
+        return pd.Timestamp.utcnow().floor("s")
 
     def _handle_facility_fuel(
         self,
         df: pd.DataFrame,
-        updated_at: pd.Timestamp,
+        updated_at_by_year: dict[int, pd.Timestamp],
     ) -> pd.DataFrame:
+        periods = pd.to_datetime(df["period"], format="%Y-%m")
+
+        df.insert(0, "Period", periods.dt.date)
         df.insert(
-            0,
-            "Period",
-            pd.to_datetime(df["period"], format="%Y-%m").dt.date,
+            1,
+            "Updated At",
+            pd.to_datetime(periods.dt.year.map(updated_at_by_year), utc=True),
         )
-        df.insert(1, "Updated At", updated_at)
 
         df = df.rename(columns=FACILITY_FUEL_COLUMN_RENAMES)
 
