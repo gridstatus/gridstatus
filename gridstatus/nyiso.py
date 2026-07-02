@@ -1,7 +1,7 @@
 import warnings
 from enum import StrEnum
 from io import BytesIO
-from typing import BinaryIO, Dict, Literal, NamedTuple
+from typing import BinaryIO, Dict, Literal, NamedTuple, cast
 
 import pandas as pd
 import requests
@@ -48,6 +48,74 @@ AS_PRICES_DAY_AHEAD_HOURLY_DATASET = "damasp"
 AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
 LIMITING_CONSTRAINTS_REAL_TIME_DATASET = "LimitingConstraints"
 LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET = "DAMLimitingConstraints"
+
+
+# NYISO's three Installed Capacity (ICAP) auction types. NYISO capacity is bought
+# and sold on an Unforced Capacity (UCAP) basis, so the clearing prices published
+# in the monthly ICAP Market Report are UCAP-denominated ($/kW-month).
+class CapacityAuctionType(StrEnum):
+    STRIP = "strip"  # 6-month Capability Period strip auction
+    MONTHLY = "monthly"  # voluntary forward monthly auction
+    SPOT = "spot"  # mandatory monthly spot auction (settlement price)
+
+
+# The monthly ICAP Market Report lives under a per-year document-folder id in
+# NYISO's document store (https://www.nyiso.com/documents/20142/<folder-id>/...).
+# The folder id changes every year; new years must be added here as they publish.
+CAPACITY_REPORT_YEAR_CODES: Dict[int, int] = {
+    2014: 1410927,
+    2015: 1410895,
+    2016: 1410901,
+    2017: 1410883,
+    2018: 1410889,
+    2019: 4266869,
+    2020: 10106066,
+    2021: 18170164,
+    2022: 27447313,
+    2023: 35397361,
+    2024: 42146126,
+    2025: 48997190,
+    2026: 56195933,
+}
+
+# NYISO capacity prices are published by *capacity locality* (a small set of
+# nested zones), not as 11 independent load-zone prices. The data sheets label
+# each locality with a short code; map them to descriptive, stable names for the
+# tidy output. The G-J Locality (Lower Hudson Valley) was added May 1, 2014;
+# earlier reports contain only NYCA, NYC and Long Island. Locality parsing is
+# driven by these labels (not by column position), so a report with a different
+# set of localities is handled correctly rather than mislabeled.
+CAPACITY_LOCALITY_MAP: Dict[str, str] = {
+    "NYCA": "NYCA",
+    "GHIJ": "G-J Locality",
+    "NYC": "NYC (Zone J)",
+    "LI": "Long Island (Zone K)",
+}
+
+# The report cover sheet ("ICAP Market Report") spells the localities out in full.
+# Normalized (stripped/lower-cased) label -> standardized locality name, used to
+# map each cover-sheet column to a locality by its header text rather than by a
+# fixed left-to-right order.
+COVER_LOCALITY_LABELS: Dict[str, str] = {
+    "new york control area": "NYCA",
+    "nyca": "NYCA",
+    "g-j locality": "G-J Locality",
+    "ghij": "G-J Locality",
+    "new york city": "NYC (Zone J)",
+    "long island": "Long Island (Zone K)",
+}
+
+# Sheet that carries the auction clearing prices. Report vintages before ~2019
+# use a different, single-sheet ("ICAP Market Report") layout without this sheet;
+# those are not supported by the tidy parser (a clear error is raised instead).
+CAPACITY_MCP_SHEET = "MCP Table"
+
+# auction_type argument -> column label used in the "MCP Table" sheet
+CAPACITY_AUCTION_COLUMN = {
+    "strip": "Strip",
+    "monthly": "Monthly",
+    "spot": "Spot",
+}
 
 """
 Pricing data:
@@ -1513,12 +1581,135 @@ class NYISO(ISOBase):
 
         return pd.Timestamp(last_updated_date, tz=self.default_timezone)
 
+    def _capacity_report_candidate_urls(self, date: pd.Timestamp) -> list[str]:
+        """Build the ordered list of candidate URLs for a month's ICAP Market Report.
+
+        NYISO publishes the monthly ICAP Market Report under a per-year document
+        folder, but the exact filename varies by vintage: revised reports get a
+        ``-Version-N`` suffix, some months (e.g. December 2023) use URL-encoded
+        spaces instead of hyphens, and older reports are legacy ``.xls`` files.
+        Candidates are returned most-specific-first so the newest revision wins.
+        """
+        year_code = CAPACITY_REPORT_YEAR_CODES.get(date.year)
+        if year_code is None:
+            raise ValueError(
+                f"Year {date.year} is not currently supported for capacity "
+                "reports. The NYISO document-folder id for this year is unknown; "
+                "please file an issue.",
+            )
+
+        base = f"https://www.nyiso.com/documents/20142/{year_code}"
+        month = date.month_name()
+        year = date.year
+
+        candidates = []
+        # Revised reports get a "-Version-N" suffix; a higher N supersedes lower
+        # ones. Try a wide descending range so any revision level is found before
+        # falling back to the original, unversioned filename.
+        for version in range(10, 1, -1):
+            candidates.append(
+                f"{base}/ICAP-Market-Report-{month}-{year}-Version-{version}.xlsx",
+            )
+        # Standard hyphenated filename.
+        candidates.append(f"{base}/ICAP-Market-Report-{month}-{year}.xlsx")
+        # URL-encoded "space dash space" style (e.g. December 2023).
+        candidates.append(
+            f"{base}/ICAP%20Market%20Report%20-%20{month}%20{year}.xlsx",  # noqa: E501
+        )
+        # Legacy .xls variants (older report vintages).
+        candidates.append(f"{base}/ICAP-Market-Report-{month}-{year}.xls")
+        candidates.append(
+            f"{base}/ICAP%20Market%20Report%20-%20{month}%20{year}.xls",  # noqa: E501
+        )
+        return candidates
+
+    @staticmethod
+    def _is_workbook_response(response: requests.Response) -> bool:
+        """Whether an HTTP response points to a real Excel workbook.
+
+        NYISO's document store returns a ``200`` HTML error page for some misses,
+        so a status check alone is not enough. This works for both HEAD (which has
+        no body) and GET responses by checking the ``Content-Type`` header, and
+        additionally the file's magic bytes when a body is present.
+        """
+        if response.status_code != 200:
+            return False
+        content_type = response.headers.get("Content-Type", "").lower()
+        if "html" in content_type:
+            return False
+        content = response.content
+        if content:
+            # .xlsx files are zip archives (PK); legacy .xls are OLE2 (\xd0\xcf).
+            return content[:2] in (b"PK", b"\xd0\xcf")
+        # HEAD response (no body): trust the non-HTML content type.
+        return True
+
+    def _resolve_capacity_report_url(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> str:
+        """Return the first candidate URL that resolves to a real workbook.
+
+        Candidates are probed with cheap ``HEAD`` requests (no body download) so
+        the wide version scan stays polite to NYISO's servers; only the resolved
+        URL is fetched in full by :meth:`_download_capacity_report`.
+        """
+        last_error: Exception | None = None
+        candidates = self._capacity_report_candidate_urls(date)
+        for url in candidates:
+            if verbose:
+                logger.info(f"Checking {url}")
+            try:
+                response = requests.head(url, timeout=60, allow_redirects=True)
+            except requests.RequestException as e:  # pragma: no cover - network
+                last_error = e
+                continue
+            if self._is_workbook_response(response):
+                return url
+
+        raise FileNotFoundError(
+            f"Could not resolve an ICAP Market Report for {date.strftime('%B %Y')}. "
+            f"Tried {len(candidates)} candidate filenames."
+            + (f" (last error: {last_error})" if last_error else ""),
+        )
+
+    def _download_capacity_report(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> tuple[pd.ExcelFile, str, pd.Timestamp | None]:
+        """Resolve and download the ICAP Market Report workbook for ``date``.
+
+        Returns a tuple of ``(ExcelFile, resolved_url, publish_time)`` where
+        ``publish_time`` is parsed from the ``Last-Modified`` header if available.
+        """
+        url = self._resolve_capacity_report_url(date, verbose=verbose)
+        if verbose:
+            logger.info(f"Requesting {url}")
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+
+        publish_time = None
+        last_modified = response.headers.get("Last-Modified")
+        if last_modified:
+            publish_time = pd.to_datetime(last_modified, utc=True).tz_convert(
+                self.default_timezone,
+            )
+
+        return pd.ExcelFile(BytesIO(response.content)), url, publish_time
+
     def get_capacity_prices(
         self,
         date: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Pull the most recent capacity market report's market clearing prices
+
+        This returns the raw, wide "MCP Table" sheet of the monthly ICAP Market
+        Report (auction type x locality clearing prices, indexed by month). For a
+        tidy, long-format view with ICAP/UCAP prices, cleared quantities and
+        requirements, see :meth:`get_capacity_market_results`.
 
         Arguments:
             date (pandas.Timestamp): date that will be used to pull latest capacity
@@ -1533,55 +1724,333 @@ class NYISO(ISOBase):
         else:
             date = utils._handle_date(date, tz=self.default_timezone)
 
-        if date.year == 2014:
-            year_code = 1410927
-        elif date.year == 2015:
-            year_code = 1410895
-        elif date.year == 2016:
-            year_code = 1410901
-        if date.year == 2017:
-            year_code = 1410883
-        if date.year == 2018:
-            year_code = 1410889
-        if date.year == 2019:
-            year_code = 4266869
-        elif date.year == 2020:
-            year_code = 10106066
-        elif date.year == 2021:
-            year_code = 18170164
-        elif date.year == 2022:
-            year_code = 27447313
-        elif date.year == 2023:
-            year_code = 35397361
-        elif date.year == 2024:
-            year_code = 42146126
-        elif date.year == 2025:
-            year_code = 48997190
-        elif date.year == 2026:
-            year_code = 56195933
-        else:
-            raise ValueError(
-                "Year not currently supported. Please file an issue.",
-            )
-
-            # todo: it looks like the "27447313" component of the base URL changes
-            # every year but I'm not sure what the link between that and the year
-            # is...
-        capacity_market_base_url = f"https://www.nyiso.com/documents/20142/{year_code}"
-
-        url = f"{capacity_market_base_url}/ICAP-Market-Report-{date.month_name()}-{date.year}.xlsx"
-
-        # Special case
-        if date.month_name() == "December" and date.year == 2023:
-            url = f"{capacity_market_base_url}/ICAP%20Market%20Report%20-%20{date.month_name()}%20{date.year}.xlsx"
-
+        excel_file, url, _ = self._download_capacity_report(date, verbose=verbose)
         logger.info(f"Requesting {url}")
 
-        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
+        # Report vintages before ~2019 use a single-sheet layout with no
+        # "MCP Table". Raise a clear error instead of a cryptic openpyxl failure.
+        if CAPACITY_MCP_SHEET not in excel_file.sheet_names:
+            raise ValueError(
+                f"The ICAP Market Report for {date.strftime('%B %Y')} does not "
+                f"contain a {CAPACITY_MCP_SHEET!r} sheet. get_capacity_prices "
+                "requires the modern MCP Table layout (reports from ~2019 onward).",
+            )
+
+        df = excel_file.parse(sheet_name=CAPACITY_MCP_SHEET, header=[0, 1])
 
         df.rename(columns={"Unnamed: 0_level_0": "", "Date": ""}, inplace=True)
         df.set_index("", inplace=True)
         return df.dropna(how="any", axis="columns")
+
+    @support_date_range(frequency="MONTH_START")
+    def get_capacity_market_results(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        auction_type: Literal["spot", "monthly", "strip"] = "spot",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Capacity auction clearing prices and cleared quantities by locality.
+
+        Parses the monthly NYISO ICAP Market Report workbook and returns a tidy,
+        one-row-per-(delivery month, capacity locality) DataFrame for the requested
+        auction type. Supports ``"latest"``, ``"today"``, a single month, or a
+        ``date``/``end`` range (one report is fetched per delivery month).
+
+        Prices are reported by **capacity locality** -- a small set of nested zones
+        (NYCA statewide, plus the G-J, NYC/Zone J and Long Island/Zone K
+        localities) -- **not** as 11 independent load-zone prices.
+
+        NYISO runs three Installed Capacity auctions and clears them on an Unforced
+        Capacity (UCAP) basis, so the published clearing price is the UCAP price in
+        ``$/kW-month`` (returned as ``UCAP Clearing Price``). The ICAP-equivalent
+        clearing price is *derived* from the locational EFORd translation factor
+        published in the same report: ``ICAP = UCAP * (1 - EFORd)``; it is ``NaN``
+        when EFORd is unavailable.
+
+        Scope: this covers only the stable, public monthly ICAP Market Report
+        auction results -- a first, scoped step toward the broader capacity-market
+        request in issue #687. It does **not** include ICAP demand curves, masked
+        bid/offer data, LSE-specific capacity obligations, settlement charges,
+        non-delivery penalties, or scarcity-related settlement data; those require
+        separate data sources and are left to follow-up work.
+
+        Arguments:
+            date: The delivery month to fetch (``"latest"``, ``"today"``, a
+                timestamp, or the start of a range).
+            end: Optional end of a delivery-month range (exclusive).
+            auction_type: One of ``"spot"`` (default), ``"monthly"`` or
+                ``"strip"``. See :class:`CapacityAuctionType`.
+            verbose: If True, log the resolved report URL(s).
+
+        Returns:
+            A DataFrame with columns:
+
+            - ``Interval Start`` / ``Interval End``: the delivery month
+              (tz-aware, ``US/Eastern``).
+            - ``Publish Time``: report publication time (from ``Last-Modified``),
+              or ``NaT`` if unavailable.
+            - ``Auction Type``: ``"Spot"`` / ``"Monthly"`` / ``"Strip"``.
+            - ``Capability Period``: ``"Summer"`` (May-Oct) or ``"Winter"``
+              (Nov-Apr).
+            - ``Location``: ``NYCA``, ``G-J Locality``, ``NYC (Zone J)`` or
+              ``Long Island (Zone K)``.
+            - ``ICAP Clearing Price`` / ``UCAP Clearing Price``: ``$/kW-month``.
+            - ``Locational EFORd``: the UCAP/ICAP translation factor.
+            - ``MW Cleared`` / ``Requirement (MW)``: the delivery-month cleared
+              position and requirement (UCAP MW) from the report Summary Table.
+              These describe the month overall, not a single auction; ``NaN`` if
+              absent from the report vintage.
+
+        Source: monthly ICAP Market Report,
+        https://www.nyiso.com/installed-capacity-market
+        """
+        auction_type = str(auction_type).lower()  # type: ignore[assignment]
+        if auction_type not in CAPACITY_AUCTION_COLUMN:
+            raise ValueError(
+                f"Invalid auction_type {auction_type!r}. Must be one of "
+                f"{list(CAPACITY_AUCTION_COLUMN)}.",
+            )
+
+        if isinstance(date, str) and date == "latest":
+            date = pd.Timestamp.now(tz=self.default_timezone)
+        # support_date_range has already resolved date to a Timestamp for every
+        # other input (single date or the start of a range chunk).
+        date = cast(pd.Timestamp, date)
+
+        month_start = pd.Timestamp(
+            year=date.year,
+            month=date.month,
+            day=1,
+            tz=self.default_timezone,
+        )
+
+        excel_file, url, publish_time = self._download_capacity_report(
+            month_start,
+            verbose=verbose,
+        )
+        if verbose:
+            logger.info(f"Parsing capacity market results from {url}")
+
+        # Report vintages before ~2019 use a single-sheet layout without the
+        # machine-readable auction tables. Fail clearly rather than emit nothing
+        # (or, worse, mislabeled rows) for those.
+        if CAPACITY_MCP_SHEET not in excel_file.sheet_names:
+            raise ValueError(
+                f"The ICAP Market Report for {month_start.strftime('%B %Y')} does "
+                f"not contain a {CAPACITY_MCP_SHEET!r} sheet. Machine-readable "
+                "auction results are only available for reports from ~2019 "
+                "onward (fully tested for 2022+).",
+            )
+
+        prices = self._parse_capacity_mcp_table(
+            excel_file,
+            month_start,
+            auction_type,
+        )
+        eford = self._parse_capacity_eford(excel_file, month_start)
+        quantities = self._parse_capacity_summary_table(excel_file, month_start)
+
+        period = "Summer" if 5 <= month_start.month <= 10 else "Winter"
+        interval_end = month_start + pd.DateOffset(months=1)
+
+        records = []
+        for location, ucap_price in prices.items():
+            eford_factor = eford.get(location)
+            icap_price = (
+                ucap_price * (1 - eford_factor)
+                if eford_factor is not None and pd.notna(ucap_price)
+                else pd.NA
+            )
+            mw_cleared, requirement = quantities.get(location, (pd.NA, pd.NA))
+            records.append(
+                {
+                    "Interval Start": month_start,
+                    "Interval End": interval_end,
+                    "Publish Time": publish_time,
+                    "Auction Type": CAPACITY_AUCTION_COLUMN[auction_type],
+                    "Capability Period": period,
+                    "Location": location,
+                    "ICAP Clearing Price": icap_price,
+                    "UCAP Clearing Price": ucap_price,
+                    "Locational EFORd": eford_factor,
+                    "MW Cleared": mw_cleared,
+                    "Requirement (MW)": requirement,
+                },
+            )
+
+        df = pd.DataFrame.from_records(records)
+        if df.empty:
+            return df
+
+        for col in [
+            "ICAP Clearing Price",
+            "UCAP Clearing Price",
+            "Locational EFORd",
+            "MW Cleared",
+            "Requirement (MW)",
+        ]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df["Publish Time"] = pd.to_datetime(df["Publish Time"])
+
+        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+
+    def _capacity_locality_columns(
+        self,
+        raw: pd.DataFrame,
+    ) -> dict[int, str]:
+        """Map each data column index to a standardized locality name.
+
+        The workbook data sheets put the locality short code (``NYCA``, ``GHIJ``,
+        ``NYC``, ``LI``) in the first (merged) header row, which we forward-fill
+        across the columns that belong to each locality.
+        """
+        locality_row = raw.iloc[0].ffill()
+        mapping = {}
+        for col, label in locality_row.items():
+            name = CAPACITY_LOCALITY_MAP.get(str(label).strip())
+            if name is not None:
+                mapping[col] = name
+        return mapping
+
+    @staticmethod
+    def _capacity_month_mask(series: pd.Series, month_start: pd.Timestamp) -> pd.Series:
+        """Boolean mask selecting rows whose date is in ``month_start``'s month."""
+        parsed = pd.to_datetime(series, errors="coerce")
+        return (parsed.dt.year == month_start.year) & (
+            parsed.dt.month == month_start.month
+        )
+
+    def _parse_capacity_mcp_table(
+        self,
+        excel_file: pd.ExcelFile,
+        month_start: pd.Timestamp,
+        auction_type: str,
+    ) -> dict[str, float]:
+        """Extract {locality: UCAP clearing price} for one month and auction."""
+        raw = excel_file.parse("MCP Table", header=None)
+        locality_cols = self._capacity_locality_columns(raw)
+        field_row = raw.iloc[1].astype(str).str.strip()
+        auction_label = CAPACITY_AUCTION_COLUMN[auction_type]
+
+        data = raw.iloc[2:]
+        mask = self._capacity_month_mask(data.iloc[:, 0], month_start)
+        if not mask.any():
+            return {}
+        row = data[mask].iloc[0]
+
+        prices = {}
+        for col, location in locality_cols.items():
+            if field_row.get(col) == auction_label:
+                prices[location] = row[col]
+        return prices
+
+    def _parse_capacity_summary_table(
+        self,
+        excel_file: pd.ExcelFile,
+        month_start: pd.Timestamp,
+    ) -> dict[str, tuple[float, float]]:
+        """Extract {locality: (MW Cleared, Requirement)} for one delivery month."""
+        if "Summary Table" not in excel_file.sheet_names:
+            return {}
+        raw = excel_file.parse("Summary Table", header=None)
+        locality_cols = self._capacity_locality_columns(raw)
+        field_row = raw.iloc[1].astype(str).str.strip()
+
+        data = raw.iloc[2:]
+        mask = self._capacity_month_mask(data.iloc[:, 0], month_start)
+        if not mask.any():
+            return {}
+        row = data[mask].iloc[0]
+
+        quantities: dict[str, list[float]] = {
+            loc: [pd.NA, pd.NA] for loc in locality_cols.values()
+        }
+        for col, location in locality_cols.items():
+            field = field_row.get(col)
+            if field == "MW Cleared":
+                quantities[location][0] = row[col]
+            elif field == "Requirements":
+                quantities[location][1] = row[col]
+        return {loc: (vals[0], vals[1]) for loc, vals in quantities.items()}
+
+    def _parse_capacity_eford(
+        self,
+        excel_file: pd.ExcelFile,
+        month_start: pd.Timestamp,
+    ) -> dict[str, float]:
+        """Extract {locality: Locational EFORd} from the report cover sheet.
+
+        The cover sheet ("ICAP Market Report") has three columns per locality
+        (current month, prior month, delta). Rather than assume a fixed
+        left-to-right locality order -- which would mislabel reports that contain a
+        different set of localities (e.g. pre-May-2014 reports, which predate the
+        G-J Locality and carry only NYCA, NYC and Long Island) -- each
+        current-month column is mapped to a locality by the spelled-out header
+        text in its own column group. Returns an empty dict if the layout can't be
+        found; localities whose label is missing are simply omitted (never guessed).
+        """
+        if "ICAP Market Report" not in excel_file.sheet_names:
+            return {}
+        cover = excel_file.parse("ICAP Market Report", header=None)
+
+        # Row holding the "Locational EFORd" values.
+        eford_row_idx = None
+        for i in range(len(cover)):
+            label = str(cover.iloc[i, 1]).strip().lower()
+            if label.startswith("locational eford"):
+                eford_row_idx = i
+                break
+        if eford_row_idx is None:
+            return {}
+
+        # Column -> standardized locality name, from the spelled-out cover labels.
+        label_columns: dict[int, str] = {}
+        for i in range(len(cover)):
+            for col in cover.columns:
+                key = str(cover.iloc[i, col]).strip().lower()
+                if key in COVER_LOCALITY_LABELS:
+                    label_columns.setdefault(col, COVER_LOCALITY_LABELS[key])
+
+        # Current-month value columns: those whose date header is the delivery
+        # month (each locality group also has a prior-month and delta column).
+        current_cols: list[int] = []
+        for i in range(len(cover)):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                parsed = pd.to_datetime(cover.iloc[i], errors="coerce")
+            cols = [
+                c
+                for c in cover.columns
+                if pd.notna(parsed[c])
+                and parsed[c].year == month_start.year
+                and parsed[c].month == month_start.month
+            ]
+            if cols:
+                current_cols = sorted(cols)
+                break
+        if not current_cols:
+            return {}
+
+        eford = {}
+        for col in current_cols:
+            # The locality label sits within this column's 3-wide group
+            # (current, prior, delta), i.e. at col, col+1 or col+2.
+            location = next(
+                (
+                    label_columns[c]
+                    for c in (col, col + 1, col + 2)
+                    if c in label_columns
+                ),
+                None,
+            )
+            if location is None:
+                continue
+            value = cover.iloc[eford_row_idx, col]
+            if pd.notna(value):
+                eford[location] = float(value)
+        return eford
 
     @support_date_range(frequency="DAY_START")
     def get_as_prices_day_ahead_hourly(

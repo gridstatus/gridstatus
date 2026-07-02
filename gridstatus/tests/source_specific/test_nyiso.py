@@ -15,6 +15,20 @@ nyiso_vcr = setup_vcr(
 )
 
 
+class _FakeExcelFile:
+    """Minimal stand-in for pd.ExcelFile for offline capacity-parsing tests."""
+
+    def __init__(self, sheets: dict[str, pd.DataFrame]):
+        self._sheets = sheets
+
+    @property
+    def sheet_names(self) -> list[str]:
+        return list(self._sheets)
+
+    def parse(self, sheet_name: str, header=None) -> pd.DataFrame:
+        return self._sheets[sheet_name]
+
+
 class TestNYISO(BaseTestISO):
     iso = NYISO()
 
@@ -38,6 +52,198 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_capacity_prices(date=date, verbose=True)
             assert not df.empty, "DataFrame came back empty"
             # TODO: missing report: https://github.com/gridstatus/gridstatus/issues/309
+
+    """get_capacity_market_results"""
+
+    CAPACITY_MARKET_RESULTS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Auction Type",
+        "Capability Period",
+        "Location",
+        "ICAP Clearing Price",
+        "UCAP Clearing Price",
+        "Locational EFORd",
+        "MW Cleared",
+        "Requirement (MW)",
+    ]
+
+    # The four capacity localities present in modern (2014+) reports.
+    CAPACITY_LOCALITIES = {
+        "NYCA",
+        "G-J Locality",
+        "NYC (Zone J)",
+        "Long Island (Zone K)",
+    }
+
+    def _check_capacity_market_results(self, df, auction_type):
+        assert not df.empty, "DataFrame came back empty"
+        assert df.columns.tolist() == self.CAPACITY_MARKET_RESULTS_COLUMNS
+
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+
+        # delivery month intervals
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(months=1)
+        ).all()
+
+        assert (df["Auction Type"].str.lower() == auction_type).all()
+        assert set(df["Capability Period"]).issubset({"Summer", "Winter"})
+
+        # all four modern localities are present for every delivery month
+        for _, group in df.groupby("Interval Start"):
+            assert self.CAPACITY_LOCALITIES.issubset(set(group["Location"]))
+
+        for col in [
+            "ICAP Clearing Price",
+            "UCAP Clearing Price",
+            "Locational EFORd",
+            "MW Cleared",
+            "Requirement (MW)",
+        ]:
+            assert df[col].dtype == "float64"
+
+        # both ICAP and UCAP clearing prices are available for every locality
+        assert df["UCAP Clearing Price"].notna().all()
+        assert df["ICAP Clearing Price"].notna().all()
+
+    @pytest.mark.parametrize("auction_type", ["spot", "monthly", "strip"])
+    def test_get_capacity_market_results_auction_types(self, auction_type):
+        with nyiso_vcr.use_cassette(
+            f"test_get_capacity_market_results_{auction_type}_2025-01-01.yaml",
+        ):
+            df = self.iso.get_capacity_market_results(
+                "Jan 1, 2025",
+                auction_type=auction_type,
+                verbose=True,
+            )
+
+        self._check_capacity_market_results(df, auction_type)
+        assert (
+            df["Interval Start"]
+            == pd.Timestamp("2025-01-01", tz=self.iso.default_timezone)
+        ).all()
+        # January is in the Winter Capability Period (Nov-Apr)
+        assert (df["Capability Period"] == "Winter").all()
+
+    def test_get_capacity_market_results_historical_values(self):
+        # Values hand-checked against the published April 2022 ICAP Market Report,
+        # "MCP Table" sheet (April 2022 delivery month, Spot columns):
+        # https://www.nyiso.com/documents/20142/27447313/ICAP-Market-Report-April-2022.xlsx
+        with nyiso_vcr.use_cassette(
+            "test_get_capacity_market_results_spot_2022-04-01.yaml",
+        ):
+            df = self.iso.get_capacity_market_results(
+                "April 1, 2022",
+                auction_type="spot",
+            )
+
+        self._check_capacity_market_results(df, "spot")
+
+        ucap = df.set_index("Location")["UCAP Clearing Price"]
+        assert ucap["NYCA"] == 0.76
+        assert ucap["NYC (Zone J)"] == 0.76
+        assert ucap["Long Island (Zone K)"] == 1.81
+
+        # ICAP is derived from the published Locational EFORd (NYCA = 0.084):
+        # ICAP = UCAP * (1 - EFORd)
+        icap = df.set_index("Location")["ICAP Clearing Price"]
+        assert icap["NYCA"] == pytest.approx(0.76 * (1 - 0.084))
+
+    def test_get_capacity_market_results_date_range(self):
+        # Range spans the Nov -> Dec 2023 boundary. The December 2023 report uses a
+        # non-standard, URL-encoded filename (see PR #633), exercising the URL
+        # resolution fallback across the month boundary.
+        with nyiso_vcr.use_cassette(
+            "test_get_capacity_market_results_spot_2023-11-01_2024-01-01.yaml",
+        ):
+            df = self.iso.get_capacity_market_results(
+                "Nov 1, 2023",
+                end="Jan 1, 2024",
+                auction_type="spot",
+            )
+
+        self._check_capacity_market_results(df, "spot")
+        # end is exclusive, so November and December 2023 delivery months
+        months = set(df["Interval Start"].dt.strftime("%Y-%m"))
+        assert months == {"2023-11", "2023-12"}
+
+    @pytest.mark.parametrize("date", ["April 1, 2022", "Jan 1, 2025"])
+    def test_get_capacity_market_results_schema_stability(self, date):
+        # Same schema must parse cleanly across older and newer report vintages.
+        with nyiso_vcr.use_cassette(
+            f"test_get_capacity_market_results_spot_"
+            f"{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
+        ):
+            df = self.iso.get_capacity_market_results(date, auction_type="spot")
+
+        self._check_capacity_market_results(df, "spot")
+
+    def test_get_capacity_market_results_invalid_auction_type(self):
+        with pytest.raises(ValueError):
+            self.iso.get_capacity_market_results(
+                "Jan 1, 2025",
+                auction_type="annual",
+            )
+
+    def test_capacity_eford_pre_2014_locality_labels(self):
+        # Pre-May-2014 reports predate the G-J Locality and contain only NYCA,
+        # NYC and Long Island. EFORd parsing must map each column to a locality by
+        # its spelled-out header text, not by a fixed 4-locality column order, so
+        # a 3-locality report is not mislabeled (which would shift NYC -> G-J etc.).
+        rows = [[None] * 11 for _ in range(9)]
+        rows[3][4] = "New York Control Area"
+        rows[5][7] = "New York City"
+        rows[5][10] = "Long Island"
+        month = pd.Timestamp("2014-03-01")
+        prior = pd.Timestamp("2014-02-01")
+        for current_col in (3, 6, 9):
+            rows[6][current_col] = month
+            rows[6][current_col + 1] = prior
+        rows[8][1] = "Locational EFORd"
+        rows[8][3], rows[8][6], rows[8][9] = 0.05, 0.03, 0.07
+
+        fake = _FakeExcelFile({"ICAP Market Report": pd.DataFrame(rows)})
+        eford = self.iso._parse_capacity_eford(fake, month)
+
+        assert eford == {
+            "NYCA": 0.05,
+            "NYC (Zone J)": 0.03,
+            "Long Island (Zone K)": 0.07,
+        }
+        assert "G-J Locality" not in eford
+
+    def test_get_capacity_market_results_unsupported_vintage_raises(self):
+        # Report vintages before ~2019 use a single-sheet layout with no
+        # "MCP Table"; the parser must raise clearly rather than emit empty or
+        # mislabeled rows.
+        iso = NYISO()
+        fake = _FakeExcelFile({"ICAP Market Report": pd.DataFrame()})
+        iso._download_capacity_report = lambda date, verbose=False: (
+            fake,
+            "local",
+            pd.NaT,
+        )
+        with pytest.raises(ValueError, match="MCP Table"):
+            iso.get_capacity_market_results("June 1, 2016", auction_type="spot")
+
+    def test_get_capacity_prices_unsupported_vintage_raises(self):
+        # Pre-~2019 reports (e.g. the 2017/2018 single-sheet .xls files) lack the
+        # "MCP Table" sheet; get_capacity_prices must raise clearly.
+        iso = NYISO()
+        fake = _FakeExcelFile({"ICAP Market Report": pd.DataFrame()})
+        iso._download_capacity_report = lambda date, verbose=False: (
+            fake,
+            "local",
+            pd.NaT,
+        )
+        with pytest.raises(ValueError, match="MCP Table"):
+            iso.get_capacity_prices(pd.Timestamp("2017-05-01"))
 
     """get_fuel_mix"""
 
