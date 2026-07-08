@@ -10,7 +10,7 @@ import requests
 import tqdm
 
 import gridstatus
-from gridstatus.base import ISOBase, Markets, NotSupported, _interconnection_columns
+from gridstatus.base import ISOBase, NotSupported, _interconnection_columns
 from gridstatus.caiso import CAISO
 from gridstatus.ercot import Ercot
 from gridstatus.gs_logging import log
@@ -33,6 +33,65 @@ def is_polars(obj: object) -> bool:
     return isinstance(obj, pl.DataFrame)
 
 
+def read_html_via_pandas(
+    io: object,
+    process: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
+    **kwargs,
+) -> list[pl.DataFrame]:
+    """Parse HTML tables with ``pandas.read_html`` and return polars DataFrames.
+
+    pandas is retained only for IO parse edges that have no polars equivalent
+    (HTML tables, Excel workbooks, exotic CSVs); the parsed frames are converted
+    to polars immediately at the boundary. ``process`` runs on each pandas frame
+    before conversion, for pandas-specific fixups like flattening MultiIndex
+    columns.
+    """
+    tables = pd.read_html(io, **kwargs)
+    if process is not None:
+        tables = [process(t) for t in tables]
+    return [pl.from_pandas(t) for t in tables]
+
+
+def read_excel_via_pandas(
+    io: object,
+    process: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
+    **kwargs,
+) -> pl.DataFrame | dict[str, pl.DataFrame]:
+    """Parse an Excel workbook with ``pandas.read_excel`` and return polars.
+
+    One of the sanctioned pandas IO edges (see ``read_html_via_pandas``).
+    Returns a dict of frames when ``sheet_name=None`` or a list of sheets is
+    requested, mirroring pandas. ``process`` runs on each pandas frame before
+    conversion, for pandas-specific fixups like flattening MultiIndex columns.
+    """
+    result = pd.read_excel(io, **kwargs)
+    if isinstance(result, dict):
+        if process is not None:
+            result = {k: process(v) for k, v in result.items()}
+        return {k: pl.from_pandas(v) for k, v in result.items()}
+    if process is not None:
+        result = process(result)
+    return pl.from_pandas(result)
+
+
+def read_csv_exotic_via_pandas(
+    io: object,
+    process: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
+    **kwargs,
+) -> pl.DataFrame:
+    """Parse a CSV with ``pandas.read_csv`` and return a polars DataFrame.
+
+    One of the sanctioned pandas IO edges (see ``read_html_via_pandas``), for
+    CSVs that polars cannot read directly: ``skipfooter``, ``engine="python"``,
+    multi-row headers, etc. Simple CSVs should use ``pl.read_csv`` instead.
+    ``process`` runs on the pandas frame before conversion.
+    """
+    df = pd.read_csv(io, **kwargs)
+    if process is not None:
+        df = process(df)
+    return pl.from_pandas(df)
+
+
 def concat_dataframes(dfs: list) -> object:
     """Concatenate a list of frames, dispatching on pandas vs polars.
 
@@ -48,12 +107,16 @@ def concat_dataframes(dfs: list) -> object:
     return pd.concat(dfs).reset_index(drop=True)
 
 
-def list_isos() -> pd.DataFrame:
+def list_isos() -> pl.DataFrame:
     """List available ISOs"""
 
     isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
 
-    return pd.DataFrame(isos, columns=["Name", "Id", "Class"])
+    return pl.DataFrame(
+        isos,
+        schema=["Name", "Id", "Class"],
+        orient="row",
+    )
 
 
 def get_iso(iso_id: str) -> ISOBase:
@@ -65,7 +128,21 @@ def get_iso(iso_id: str) -> ISOBase:
     raise KeyError
 
 
-def make_availability_df() -> dict[str, pd.DataFrame]:
+def _df_to_markdown(df: pl.DataFrame) -> str:
+    """Render a polars DataFrame as a GitHub-flavored markdown table."""
+    headers = df.columns
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "|" + "|".join("---" for _ in headers) + "|",
+    ]
+    for row in df.iter_rows():
+        lines.append(
+            "| " + " | ".join("" if v is None else str(v) for v in row) + " |",
+        )
+    return "\n".join(lines) + "\n"
+
+
+def make_availability_df() -> dict[str, pl.DataFrame]:
     methods = [
         "get_status",
         "get_fuel_mix",
@@ -103,9 +180,15 @@ def make_availability_df() -> dict[str, pd.DataFrame]:
 
                 availability[i.__name__][method][date] = is_defined
 
+    dates = ["latest", "today", "historical"]
     availability_dfs = {}
     for i in all_isos:
-        availability_dfs[i.__name__] = pd.DataFrame(availability[i.__name__])
+        if i.__name__ not in availability:
+            continue
+        data: dict[str, list[str]] = {"": dates}
+        for method in methods:
+            data[method] = [availability[i.__name__][method][d] for d in dates]
+        availability_dfs[i.__name__] = pl.DataFrame(data)
 
     return availability_dfs
 
@@ -116,8 +199,7 @@ def make_availability_table() -> str:
     markdown = ""
     for method, df in sorted(dfs.items()):
         markdown += "## " + method + "\n"
-        # df.index = ["`" + v + "`" for v in df.index.values]
-        markdown += df.to_markdown() + "\n"
+        markdown += _df_to_markdown(df) + "\n"
 
     return markdown
 
@@ -148,7 +230,7 @@ def _handle_date(
 LMP_METHOD_NAMES: list[str] = ["get_lmp", "get_spp"]
 
 
-def make_lmp_availability_df() -> pd.DataFrame:
+def make_lmp_availability_df() -> pl.DataFrame:
     availability = {}
     DOES_NOT_EXIST_SENTINEL = "dne"
     for iso in tqdm.tqdm(gridstatus.all_isos):
@@ -171,7 +253,18 @@ def make_lmp_availability_df() -> pd.DataFrame:
                 supported_dates,
             )
 
-    return pd.DataFrame(availability).fillna("-")
+    market_cols: list[str] = []
+    for iso_availability in availability.values():
+        for col in iso_availability:
+            if col != "Method" and col not in market_cols:
+                market_cols.append(col)
+
+    columns = ["Method", *market_cols]
+    rows = [
+        {"": iso_name, **{c: iso_availability.get(c, "-") for c in columns}}
+        for iso_name, iso_availability in availability.items()
+    ]
+    return pl.DataFrame(rows)
 
 
 def convert_bool_to_emoji(value: bool) -> str:
@@ -186,19 +279,13 @@ def convert_bool_to_emoji(value: bool) -> str:
 
 
 def make_lmp_availability_table() -> str:
-    transposed = make_lmp_availability_df().transpose()
-    transposed = transposed.rename(
-        columns={
-            Markets.REAL_TIME_5_MIN: "REAL_TIME_5_MIN",
-            Markets.REAL_TIME_15_MIN: "REAL_TIME_15_MIN",
-            Markets.REAL_TIME_HOURLY: "REAL_TIME_HOURLY",
-            Markets.DAY_AHEAD_HOURLY: "DAY_AHEAD_HOURLY",
-        },
+    df = make_lmp_availability_df().sort("")
+    df = df.with_columns(
+        pl.col(c).map_elements(convert_bool_to_emoji, return_dtype=pl.String)
+        for c in df.columns
+        if c != ""
     )
-
-    transposed = transposed.sort_index().apply(lambda x: x.map(convert_bool_to_emoji))
-
-    return transposed.to_markdown() + "\n"
+    return _df_to_markdown(df)
 
 
 # todo require locations and location_type arguments
@@ -260,27 +347,27 @@ def get_response_blob(resp: requests.Response) -> io.BytesIO:
 
 def download_csvs_from_zip_url(
     url: str,
-    process_csv: Callable[[pd.DataFrame, str], pd.DataFrame] | None = None,
+    process_csv: Callable[[pl.DataFrame, str], pl.DataFrame] | None = None,
     verbose: bool = False,
     strip_whitespace_from_cols: bool = False,
-):
+) -> pl.DataFrame:
     z = get_zip_folder(url, verbose=verbose)
 
     all_dfs = []
 
     for f in z.filelist:
         if f.filename.endswith(".csv"):
-            df = pd.read_csv(z.open(f.filename))
+            df = pl.read_csv(z.open(f.filename).read(), infer_schema_length=None)
             if process_csv:
                 df = process_csv(df, f.filename)
 
             if strip_whitespace_from_cols:
                 # Some data files have leading whitespace in header - remove it
-                df = df.rename(columns=lambda x: x.strip())
+                df = df.rename({c: c.strip() for c in df.columns})
 
             all_dfs.append(df)
 
-    df = pd.concat(all_dfs, ignore_index=True)
+    df = pl.concat(all_dfs, how="diagonal")
 
     return df
 
@@ -355,7 +442,7 @@ def load_folder(
     path: str,
     time_zone: str | None = None,
     verbose: bool = True,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Load a single DataFrame for same schema csv files in a folder
 
     Arguments:
@@ -365,23 +452,25 @@ def load_folder(
         verbose (bool, optional): print verbose output. Defaults to True.
 
     Returns:
-        pandas.DataFrame: A DataFrame of all files
+        polars.DataFrame: A DataFrame of all files
     """
     all_files = glob.glob(os.path.join(path, "*.csv"))
     all_files = sorted(all_files)
 
     dfs = []
     for f in tqdm.tqdm(all_files, disable=not verbose):
-        df = pd.read_csv(f, parse_dates=True)
+        df = pl.read_csv(f, infer_schema_length=None)
         dfs.append(df)
 
-    data = pd.concat(dfs).reset_index(drop=True)
+    data = pl.concat(dfs, how="diagonal")
 
     for time_col in ["Time", "Interval Start", "Interval End"]:
         if time_col in data.columns:
-            data[time_col] = pd.to_datetime(data[time_col], utc=True)
-            if time_zone:
-                data[time_col] = data[time_col].dt.tz_convert(time_zone)
+            data = data.with_columns(
+                pl.col(time_col)
+                .str.to_datetime(time_zone="UTC")
+                .dt.convert_time_zone(time_zone or "UTC"),
+            )
 
     # todo make sure dates get parsed
     # todo make sure rows are sorted by time
@@ -389,7 +478,7 @@ def load_folder(
     return data
 
 
-def get_interconnection_queues() -> pd.DataFrame:
+def get_interconnection_queues() -> pl.DataFrame:
     """Get interconnection queue data for all ISOs"""
     all_queues = []
     for iso in tqdm.tqdm(all_isos):
@@ -398,16 +487,15 @@ def get_interconnection_queues() -> pd.DataFrame:
         # add error handling for IESO
 
         try:
-            queue = iso.get_interconnection_queue()[_interconnection_columns]
+            queue = iso.get_interconnection_queue().select(_interconnection_columns)
         except NotImplementedError:
-            queue = pd.DataFrame()
+            queue = pl.DataFrame()
 
-        queue.insert(0, "ISO", iso.name)
-        queue.reset_index(drop=True, inplace=True)
+        queue = queue.with_columns(pl.lit(iso.name).alias("ISO"))
+        queue = move_cols_to_front(queue, ["ISO"])
         all_queues.append(queue)
-        pd.concat(all_queues)
 
-    all_queues = pd.concat(all_queues).reset_index(drop=True)
+    all_queues = pl.concat(all_queues, how="diagonal_relaxed")
     return all_queues
 
 
@@ -456,6 +544,37 @@ def localize_ambiguous_infer_polars(
         pl.col(time_col).dt.replace_time_zone(tz, ambiguous=pl.col("_ambiguous")),
     )
     return df.drop(["_dup_rank", "_ambiguous"])
+
+
+def localize_shift_forward_polars(
+    df: pl.DataFrame,
+    time_col: str,
+    tz: str,
+    ambiguous: str = "earliest",
+) -> pl.DataFrame:
+    """Localize a naive polars datetime column, mimicking pandas
+    ``nonexistent="shift_forward"``.
+
+    polars has no shift_forward option for spring-forward gaps, so nonexistent
+    wall-clock times are localized to null and replaced by the same wall time
+    plus one hour (the first valid instant after the gap), matching pandas.
+    Used by the ERCOT/PJM patterns that combine ``ambiguous`` handling with
+    ``nonexistent="shift_forward"``.
+
+    Note: pandas ``merge_asof`` equivalents should use ``pl.DataFrame.join_asof``
+    (AESO pattern).
+    """
+    localized = pl.col(time_col).dt.replace_time_zone(
+        tz,
+        ambiguous=ambiguous,
+        non_existent="null",
+    )
+    shifted = (pl.col(time_col) + pl.duration(hours=1)).dt.replace_time_zone(
+        tz,
+        ambiguous=ambiguous,
+        non_existent="null",
+    )
+    return df.with_columns(pl.coalesce(localized, shifted).alias(time_col))
 
 
 _ISONE_DATE_FORMAT = "%m/%d/%Y"
