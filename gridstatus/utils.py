@@ -199,6 +199,7 @@ def make_availability_table() -> str:
     markdown = ""
     for method, df in sorted(dfs.items()):
         markdown += "## " + method + "\n"
+        # df.index = ["`" + v + "`" for v in df.index.values]
         markdown += _df_to_markdown(df) + "\n"
 
     return markdown
