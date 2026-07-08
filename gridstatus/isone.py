@@ -129,7 +129,9 @@ class ISONE(ISOBase):
             {
                 "Date": naive.to_numpy(),
                 "Fuel Category": df["Fuel Category"].astype(str).to_numpy(),
-                "Gen Mw": pd.to_numeric(df["Gen Mw"], errors="coerce").to_numpy(),
+                "Gen Mw": pd.to_numeric(df["Gen Mw"], errors="coerce")
+                .astype(float)
+                .to_numpy(),
             },
         )
 
@@ -274,6 +276,9 @@ class ISONE(ISOBase):
 
         df.columns = df.iloc[0]
         df = df.drop(columns=["D", "Date"], index=[0]).reset_index(drop=True)
+        # Trailing empty CSV columns produce NaN column names, which pandas
+        # tolerates but polars rejects
+        df = df.loc[:, df.columns.notna()]
 
         pl_df = pl.from_pandas(df)
         value_cols = [c for c in pl_df.columns if c != "Hour Ending"]
