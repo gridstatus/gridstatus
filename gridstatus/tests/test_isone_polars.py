@@ -12,29 +12,17 @@ from gridstatus.isone import ISONE
 TZ = ISONE.default_timezone
 
 
-def _to_pandas(df: object) -> pd.DataFrame:
-    if utils.is_polars(df):
-        return df.to_pandas()
-    return df.reset_index(drop=True)
+def _to_pandas(df: pl.DataFrame) -> pd.DataFrame:
+    return df.to_pandas()
 
 
 class TestUtilsDispatch:
-    def test_is_polars(self):
-        assert utils.is_polars(pl.DataFrame({"a": [1]}))
-        assert not utils.is_polars(pd.DataFrame({"a": [1]}))
-
-    def test_concat_dataframes_dispatch(self):
+    def test_concat_dataframes(self):
         pl_out = utils.concat_dataframes(
             [pl.DataFrame({"a": [1]}), pl.DataFrame({"a": [2]})],
         )
-        assert utils.is_polars(pl_out)
+        assert isinstance(pl_out, pl.DataFrame)
         assert pl_out.shape == (2, 1)
-
-        pd_out = utils.concat_dataframes(
-            [pd.DataFrame({"a": [1]}), pd.DataFrame({"a": [2]})],
-        )
-        assert isinstance(pd_out, pd.DataFrame)
-        assert pd_out.shape == (2, 1)
 
     def test_move_cols_to_front_polars(self):
         df = pl.DataFrame({"a": [1], "Time": [2], "b": [3]})
@@ -143,7 +131,7 @@ class TestISONEPolarsMethods:
             lambda url, skiprows, verbose: raw_factory().copy(),
         )
         df = ISONE().get_fuel_mix(date="2024-01-01")
-        assert utils.is_polars(df)
+        assert isinstance(df, pl.DataFrame)
         assert df.columns == ["Time", "Solar", "Wind"]
         assert df.height == 2
 
@@ -155,7 +143,7 @@ class TestISONEPolarsMethods:
             lambda url, skiprows, verbose: raw_factory().copy(),
         )
         df = ISONE().get_load(date="2023-11-05")
-        assert utils.is_polars(df)
+        assert isinstance(df, pl.DataFrame)
         assert list(df.columns) == [
             "Time",
             "Interval Start",
@@ -171,7 +159,7 @@ class TestISONEPolarsMethods:
             lambda url, data, verbose=False: _system_load_records("forecast"),
         )
         df = ISONE().get_load_forecast(date="2024-01-01")
-        assert utils.is_polars(df)
+        assert isinstance(df, pl.DataFrame)
         assert set(df.columns) == {
             "Time",
             "Interval Start",
@@ -187,7 +175,7 @@ class TestISONEPolarsMethods:
             lambda url, data, verbose=False: _system_load_records("actual"),
         )
         df = ISONE().get_btm_solar(date="2024-01-01")
-        assert utils.is_polars(df)
+        assert isinstance(df, pl.DataFrame)
         out = _to_pandas(df)
         assert list(out.columns) == [
             "Time",

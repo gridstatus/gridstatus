@@ -28,11 +28,6 @@ RED_X_HTML_ENTITY: str = "&#10060;"
 all_isos: list[ISOBase] = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
 
 
-def is_polars(obj: object) -> bool:
-    """Return whether ``obj`` is a polars DataFrame."""
-    return isinstance(obj, pl.DataFrame)
-
-
 def read_html_via_pandas(
     io: object,
     process: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
@@ -92,19 +87,15 @@ def read_csv_exotic_via_pandas(
     return pl.from_pandas(df)
 
 
-def concat_dataframes(dfs: list) -> object:
-    """Concatenate a list of frames, dispatching on pandas vs polars.
+def concat_dataframes(dfs: list[pl.DataFrame]) -> pl.DataFrame:
+    """Concatenate a list of polars frames.
 
-    Used by ``support_date_range`` to combine per-chunk results regardless of
-    whether the decorated method produced pandas or polars frames.
+    Used by ``support_date_range`` to combine per-chunk results.
     """
     if not dfs:
         raise ValueError("No objects to concatenate")
 
-    if is_polars(dfs[0]):
-        return pl.concat(dfs, how="diagonal_relaxed")
-
-    return pd.concat(dfs).reset_index(drop=True)
+    return pl.concat(dfs, how="diagonal_relaxed")
 
 
 def list_isos() -> pl.DataFrame:
@@ -293,36 +284,24 @@ def make_lmp_availability_table() -> str:
 
 
 def filter_lmp_locations(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     locations: list[str] | None = None,
     location_type: str | None = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """
     Filters DataFrame by locations, which can be a list, "ALL" or None
 
     Arguments:
-        df (pandas.DataFrame): DataFrame to filter
+        df (polars.DataFrame): DataFrame to filter
         locations: "ALL" or list of locations to filter "Location" column by
     """
-    if is_polars(df):
-        if location_type != "ALL" and location_type is not None:
-            if isinstance(location_type, str):
-                location_type = [location_type]
-            df = df.filter(pl.col("Location Type").is_in(location_type))
-
-        if locations != "ALL" and locations is not None:
-            df = df.filter(pl.col("Location").is_in(locations))
-
-        return df
-
     if location_type != "ALL" and location_type is not None:
         if isinstance(location_type, str):
             location_type = [location_type]
-
-        df = df[df["Location Type"].isin(location_type)]
+        df = df.filter(pl.col("Location Type").is_in(location_type))
 
     if locations != "ALL" and locations is not None:
-        df = df[df["Location"].isin(locations)]
+        df = df.filter(pl.col("Location").is_in(locations))
 
     return df
 
@@ -392,47 +371,30 @@ def is_within_last_days(date: pd.Timestamp, days: int, tz: str) -> bool:
 
 
 def format_interconnection_df(
-    queue: pd.DataFrame,
+    queue: pl.DataFrame,
     rename: dict[str, str],
     extra: list[str] | None = None,
     missing: list[str] | None = None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Format interconnection queue data"""
     assert set(rename.keys()).issubset(queue.columns), set(
         rename.keys(),
     ) - set(queue.columns)
 
-    if is_polars(queue):
-        queue = queue.rename(rename)
-        columns = _interconnection_columns.copy()
-
-        if extra:
-            for e in extra:
-                assert e in queue.columns, f"Extra column {e} does not exist"
-            columns += extra
-
-        if missing:
-            for m in missing:
-                assert m not in queue.columns, "Missing column already exists"
-                queue = queue.with_columns(pl.lit(None).alias(m))
-
-        return queue.select(columns)
-
-    queue = queue.rename(columns=rename)
+    queue = queue.rename(rename)
     columns = _interconnection_columns.copy()
 
     if extra:
         for e in extra:
             assert e in queue.columns, f"Extra column {e} does not exist"
-
         columns += extra
 
     if missing:
         for m in missing:
             assert m not in queue.columns, "Missing column already exists"
-            queue[m] = None
+            queue = queue.with_columns(pl.lit(None).alias(m))
 
-    return queue[columns].reset_index(drop=True)
+    return queue.select(columns)
 
 
 def is_dst_end(date: pd.Timestamp) -> bool:
@@ -500,16 +462,10 @@ def get_interconnection_queues() -> pl.DataFrame:
     return all_queues
 
 
-def move_cols_to_front(df: pd.DataFrame, cols_to_move: list[str]) -> pd.DataFrame:
+def move_cols_to_front(df: pl.DataFrame, cols_to_move: list[str]) -> pl.DataFrame:
     """Move columns to front of DataFrame"""
-    if is_polars(df):
-        rest = [c for c in df.columns if c not in cols_to_move]
-        return df.select(cols_to_move + rest)
-
-    cols = list(df.columns)
-    for c in cols_to_move:
-        cols.remove(c)
-    return df[cols_to_move + cols]
+    rest = [c for c in df.columns if c not in cols_to_move]
+    return df.select(cols_to_move + rest)
 
 
 def localize_ambiguous_infer_polars(
