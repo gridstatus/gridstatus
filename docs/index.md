@@ -60,7 +60,7 @@ caiso.get_fuel_mix("today")
 
 ### Load
 
-or the energy demand throughout the current day as a Pandas DataFrame
+or the energy demand throughout the current day as a Polars DataFrame
 
 ```{code-cell}
 caiso.get_load("today")

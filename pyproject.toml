@@ -14,6 +14,9 @@ keywords = ["energy", "independent system operator"]
 license = { file = "LICENSE" }
 dependencies = [
     "requests >=2.33,<3",
+    # pandas is retained only for IO parse edges polars cannot read directly
+    # (read_html, read_excel, exotic read_csv) and scalar date math
+    # (pd.Timestamp/DateOffset); all DataFrames returned by the library are polars
     "pandas ~=2.2",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
