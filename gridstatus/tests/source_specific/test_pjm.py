@@ -5,6 +5,7 @@ from unittest import mock
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 import gridstatus
@@ -103,7 +104,7 @@ class TestPJM(BaseTestISO):
             df_1 = self.iso.get_lmp(start=start, end=end, market=market)
             df_2 = self.iso.get_lmp(date=(start, end), market=market)
             self._check_lmp_columns(df_1, market)
-            assert df_1.equals(df_2)
+            assert df_1.frame_equal(df_2)
 
     @pytest.mark.parametrize(
         "market",
@@ -123,7 +124,7 @@ class TestPJM(BaseTestISO):
                 market=market,
                 locations="hubs",
             )
-            assert isinstance(hist, pd.DataFrame)
+            assert isinstance(hist, pl.DataFrame)
             self._check_lmp_columns(hist, market)
 
     @pytest.mark.parametrize(
@@ -144,7 +145,7 @@ class TestPJM(BaseTestISO):
                     self.iso.get_lmp("today", market=market)
             else:
                 df = self.iso.get_lmp("today", market=market)
-                assert isinstance(df, pd.DataFrame)
+                assert isinstance(df, pl.DataFrame)
                 self._check_lmp_columns(df, market)
 
     @pytest.mark.parametrize(
@@ -187,8 +188,8 @@ class TestPJM(BaseTestISO):
                 end=end,
                 market="REAL_TIME_5_MIN",
             )
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
+            assert isinstance(df, pl.DataFrame)
+            assert not df.is_empty()
             assert df.duplicated(["Interval Start", "Location Id"]).sum() == 0
 
     @pytest.mark.parametrize(
@@ -205,7 +206,7 @@ class TestPJM(BaseTestISO):
                 location_type="ZONE",
                 verbose=True,
             )
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
 
     @pytest.mark.parametrize(
         "date",
@@ -226,7 +227,7 @@ class TestPJM(BaseTestISO):
     """get_it_sced_lmp_5_min"""
 
     def _check_it_sced_lmp_5_min(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Case Approval Time",
@@ -239,14 +240,12 @@ class TestPJM(BaseTestISO):
             "Loss",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=5,
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list() == [
+            pd.Timedelta(minutes=5),
+        ]
 
-        assert np.allclose(
-            df["LMP"],
-            df["Energy"] + df["Congestion"] + df["Loss"],
-        )
+        lmp_sum = df["Energy"] + df["Congestion"] + df["Loss"]
+        assert np.allclose(df["LMP"].to_numpy(), lmp_sum.to_numpy())
 
     @pytest.mark.parametrize(
         "date",
@@ -261,7 +260,7 @@ class TestPJM(BaseTestISO):
             self._check_it_sced_lmp_5_min(df)
             assert df["Interval Start"].min() == self.local_start_of_today()
             assert (
-                df["Case Approval Time"].dt.date.unique()
+                df["Case Approval Time"].dt.date().unique()
                 == [(self.local_today() - pd.Timedelta(days=1)), self.local_today()]
             ).all()
 
@@ -279,10 +278,12 @@ class TestPJM(BaseTestISO):
                 end_date,
             ) + pd.DateOffset(minutes=-10)
 
-            assert df["Case Approval Time"].dt.date.min() == start_date - pd.Timedelta(
+            assert df[
+                "Case Approval Time"
+            ].dt.date().min() == start_date - pd.Timedelta(
                 days=1,
             )
-            assert df["Case Approval Time"].dt.date.max() == end_date - pd.Timedelta(
+            assert df["Case Approval Time"].dt.date().max() == end_date - pd.Timedelta(
                 days=1,
             )
 
@@ -306,12 +307,12 @@ class TestPJM(BaseTestISO):
 
             # okay as long as one of these columns is only today
             assert (
-                (df["Time"].dt.date == today).all()
-                or (df["Interval Start"].dt.date == today).all()
-                or (df["Interval End"].dt.date == today).all()
+                (df["Time"].dt.date() == today).all()
+                or (df["Interval Start"].dt.date() == today).all()
+                or (df["Interval End"].dt.date() == today).all()
             )
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Time",
                 "Interval Start",
                 "Interval End",
@@ -380,7 +381,7 @@ class TestPJM(BaseTestISO):
     def test_get_load_forecast_today(self):
         with pjm_vcr.use_cassette("test_get_load_forecast_today.yaml"):
             df = self.iso.get_load_forecast("today")
-            assert df.columns.tolist() == self.load_forecast_columns
+            assert df.columns == self.load_forecast_columns
             assert df["Interval Start"].min() == self.local_start_of_today()
             assert df[
                 "Interval End"
@@ -388,7 +389,7 @@ class TestPJM(BaseTestISO):
                 days=7,
             )
 
-            assert df["Publish Time"].dt.floor("min").nunique() == 1
+            assert df["Publish Time"].dt.truncate("1m").n_unique() == 1
 
     def test_get_load_forecast_in_past_raises_error(self):
         start_date = self.local_today() - pd.Timedelta(days=1)
@@ -426,7 +427,7 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette(f"test_get_load_forecast_historical_{date}.yaml"):
             df = self.iso.get_load_forecast_historical(date)
 
-            assert df.columns.tolist() == self.load_forecast_columns_historical
+            assert df.columns == self.load_forecast_columns_historical
             assert df["Interval Start"].min() == self.local_start_of_day(date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 date,
@@ -448,7 +449,7 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_historical(date, end)
 
-            assert df.columns.tolist() == self.load_forecast_columns_historical
+            assert df.columns == self.load_forecast_columns_historical
             assert df["Interval Start"].min() == self.local_start_of_day(date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 end,
@@ -630,21 +631,16 @@ class TestPJM(BaseTestISO):
                 verbose=False,
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert not result.empty
+            assert isinstance(result, pl.DataFrame)
+            assert not result.is_empty()
             actual_columns = set(result.columns)
             expected_dt_columns = ["Interval Start", "Interval End", "Publish Time"]
             for col in set(expected_dt_columns) & set(actual_columns):
-                assert isinstance(
-                    result[col].dtype,
-                    pd.DatetimeTZDtype,
-                ), f"{col} is not a timezone-aware datetime column"
-                assert str(result[col].dt.tz) == str(
-                    self.iso.default_timezone,
-                ), f"{col} timezone doesn't match the default timezone"
+                assert isinstance(result.schema[col], pl.Datetime)
+                assert result.schema[col].time_zone == self.iso.default_timezone
 
     def _check_solar_forecast(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -671,7 +667,9 @@ class TestPJM(BaseTestISO):
                 days=2,
             )
             assert (
-                df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+                df["Publish Time"]
+                .dt.convert_time_zone(self.iso.default_timezone)
+                .dt.date()
                 == self.local_today()
             ).all()
 
@@ -682,8 +680,8 @@ class TestPJM(BaseTestISO):
             f"test_get_solar_forecast_hourly_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_solar_forecast_hourly(past_date, past_end_date)
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
+            assert isinstance(df, pl.DataFrame)
+            assert not df.is_empty()
             self._check_solar_forecast(df)
 
     def test_get_solar_forecast_hourly_historical_date(self):
@@ -758,7 +756,7 @@ class TestPJM(BaseTestISO):
     """get_wind_forecast tests"""
 
     def _check_wind_forecast(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -791,7 +789,9 @@ class TestPJM(BaseTestISO):
             )
 
             assert (
-                df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+                df["Publish Time"]
+                .dt.convert_time_zone(self.iso.default_timezone)
+                .dt.date()
                 == self.local_today()
             ).all()
 
@@ -828,7 +828,9 @@ class TestPJM(BaseTestISO):
             )
 
             assert (
-                df["Publish Time"].dt.tz_convert(self.iso.default_timezone).dt.date
+                df["Publish Time"]
+                .dt.convert_time_zone(self.iso.default_timezone)
+                .dt.date()
                 == self.local_today()
             ).all()
 
@@ -890,12 +892,12 @@ class TestPJM(BaseTestISO):
             location_type="hub",
             market=m,
         )
-        assert isinstance(hist, pd.DataFrame)
+        assert isinstance(hist, pl.DataFrame)
         self._check_lmp_columns(hist, m)
         # 2 days worth of data for each location
         assert (
             hist.groupby("Location Id")["Interval Start"].agg(
-                lambda x: x.dt.day.nunique(),
+                lambda x: x.dt.day().n_unique(),
             )
             == 2
         ).all()
@@ -907,7 +909,7 @@ class TestPJM(BaseTestISO):
             location_type="hub",
             market=m,
         )
-        assert isinstance(hist, pd.DataFrame)
+        assert isinstance(hist, pl.DataFrame)
         self._check_lmp_columns(hist, m)
         # 1 day worth of data for each location
         assert (hist.groupby("Location Id")["Interval Start"].count() == 24).all()
@@ -919,7 +921,7 @@ class TestPJM(BaseTestISO):
             location_type="hub",
             market=m,
         )
-        assert isinstance(hist, pd.DataFrame)
+        assert isinstance(hist, pl.DataFrame)
         self._check_lmp_columns(hist, m)
 
         # all standard
@@ -933,7 +935,7 @@ class TestPJM(BaseTestISO):
             location_type="hub",
             market=m,
         )
-        assert isinstance(hist, pd.DataFrame)
+        assert isinstance(hist, pl.DataFrame)
         self._check_lmp_columns(hist, m)
 
     @pytest.mark.parametrize("date", ["today"])
@@ -997,7 +999,7 @@ class TestPJM(BaseTestISO):
         )
 
     def _check_gen_outages_by_type(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1017,7 +1019,7 @@ class TestPJM(BaseTestISO):
     """get_projected_rto_statistics_at_peak"""
 
     def _check_projected_rto_statistics_at_peak(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1079,7 +1081,7 @@ class TestPJM(BaseTestISO):
     """get_projected_area_statistics_at_peak"""
 
     def _check_projected_area_statistics_at_peak(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1136,12 +1138,12 @@ class TestPJM(BaseTestISO):
     """get_solar_generation_5_min"""
 
     def _check_pjm_response(self, df, expected_cols, start, end):
-        assert df.columns.tolist() == expected_cols
+        assert df.columns == expected_cols
 
         is_single_day = start.date == end.date
         if is_single_day:
             # Make sure all the intervals start on the specified day
-            assert (df["Interval Start"].dt.day == start.day).all()
+            assert (df["Interval Start"].dt.day() == start.day).all()
 
         # There could be missing data at the start or end, so we
         # can only assert that all of the values are between the specified
@@ -1873,14 +1875,14 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette("test_get_interconnection_queue.yaml"):
             queue = self.iso.get_interconnection_queue()
             # TODO: make sure datetime columns are right type
-            assert isinstance(queue, pd.DataFrame)
+            assert isinstance(queue, pl.DataFrame)
             assert queue.shape[0] > 0
             assert set(_interconnection_columns).issubset(queue.columns)
 
     """get_load_metered_hourly"""
 
     def _check_load_metered_hourly(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "NERC Region",
@@ -1934,7 +1936,7 @@ class TestPJM(BaseTestISO):
     """get_forecasted_generation_outages"""
 
     def _check_forecasted_gen_outages(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -2010,7 +2012,7 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette(cassette_name):
             result = self.iso.get_marginal_value_real_time_5_min(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -2023,14 +2025,26 @@ class TestPJM(BaseTestISO):
 
             assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
             assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert result["Monitored Facility"].dtype == object
-            assert result["Contingency Facility"].dtype == object
-            assert result["Shadow Price"].dtype in [np.int64, np.float64]
-            assert result["Transmission Constraint Penalty Factor"].dtype in [
-                np.int64,
-                np.float64,
-            ]
-            assert result["Limit Control Percentage"].dtype in [np.int64, np.float64]
+            assert result["Monitored Facility"].dtype == pl.Utf8
+            assert result["Contingency Facility"].dtype == pl.Utf8
+            assert result.schema["Shadow Price"] in (
+                pl.Int64,
+                pl.Float64,
+                pl.Int32,
+                pl.Float32,
+            )
+            assert result.schema["Transmission Constraint Penalty Factor"] in (
+                pl.Int64,
+                pl.Float64,
+                pl.Int32,
+                pl.Float32,
+            )
+            assert result.schema["Limit Control Percentage"] in (
+                pl.Int64,
+                pl.Float64,
+                pl.Int32,
+                pl.Float32,
+            )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -2041,7 +2055,7 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette(cassette_name):
             result = self.iso.get_marginal_value_day_ahead_hourly(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -2052,9 +2066,14 @@ class TestPJM(BaseTestISO):
 
             assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
             assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert result["Monitored Facility"].dtype == object
-            assert result["Contingency Facility"].dtype == object
-            assert result["Shadow Price"].dtype in [np.int64, np.float64]
+            assert result["Monitored Facility"].dtype == pl.Utf8
+            assert result["Contingency Facility"].dtype == pl.Utf8
+            assert result.schema["Shadow Price"] in (
+                pl.Int64,
+                pl.Float64,
+                pl.Int32,
+                pl.Float32,
+            )
 
     @pytest.mark.parametrize(
         "date,end",
@@ -2070,7 +2089,7 @@ class TestPJM(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -2082,10 +2101,15 @@ class TestPJM(BaseTestISO):
 
             assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
             assert max(result["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert result["Day Ahead Congestion Event"].dtype == object
-            assert result["Monitored Facility"].dtype == object
-            assert result["Contingency Facility"].dtype == object
-            assert result["Duration"].dtype in [np.int64, np.float64]
+            assert result["Day Ahead Congestion Event"].dtype == pl.Utf8
+            assert result["Monitored Facility"].dtype == pl.Utf8
+            assert result["Contingency Facility"].dtype == pl.Utf8
+            assert result.schema["Duration"] in (
+                pl.Int64,
+                pl.Float64,
+                pl.Int32,
+                pl.Float32,
+            )
 
     def test_get_settlements_verified_lmp_5_min_date_range(self):
         start = self.local_start_of_today() - pd.DateOffset(days=30)
@@ -2096,7 +2120,7 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_settlements_verified_lmp_5_min(start=start, end=end)
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Interval Start",
                 "Interval End",
                 "Location Id",
@@ -2126,7 +2150,7 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_settlements_verified_lmp_hourly(start=start, end=end)
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Interval Start",
                 "Interval End",
                 "Location Id",
@@ -2160,7 +2184,7 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_day_ahead_demand_bids(start=start, end=end)
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Interval Start",
                 "Interval End",
                 "Area",
@@ -2182,13 +2206,18 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_area_control_error(date=date, end=end)
 
-            assert isinstance(df, pd.DataFrame)
-            assert df.columns.tolist() == [
+            assert isinstance(df, pl.DataFrame)
+            assert df.columns == [
                 "Time",
                 "Area Control Error",
             ]
 
-            assert df["Area Control Error"].dtype in [np.float64, np.int64]
+            assert df.schema["Area Control Error"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
             assert df["Time"].min().date() == pd.Timestamp(date).date()
 
     @pytest.mark.parametrize("date", ["today"])
@@ -2197,13 +2226,18 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette(f"test_get_area_control_error_{date}.yaml"):
             df = self.iso.get_area_control_error(date)
 
-            assert isinstance(df, pd.DataFrame)
-            assert df.columns.tolist() == [
+            assert isinstance(df, pl.DataFrame)
+            assert df.columns == [
                 "Time",
                 "Area Control Error",
             ]
 
-            assert df["Area Control Error"].dtype in [np.float64, np.int64]
+            assert df.schema["Area Control Error"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
             assert df["Time"].min() <= self.local_start_of_today() + pd.Timedelta(
                 seconds=15,
             )
@@ -2247,16 +2281,16 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_dispatched_reserves_prelim(date)
 
-            assert isinstance(df, pd.DataFrame)
-            assert df.columns.tolist() == self.expected_dispatched_reserves_prelim_cols
+            assert isinstance(df, pl.DataFrame)
+            assert df.columns == self.expected_dispatched_reserves_prelim_cols
 
             assert df["Interval Start"].min() >= self.local_start_of_today()
             assert df[
                 "Interval End"
             ].max() <= self.local_start_of_today() + pd.Timedelta(days=1)
 
-            assert df["Ancillary Service"].dtype == object
-            assert df["Area"].dtype == object
+            assert df["Ancillary Service"].dtype == pl.Utf8
+            assert df["Area"].dtype == pl.Utf8
             assert (
                 df["Area"].unique().tolist().sort()
                 == self.expected_reserve_areas.sort()
@@ -2265,14 +2299,44 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
-            assert df["Reserve Type"].dtype == object
-            assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
-            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
-            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
-            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
-            assert df["MW Adjustment"].dtype in [np.float64, np.int64]
-            assert df["Market Clearing Price"].dtype in [np.float64, np.int64]
-            assert df["Shortage Indicator"].dtype in [bool]
+            assert df["Reserve Type"].dtype == pl.Utf8
+            assert df.schema["Reserve Quantity"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Reserve Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Reliability Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Extended Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["MW Adjustment"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Market Clearing Price"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df["Shortage Indicator"].dtype == pl.Boolean
 
     def test_get_dispatched_reserves_prelim_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=5)
@@ -2282,16 +2346,16 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_dispatched_reserves_prelim(past_date, past_end_date)
 
-            assert isinstance(df, pd.DataFrame)
-            assert df.columns.tolist() == self.expected_dispatched_reserves_prelim_cols
+            assert isinstance(df, pl.DataFrame)
+            assert df.columns == self.expected_dispatched_reserves_prelim_cols
 
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
             assert df["Interval End"].max() <= self.local_start_of_day(
                 past_end_date,
             ) + pd.Timedelta(days=1)
 
-            assert df["Ancillary Service"].dtype == object
-            assert df["Area"].dtype == object
+            assert df["Ancillary Service"].dtype == pl.Utf8
+            assert df["Area"].dtype == pl.Utf8
             assert (
                 df["Area"].unique().tolist().sort()
                 == self.expected_reserve_areas.sort()
@@ -2300,14 +2364,44 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
-            assert df["Reserve Type"].dtype == object
-            assert df["Reserve Quantity"].dtype in [np.float64, np.int64]
-            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
-            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
-            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
-            assert df["MW Adjustment"].dtype in [np.float64, np.int64]
-            assert df["Market Clearing Price"].dtype in [np.float64, np.int64]
-            assert df["Shortage Indicator"].dtype in [bool]
+            assert df["Reserve Type"].dtype == pl.Utf8
+            assert df.schema["Reserve Quantity"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Reserve Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Reliability Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Extended Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["MW Adjustment"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Market Clearing Price"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df["Shortage Indicator"].dtype == pl.Boolean
 
     """get_dispatched_reserves_verified"""
 
@@ -2333,18 +2427,16 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_dispatched_reserves_verified(past_date, past_end_date)
 
-            assert isinstance(df, pd.DataFrame)
-            assert (
-                df.columns.tolist() == self.expected_dispatched_reserves_verified_cols
-            )
+            assert isinstance(df, pl.DataFrame)
+            assert df.columns == self.expected_dispatched_reserves_verified_cols
 
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
             assert df["Interval End"].max() <= self.local_start_of_day(
                 past_end_date,
             ) + pd.Timedelta(days=1)
 
-            assert df["Ancillary Service"].dtype == object
-            assert df["Area"].dtype == object
+            assert df["Ancillary Service"].dtype == pl.Utf8
+            assert df["Area"].dtype == pl.Utf8
             assert (
                 df["Area"].unique().tolist().sort()
                 == self.expected_reserve_areas.sort()
@@ -2353,13 +2445,38 @@ class TestPJM(BaseTestISO):
                 df["Ancillary Service"].unique().tolist().sort()
                 == self.expected_ancillary_services.sort()
             )
-            assert df["Reserve Type"].dtype == object
-            assert df["Total Reserve"].dtype in [np.float64, np.int64]
-            assert df["Reserve Requirement"].dtype in [np.float64, np.int64]
-            assert df["Reliability Requirement"].dtype in [np.float64, np.int64]
-            assert df["Extended Requirement"].dtype in [np.float64, np.int64]
-            assert df["Additional Extended Requirement"].dtype in [np.float64, np.int64]
-            assert df["Deficit"].dtype in [np.float64, np.int64]
+            assert df["Reserve Type"].dtype == pl.Utf8
+            assert df.schema["Total Reserve"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Reserve Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Reliability Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Extended Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Additional Extended Requirement"] in (
+                pl.Float64,
+                pl.Int64,
+                pl.Float32,
+                pl.Int32,
+            )
+            assert df.schema["Deficit"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
 
     expected_regulation_market_monthly_cols = [
         "Interval Start",
@@ -2389,8 +2506,8 @@ class TestPJM(BaseTestISO):
         ):
             df = self.iso.get_regulation_market_monthly(past_date, past_end_date)
 
-            assert isinstance(df, pd.DataFrame)
-            assert df.columns.tolist() == self.expected_regulation_market_monthly_cols
+            assert isinstance(df, pl.DataFrame)
+            assert df.columns == self.expected_regulation_market_monthly_cols
 
             assert df["Interval Start"].min() >= self.local_start_of_day(past_date)
             # Data is in 30-minute intervals, so last interval ends 30 min after midnight
@@ -2428,8 +2545,8 @@ class TestPJM(BaseTestISO):
     ]
 
     def _check_lmp_real_time_unverified_hourly(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self.expected_lmp_real_time_unverified_hourly_cols
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self.expected_lmp_real_time_unverified_hourly_cols
         numeric_cols = ["LMP", "Energy", "Congestion", "Loss"]
         for col in numeric_cols:
             assert df[col].dtype in [np.float64, np.int64]
@@ -2469,9 +2586,9 @@ class TestPJM(BaseTestISO):
             f"test_get_load_forecast_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load_forecast_5_min(past_date, past_end_date)
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
-            assert df.columns.tolist() == self.load_forecast_columns
+            assert isinstance(df, pl.DataFrame)
+            assert not df.is_empty()
+            assert df.columns == self.load_forecast_columns
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_end_date,
@@ -2498,9 +2615,9 @@ class TestPJM(BaseTestISO):
             f"test_get_regulation_prices_5_min_historical_range_{past_date.strftime('%Y-%m-%d')}_{past_end_date.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_regulation_prices_5_min(past_date, past_end_date)
-            assert isinstance(df, pd.DataFrame)
-            assert not df.empty
-            assert df.columns.tolist() == self.regulation_prices_5_min_columns
+            assert isinstance(df, pl.DataFrame)
+            assert not df.is_empty()
+            assert df.columns == self.regulation_prices_5_min_columns
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_end_date,
@@ -2517,14 +2634,14 @@ class TestPJM(BaseTestISO):
     ]
 
     def _check_tie_flows_5_min(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self.expected_tie_flows_5_min_cols
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self.expected_tie_flows_5_min_cols
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
-        assert df["Tie Flow Name"].dtype == object
-        assert df["Actual"].dtype in [np.float64, np.int64]
-        assert df["Scheduled"].dtype in [np.float64, np.int64]
+        assert df["Tie Flow Name"].dtype == pl.Utf8
+        assert df.schema["Actual"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Scheduled"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
 
     @pytest.mark.parametrize("date", ["today"])
     def test_get_tie_flows_5_min_today(self, date):
@@ -2562,7 +2679,7 @@ class TestPJM(BaseTestISO):
     """get_instantaneous_dispatch_rates"""
 
     def _check_instantaneous_dispatch_rates(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Zone",
@@ -2572,8 +2689,8 @@ class TestPJM(BaseTestISO):
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(seconds=15)
         ).all()
-        assert df["Zone"].dtype == object
-        assert df["Instantaneous Dispatch Rate"].dtype == np.float64
+        assert df["Zone"].dtype == pl.Utf8
+        assert df.schema["Instantaneous Dispatch Rate"] == pl.Float64
 
     def test_get_instantaneous_dispatch_rates_today(self):
         with pjm_vcr.use_cassette("test_get_instantaneous_dispatch_rates_today.yaml"):
@@ -2617,14 +2734,14 @@ class TestPJM(BaseTestISO):
             assert end - pd.Timedelta(seconds=15) <= df["Interval Start"].max() <= end
 
     def _check_hourly_net_exports_by_state(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "State",
             "Net Interchange",
         ]
-        assert not df.empty
+        assert not df.is_empty()
         assert df["Interval Start"].is_monotonic_increasing
 
     @pytest.mark.parametrize("date, end", test_dates)
@@ -2640,15 +2757,15 @@ class TestPJM(BaseTestISO):
             ).date() + pd.Timedelta(days=1)
 
     def _check_hourly_transfer_limits_and_flows(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Transfer Limit Area",
             "Average Transfers",
             "Average Transfer Limit",
         ]
-        assert not df.empty
+        assert not df.is_empty()
 
     @pytest.mark.parametrize("date, end", test_dates)
     def test_get_hourly_transfer_limits_and_flows_historical_date_range(
@@ -2665,8 +2782,8 @@ class TestPJM(BaseTestISO):
             assert df["Interval End"].max().date() <= pd.Timestamp(end).date()
 
     def _check_actual_and_scheduled_interchange_summary(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Tie Line",
@@ -2674,7 +2791,7 @@ class TestPJM(BaseTestISO):
             "Scheduled Flow",
             "Inadvertent Flow",
         ]
-        assert not df.empty
+        assert not df.is_empty()
 
     @pytest.mark.parametrize("date, end", test_dates)
     def test_get_actual_and_scheduled_interchange_summary_historical_date_range(
@@ -2693,14 +2810,14 @@ class TestPJM(BaseTestISO):
             ).date() + pd.Timedelta(days=1)
 
     def _check_scheduled_interchange_real_time(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Tie Line",
             "Hourly Net Tie Schedule",
         ]
-        assert not df.empty
+        assert not df.is_empty()
         assert df["Interval Start"].is_monotonic_increasing
 
     @pytest.mark.parametrize("date, end", test_dates)
@@ -2716,15 +2833,15 @@ class TestPJM(BaseTestISO):
             ).date() + pd.Timedelta(days=1)
 
     def _check_interface_flows_and_limits_day_ahead(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Interface Limit Name",
             "Flow",
             "Limit",
         ]
-        assert not df.empty
+        assert not df.is_empty()
 
     @pytest.mark.parametrize("date, end", test_dates)
     def test_get_interface_flows_and_limits_day_ahead_historical_date_range(
@@ -2743,8 +2860,8 @@ class TestPJM(BaseTestISO):
             ).date() + pd.Timedelta(days=1)
 
     def _check_projected_peak_tie_flow(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -2752,7 +2869,7 @@ class TestPJM(BaseTestISO):
             "Interface",
             "Scheduled Tie Flow",
         ]
-        assert not df.empty
+        assert not df.is_empty()
 
     @pytest.mark.parametrize("date, end", test_dates)
     def test_get_projected_peak_tie_flow_historical_date_range(self, date, end):
@@ -2765,8 +2882,8 @@ class TestPJM(BaseTestISO):
     """get_actual_operational_statistics"""
 
     def _check_actual_operational_statistics(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -2775,11 +2892,21 @@ class TestPJM(BaseTestISO):
             "Actual Load",
             "Dispatch Rate",
         ]
-        assert not df.empty
-        assert df["Area"].dtype == object
-        assert df["Area Load Forecast"].dtype in [np.float64, np.int64]
-        assert df["Actual Load"].dtype in [np.float64, np.int64]
-        assert df["Dispatch Rate"].dtype in [np.float64, np.int64]
+        assert not df.is_empty()
+        assert df["Area"].dtype == pl.Utf8
+        assert df.schema["Area Load Forecast"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Actual Load"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Dispatch Rate"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
 
     @pytest.mark.parametrize("date, end", test_dates)
     def test_get_actual_operational_statistics_historical_date_range(self, date, end):
@@ -2797,8 +2924,8 @@ class TestPJM(BaseTestISO):
     """get_pricing_nodes"""
 
     def _check_pricing_nodes(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Pricing Node ID",
             "Pricing Node Name",
             "Pricing Node Type",
@@ -2808,11 +2935,16 @@ class TestPJM(BaseTestISO):
             "Effective Date",
             "Termination Date",
         ]
-        assert not df.empty
-        assert df["Pricing Node ID"].dtype in [np.int64, np.float64]
-        assert df["Pricing Node Name"].dtype == object
-        assert df["Pricing Node Type"].dtype == object
-        assert df["Zone"].dtype == object
+        assert not df.is_empty()
+        assert df.schema["Pricing Node ID"] in (
+            pl.Int64,
+            pl.Float64,
+            pl.Int32,
+            pl.Float32,
+        )
+        assert df["Pricing Node Name"].dtype == pl.Utf8
+        assert df["Pricing Node Type"].dtype == pl.Utf8
+        assert df["Zone"].dtype == pl.Utf8
 
     @pytest.mark.parametrize("as_of", ["now", None])
     def test_get_pricing_nodes_as_of(self, as_of):
@@ -2844,8 +2976,8 @@ class TestPJM(BaseTestISO):
     """get_reserve_subzone_resources"""
 
     def _check_reserve_subzone_resources(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Resource ID",
             "Resource Name",
             "Resource Type",
@@ -2854,12 +2986,12 @@ class TestPJM(BaseTestISO):
             "Effective Date",
             "Termination Date",
         ]
-        assert not df.empty
-        assert df["Resource ID"].dtype in [object, np.int64, np.float64]
-        assert df["Resource Name"].dtype == object
-        assert df["Resource Type"].dtype == object
-        assert df["Subzone"].dtype == object
-        assert df["Zone"].dtype == object
+        assert not df.is_empty()
+        assert df.schema["Resource ID"] in (pl.Utf8, pl.Int64, pl.Float64)
+        assert df["Resource Name"].dtype == pl.Utf8
+        assert df["Resource Type"].dtype == pl.Utf8
+        assert df["Subzone"].dtype == pl.Utf8
+        assert df["Zone"].dtype == pl.Utf8
 
     @pytest.mark.parametrize("as_of", ["now", None])
     def test_get_reserve_subzone_resources_as_of(self, as_of):
@@ -2893,8 +3025,8 @@ class TestPJM(BaseTestISO):
     """get_reserve_subzone_buses"""
 
     def _check_reserve_subzone_buses(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Pricing Node ID",
             "Pricing Node Name",
             "Pricing Node Type",
@@ -2902,11 +3034,16 @@ class TestPJM(BaseTestISO):
             "Effective Date",
             "Termination Date",
         ]
-        assert not df.empty
-        assert df["Pricing Node ID"].dtype in [np.int64, np.float64]
-        assert df["Pricing Node Name"].dtype == object
-        assert df["Pricing Node Type"].dtype == object
-        assert df["Subzone"].dtype == object
+        assert not df.is_empty()
+        assert df.schema["Pricing Node ID"] in (
+            pl.Int64,
+            pl.Float64,
+            pl.Int32,
+            pl.Float32,
+        )
+        assert df["Pricing Node Name"].dtype == pl.Utf8
+        assert df["Pricing Node Type"].dtype == pl.Utf8
+        assert df["Subzone"].dtype == pl.Utf8
 
     @pytest.mark.parametrize("as_of", ["now", None])
     def test_get_reserve_subzone_buses_as_of(self, as_of):
@@ -2938,8 +3075,8 @@ class TestPJM(BaseTestISO):
     """get_weight_average_aggregation_definition"""
 
     def _check_weight_average_aggregation_definition(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Aggregate Node ID",
             "Aggregate Node Name",
             "Bus Node ID",
@@ -2948,12 +3085,22 @@ class TestPJM(BaseTestISO):
             "Effective Date",
             "Termination Date",
         ]
-        assert not df.empty
-        assert df["Aggregate Node ID"].dtype in [np.int64, np.float64]
-        assert df["Aggregate Node Name"].dtype == object
-        assert df["Bus Node ID"].dtype in [np.int64, np.float64]
-        assert df["Bus Node Name"].dtype == object
-        assert df["Bus Node Factor"].dtype in [np.float64, np.int64]
+        assert not df.is_empty()
+        assert df.schema["Aggregate Node ID"] in (
+            pl.Int64,
+            pl.Float64,
+            pl.Int32,
+            pl.Float32,
+        )
+        assert df["Aggregate Node Name"].dtype == pl.Utf8
+        assert df.schema["Bus Node ID"] in (pl.Int64, pl.Float64, pl.Int32, pl.Float32)
+        assert df["Bus Node Name"].dtype == pl.Utf8
+        assert df.schema["Bus Node Factor"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
 
     @pytest.mark.parametrize("as_of", ["now", None])
     def test_get_weight_average_aggregation_definition_as_of(self, as_of):
@@ -2995,12 +3142,27 @@ class TestPJM(BaseTestISO):
     ]
 
     def _check_generation_capacity_daily(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self.expected_generation_capacity_daily_cols
-        assert not df.empty
-        assert df["Economic Max MW"].dtype in [np.float64, np.int64]
-        assert df["Emergency Max MW"].dtype in [np.float64, np.int64]
-        assert df["Total Committed MW"].dtype in [np.float64, np.int64]
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self.expected_generation_capacity_daily_cols
+        assert not df.is_empty()
+        assert df.schema["Economic Max MW"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Emergency Max MW"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Total Committed MW"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
 
     def test_get_generation_capacity_daily_historical_range(self):
         past_date = self.local_today() - pd.Timedelta(days=10)
@@ -3026,12 +3188,12 @@ class TestPJM(BaseTestISO):
     ]
 
     def _check_cleared_virtuals_daily(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self.expected_cleared_virtuals_daily_cols
-        assert not df.empty
-        assert df["Dec MW"].dtype in [np.float64, np.int64]
-        assert df["Inc MW"].dtype in [np.float64, np.int64]
-        assert df["UTC MW"].dtype in [np.float64, np.int64]
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self.expected_cleared_virtuals_daily_cols
+        assert not df.is_empty()
+        assert df.schema["Dec MW"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Inc MW"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["UTC MW"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
         assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(days=1)).all()
 
     @pytest.mark.parametrize("date", ["today"])
@@ -3066,15 +3228,13 @@ class TestPJM(BaseTestISO):
     ]
 
     def _check_inc_and_dec_bids_day_ahead_hourly(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert (
-            df.columns.tolist() == self.expected_inc_and_dec_bids_day_ahead_hourly_cols
-        )
-        assert not df.empty
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self.expected_inc_and_dec_bids_day_ahead_hourly_cols
+        assert not df.is_empty()
         assert pd.api.types.is_datetime64tz_dtype(df["Publish Time"])
-        assert df["Price Point"].dtype in [np.float64, np.int64]
-        assert df["Inc MW"].dtype in [np.float64, np.int64]
-        assert df["Dec MW"].dtype in [np.float64, np.int64]
+        assert df.schema["Price Point"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Inc MW"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Dec MW"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
@@ -3108,14 +3268,14 @@ class TestPJM(BaseTestISO):
     ]
 
     def _check_sync_reserve_events(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self.expected_sync_reserve_events_cols
-        assert not df.empty
-        assert df["Duration"].dtype == object
-        assert df["Duration Minutes"].dtype == np.int64
-        assert df["Synchronized Reserve Zone"].dtype == object
-        assert df["Synchronized Subzone"].dtype == object
-        assert df["Percent Deployed"].dtype == np.float64
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self.expected_sync_reserve_events_cols
+        assert not df.is_empty()
+        assert df["Duration"].dtype == pl.Utf8
+        assert df.schema["Duration Minutes"] == pl.Int64
+        assert df["Synchronized Reserve Zone"].dtype == pl.Utf8
+        assert df["Synchronized Subzone"].dtype == pl.Utf8
+        assert df.schema["Percent Deployed"] == pl.Float64
 
     def test_get_sync_reserve_events(self):
         with pjm_vcr.use_cassette("test_get_sync_reserve_events.yaml"):
@@ -3188,18 +3348,18 @@ class TestPJM(BaseTestISO):
                 url="https://example.test/dashboard.jsf",
             )
 
-        assert df.columns.tolist() == self.expected_emergency_postings_cols
+        assert df.columns == self.expected_emergency_postings_cols
         assert len(df) == 1
         assert df["Message ID"].iloc[0] == 1
         assert df["Region"].iloc[0] == "AEP"
         assert df["Message Type"].iloc[0] == "Test"
         assert df["Priority"].iloc[0] == "Warning"
-        assert isinstance(df["Effective Start"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Effective Start"].dt.tz) == str(self.iso.default_timezone)
-        assert isinstance(df["Effective End"].dtype, pd.DatetimeTZDtype)
-        assert isinstance(df["Applicable Start"].dtype, pd.DatetimeTZDtype)
-        assert isinstance(df["Applicable End"].dtype, pd.DatetimeTZDtype)
-        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
+        assert isinstance(df.schema["Effective Start"], pl.Datetime)
+        assert df.schema["Effective Start"].time_zone == self.iso.default_timezone
+        assert isinstance(df.schema["Effective End"], pl.Datetime)
+        assert isinstance(df.schema["Applicable Start"], pl.Datetime)
+        assert isinstance(df.schema["Applicable End"], pl.Datetime)
+        assert isinstance(df.schema["Publish Time"], pl.Datetime)
 
     def test_get_emergency_postings_xml_export_multi_region(self):
         xml = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -3249,7 +3409,7 @@ class TestPJM(BaseTestISO):
     """get_voltage_limits"""
 
     def _check_voltage_limits(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Publish Time",
             "Company",
             "Voltage",
@@ -3263,20 +3423,40 @@ class TestPJM(BaseTestISO):
             "Voltage Drop Warning Percent",
             "Voltage Drop Limit Percent",
         ]
-        assert not df.empty
-        assert isinstance(df["Publish Time"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Publish Time"].dt.tz) == str(self.iso.default_timezone)
-        assert df["Company"].dtype == object
-        assert df["Voltage"].dtype == object
-        assert df["Follow PJM"].dtype == object
-        assert df["Station"].dtype == object
-        assert df["Load Dump"].dtype in [np.float64, np.int64]
-        assert df["Emergency Low"].dtype in [np.float64, np.int64]
-        assert df["Normal Low"].dtype in [np.float64, np.int64]
-        assert df["Normal High"].dtype in [np.float64, np.int64]
-        assert df["Emergency High"].dtype in [np.float64, np.int64]
-        assert df["Voltage Drop Warning Percent"].dtype in [np.float64, np.int64]
-        assert df["Voltage Drop Limit Percent"].dtype in [np.float64, np.int64]
+        assert not df.is_empty()
+        assert isinstance(df.schema["Publish Time"], pl.Datetime)
+        assert df.schema["Publish Time"].time_zone == self.iso.default_timezone
+        assert df["Company"].dtype == pl.Utf8
+        assert df["Voltage"].dtype == pl.Utf8
+        assert df["Follow PJM"].dtype == pl.Utf8
+        assert df["Station"].dtype == pl.Utf8
+        assert df.schema["Load Dump"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Emergency Low"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Normal Low"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Normal High"] in (pl.Float64, pl.Int64, pl.Float32, pl.Int32)
+        assert df.schema["Emergency High"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Voltage Drop Warning Percent"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Voltage Drop Limit Percent"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
 
     def test_get_voltage_limits_latest(self):
         with pjm_vcr.use_cassette("test_get_voltage_limits_latest.yaml"):
@@ -3286,18 +3466,18 @@ class TestPJM(BaseTestISO):
     """get_pai_intervals_5_min"""
 
     def _check_pai_intervals_5_min(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Performance Assessment Interval",
         ]
-        assert not df.empty
-        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
-        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Interval End"].dt.tz) == str(self.iso.default_timezone)
-        assert df["Performance Assessment Interval"].dtype == object
+        assert not df.is_empty()
+        assert isinstance(df.schema["Interval Start"], pl.Datetime)
+        assert df.schema["Interval Start"].time_zone == self.iso.default_timezone
+        assert isinstance(df.schema["Interval End"], pl.Datetime)
+        assert df.schema["Interval End"].time_zone == self.iso.default_timezone
+        assert df["Performance Assessment Interval"].dtype == pl.Utf8
 
     def test_get_pai_intervals_5_min_historical_date_range(self):
         date = self.local_today() - pd.Timedelta(days=5)
@@ -3314,8 +3494,8 @@ class TestPJM(BaseTestISO):
     """get_marginal_emission_rates_5_min"""
 
     def _check_marginal_emission_rates_5_min(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == [
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Pnode Name",
@@ -3324,16 +3504,31 @@ class TestPJM(BaseTestISO):
             "Marginal SO2 Rate",
             "Marginal NOx Rate",
         ]
-        assert not df.empty
-        assert isinstance(df["Interval Start"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Interval Start"].dt.tz) == str(self.iso.default_timezone)
-        assert isinstance(df["Interval End"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Interval End"].dt.tz) == str(self.iso.default_timezone)
-        assert df["Pnode Name"].dtype == object
-        assert df["Pnode ID"].dtype in [np.int64, np.float64]
-        assert df["Marginal CO2 Rate"].dtype in [np.float64, np.int64]
-        assert df["Marginal SO2 Rate"].dtype in [np.float64, np.int64]
-        assert df["Marginal NOx Rate"].dtype in [np.float64, np.int64]
+        assert not df.is_empty()
+        assert isinstance(df.schema["Interval Start"], pl.Datetime)
+        assert df.schema["Interval Start"].time_zone == self.iso.default_timezone
+        assert isinstance(df.schema["Interval End"], pl.Datetime)
+        assert df.schema["Interval End"].time_zone == self.iso.default_timezone
+        assert df["Pnode Name"].dtype == pl.Utf8
+        assert df.schema["Pnode ID"] in (pl.Int64, pl.Float64, pl.Int32, pl.Float32)
+        assert df.schema["Marginal CO2 Rate"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Marginal SO2 Rate"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
+        assert df.schema["Marginal NOx Rate"] in (
+            pl.Float64,
+            pl.Int64,
+            pl.Float32,
+            pl.Int32,
+        )
 
     def test_get_marginal_emission_rates_5_min_historical_date_range(
         self,
