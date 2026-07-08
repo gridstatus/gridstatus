@@ -1,6 +1,6 @@
 import pandas as pd
+import polars as pl
 import pytest
-from pandas.core.dtypes.common import is_numeric_dtype
 
 import gridstatus
 from gridstatus.base import GridStatus, _interconnection_columns
@@ -11,9 +11,20 @@ class TestHelperMixin:
 
     @staticmethod
     def _as_pandas(df):
-        """Accept either a pandas or polars frame, returning pandas for assertions."""
-        if type(df).__module__.split(".")[0] == "polars":
+        """Accept either a pandas or polars frame, returning pandas for assertions.
+
+        Transitional helper for source-specific tests that still assert with
+        pandas idioms; remove call sites as each ISO's tests convert to polars.
+        """
+        if isinstance(df, pl.DataFrame):
             return df.to_pandas()
+        return df
+
+    @staticmethod
+    def _as_polars(df):
+        """Accept either a pandas or polars frame, returning polars for assertions."""
+        if isinstance(df, pd.DataFrame):
+            return pl.from_pandas(df)
         return df
 
     def local_now(self):
@@ -29,10 +40,10 @@ class TestHelperMixin:
         return self.local_start_of_day(self.local_today())
 
     def _check_ordered_by_time(self, df, col):
-        df = self._as_pandas(df)
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[0] > 0
-        assert df[col].is_monotonic_increasing
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert df.height > 0
+        assert df[col].is_sorted()
 
     def _check_time_columns(
         self,
@@ -41,8 +52,8 @@ class TestHelperMixin:
         skip_column_named_time=False,
         sced=False,
     ):
-        df = self._as_pandas(df)
-        assert isinstance(df, pd.DataFrame)
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
 
         if instant_or_interval == "interval":
             # TODO: remove "Time" from time_cols for "interval"
@@ -65,11 +76,12 @@ class TestHelperMixin:
         if skip_column_named_time:
             time_cols.remove("Time")
 
-        assert time_cols == df.columns[: len(time_cols)].tolist()
+        assert time_cols == df.columns[: len(time_cols)]
         # check all time cols are localized timestamps
         for col in time_cols:
-            assert isinstance(df.loc[0][col], pd.Timestamp)
-            assert df.loc[0][col].tz is not None
+            dtype = df.schema[col]
+            assert isinstance(dtype, pl.Datetime)
+            assert dtype.time_zone is not None
 
         self._check_ordered_by_time(df, ordered_by_col)
 
@@ -106,31 +118,31 @@ class BaseTestISO(TestHelperMixin):
     def test_get_fuel_mix_historical(self, time_column="Time"):
         # date string works
         date_str = "04/03/2022"
-        df = self._as_pandas(self.iso.get_fuel_mix(date_str))
+        df = self._as_polars(self.iso.get_fuel_mix(date_str))
 
-        assert isinstance(df, pd.DataFrame)
-        assert df.loc[0][time_column].strftime("%m/%d/%Y") == date_str
-        assert df.loc[0][time_column].tz is not None
+        assert isinstance(df, pl.DataFrame)
+        assert df[0, time_column].strftime("%m/%d/%Y") == date_str
+        assert df[0, time_column].tzinfo is not None
         self._check_fuel_mix(df)
 
         # timestamp object works
         date_obj = pd.to_datetime("2019/11/19")
-        df = self._as_pandas(self.iso.get_fuel_mix(date_obj))
-        assert isinstance(df, pd.DataFrame)
-        assert df.loc[0][time_column].strftime(
+        df = self._as_polars(self.iso.get_fuel_mix(date_obj))
+        assert isinstance(df, pl.DataFrame)
+        assert df[0, time_column].strftime(
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
-        assert df.loc[0][time_column].tz is not None
+        assert df[0, time_column].tzinfo is not None
         self._check_fuel_mix(df)
 
         # datetime object works
         date_obj = pd.to_datetime("2021/05/09").date()
-        df = self._as_pandas(self.iso.get_fuel_mix(date_obj))
-        assert isinstance(df, pd.DataFrame)
-        assert df.loc[0][time_column].strftime(
+        df = self._as_polars(self.iso.get_fuel_mix(date_obj))
+        assert isinstance(df, pl.DataFrame)
+        assert df[0, time_column].strftime(
             "%Y%m%d",
         ) == date_obj.strftime("%Y%m%d")
-        assert df.loc[0][time_column].tz is not None
+        assert df[0, time_column].tzinfo is not None
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_historical_with_date_range(self, time_column="Time"):
@@ -141,13 +153,13 @@ class BaseTestISO(TestHelperMixin):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        df = self._as_pandas(
+        df = self._as_polars(
             self.iso.get_fuel_mix(date=start.date(), end=end.date()),
         )
         self._check_fuel_mix(df)
 
         # make sure right number of days are returned
-        assert df[time_column].dt.day.nunique() == num_days
+        assert df[time_column].dt.day().n_unique() == num_days
 
     def test_get_fuel_mix_range_two_days_with_day_start_endpoint(
         self,
@@ -162,7 +174,7 @@ class BaseTestISO(TestHelperMixin):
 
         # add one minute since pjm is exclusive of end date
         # and does not include the whole day like other isos
-        df = self._as_pandas(
+        df = self._as_polars(
             self.iso.get_fuel_mix(start=start, end=yesterday + pd.Timedelta(minutes=1)),
         )
 
@@ -178,16 +190,17 @@ class BaseTestISO(TestHelperMixin):
         ) - pd.Timedelta(days=1)
         start = yesterday.replace(hour=0, minute=5, second=0, microsecond=0)
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
-        df = self._as_pandas(self.iso.get_fuel_mix(start=start, end=end))
+        df = self._as_polars(self.iso.get_fuel_mix(start=start, end=end))
         # ignore last row, since it is sometime midnight of next day
-        assert df[time_column].iloc[:-1].dt.date.unique().tolist() == [yesterday.date()]
+        assert df[time_column][:-1].dt.date().unique(
+            maintain_order=True,
+        ).to_list() == [yesterday.date()]
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_latest(self, time_column="Time"):
-        df = self._as_pandas(self.iso.get_fuel_mix("latest"))
-        assert isinstance(df, pd.DataFrame)
-        assert isinstance(df[time_column].iloc[0], pd.Timestamp)
-        assert df.index.name is None
+        df = self._as_polars(self.iso.get_fuel_mix("latest"))
+        assert isinstance(df, pl.DataFrame)
+        assert isinstance(df.schema[time_column], pl.Datetime)
         self._check_fuel_mix(df)
 
     def test_get_fuel_mix_today(self):
@@ -197,10 +210,10 @@ class BaseTestISO(TestHelperMixin):
     """get_interconnection_queue"""
 
     def test_get_interconnection_queue(self):
-        queue = self.iso.get_interconnection_queue()
+        queue = self._as_polars(self.iso.get_interconnection_queue())
         # todo make sure datetime columns are right type
-        assert isinstance(queue, pd.DataFrame)
-        assert queue.shape[0] > 0
+        assert isinstance(queue, pl.DataFrame)
+        assert queue.height > 0
         assert set(_interconnection_columns).issubset(queue.columns)
 
     """get_lmp"""
@@ -223,22 +236,22 @@ class BaseTestISO(TestHelperMixin):
     # is not available for the selected date.
     def test_get_lmp_historical(self, market=None, date_str="2022-07-22"):
         if market is not None:
-            hist = self._as_pandas(self.iso.get_lmp(date_str, market=market))
-            assert isinstance(hist, pd.DataFrame)
+            hist = self._as_polars(self.iso.get_lmp(date_str, market=market))
+            assert isinstance(hist, pl.DataFrame)
             self._check_lmp_columns(hist, market)
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_latest(self, market=None):
         if market is not None:
-            df = self._as_pandas(self.iso.get_lmp("latest", market=market))
-            assert isinstance(df, pd.DataFrame)
+            df = self._as_polars(self.iso.get_lmp("latest", market=market))
+            assert isinstance(df, pl.DataFrame)
             self._check_lmp_columns(df, market)
 
     # @pytest.mark.parametrize in ISO
     def test_get_lmp_today(self, market=None):
         if market is not None:
-            df = self._as_pandas(self.iso.get_lmp("today", market=market))
-            assert isinstance(df, pd.DataFrame)
+            df = self._as_polars(self.iso.get_lmp("today", market=market))
+            assert isinstance(df, pl.DataFrame)
             self._check_lmp_columns(df, market)
 
     """get_load"""
@@ -251,14 +264,14 @@ class BaseTestISO(TestHelperMixin):
         ) + pd.Timedelta(days=1)
         start = end - pd.Timedelta(days=num_days)
 
-        data = self._as_pandas(
+        data = self._as_polars(
             self.iso.get_load(date=start.date(), end=end.date()),
         )
         self._check_load(data)
         # make sure right number of days are returned
-        assert data["Time"].dt.day.nunique() == num_days
+        assert data["Time"].dt.day().n_unique() == num_days
 
-        data_tuple = self._as_pandas(
+        data_tuple = self._as_polars(
             self.iso.get_load(date=(start.date(), end.date())),
         )
 
@@ -271,41 +284,41 @@ class BaseTestISO(TestHelperMixin):
 
         # date string works
         date_str = test_date.strftime("%Y%m%d")
-        df = self._as_pandas(self.iso.get_load(date_str))
+        df = self._as_polars(self.iso.get_load(date_str))
         self._check_load(df)
-        assert df.loc[0]["Time"].strftime("%Y%m%d") == date_str
+        assert df[0, "Time"].strftime("%Y%m%d") == date_str
 
         # timestamp object works
-        df = self._as_pandas(self.iso.get_load(test_date))
+        df = self._as_polars(self.iso.get_load(test_date))
 
         self._check_load(df)
-        assert df.loc[0]["Time"].strftime(
+        assert df[0, "Time"].strftime(
             "%Y%m%d",
         ) == test_date.strftime("%Y%m%d")
 
         # datetime object works
-        df = self._as_pandas(self.iso.get_load(test_date))
+        df = self._as_polars(self.iso.get_load(test_date))
         self._check_load(df)
-        assert df.loc[0]["Time"].strftime(
+        assert df[0, "Time"].strftime(
             "%Y%m%d",
         ) == test_date.strftime("%Y%m%d")
 
     def test_get_load_latest(self):
-        df = self._as_pandas(self.iso.get_load("latest"))
+        df = self._as_polars(self.iso.get_load("latest"))
         self._check_load(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         assert df["Time"].max().date() == today
 
     def test_get_load_today(self):
-        df = self._as_pandas(self.iso.get_load("today"))
+        df = self._as_polars(self.iso.get_load("today"))
         self._check_load(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
 
         # okay as long as one of these columns is only today
         assert (
-            (df["Time"].dt.date == today).all()
-            or (df["Interval Start"].dt.date == today).all()
-            or (df["Interval End"].dt.date == today).all()
+            (df["Time"].dt.date() == today).all()
+            or (df["Interval Start"].dt.date() == today).all()
+            or (df["Interval End"].dt.date() == today).all()
         )
 
     """get_load_forecast"""
@@ -351,9 +364,8 @@ class BaseTestISO(TestHelperMixin):
     """other"""
 
     def _check_fuel_mix(self, df):
-        df = self._as_pandas(df)
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.name is None
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
 
         time_type = "interval"
         if self.iso.iso_id in ["nyiso", "isone", "ercot"]:
@@ -365,9 +377,9 @@ class BaseTestISO(TestHelperMixin):
         self._check_time_columns(df, instant_or_interval=time_type)
 
     def _check_load(self, df):
-        df = self._as_pandas(df)
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[0] >= 0
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert df.height >= 0
 
         if self.iso.iso_id in ["nyiso"]:
             time_type = "instant"
@@ -383,10 +395,10 @@ class BaseTestISO(TestHelperMixin):
             time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
         assert "Load" in df.columns
-        assert is_numeric_dtype(df["Load"])
+        assert df.schema["Load"].is_numeric()
 
     def _check_forecast(self, df, expected_columns=None):
-        df = self._as_pandas(df)
+        df = self._as_polars(df)
         if expected_columns is not None:
             assert set(df.columns) == set(expected_columns)
         else:
@@ -411,10 +423,11 @@ class BaseTestISO(TestHelperMixin):
         assert self._check_is_datetime_type(df["Time"])
 
     def _check_is_datetime_type(self, series):
-        # any_dtype allows for TZ-aware or naive datetimes
-        return pd.api.types.is_datetime64_any_dtype(
-            series,
-        ) | pd.api.types.is_timedelta64_dtype(series)
+        # TZ-aware or naive datetimes, or durations
+        return isinstance(series.dtype, pl.Datetime) or isinstance(
+            series.dtype,
+            pl.Duration,
+        )
 
     lmp_cols = [
         "Time",
@@ -430,7 +443,7 @@ class BaseTestISO(TestHelperMixin):
     ]
 
     def _check_lmp_columns(self, df, market):
-        df = self._as_pandas(df)
+        df = self._as_polars(df)
         # todo in future all ISO should return same columns
         # maybe with the exception of "LMP" breakdown
         self._check_time_columns(df)
@@ -439,11 +452,12 @@ class BaseTestISO(TestHelperMixin):
             self.lmp_cols,
         ).issubset(df.columns)
 
-        assert len(df["Market"].unique()) == 1
-        assert df["Market"].unique()[0] == market.value
-        assert df.shape[0] >= 0
+        assert df["Market"].n_unique() == 1
+        assert df["Market"][0] == market.value
+        assert df.height >= 0
 
     def _check_storage(self, df):
+        df = self._as_polars(df)
         assert set(["Time", "Interval Start", "Interval End", "Supply"]).issubset(
             df.columns,
         )
