@@ -5,6 +5,7 @@ from unittest import mock
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus import Markets, NoDataFoundException, NotSupported
@@ -107,8 +108,10 @@ class TestErcot(BaseTestISO):
         self._check_dam_system_lambda(df)
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         # Published yesterday
-        assert df["Publish Time"].dt.date.unique() == [today - pd.Timedelta(days=1)]
-        assert df["Interval Start"].dt.date.unique() == [today]
+        assert df["Publish Time"].dt.date().unique().to_list() == [
+            today - pd.Timedelta(days=1),
+        ]
+        assert df["Interval Start"].dt.date().unique().to_list() == [today]
 
     @pytest.mark.integration
     def test_get_dam_system_lambda_historical(self):
@@ -117,7 +120,7 @@ class TestErcot(BaseTestISO):
         ).date() - pd.Timedelta(days=2)
         df = self.iso.get_dam_system_lambda(two_days_ago)
         self._check_dam_system_lambda(df)
-        assert list(df["Publish Time"].dt.date.unique()) == [
+        assert list(df["Publish Time"].dt.date().unique()) == [
             two_days_ago - pd.Timedelta(days=1),
         ]
 
@@ -133,7 +136,7 @@ class TestErcot(BaseTestISO):
             verbose=True,
         )
         self._check_dam_system_lambda(df)
-        assert list(df["Publish Time"].dt.date.unique()) == [
+        assert list(df["Publish Time"].dt.date().unique()) == [
             three_days_ago - pd.Timedelta(days=1),
             two_days_ago - pd.Timedelta(days=1),
         ]
@@ -144,7 +147,7 @@ class TestErcot(BaseTestISO):
     def test_get_sced_system_lambda(self):
         df = self.iso.get_sced_system_lambda("today", verbose=True)
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "SCED Timestamp",
@@ -174,19 +177,19 @@ class TestErcot(BaseTestISO):
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         df = self.iso.get_as_prices(today)
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
+        assert df.columns == as_cols
         assert df["Time"].unique()[0].date() == today
 
         date = today - pd.Timedelta(days=3)
         df = self.iso.get_as_prices(date)
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == as_cols
+        assert df.columns == as_cols
         assert df["Time"].unique()[0].date() == date
 
     """get_as_plan"""
 
     def _check_as_plan(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -205,7 +208,7 @@ class TestErcot(BaseTestISO):
         assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
             days=7,
         )
-        assert df["Publish Time"].dt.date.unique().tolist() == [self.local_today()]
+        assert df["Publish Time"].dt.date().unique().to_list() == [self.local_today()]
 
     @pytest.mark.integration
     def test_get_as_plan_historical_date(self):
@@ -216,7 +219,7 @@ class TestErcot(BaseTestISO):
         assert df["Interval End"].max() == self.local_start_of_day(
             date,
         ) + pd.DateOffset(days=7)
-        assert df["Publish Time"].dt.date.unique().tolist() == [date]
+        assert df["Publish Time"].dt.date().unique().to_list() == [date]
 
     @pytest.mark.integration
     def test_get_as_plan_historical_date_range(self):
@@ -229,7 +232,7 @@ class TestErcot(BaseTestISO):
             end_date,
             # Not inclusive of end date
         ) + pd.DateOffset(days=6)
-        assert df["Publish Time"].dt.date.unique().tolist() == [
+        assert df["Publish Time"].dt.date().unique().to_list() == [
             start_date,
             (start_date + pd.DateOffset(days=1)).date(),
         ]
@@ -240,7 +243,7 @@ class TestErcot(BaseTestISO):
         # asset length is 1, 49 columns
         assert df.shape == (1, 49)
         # assert every colunn but the first is int dtype
-        assert df.iloc[:, 1:].dtypes.unique() == "int64"
+        assert all(dt == pl.Int64 for dt in df[:, 1:].dtypes)
         assert df.columns[0] == "Time"
 
     @pytest.mark.integration
@@ -258,7 +261,7 @@ class TestErcot(BaseTestISO):
         "Status",
     ]
 
-    SAMPLE_OPS_MESSAGES_DF = pd.DataFrame(
+    SAMPLE_OPS_MESSAGES_DF = pl.DataFrame(
         {
             "Date & Time": [
                 "Apr 14, 2026 2:23:50 AM",
@@ -282,29 +285,29 @@ class TestErcot(BaseTestISO):
     def test_get_operations_messages(self):
         with mock.patch(
             "gridstatus.ercot.pd.read_html",
-            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.clone()],
         ):
             df = self.iso.get_operations_messages()
 
-        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert df.columns == self.expected_operations_messages_cols
         assert len(df) == 2
-        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
-        assert str(df["Time"].dt.tz) == str(self.iso.default_timezone)
-        assert df["Notice"].iloc[0] is not None
-        assert df["Type"].iloc[0] == "Operational Information"
+        assert isinstance(df.schema["Time"], pl.Datetime)
+        assert str(df.schema["Time"].time_zone) == str(self.iso.default_timezone)
+        assert df["Notice"][0] is not None
+        assert df["Type"][0] == "Operational Information"
         assert set(df["Status"]) == {"Active", "Cancelled"}
 
     def test_get_operations_messages_sorted_by_time(self):
         with mock.patch(
             "gridstatus.ercot.pd.read_html",
-            return_value=[self.SAMPLE_OPS_MESSAGES_DF.copy()],
+            return_value=[self.SAMPLE_OPS_MESSAGES_DF.clone()],
         ):
             df = self.iso.get_operations_messages()
 
-        assert df["Time"].is_monotonic_increasing
+        assert df["Time"].is_sorted()
 
     def test_get_operations_messages_single_row(self):
-        single_row_df = pd.DataFrame(
+        single_row_df = pl.DataFrame(
             {
                 "Date & Time": ["Mar 10, 2026 9:00:00 AM"],
                 "Notice": ["Advisory issued due to tool unavailability."],
@@ -319,11 +322,11 @@ class TestErcot(BaseTestISO):
             df = self.iso.get_operations_messages()
 
         assert len(df) == 1
-        assert df.columns.tolist() == self.expected_operations_messages_cols
-        assert df["Type"].iloc[0] == "Advisory"
+        assert df.columns == self.expected_operations_messages_cols
+        assert df["Type"][0] == "Advisory"
 
     def test_get_operations_messages_historical_deduplicates(self):
-        snap1 = pd.DataFrame(
+        snap1 = pl.DataFrame(
             {
                 "Date & Time": [
                     "Jan 10, 2026 2:00:00 PM",
@@ -334,7 +337,7 @@ class TestErcot(BaseTestISO):
                 "Status": ["Active", "Active"],
             },
         )
-        snap2 = pd.DataFrame(
+        snap2 = pl.DataFrame(
             {
                 "Date & Time": [
                     "Jan 15, 2026 8:00:00 AM",
@@ -368,11 +371,11 @@ class TestErcot(BaseTestISO):
                 )
 
         assert len(df) == 3
-        assert df["Notice"].tolist() == ["Msg B", "Msg A", "Msg C"]
-        assert df["Time"].is_monotonic_increasing
+        assert df["Notice"].to_list() == ["Msg B", "Msg A", "Msg C"]
+        assert df["Time"].is_sorted()
 
     def test_get_operations_messages_historical_filters_to_range(self):
-        snap = pd.DataFrame(
+        snap = pl.DataFrame(
             {
                 "Date & Time": [
                     "Jan 15, 2026 8:00:00 AM",
@@ -405,7 +408,7 @@ class TestErcot(BaseTestISO):
                 )
 
         assert len(df) == 1
-        assert df["Notice"].iloc[0] == "In range"
+        assert df["Notice"][0] == "In range"
 
     def test_get_operations_messages_historical_wayback(self):
         with api_vcr.use_cassette(
@@ -415,18 +418,18 @@ class TestErcot(BaseTestISO):
                 date="2026-01-01",
                 end="2026-01-15",
             )
-        assert df.columns.tolist() == self.expected_operations_messages_cols
+        assert df.columns == self.expected_operations_messages_cols
         assert len(df) > 0
-        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert isinstance(df.schema["Time"], pl.Datetime)
         assert df["Time"].min() >= pd.Timestamp("2026-01-01", tz="US/Central")
         assert df["Time"].max() < pd.Timestamp("2026-01-15", tz="US/Central")
-        assert df["Time"].is_monotonic_increasing
-        assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
+        assert df["Time"].is_sorted()
+        assert df.select(["Time", "Notice"]).is_duplicated().sum() == 0
 
     @pytest.mark.integration
     def test_get_energy_storage_resources(self):
         df = self.iso.get_energy_storage_resources()
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Total Charging",
             "Total Discharging",
@@ -452,16 +455,16 @@ class TestErcot(BaseTestISO):
             df = self.iso.get_fuel_mix("today")
         self._check_fuel_mix(df)
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == self.fuel_mix_cols
+        assert df.columns == self.fuel_mix_cols
 
     def test_get_fuel_mix_latest(self):
         with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
             df = self.iso.get_fuel_mix("latest")
         self._check_fuel_mix(df)
         # returns two days of data
-        assert df["Time"].dt.date.nunique() == 2
+        assert df["Time"].dt.date().n_unique() == 2
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == self.fuel_mix_cols
+        assert df.columns == self.fuel_mix_cols
 
     @pytest.mark.skip(reason="Not Applicable")
     def test_get_fuel_mix_date_or_start(self):
@@ -515,14 +518,14 @@ class TestErcot(BaseTestISO):
     def test_get_fuel_mix_detailed_latest(self):
         with api_vcr.use_cassette("test_get_fuel_mix_detailed_latest.yaml"):
             df = self.iso.get_fuel_mix_detailed("latest")
-        assert df.columns.tolist() == self.fuel_mix_detailed_columns
-        assert df["Time"].dt.date.nunique() == 2
+        assert df.columns == self.fuel_mix_detailed_columns
+        assert df["Time"].dt.date().n_unique() == 2
 
     def test_get_fuel_mix_detailed_today(self):
         with api_vcr.use_cassette("test_get_fuel_mix_detailed_today.yaml"):
             df = self.iso.get_fuel_mix_detailed("today")
-        assert df.columns.tolist() == self.fuel_mix_detailed_columns
-        assert df["Time"].dt.date.nunique() == 1
+        assert df.columns == self.fuel_mix_detailed_columns
+        assert df["Time"].dt.date().n_unique() == 1
 
     """get_lmp"""
 
@@ -562,7 +565,7 @@ class TestErcot(BaseTestISO):
             + ["System Total"]
         )
 
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
         # test 5 days ago
         five_days_ago = pd.Timestamp.now(
@@ -572,7 +575,7 @@ class TestErcot(BaseTestISO):
         self._check_time_columns(df, instant_or_interval="interval")
         assert df["Time"].unique()[0].date() == five_days_ago
 
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
     @pytest.mark.integration
     def test_get_load_by_forecast_zone_today(self):
@@ -588,7 +591,7 @@ class TestErcot(BaseTestISO):
             "HOUSTON",
             "TOTAL",
         ]
-        assert df.columns.tolist() == columns
+        assert df.columns == columns
 
         five_days_ago = pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -690,7 +693,7 @@ class TestErcot(BaseTestISO):
         self._check_load_forecast_by_model(df)
 
         # One day of data
-        assert df["Publish Time"].nunique() == 24
+        assert df["Publish Time"].n_unique() == 24
 
     """get_capacity_committed"""
 
@@ -698,7 +701,7 @@ class TestErcot(BaseTestISO):
     def test_get_capacity_committed(self):
         df = self.iso.get_capacity_committed("latest")
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Capacity"]
+        assert df.columns == ["Interval Start", "Interval End", "Capacity"]
 
         assert df["Interval Start"].min() == self.local_start_of_today()
         # The end time is approximately now
@@ -708,9 +711,11 @@ class TestErcot(BaseTestISO):
             < self.local_now() + pd.Timedelta(minutes=5)
         )
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=5,
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list() == [
+            pd.Timedelta(
+                minutes=5,
+            ),
+        ]
 
     """get_capacity_forecast"""
 
@@ -718,7 +723,7 @@ class TestErcot(BaseTestISO):
     def test_get_capacity_forecast(self):
         df = self.iso.get_capacity_forecast("latest")
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -737,9 +742,11 @@ class TestErcot(BaseTestISO):
             self.local_today() + pd.Timedelta(days=1),
         )
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=5,
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list() == [
+            pd.Timedelta(
+                minutes=5,
+            ),
+        ]
 
     """get_available_seasonal_capacity_forecast"""
 
@@ -747,7 +754,7 @@ class TestErcot(BaseTestISO):
     def test_get_available_seasonal_capacity_forecast(self):
         df = self.iso.get_available_seasonal_capacity_forecast("latest")
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -766,9 +773,11 @@ class TestErcot(BaseTestISO):
         )
 
         # This can use a timedelta because it doesn't span a day
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            hours=1,
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list() == [
+            pd.Timedelta(
+                hours=1,
+            ),
+        ]
 
     """get_spp"""
 
@@ -827,7 +836,7 @@ class TestErcot(BaseTestISO):
 
         # two unique days
         # should be today and yesterday since published one day ahead
-        assert set(df["Interval Start"].dt.date.unique()) == {
+        assert set(df["Interval Start"].dt.date().unique()) == {
             today.date(),
             today.date() - pd.Timedelta(days=1),
         }
@@ -911,7 +920,7 @@ class TestErcot(BaseTestISO):
     @pytest.mark.integration
     def test_get_spp_rtm_historical(self):
         rtm = self.iso.get_rtm_spp(2020)
-        assert isinstance(rtm, pd.DataFrame)
+        assert isinstance(rtm, pl.DataFrame)
         assert len(rtm) > 0
 
     @pytest.mark.slow
@@ -983,9 +992,9 @@ class TestErcot(BaseTestISO):
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
         smne = df_dict[SCED_SMNE_KEY]
 
-        assert load_resource["SCED Timestamp"].dt.date.unique()[0] == days_ago_65
-        assert gen_resource["SCED Timestamp"].dt.date.unique()[0] == days_ago_65
-        assert smne["Interval Time"].dt.date.unique()[0] == days_ago_65
+        assert load_resource["SCED Timestamp"].dt.date().unique()[0] == days_ago_65
+        assert gen_resource["SCED Timestamp"].dt.date().unique()[0] == days_ago_65
+        assert smne["Interval Time"].dt.date().unique()[0] == days_ago_65
 
         check_60_day_sced_disclosure(df_dict)
 
@@ -1019,17 +1028,17 @@ class TestErcot(BaseTestISO):
 
         check_60_day_sced_disclosure(df_dict)
 
-        assert load_resource["SCED Timestamp"].dt.date.unique().tolist() == [
+        assert load_resource["SCED Timestamp"].dt.date().unique().to_list() == [
             days_ago_66,
             days_ago_65,
         ]
 
-        assert gen_resource["SCED Timestamp"].dt.date.unique().tolist() == [
+        assert gen_resource["SCED Timestamp"].dt.date().unique().to_list() == [
             days_ago_66,
             days_ago_65,
         ]
 
-        assert smne["Interval Time"].dt.date.unique().tolist() == [
+        assert smne["Interval Time"].dt.date().unique().to_list() == [
             days_ago_66,
             days_ago_65,
         ]
@@ -1064,10 +1073,10 @@ class TestErcot(BaseTestISO):
         assert SCED_ESR_KEY in df_dict
         esr = df_dict[SCED_ESR_KEY]
 
-        assert esr.columns.tolist() == SCED_ESR_COLUMNS
+        assert esr.columns == SCED_ESR_COLUMNS
         assert len(esr) > 0
-        assert esr["Resource Type"].unique().tolist() == ["ESR"]
-        assert esr["SCED Timestamp"].dt.date.unique()[0] == date
+        assert esr["Resource Type"].unique().to_list() == ["ESR"]
+        assert esr["SCED Timestamp"].dt.date().unique()[0] == date
 
         # Verify offer curves are parsed
         assert esr["SCED1 Offer Curve"].apply(lambda x: isinstance(x, list)).any()
@@ -1107,11 +1116,11 @@ class TestErcot(BaseTestISO):
         load = df_dict[SCED_LOAD_RESOURCE_KEY]
         resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
 
-        assert esr["SCED Timestamp"].dt.date.unique()[0] == date
-        assert gen["SCED Timestamp"].dt.date.unique()[0] == date
-        assert load["SCED Timestamp"].dt.date.unique()[0] == date
-        assert resource_as_offers["SCED Timestamp"].dt.date.unique()[0] == date
-        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+        assert esr["SCED Timestamp"].dt.date().unique()[0] == date
+        assert gen["SCED Timestamp"].dt.date().unique()[0] == date
+        assert load["SCED Timestamp"].dt.date().unique()[0] == date
+        assert resource_as_offers["SCED Timestamp"].dt.date().unique()[0] == date
+        assert resource_as_offers.columns == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
         # SMNE should still come from the normal disclosure
         smne = df_dict[SCED_SMNE_KEY]
@@ -1139,13 +1148,13 @@ class TestErcot(BaseTestISO):
         gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
 
         assert len(gen_resource) > 0
-        assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
+        assert gen_resource.columns == SCED_GEN_RESOURCE_COLUMNS
 
         # The critical assertion: Telemetered Net Output must contain real
         # data, not all NaN. On main, the column name mismatch causes
         # this to be filled with NaN for dates where the raw data has no
         # trailing space.
-        assert gen_resource["Telemetered Net Output"].notna().any(), (
+        assert gen_resource["Telemetered Net Output"].is_not_null().any(), (
             "Telemetered Net Output is all NaN - column name mismatch"
         )
 
@@ -1193,9 +1202,9 @@ class TestErcot(BaseTestISO):
         assert DAM_ESR_KEY in df_dict
         dam_esr = df_dict[DAM_ESR_KEY]
 
-        assert dam_esr.columns.tolist() == DAM_ESR_COLUMNS
+        assert dam_esr.columns == DAM_ESR_COLUMNS
         assert len(dam_esr) > 0
-        assert dam_esr["Resource Type"].unique().tolist() == ["ESR"]
+        assert dam_esr["Resource Type"].unique().to_list() == ["ESR"]
 
         # Verify offer curves are parsed
         assert (
@@ -1209,19 +1218,23 @@ class TestErcot(BaseTestISO):
         assert DAM_ESR_AS_OFFERS_KEY in df_dict
         dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
 
-        assert dam_esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        assert dam_esr_as_offers.columns == DAM_ESR_AS_OFFERS_COLUMNS
         assert len(dam_esr_as_offers) > 0
 
         # Verify no duplicates
-        assert not dam_esr_as_offers.duplicated(
-            subset=[
-                "Interval Start",
-                "Interval End",
-                "QSE",
-                "DME",
-                "Resource Name",
-            ],
-        ).any()
+        assert (
+            not dam_esr_as_offers.select(
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "QSE",
+                    "DME",
+                    "Resource Name",
+                ],
+            )
+            .is_duplicated()
+            .any()
+        )
 
         # AS Only Awards/Offers (ENG-3684/ENG-3688) landed in the bundle on the
         # same 2025-12-06 operating day as ESR, so we check them here too.
@@ -1236,10 +1249,10 @@ class TestErcot(BaseTestISO):
 
     def _check_nonspin_offer_curve(self, df, column_name, dataset_name):
         """Verify a NONSPIN offer curve column has valid data."""
-        assert df[column_name].notna().any(), (
+        assert df[column_name].is_not_null().any(), (
             f"{column_name} should have non-null values in {dataset_name}"
         )
-        curve = df[column_name].dropna().iloc[0]
+        curve = df[column_name].drop_nulls().to_list()[0]
         assert isinstance(curve, list)
         assert len(curve) > 0
         assert len(curve[0]) == 2
@@ -1265,7 +1278,7 @@ class TestErcot(BaseTestISO):
         col = "ONLINE NONSPIN Offer Curve"
 
         gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
-        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        assert gen_as_offers.columns == DAM_RESOURCE_AS_OFFERS_COLUMNS
         self._check_nonspin_offer_curve(
             gen_as_offers,
             col,
@@ -1273,7 +1286,7 @@ class TestErcot(BaseTestISO):
         )
 
         load_as_offers = df_dict[DAM_LOAD_RESOURCE_AS_OFFERS_KEY]
-        assert load_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        assert load_as_offers.columns == DAM_RESOURCE_AS_OFFERS_COLUMNS
         self._check_nonspin_offer_curve(
             load_as_offers,
             col,
@@ -1281,7 +1294,7 @@ class TestErcot(BaseTestISO):
         )
 
         esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]
-        assert esr_as_offers.columns.tolist() == DAM_ESR_AS_OFFERS_COLUMNS
+        assert esr_as_offers.columns == DAM_ESR_AS_OFFERS_COLUMNS
         self._check_nonspin_offer_curve(
             esr_as_offers,
             col,
@@ -1309,7 +1322,7 @@ class TestErcot(BaseTestISO):
         col = "OFFLINE NONSPIN Offer Curve"
 
         gen_as_offers = df_dict[DAM_GEN_RESOURCE_AS_OFFERS_KEY]
-        assert gen_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        assert gen_as_offers.columns == DAM_RESOURCE_AS_OFFERS_COLUMNS
         self._check_nonspin_offer_curve(
             gen_as_offers,
             col,
@@ -1332,7 +1345,7 @@ class TestErcot(BaseTestISO):
         ]
         df = self.iso.get_sara(verbose=True)
         assert df.shape[0] > 0
-        assert df.columns.tolist() == columns
+        assert df.columns == columns
 
     @pytest.mark.integration
     def test_spp_real_time_parse_retry_file_name(self):
@@ -1349,7 +1362,7 @@ class TestErcot(BaseTestISO):
     def _check_unplanned_resource_outages(self, df):
         assert df.shape[0] >= 0
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Current As Of",
             "Publish Time",
             "Actual Outage Start",
@@ -1374,7 +1387,7 @@ class TestErcot(BaseTestISO):
         ]
 
         for col in time_cols:
-            assert df[col].dt.tz.zone == self.iso.default_timezone
+            assert df.schema[col].time_zone == self.iso.default_timezone
 
     @pytest.mark.integration
     def test_get_unplanned_resource_outages_historical_date(self):
@@ -1383,10 +1396,10 @@ class TestErcot(BaseTestISO):
 
         self._check_unplanned_resource_outages(df)
 
-        assert df["Current As Of"].dt.date.unique() == [
+        assert df["Current As Of"].dt.date().unique().to_list() == [
             (five_days_ago - pd.DateOffset(days=3)).date(),
         ]
-        assert df["Publish Time"].dt.date.unique() == [five_days_ago.date()]
+        assert df["Publish Time"].dt.date().unique().to_list() == [five_days_ago.date()]
 
     @pytest.mark.integration
     def test_get_unplanned_resource_outages_historical_range(self):
@@ -1399,7 +1412,7 @@ class TestErcot(BaseTestISO):
 
         self._check_unplanned_resource_outages(df_2_days)
 
-        assert df_2_days["Current As Of"].dt.date.nunique() == 2
+        assert df_2_days["Current As Of"].dt.date().n_unique() == 2
         assert (
             df_2_days["Current As Of"].min().date()
             == (start - pd.DateOffset(days=3)).date()
@@ -1409,7 +1422,7 @@ class TestErcot(BaseTestISO):
             == (start - pd.DateOffset(days=2)).date()
         )
 
-        assert df_2_days["Publish Time"].dt.date.nunique() == 2
+        assert df_2_days["Publish Time"].dt.date().n_unique() == 2
         assert df_2_days["Publish Time"].min().date() == start.date()
         assert (
             df_2_days["Publish Time"].max().date() == (start + pd.DateOffset(1)).date()
@@ -1417,8 +1430,8 @@ class TestErcot(BaseTestISO):
 
     """test get_highest_price_as_offer_selected"""
 
-    def _check_highest_price_as_offer_selected(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_highest_price_as_offer_selected(self, df: pl.DataFrame):
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -1444,7 +1457,7 @@ class TestErcot(BaseTestISO):
                 start=date,
             )
 
-        assert (df["Interval Start"].dt.date.unique() == [date.date()]).all()
+        assert df["Interval Start"].dt.date().unique().to_list() == [date.date()]
 
         self._check_highest_price_as_offer_selected(df)
 
@@ -1457,16 +1470,20 @@ class TestErcot(BaseTestISO):
         ):
             df = self.iso.get_highest_price_as_offer_selected(dst_end_date)
 
-        assert df["Interval Start"].nunique() == 25
-        assert "2025-11-02 01:00:00-05:00" in df["Interval Start"].astype(str).values
-        assert "2025-11-02 01:00:00-06:00" in df["Interval Start"].astype(str).values
+        assert df["Interval Start"].n_unique() == 25
+        assert "2025-11-02 01:00:00-05:00" in [
+            str(x) for x in df["Interval Start"].to_list()
+        ]
+        assert "2025-11-02 01:00:00-06:00" in [
+            str(x) for x in df["Interval Start"].to_list()
+        ]
 
         self._check_highest_price_as_offer_selected(df)
 
     """get_highest_price_as_offer_selected_dam"""
 
     def _check_highest_price_as_offer_selected_dam(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "QSE",
@@ -1480,7 +1497,7 @@ class TestErcot(BaseTestISO):
         ]
 
         for col in ["Interval Start", "Interval End"]:
-            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+            assert df.schema[col] == pl.Datetime("ns", "US/Central")
 
         for col in [
             "QSE",
@@ -1488,12 +1505,13 @@ class TestErcot(BaseTestISO):
             "Resource Name",
             "AS Type",
             "Block Indicator",
-            "Offered Quantities",
         ]:
-            assert df.dtypes[col] == "object"
+            assert df.schema[col] in (pl.String, pl.Categorical, pl.Object)
+
+        assert df.schema["Offered Quantities"] in (pl.List(pl.Float64), pl.Object)
 
         for col in ["Offered Price", "Total Offered Quantity"]:
-            assert df.dtypes[col] == "float64"
+            assert df.schema[col] == pl.Float64
 
     def test_get_highest_price_as_offer_selected_dam(self):
         # Test the new DAM-specific method
@@ -1506,14 +1524,14 @@ class TestErcot(BaseTestISO):
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.DateOffset(days=1, hours=-1)
-        assert df["Interval Start"].nunique() == 24
+        assert df["Interval Start"].n_unique() == 24
 
         self._check_highest_price_as_offer_selected_dam(df)
 
     """get_highest_price_as_offer_selected_sced"""
 
     def _check_highest_price_as_offer_selected_sced(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "SCED Timestamp",
             "QSE",
             "DME",
@@ -1524,19 +1542,20 @@ class TestErcot(BaseTestISO):
             "Offered Quantities",
         ]
 
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
 
         for col in [
             "QSE",
             "DME",
             "Resource Name",
             "AS Type",
-            "Offered Quantities",
         ]:
-            assert df.dtypes[col] == "object"
+            assert df.schema[col] in (pl.String, pl.Categorical, pl.Object)
+
+        assert df.schema["Offered Quantities"] in (pl.List(pl.Float64), pl.Object)
 
         for col in ["Offered Price", "Total Offered Quantity"]:
-            assert df.dtypes[col] == "float64"
+            assert df.schema[col] == pl.Float64
 
     def test_get_highest_price_as_offer_selected_sced(self):
         date = self.local_start_of_today() - pd.DateOffset(days=4)
@@ -1547,15 +1566,15 @@ class TestErcot(BaseTestISO):
             df = self.iso.get_highest_price_as_offer_selected_sced(date)
 
         # This is a SCED dataset so data points are not on 5 minute intervals
-        assert df["SCED Timestamp"].nunique() >= 288
-        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+        assert df["SCED Timestamp"].n_unique() >= 288
+        assert df["SCED Timestamp"].dt.date().unique().to_list() == [date.date()]
 
         self._check_highest_price_as_offer_selected_sced(df)
 
     """get_3_day_highest_price_bids_selected_sced"""
 
-    def _check_3_day_highest_price_bids_selected_sced(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_3_day_highest_price_bids_selected_sced(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "SCED Timestamp",
@@ -1565,12 +1584,12 @@ class TestErcot(BaseTestISO):
             "Highest Price Dispatched by SCED",
             "Proxy Extension",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
         for col in ["QSE", "DME", "Load Resource", "Proxy Extension"]:
-            assert df.dtypes[col] == "object"
-        assert df.dtypes["Highest Price Dispatched by SCED"] == "float64"
+            assert df.schema[col] in (pl.String, pl.Categorical, pl.Object)
+        assert df.schema["Highest Price Dispatched by SCED"] == pl.Float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
@@ -1585,12 +1604,12 @@ class TestErcot(BaseTestISO):
             df = self.iso.get_3_day_highest_price_bids_selected_sced(date)
 
         self._check_3_day_highest_price_bids_selected_sced(df)
-        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+        assert df["SCED Timestamp"].dt.date().unique().to_list() == [date.date()]
 
     """get_3_day_highest_price_offered_sced"""
 
-    def _check_3_day_highest_price_offered_sced(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_3_day_highest_price_offered_sced(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "SCED Timestamp",
@@ -1601,9 +1620,9 @@ class TestErcot(BaseTestISO):
             "Proxy Extension",
             "Power Balance Penalty Flag",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
         for col in [
             "QSE",
             "DME",
@@ -1611,8 +1630,8 @@ class TestErcot(BaseTestISO):
             "Proxy Extension",
             "Power Balance Penalty Flag",
         ]:
-            assert df.dtypes[col] == "object"
-        assert df.dtypes["LMP"] == "float64"
+            assert df.schema[col] in (pl.String, pl.Categorical, pl.Object)
+        assert df.schema["LMP"] == pl.Float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
         ).all()
@@ -1628,7 +1647,7 @@ class TestErcot(BaseTestISO):
             df = self.iso.get_3_day_highest_price_offered_sced(date)
 
         self._check_3_day_highest_price_offered_sced(df)
-        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+        assert df["SCED Timestamp"].dt.date().unique().to_list() == [date.date()]
 
     """test get_as_reports"""
 
@@ -1644,7 +1663,7 @@ class TestErcot(BaseTestISO):
         ):
             df = self.iso.get_as_reports(start=date)
 
-        assert (df["Interval Start"].dt.date.unique() == [date.date()]).all()
+        assert df["Interval Start"].dt.date().unique().to_list() == [date.date()]
 
         bid_curve_columns = [
             "Bid Curve - RRSPFR",
@@ -1681,23 +1700,33 @@ class TestErcot(BaseTestISO):
             "Total Self-Arranged AS - NSPNM",
         ] + bid_curve_columns
 
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
         for col in bid_curve_columns:
             # Check that the first non-null value is a list of lists
-            first_non_null_value = df[col].dropna().iloc[0]
+            first_non_null_value = df[col].drop_nulls()[0]
             assert isinstance(first_non_null_value, list)
             assert all(isinstance(x, list) for x in first_non_null_value)
 
     """get_as_reports_dam"""
 
     def _check_as_reports_dam(self, df):
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Cleared"] == "float64"
-        assert df.dtypes["Self Arranged"] == "float64"
-        assert df.dtypes["Offer Curve"] == "object"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Cleared"] == pl.Float64
+        assert df.schema["Self Arranged"] == pl.Float64
+        assert df.schema["Offer Curve"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
 
         # Check that AS Type contains expected products
         expected_products = {
@@ -1716,9 +1745,9 @@ class TestErcot(BaseTestISO):
         assert expected_products == actual_products
 
         # Check that offer curves are lists of [MW, Price] pairs
-        offer_curves = df["Offer Curve"].dropna()
+        offer_curves = df["Offer Curve"].drop_nulls()
         if len(offer_curves) > 0:
-            first_curve = offer_curves.iloc[0]
+            first_curve = offer_curves.head(1).to_list()[0]
             assert isinstance(first_curve, list)
             if first_curve:
                 assert all(isinstance(x, list) and len(x) == 2 for x in first_curve)
@@ -1734,14 +1763,24 @@ class TestErcot(BaseTestISO):
 
         self._check_as_reports_dam(df)
 
-        assert df["Interval Start"].dt.date.unique() == start.date()
+        assert df["Interval Start"].dt.date().unique().to_list() == [start.date()]
 
     """get_as_reports_sced"""
 
     def _check_as_reports_sced(self, df):
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Offer Curve"] == "object"
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Offer Curve"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
 
         # Check that AS Type contains expected products
         expected_products = {
@@ -1759,7 +1798,7 @@ class TestErcot(BaseTestISO):
         assert expected_products == actual_products
 
         # Check that offer curves are lists of [MW, Price] pairs
-        first_curve = df["Offer Curve"].iloc[0]
+        first_curve = df["Offer Curve"].to_list()[0]
         assert isinstance(first_curve, list)
         if first_curve:
             assert all(isinstance(x, list) and len(x) == 2 for x in first_curve)
@@ -1777,7 +1816,7 @@ class TestErcot(BaseTestISO):
 
         self._check_as_reports_sced(df)
 
-        assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
+        assert df["SCED Timestamp"].dt.date().unique().to_list() == [test_date.date()]
 
     """get_reported_outages"""
 
@@ -1785,7 +1824,7 @@ class TestErcot(BaseTestISO):
     def test_get_reported_outages(self):
         df = self.iso.get_reported_outages()
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Combined Unplanned",
             "Combined Planned",
@@ -1853,12 +1892,12 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_hourly_resource_outage_capacity(date)
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
         # test latest and confirm published in last 2 hours
         df = self.iso.get_hourly_resource_outage_capacity("latest")
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
         assert df["Publish Time"].min() >= pd.Timestamp.now(
             tz=self.iso.default_timezone,
@@ -1876,8 +1915,8 @@ class TestErcot(BaseTestISO):
         )
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
-        assert df["Publish Time"].nunique() == 3
+        assert df.columns == cols
+        assert df["Publish Time"].n_unique() == 3
 
     """get_planned_outage_capacity_7_day"""
 
@@ -1897,18 +1936,22 @@ class TestErcot(BaseTestISO):
     ]
 
     def _check_planned_outage_capacity(self, df):
-        assert df.columns.tolist() == self.PLANNED_OUTAGE_CAPACITY_COLUMNS
+        assert df.columns == self.PLANNED_OUTAGE_CAPACITY_COLUMNS
 
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Publish Time"] == "datetime64[s, US/Central]"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Publish Time"].time_zone == "US/Central"
 
-        assert not df.duplicated(
-            subset=["Publish Time", "Interval Start"],
-        ).any()
+        assert (
+            not df.select(
+                ["Publish Time", "Interval Start"],
+            )
+            .is_duplicated()
+            .any()
+        )
 
         assert df.equals(
-            df.sort_values(["Interval Start", "Publish Time"]).reset_index(drop=True),
+            df.sort(["Interval Start", "Publish Time"]),
         )
 
     def test_get_planned_outage_capacity_7_day(self):
@@ -1928,7 +1971,7 @@ class TestErcot(BaseTestISO):
 
         self._check_planned_outage_capacity(df)
 
-        assert df["Publish Time"].nunique() == 3
+        assert df["Publish Time"].n_unique() == 3
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
@@ -1950,20 +1993,18 @@ class TestErcot(BaseTestISO):
 
         self._check_planned_outage_capacity(df)
 
-        assert df["Publish Time"].nunique() >= 1
+        assert df["Publish Time"].n_unique() >= 1
         # Daily intervals are day-aligned. A fixed 24h delta does not hold across
         # DST transitions, so we check that each interval spans one calendar day.
-        assert (df["Interval Start"] == df["Interval Start"].dt.normalize()).all()
-        assert (
-            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
-        ).all()
+        assert (df["Interval Start"] == df["Interval Start"].dt.truncate("1d")).all()
+        assert (df["Interval End"] == df["Interval Start"].dt.offset_by("1d")).all()
         assert (df["Interval Start"] > end).all()
 
     """get_wind_actual_and_forecast_hourly"""
 
     def _check_hourly_wind_report(self, df, geographic_data=False):
         assert (
-            df.columns.tolist() == WIND_ACTUAL_AND_FORECAST_COLUMNS
+            df.columns == WIND_ACTUAL_AND_FORECAST_COLUMNS
             if not geographic_data
             else WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
         )
@@ -1982,7 +2023,7 @@ class TestErcot(BaseTestISO):
             self.local_now() - self.local_start_of_today()
         ) // pd.Timedelta(hours=1)
 
-        assert df["Publish Time"].nunique() == hours_since_local_midnight
+        assert df["Publish Time"].n_unique() == hours_since_local_midnight
 
     @pytest.mark.integration
     def test_get_wind_actual_and_forecast_hourly_latest(self):
@@ -1990,7 +2031,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_wind_report(df)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
 
     @pytest.mark.integration
     def test_get_wind_actual_and_forecast_hourly_historical_date(self):
@@ -1999,7 +2040,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_wind_report(df)
 
-        assert df["Publish Time"].nunique() == 24  # One for each hour
+        assert df["Publish Time"].n_unique() == 24  # One for each hour
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
@@ -2011,7 +2052,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_wind_report(df)
 
-        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].n_unique() == 48
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
@@ -2032,7 +2073,7 @@ class TestErcot(BaseTestISO):
             self.local_now() - self.local_start_of_today()
         ) // pd.Timedelta(hours=1)
 
-        assert df["Publish Time"].nunique() == hours_since_local_midnight
+        assert df["Publish Time"].n_unique() == hours_since_local_midnight
 
     def test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range(  # noqa: E501
         self,
@@ -2051,7 +2092,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_wind_report(df, geographic_data=True)
 
-        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].n_unique() == 48
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
@@ -2069,7 +2110,7 @@ class TestErcot(BaseTestISO):
             self.local_now() - self.local_start_of_today()
         ) // pd.Timedelta(hours=1)
 
-        assert df["Publish Time"].nunique() == hours_since_local_midnight
+        assert df["Publish Time"].n_unique() == hours_since_local_midnight
 
     def test_get_solar_actual_and_forecast_hourly_historical_date_range(self):
         start = self.local_today() - pd.Timedelta(days=3)
@@ -2082,7 +2123,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_solar_report(df)
 
-        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].n_unique() == 48
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
@@ -2090,7 +2131,7 @@ class TestErcot(BaseTestISO):
 
     def _check_hourly_solar_report(self, df, geographic_data=False):
         assert (
-            df.columns.tolist() == SOLAR_ACTUAL_AND_FORECAST_COLUMNS
+            df.columns == SOLAR_ACTUAL_AND_FORECAST_COLUMNS
             if not geographic_data
             else SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
         )
@@ -2111,7 +2152,7 @@ class TestErcot(BaseTestISO):
             self.local_now() - self.local_start_of_today()
         ) // pd.Timedelta(hours=1)
 
-        assert df["Publish Time"].nunique() == hours_since_local_midnight
+        assert df["Publish Time"].n_unique() == hours_since_local_midnight
 
     @pytest.mark.integration
     def test_get_solar_actual_and_forecast_by_geographical_region_hourly_latest(self):
@@ -2122,7 +2163,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_solar_report(df, geographic_data=True)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
 
     @pytest.mark.integration
     def test_get_solar_actual_and_forecast_by_geographical_region_hourly_historical_date(  # noqa: E501
@@ -2136,7 +2177,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_solar_report(df, geographic_data=True)
 
-        assert df["Publish Time"].nunique() == 24  # One for each hour
+        assert df["Publish Time"].n_unique() == 24  # One for each hour
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
@@ -2154,7 +2195,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_solar_report(df, geographic_data=True)
 
-        assert df["Publish Time"].nunique() == 48
+        assert df["Publish Time"].n_unique() == 48
         assert df["Publish Time"].min().hour == 0
         assert df["Publish Time"].max().hour == 23
 
@@ -2185,7 +2226,7 @@ class TestErcot(BaseTestISO):
         ]
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
     # TODO: this url has no DocumentList
     # https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId=13044
@@ -2205,7 +2246,7 @@ class TestErcot(BaseTestISO):
         ]
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
     @pytest.mark.integration
     def test_get_mcpc_dam_price_corrections(self):
@@ -2222,14 +2263,14 @@ class TestErcot(BaseTestISO):
         ]
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
-        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
-        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
-        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
-        assert pd.api.types.is_object_dtype(df["AS Type"])
-        assert pd.api.types.is_float_dtype(df["MCPC Original"])
-        assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+        assert isinstance(df.schema["Price Correction Time"], pl.Datetime)
+        assert isinstance(df.schema["Interval Start"], pl.Datetime)
+        assert isinstance(df.schema["Interval End"], pl.Datetime)
+        assert df.schema["AS Type"] in (pl.String, pl.Categorical, pl.Object)
+        assert df.schema["MCPC Original"] == pl.Float64
+        assert df.schema["MCPC Corrected"] == pl.Float64
 
     """get_system_wide_actuals"""
 
@@ -2250,7 +2291,7 @@ class TestErcot(BaseTestISO):
         )
 
         cols = ["Time", "Interval Start", "Interval End", "Demand"]
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
     @pytest.mark.integration
     def test_get_system_wide_actual_load_date_range(self):
@@ -2273,7 +2314,7 @@ class TestErcot(BaseTestISO):
             today,
             tz=self.iso.default_timezone,
         ) - pd.Timedelta(minutes=15)
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
     @pytest.mark.integration
     def test_get_system_wide_actual_load_today(self):
@@ -2287,12 +2328,12 @@ class TestErcot(BaseTestISO):
         )
         # 1 Hour of data
         assert df.shape[0] == 4
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
     """get_short_term_system_adequacy"""
 
     def _check_short_term_system_adequacy(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -2335,7 +2376,7 @@ class TestErcot(BaseTestISO):
 
         # At least one published per hour
         assert (
-            df["Publish Time"].nunique()
+            df["Publish Time"].n_unique()
             >= (self.local_now() - self.local_start_of_today()).total_seconds() // 3600
         )
         assert df["Interval Start"].min() == self.local_start_of_today()
@@ -2349,7 +2390,7 @@ class TestErcot(BaseTestISO):
 
         self._check_short_term_system_adequacy(df)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
 
         assert df["Interval Start"].min() == self.local_start_of_today()
         assert df["Interval End"].max() == self.local_start_of_today() + pd.DateOffset(
@@ -2361,7 +2402,7 @@ class TestErcot(BaseTestISO):
         date = self.local_today() - pd.DateOffset(days=15)
         df = self.iso.get_short_term_system_adequacy(date)
 
-        assert df["Publish Time"].nunique() >= 24
+        assert df["Publish Time"].n_unique() >= 24
 
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
@@ -2379,7 +2420,7 @@ class TestErcot(BaseTestISO):
             end=end,
         )
 
-        assert df["Publish Time"].nunique() >= 24
+        assert df["Publish Time"].n_unique() >= 24
         assert df["Interval Start"].min() == self.local_start_of_day(start)
         assert df["Interval End"].max() == self.local_start_of_day(end) + pd.DateOffset(
             days=6,
@@ -2390,7 +2431,7 @@ class TestErcot(BaseTestISO):
     """get_real_time_adders_and_reserves"""
 
     def _check_real_time_adders_and_reserves(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "SCED Timestamp",
             "Interval Start",
             "Interval End",
@@ -2483,7 +2524,7 @@ class TestErcot(BaseTestISO):
 
     def _check_temperature_forecast_by_weather_zone(self, df):
         assert (
-            df.columns.tolist()
+            df.columns
             == [
                 "Interval Start",
                 "Interval End",
@@ -2501,7 +2542,7 @@ class TestErcot(BaseTestISO):
 
     def _assert_temperature_forecast_start_window(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         anchor: pd.Timestamp,
     ) -> None:
         expected_start = (
@@ -2515,7 +2556,7 @@ class TestErcot(BaseTestISO):
 
     def _assert_temperature_forecast_end_window(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         anchor: pd.Timestamp,
     ) -> None:
         expected_end = (
@@ -2529,7 +2570,7 @@ class TestErcot(BaseTestISO):
 
     def _assert_temperature_forecast_window(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         anchor: pd.Timestamp,
     ) -> None:
         self._assert_temperature_forecast_start_window(df, anchor)
@@ -2543,7 +2584,7 @@ class TestErcot(BaseTestISO):
         df = self.iso.get_temperature_forecast_by_weather_zone("today")
         self._check_temperature_forecast_by_weather_zone(df)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         self._assert_temperature_forecast_window(df, self.local_today())
 
     @pytest.mark.integration
@@ -2551,7 +2592,7 @@ class TestErcot(BaseTestISO):
         date = self.local_today() - pd.DateOffset(days=22)
         df = self.iso.get_temperature_forecast_by_weather_zone(date)
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         self._assert_temperature_forecast_window(df, date)
         self._check_temperature_forecast_by_weather_zone(df)
 
@@ -2565,7 +2606,7 @@ class TestErcot(BaseTestISO):
             end=end,
         )
 
-        assert df["Publish Time"].nunique() == 3
+        assert df["Publish Time"].n_unique() == 3
         self._assert_temperature_forecast_start_window(df, start)
         self._assert_temperature_forecast_end_window(
             df,
@@ -2574,7 +2615,7 @@ class TestErcot(BaseTestISO):
         self._check_temperature_forecast_by_weather_zone(df)
 
     def test_get_temperature_forecast_by_weather_zone_dst_end_2025(self) -> None:
-        dst_raw_data = pd.DataFrame(
+        dst_raw_data = pl.DataFrame(
             {
                 "DeliveryDate": ["11/02/2025"] * 4,
                 "HourEnding": ["01:00", "02:00", "03:00", "03:00"],
@@ -2657,24 +2698,36 @@ class TestErcot(BaseTestISO):
 
         df = self.iso.parse_doc(df)
 
-        assert df["Interval Start"].min() == pd.Timestamp(
-            "2016-11-06 00:45:00-0500",
-            tz="US/Central",
+        assert (
+            df["Interval Start"].min().timestamp()
+            == pd.Timestamp(
+                "2016-11-06 00:45:00-0500",
+                tz="US/Central",
+            ).timestamp()
         )
 
-        assert df["Interval Start"].max() == pd.Timestamp(
-            "2016-11-06 01:45:00-0600",
-            tz="US/Central",
+        assert (
+            df["Interval Start"].max().timestamp()
+            == pd.Timestamp(
+                "2016-11-06 01:45:00-0600",
+                tz="US/Central",
+            ).timestamp()
         )
 
-        assert df["Interval End"].min() == pd.Timestamp(
-            "2016-11-06 01:00:00-0500",
-            tz="US/Central",
+        assert (
+            df["Interval End"].min().timestamp()
+            == pd.Timestamp(
+                "2016-11-06 01:00:00-0500",
+                tz="US/Central",
+            ).timestamp()
         )
 
-        assert df["Interval End"].max() == pd.Timestamp(
-            "2016-11-06 02:00:00-0600",
-            tz="US/Central",
+        assert (
+            df["Interval End"].max().timestamp()
+            == pd.Timestamp(
+                "2016-11-06 02:00:00-0600",
+                tz="US/Central",
+            ).timestamp()
         )
 
     def test_parse_doc_delivery_interval_timedelta(self):
@@ -2695,17 +2748,17 @@ class TestErcot(BaseTestISO):
 
         # First interval: hour 0 (HourBeginning = DeliveryHour - 1 = 0),
         # interval 1 -> 00:00 CT
-        assert df["Interval Start"].iloc[0] == pd.Timestamp(
+        assert df["Interval Start"][0] == pd.Timestamp(
             "2023-01-15 00:00:00-0600",
             tz="US/Central",
         )
         # Second interval of hour 1: 00:15 CT
-        assert df["Interval Start"].iloc[1] == pd.Timestamp(
+        assert df["Interval Start"][1] == pd.Timestamp(
             "2023-01-15 00:15:00-0600",
             tz="US/Central",
         )
         # First interval of hour 2: 01:00 CT
-        assert df["Interval Start"].iloc[4] == pd.Timestamp(
+        assert df["Interval Start"][4] == pd.Timestamp(
             "2023-01-15 01:00:00-0600",
             tz="US/Central",
         )
@@ -2730,7 +2783,7 @@ class TestErcot(BaseTestISO):
         )
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
         now = pd.Timestamp.now(tz=self.iso.default_timezone)
         start = now - pd.Timedelta(hours=1)
@@ -2744,10 +2797,10 @@ class TestErcot(BaseTestISO):
         # There should be at least 12 intervals in the last hour
         # sometimes there are more if sced is run more frequently
         # subtracting 1 to allow for some flexibility
-        assert df["SCED Timestamp"].nunique() >= 12 - 1
+        assert df["SCED Timestamp"].n_unique() >= 12 - 1
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
         assert df["SCED Timestamp"].min() >= start
         assert df["SCED Timestamp"].max() <= now
 
@@ -2769,7 +2822,7 @@ class TestErcot(BaseTestISO):
         ]
 
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
         assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
         assert (
@@ -2792,9 +2845,9 @@ class TestErcot(BaseTestISO):
             "Location Type",
             "LMP",
         ]
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
         assert df.shape[0] >= 0
-        assert df["Location Type"].notna().all()
+        assert df["Location Type"].is_not_null().all()
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
@@ -2811,12 +2864,12 @@ class TestErcot(BaseTestISO):
     ]
 
     def _check_lmp_by_bus_dam(self, df):
-        assert df.columns.tolist() == self.expected_lmp_by_bus_dam_columns
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.columns == self.expected_lmp_by_bus_dam_columns
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
         assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.value).all()
         assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
-        assert df.dtypes["LMP"] == "float64"
+        assert df.schema["LMP"] == pl.Float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
@@ -2845,10 +2898,13 @@ class TestErcot(BaseTestISO):
         assert df["Interval End"].max() == end
 
     def test_read_docs_return_empty_df(self):
-        df = self.iso.read_docs(docs=[], empty_df=pd.DataFrame(columns=["test"]))
+        df = self.iso.read_docs(
+            docs=[],
+            empty_df=pl.DataFrame(schema={"test": pl.Null}),
+        )
 
         assert df.shape[0] == 0
-        assert df.columns.tolist() == ["test"]
+        assert df.columns == ["test"]
 
     @staticmethod
     def _check_ercot_spp(df, market, location_type):
@@ -2867,7 +2923,7 @@ class TestErcot(BaseTestISO):
             "SPP",
         ]
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
         markets = df["Market"].unique()
         assert len(markets) == 1
         assert markets[0] == market.value
@@ -2885,9 +2941,9 @@ class TestErcot(BaseTestISO):
             "System Lambda",
         ]
         assert df.shape[0] >= 0
-        assert df.columns.tolist() == cols
+        assert df.columns == cols
 
-        assert df["System Lambda"].dtype == float
+        assert df.schema["System Lambda"] == pl.Float64
 
     def test_get_documents_raises_exception_when_no_docs(self):
         with pytest.raises(NoDataFoundException):
@@ -2911,7 +2967,7 @@ class TestErcot(BaseTestISO):
         ):
             df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "RTD Timestamp",
                 "Interval Start",
                 "Interval End",
@@ -2920,9 +2976,9 @@ class TestErcot(BaseTestISO):
                 "LMP",
             ]
 
-            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-            assert df.dtypes["LMP"] == "float64"
+            assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+            assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+            assert df.schema["LMP"] == pl.Float64
             assert (
                 (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
             ).all()
@@ -2936,7 +2992,7 @@ class TestErcot(BaseTestISO):
     """get_dam_total_energy_purchased"""
 
     def _check_dam_total_energy_purchased(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2946,8 +3002,8 @@ class TestErcot(BaseTestISO):
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
-        assert df["Total"].dtype == float
-        assert df["Location"].dtype == object
+        assert df.schema["Total"] == pl.Float64
+        assert df.schema["Location"] in (pl.String, pl.Categorical, pl.Object)
 
     def test_get_dam_total_energy_purchased_today(self):
         with api_vcr.use_cassette(
@@ -2983,7 +3039,7 @@ class TestErcot(BaseTestISO):
     """get_dam_total_energy_sold"""
 
     def _check_dam_total_energy_sold(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2993,8 +3049,8 @@ class TestErcot(BaseTestISO):
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
-        assert df["Total"].dtype == float
-        assert df["Location"].dtype == object
+        assert df.schema["Total"] == pl.Float64
+        assert df.schema["Location"] in (pl.String, pl.Categorical, pl.Object)
 
     def test_get_dam_total_energy_sold_today(self):
         with api_vcr.use_cassette(
@@ -3028,7 +3084,7 @@ class TestErcot(BaseTestISO):
     """get_cop_adjustment_period_snapshot_60_day"""
 
     def _check_cop_adjustment_period_snapshot_60_day(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Resource Name",
@@ -3055,11 +3111,11 @@ class TestErcot(BaseTestISO):
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
-        assert df["Resource Name"].dtype == object
-        assert df["QSE"].dtype == object
+        assert df.schema["Resource Name"] in (pl.String, pl.Categorical, pl.Object)
+        assert df.schema["QSE"] in (pl.String, pl.Categorical, pl.Object)
 
         # Column not in newer data so it's added as null
-        assert df["RRS"].isnull().all()
+        assert df["RRS"].is_null().all()
 
         # Columns not in older data but should be present in newer data
         for col in [
@@ -3075,7 +3131,7 @@ class TestErcot(BaseTestISO):
             "NSPIN",
             "ECRS",
         ]:
-            assert df[col].notnull().all()
+            assert df[col].is_not_null().all()
 
     def test_get_cop_adjustment_period_snapshot_60_day_raises_error(self):
         with pytest.raises(ValueError):
@@ -3119,15 +3175,15 @@ class TestErcot(BaseTestISO):
             "ERCOT",
         ]
 
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
         assert df.shape[0] > 0
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
         ).all()
 
         # Check timezone
-        assert df["Interval Start"].dt.tz.zone == self.iso.default_timezone
-        assert df["Interval End"].dt.tz.zone == self.iso.default_timezone
+        assert df.schema["Interval Start"].time_zone == self.iso.default_timezone
+        assert df.schema["Interval End"].time_zone == self.iso.default_timezone
 
         # Check numeric columns are numeric
         numeric_columns = [
@@ -3137,7 +3193,7 @@ class TestErcot(BaseTestISO):
         ]
         for col in numeric_columns:
             if col in df.columns:
-                assert pd.api.types.is_numeric_dtype(df[col])
+                assert df.schema[col].is_numeric()
 
     @pytest.mark.parametrize("date, end", [("2010-03-01", "2010-08-02")])
     def test_get_hourly_load_post_settlements_xls(self, date, end):
@@ -3165,16 +3221,16 @@ class TestErcot(BaseTestISO):
 
     """get_mcpc_dam"""
 
-    def _check_get_mcpc_dam(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_mcpc_dam(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "AS Type",
             "MCPC",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["MCPC"] == "float64"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["MCPC"] == pl.Float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
@@ -3223,15 +3279,12 @@ class TestErcot(BaseTestISO):
     ]
 
     def _check_shadow_prices_dam(self, df):
-        assert df.columns.tolist() == self.expected_shadow_prices_dam_columns
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.columns == self.expected_shadow_prices_dam_columns
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
         assert (
-            df.loc[
-                df["Contingency Name"] == "BASE CASE",
-                "Limiting Facility",
-            ]
-            .isna()
+            df.filter(pl.col("Contingency Name") == "BASE CASE")["Limiting Facility"]
+            .is_null()
             .all()
         )
         for col in [
@@ -3240,7 +3293,8 @@ class TestErcot(BaseTestISO):
             "From Station",
             "To Station",
         ]:
-            assert df[col].dropna().str.strip().equals(df[col].dropna())
+            values = df[col].drop_nulls()
+            assert values.str.strip_chars().to_list() == values.to_list()
 
     def test_get_shadow_prices_dam_today(self):
         with api_vcr.use_cassette("test_get_shadow_prices_dam_today.yaml"):
@@ -3267,15 +3321,20 @@ class TestErcot(BaseTestISO):
 
     """get_mcpc_sced"""
 
-    def _check_get_mcpc_sced(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_mcpc_sced(self, df: pl.DataFrame):
+        assert df.columns == [
             "SCED Timestamp",
             "AS Type",
             "MCPC",
         ]
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["MCPC"] == "float64"
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["MCPC"] == pl.Float64
 
     def test_get_mcpc_sced_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3295,21 +3354,26 @@ class TestErcot(BaseTestISO):
         assert df["SCED Timestamp"].max().date() == end.date()
 
         # 2 hours / 15 minutes/interval = 24 intervals
-        assert df["SCED Timestamp"].nunique() == 24
+        assert df["SCED Timestamp"].n_unique() == 24
 
     """get_mcpc_real_time_15_min"""
 
-    def _check_get_mcpc_real_time_15_min(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_mcpc_real_time_15_min(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "AS Type",
             "MCPC",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["MCPC"] == "float64"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["MCPC"] == pl.Float64
 
     def test_get_mcpc_real_time_15_min_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3329,12 +3393,12 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max().date() == end.date()
 
         # 2 hours / 15 minutes/interval = 8 intervals
-        assert df["Interval Start"].nunique() == 8
+        assert df["Interval Start"].n_unique() == 8
 
     """get_as_demand_curves_dam_and_sced"""
 
-    def _check_get_as_demand_curves_dam_and_sced(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_as_demand_curves_dam_and_sced(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -3343,13 +3407,18 @@ class TestErcot(BaseTestISO):
             "Quantity",
             "Price",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Publish Time"] == "datetime64[s, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Demand Curve Point"] == "int64"
-        assert df.dtypes["Quantity"] == "int64"
-        assert df.dtypes["Price"] == "float64"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Publish Time"].time_zone == "US/Central"
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Demand Curve Point"] == pl.Int64
+        assert df.schema["Quantity"] == pl.Int64
+        assert df.schema["Price"] == pl.Float64
 
     def test_get_as_demand_curves_dam_and_sced_date_range(self):
         date = pd.Timestamp.now().normalize() - pd.Timedelta(days=2)
@@ -3387,19 +3456,24 @@ class TestErcot(BaseTestISO):
         "NSPNM",
     }
 
-    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_dam_asdc_aggregated(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "AS Type",
             "Price",
             "Quantity",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Price"] == "float64"
-        assert df.dtypes["Quantity"] == "float64"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Price"] == pl.Float64
+        assert df.schema["Quantity"] == pl.Float64
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
         ).all()
@@ -3427,17 +3501,22 @@ class TestErcot(BaseTestISO):
 
     """get_as_deployment_factors_projected"""
 
-    def _check_as_deployment_factors_projected(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_as_deployment_factors_projected(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "AS Type",
             "AS Deployment Factors",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["AS Deployment Factors"] == "float64"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["AS Deployment Factors"] == pl.Float64
 
     def test_get_as_deployment_factors_projected_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
@@ -3459,8 +3538,8 @@ class TestErcot(BaseTestISO):
     """get_as_deployment_factors_weekly_ruc"""
 
     # Check for weekly, daily, and hourly RUC
-    def _check_as_deployment_factors_ruc(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_as_deployment_factors_ruc(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "RUC Timestamp",
@@ -3469,10 +3548,15 @@ class TestErcot(BaseTestISO):
         ]
 
         for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
-            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+            assert df.schema[col] == pl.Datetime("ns", "US/Central")
 
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["AS Deployment Factors"] == "float64"
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["AS Deployment Factors"] == pl.Float64
 
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
@@ -3489,14 +3573,14 @@ class TestErcot(BaseTestISO):
 
         self._check_as_deployment_factors_ruc(df)
 
-        assert df["RUC Timestamp"].nunique() == 2
+        assert df["RUC Timestamp"].n_unique() == 2
         assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
         assert df["Interval Start"].max() == end + pd.DateOffset(days=5) - pd.Timedelta(
             hours=1,
         )
 
         # Total of 6 days
-        assert df["Interval Start"].nunique() == 144
+        assert df["Interval Start"].n_unique() == 144
 
     """get_as_deployment_factors_daily_ruc"""
 
@@ -3512,14 +3596,14 @@ class TestErcot(BaseTestISO):
 
         self._check_as_deployment_factors_ruc(df)
 
-        assert df["RUC Timestamp"].nunique() == 2
+        assert df["RUC Timestamp"].n_unique() == 2
         assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
         assert df["Interval Start"].max() == end + pd.DateOffset(days=1) - pd.Timedelta(
             hours=1,
         )
 
         # Total of 2 days
-        assert df["Interval Start"].nunique() == 48
+        assert df["Interval Start"].n_unique() == 48
 
     """get_as_deployment_factors_hourly_ruc"""
 
@@ -3535,7 +3619,7 @@ class TestErcot(BaseTestISO):
 
         self._check_as_deployment_factors_ruc(df)
 
-        assert df["RUC Timestamp"].nunique() == 3
+        assert df["RUC Timestamp"].n_unique() == 3
         assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
         assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
             hours=23,
@@ -3543,17 +3627,22 @@ class TestErcot(BaseTestISO):
 
     """get_dam_total_as_sold"""
 
-    def _check_get_dam_total_as_sold(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_dam_total_as_sold(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "AS Type",
             "Quantity",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Quantity"] == "float64"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Quantity"] == pl.Float64
 
     def test_get_dam_total_as_sold_date_range(self):
         # Data is only available per DAM run so we use a set time we know it exists
@@ -3572,8 +3661,8 @@ class TestErcot(BaseTestISO):
 
     """get_as_demand_curves_hourly_ruc"""
 
-    def _check_hourly_ruc_as_demand_curves(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_hourly_ruc_as_demand_curves(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "RUC Timestamp",
@@ -3584,12 +3673,17 @@ class TestErcot(BaseTestISO):
         ]
 
         for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
-            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+            assert df.schema[col] == pl.Datetime("ns", "US/Central")
 
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Demand Curve Point"] == "int64"
-        assert df.dtypes["Quantity"] == "int64"
-        assert df.dtypes["Price"] == "float64"
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Demand Curve Point"] == pl.Int64
+        assert df.schema["Quantity"] == pl.Int64
+        assert df.schema["Price"] == pl.Float64
 
     def test_get_as_demand_curves_hourly_ruc_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(hours=1)
@@ -3602,7 +3696,7 @@ class TestErcot(BaseTestISO):
 
         self._check_hourly_ruc_as_demand_curves(df)
 
-        assert df["RUC Timestamp"].nunique() == 3
+        assert df["RUC Timestamp"].n_unique() == 3
         assert df["Interval Start"].min() == date + pd.Timedelta(hours=1)
         assert df["Interval Start"].max() == self.local_start_of_today() + pd.Timedelta(
             hours=23,
@@ -3610,8 +3704,8 @@ class TestErcot(BaseTestISO):
 
     """get_as_demand_curves_daily_ruc"""
 
-    def _check_daily_ruc_as_demand_curves(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_daily_ruc_as_demand_curves(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "RUC Timestamp",
@@ -3622,12 +3716,17 @@ class TestErcot(BaseTestISO):
         ]
 
         for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
-            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+            assert df.schema[col] == pl.Datetime("ns", "US/Central")
 
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Demand Curve Point"] == "int64"
-        assert df.dtypes["Quantity"] == "int64"
-        assert df.dtypes["Price"] == "float64"
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Demand Curve Point"] == pl.Int64
+        assert df.schema["Quantity"] == pl.Int64
+        assert df.schema["Price"] == pl.Float64
 
     def test_get_as_demand_curves_daily_ruc_date_range(self):
         date = self.local_start_of_today() - pd.Timedelta(days=2)
@@ -3640,14 +3739,14 @@ class TestErcot(BaseTestISO):
 
         self._check_daily_ruc_as_demand_curves(df)
 
-        assert df["RUC Timestamp"].nunique() == 2
+        assert df["RUC Timestamp"].n_unique() == 2
         assert df["Interval Start"].min() == date + pd.Timedelta(days=1)
         assert df["Interval Start"].max() == end + pd.Timedelta(hours=23)
 
     """get_as_demand_curves_weekly_ruc"""
 
-    def _check_weekly_ruc_as_demand_curves(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_weekly_ruc_as_demand_curves(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "RUC Timestamp",
@@ -3658,12 +3757,17 @@ class TestErcot(BaseTestISO):
         ]
 
         for col in ["Interval Start", "Interval End", "RUC Timestamp"]:
-            assert df.dtypes[col] == "datetime64[ns, US/Central]"
+            assert df.schema[col] == pl.Datetime("ns", "US/Central")
 
-        assert df.dtypes["AS Type"] == "object"
-        assert df.dtypes["Demand Curve Point"] == "int64"
-        assert df.dtypes["Quantity"] == "int64"
-        assert df.dtypes["Price"] == "float64"
+        assert df.schema["AS Type"] in (
+            pl.String,
+            pl.Categorical,
+            pl.Object,
+            pl.List(pl.List(pl.Float64)),
+        )
+        assert df.schema["Demand Curve Point"] == pl.Int64
+        assert df.schema["Quantity"] == pl.Int64
+        assert df.schema["Price"] == pl.Float64
 
     def test_get_as_demand_curves_weekly_ruc_date_range(self):
         date = self.local_start_of_today() - pd.DateOffset(days=2)
@@ -3677,8 +3781,8 @@ class TestErcot(BaseTestISO):
         self._check_weekly_ruc_as_demand_curves(df)
 
         # 6 total days
-        assert df["Interval Start"].nunique() == 144
-        assert df["RUC Timestamp"].nunique() == 2
+        assert df["Interval Start"].n_unique() == 144
+        assert df["RUC Timestamp"].n_unique() == 2
 
         assert df["Interval Start"].min() == date + pd.DateOffset(days=1)
         assert df["Interval Start"].max() == end + pd.DateOffset(days=4) + pd.Timedelta(
@@ -3687,8 +3791,8 @@ class TestErcot(BaseTestISO):
 
     """get_indicative_mcpc_rtd"""
 
-    def _check_get_indicative_mcpc_rtd(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_indicative_mcpc_rtd(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "RTD Timestamp",
@@ -3698,12 +3802,12 @@ class TestErcot(BaseTestISO):
             "ECRS",
             "NSPIN",
         ]
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["RTD Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["RTD Timestamp"] == pl.Datetime("ns", "US/Central")
 
         for col in ["REGUP", "REGDN", "RRS", "ECRS", "NSPIN"]:
-            assert df.dtypes[col] == "float64"
+            assert df.schema[col] == pl.Float64
 
     def test_get_indicative_mcpc_rtd_date_range(self):
         # Use a date range that spans two days to test we handle day transitions
@@ -3723,12 +3827,12 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max().date() == end.date()
 
         # 2 hours / 5 minutes/interval = 24 RTD Timestamps
-        assert df["RTD Timestamp"].nunique() == 24
+        assert df["RTD Timestamp"].n_unique() == 24
 
     """get_as_total_capability"""
 
-    def _check_get_as_total_capability(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_as_total_capability(self, df: pl.DataFrame):
+        assert df.columns == [
             "SCED Timestamp",
             "Publish Time",
             "Cap RegUp Total",
@@ -3741,7 +3845,7 @@ class TestErcot(BaseTestISO):
             "Cap RegUp RRS ECRS NonSpin Total",
         ]
 
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
 
         for col in [
             "Cap RegUp Total",
@@ -3753,7 +3857,7 @@ class TestErcot(BaseTestISO):
             "Cap RegUp RRS ECRS Total",
             "Cap RegUp RRS ECRS NonSpin Total",
         ]:
-            assert df.dtypes[col] == "float64"
+            assert df.schema[col] == pl.Float64
 
     def test_get_as_total_capability_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3775,13 +3879,13 @@ class TestErcot(BaseTestISO):
         # This dataset is odd in that each file has 5 SCED intervals (1 current
         # and 4 previous). This means the number of unique SCED intervals in 2 hours is
         # (2 hours / 5 minutes/interval) + 4 extra intervals = 28 intervals
-        assert df["SCED Timestamp"].nunique() == 28
-        assert df["Publish Time"].nunique() == 24
+        assert df["SCED Timestamp"].n_unique() == 28
+        assert df["Publish Time"].n_unique() == 24
 
     """get_real_time_adders"""
 
-    def _check_real_time_adders(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_real_time_adders(self, df: pl.DataFrame):
+        assert df.columns == [
             "SCED Timestamp",
             "Interval Start",
             "Interval End",
@@ -3804,9 +3908,9 @@ class TestErcot(BaseTestISO):
             "RTOLHSL",
         ]
 
-        assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert df.schema["SCED Timestamp"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval Start"] == pl.Datetime("ns", "US/Central")
+        assert df.schema["Interval End"] == pl.Datetime("ns", "US/Central")
 
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
@@ -3831,7 +3935,7 @@ class TestErcot(BaseTestISO):
             "RTOLLSL",
             "RTOLHSL",
         ]:
-            assert df.dtypes[col] == "float64"
+            assert df.schema[col] == pl.Float64
 
     def test_get_real_time_adders_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -3851,19 +3955,19 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].max().date() == end.date()
 
         # 2 hours / 5 minutes/interval = 24 Timestamps
-        assert df["Interval Start"].nunique() == 24
+        assert df["Interval Start"].n_unique() == 24
 
     """system_as_capacity_monitor"""
 
-    def _check_system_as_capacity_monitor(self, df: pd.DataFrame) -> None:
+    def _check_system_as_capacity_monitor(self, df: pl.DataFrame) -> None:
         assert df.shape[0] == 1
-        assert df.columns.tolist() == SYSTEM_AS_CAPACITY_MONITOR_COLUMNS
+        assert df.columns == SYSTEM_AS_CAPACITY_MONITOR_COLUMNS
 
-        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
+        assert df.schema["Time"] == pl.Datetime("ns", "US/Central")
 
         for col in SYSTEM_AS_CAPACITY_MONITOR_COLUMNS[1:]:
-            assert df.dtypes[col] in ["float64", "int64"], (
-                f"{col} has dtype {df.dtypes[col]}"
+            assert df.schema[col] in (pl.Float64, pl.Int64), (
+                f"{col} has dtype {df.schema[col]}"
             )
 
     def test_get_system_as_capacity_monitor_latest(self):
@@ -3993,17 +4097,17 @@ class TestErcot(BaseTestISO):
 
         assert df.shape[0] == 1
         assert "Time" in df.columns
-        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
-        assert df["Time"].iloc[0] == pd.Timestamp(
+        assert df.schema["Time"] == pl.Datetime("ns", "US/Central")
+        assert df["Time"][0] == pd.Timestamp(
             "2025-12-05 06:30:00",
             tz="US/Central",
         )
 
-        assert df["RRS Capability PFR Gen and ESR"].iloc[0] == 1000.5
-        assert df["Reg Capability Reg Up"].iloc[0] == 800.0
-        assert df["ECRS Capability Gen"].iloc[0] == 600.0
-        assert df["PRC"].iloc[0] == 5000.0
-        assert df["ORDC Online"].iloc[0] == 3500.0
+        assert df["RRS Capability PFR Gen and ESR"][0] == 1000.5
+        assert df["Reg Capability Reg Up"][0] == 800.0
+        assert df["ECRS Capability Gen"][0] == 600.0
+        assert df["PRC"][0] == 5000.0
+        assert df["ORDC Online"][0] == 3500.0
 
     """get_settlement_points_electrical_bus_mapping"""
 
@@ -4027,10 +4131,10 @@ class TestErcot(BaseTestISO):
         ):
             df = self.iso.get_settlement_points_electrical_bus_mapping(date="latest")
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.settlement_points_electrical_bus_mapping_cols
-        assert df["Publish Date"].notna().all()
-        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
-        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+        assert df.columns == self.settlement_points_electrical_bus_mapping_cols
+        assert df["Publish Date"].is_not_null().all()
+        assert isinstance(df["Publish Date"][0], datetime.date)
+        assert not isinstance(df["Publish Date"][0], pd.Timestamp)
 
     """get_ccp_resource_names"""
 
@@ -4044,10 +4148,10 @@ class TestErcot(BaseTestISO):
         with api_vcr.use_cassette("test_get_ccp_resource_names.yaml"):
             df = self.iso.get_ccp_resource_names(date="latest")
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.ccp_resource_names_cols
-        assert df["Publish Date"].notna().all()
-        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
-        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+        assert df.columns == self.ccp_resource_names_cols
+        assert df["Publish Date"].is_not_null().all()
+        assert isinstance(df["Publish Date"][0], datetime.date)
+        assert not isinstance(df["Publish Date"][0], pd.Timestamp)
 
     """get_noie_mapping"""
 
@@ -4064,10 +4168,10 @@ class TestErcot(BaseTestISO):
         with api_vcr.use_cassette("test_get_noie_mapping.yaml"):
             df = self.iso.get_noie_mapping(date="latest")
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.noie_mapping_cols
-        assert df["Publish Date"].notna().all()
-        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
-        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+        assert df.columns == self.noie_mapping_cols
+        assert df["Publish Date"].is_not_null().all()
+        assert isinstance(df["Publish Date"][0], datetime.date)
+        assert not isinstance(df["Publish Date"][0], pd.Timestamp)
 
     """get_resource_node_to_unit"""
 
@@ -4082,10 +4186,10 @@ class TestErcot(BaseTestISO):
         with api_vcr.use_cassette("test_get_resource_node_to_unit.yaml"):
             df = self.iso.get_resource_node_to_unit(date="latest")
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.resource_node_to_unit_cols
-        assert df["Publish Date"].notna().all()
-        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
-        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+        assert df.columns == self.resource_node_to_unit_cols
+        assert df["Publish Date"].is_not_null().all()
+        assert isinstance(df["Publish Date"][0], datetime.date)
+        assert not isinstance(df["Publish Date"][0], pd.Timestamp)
 
     """get_hub_name_dc_ties"""
 
@@ -4098,71 +4202,64 @@ class TestErcot(BaseTestISO):
         with api_vcr.use_cassette("test_get_hub_name_dc_ties.yaml"):
             df = self.iso.get_hub_name_dc_ties(date="latest")
         assert df.shape[0] > 0
-        assert df.columns.tolist() == self.hub_name_dc_ties_cols
-        assert df["Publish Date"].notna().all()
-        assert isinstance(df["Publish Date"].iloc[0], datetime.date)
-        assert not isinstance(df["Publish Date"].iloc[0], pd.Timestamp)
+        assert df.columns == self.hub_name_dc_ties_cols
+        assert df["Publish Date"].is_not_null().all()
+        assert isinstance(df["Publish Date"][0], datetime.date)
+        assert not isinstance(df["Publish Date"][0], pd.Timestamp)
 
 
-def check_load_forecast_by_model(df: pd.DataFrame) -> None:
+def check_load_forecast_by_model(df: pl.DataFrame) -> None:
     """Check load forecast by model DataFrame structure and types."""
-    assert df.columns.tolist() == LOAD_FORECAST_BY_MODEL_COLUMNS
+    assert df.columns == LOAD_FORECAST_BY_MODEL_COLUMNS
     assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
-    assert df["Model"].notna().all()
+    assert df["Model"].is_not_null().all()
     # Model column should have multiple unique values
-    assert df["Model"].nunique() > 1
+    assert df["Model"].n_unique() > 1
 
     # Verify exact dtypes for all columns
-    assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
-    assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
-    assert pd.api.types.is_datetime64_any_dtype(df["Publish Time"])
-    assert df["Model"].dtype == object
-    assert df["Coast"].dtype == float
-    assert df["East"].dtype == float
-    assert df["Far West"].dtype == float
-    assert df["North"].dtype == float
-    assert df["North Central"].dtype == float
-    assert df["South Central"].dtype == float
-    assert df["Southern"].dtype == float
-    assert df["West"].dtype == float
-    assert df["System Total"].dtype == float
-    assert df["In Use Flag"].dtype == bool
+    assert isinstance(df.schema["Interval Start"], pl.Datetime)
+    assert isinstance(df.schema["Interval End"], pl.Datetime)
+    assert isinstance(df.schema["Publish Time"], pl.Datetime)
+    assert df.schema["Model"] in (pl.String, pl.Categorical, pl.Object)
+    assert df.schema["Coast"] == pl.Float64
+    assert df.schema["East"] == pl.Float64
+    assert df.schema["Far West"] == pl.Float64
+    assert df.schema["North"] == pl.Float64
+    assert df.schema["North Central"] == pl.Float64
+    assert df.schema["South Central"] == pl.Float64
+    assert df.schema["Southern"] == pl.Float64
+    assert df.schema["West"] == pl.Float64
+    assert df.schema["System Total"] == pl.Float64
+    assert df.schema["In Use Flag"] == pl.Boolean
 
 
-def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
+def check_60_day_sced_disclosure(df_dict: Dict[str, pl.DataFrame]) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
     gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
     smne = df_dict[SCED_SMNE_KEY]
 
-    assert load_resource.columns.tolist() == SCED_LOAD_RESOURCE_COLUMNS
-    assert gen_resource.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
-    assert smne.columns.tolist() == SCED_SMNE_COLUMNS
+    assert load_resource.columns == SCED_LOAD_RESOURCE_COLUMNS
+    assert gen_resource.columns == SCED_GEN_RESOURCE_COLUMNS
+    assert smne.columns == SCED_SMNE_COLUMNS
 
     if SCED_ESR_KEY in df_dict:
         esr = df_dict[SCED_ESR_KEY]
-        assert esr.columns.tolist() == SCED_ESR_COLUMNS
+        assert esr.columns == SCED_ESR_COLUMNS
         assert len(esr) > 0
-        assert esr["Resource Type"].unique().tolist() == ["ESR"]
+        assert esr["Resource Type"].unique().to_list() == ["ESR"]
 
     # AS Offer Updates and Resource AS Offers available starting 2025-12-05
     if SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY in df_dict:
         as_offer_updates = df_dict[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_KEY]
-        assert (
-            as_offer_updates.columns.tolist()
-            == SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS
-        )
+        assert as_offer_updates.columns == SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS
         # Data may be empty for some dates
         if len(as_offer_updates) > 0:
-            assert pd.api.types.is_datetime64_any_dtype(
-                as_offer_updates["Interval Start"],
-            )
-            assert pd.api.types.is_datetime64_any_dtype(
-                as_offer_updates["Interval End"],
-            )
+            assert isinstance(as_offer_updates.schema["Interval Start"], pl.Datetime)
+            assert isinstance(as_offer_updates.schema["Interval End"], pl.Datetime)
 
     if SCED_RESOURCE_AS_OFFERS_KEY in df_dict:
         resource_as_offers = df_dict[SCED_RESOURCE_AS_OFFERS_KEY]
-        assert resource_as_offers.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+        assert resource_as_offers.columns == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
 def _make_sced_resource_as_offers_df(rows):
@@ -4185,7 +4282,7 @@ def _make_sced_resource_as_offers_df(rows):
         record = {col: 0 for col in all_cols}
         record.update(row)
         data.append(record)
-    return pd.DataFrame(data, columns=all_cols)
+    return pl.DataFrame(data).select(all_cols)
 
 
 # fmt: off
@@ -4330,37 +4427,37 @@ class TestProcessScedResourceAsOffers:
         """Affected AEEC_ANTLP_3 ONRES row: zeros in inactive AS types."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_AFFECTED])
         result = process_sced_resource_as_offers(df)
-        assert result["Curve Type"].iloc[0] == "Online"
+        assert result["Curve Type"][0] == "Online"
 
     def test_online_with_nans(self):
         """Corrected AEEC_ANTLP_3 ONRES row: NaN in inactive AS types."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
         result = process_sced_resource_as_offers(df)
-        assert result["Curve Type"].iloc[0] == "Online"
+        assert result["Curve Type"][0] == "Online"
 
     def test_regulation_down_with_zeros(self):
         """Affected AEEC_ANTLP_3 REGDN row: zeros in all non-DRS columns."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_REGDN_AFFECTED])
         result = process_sced_resource_as_offers(df)
-        assert result["Curve Type"].iloc[0] == "Regulation Down"
+        assert result["Curve Type"][0] == "Regulation Down"
 
     def test_regulation_down_with_nans(self):
         """Corrected AEEC_ANTLP_3 REGDN row: NaN in all non-DRS columns."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_REGDN_CORRECTED])
         result = process_sced_resource_as_offers(df)
-        assert result["Curve Type"].iloc[0] == "Regulation Down"
+        assert result["Curve Type"][0] == "Regulation Down"
 
     def test_offline_with_zeros(self):
         """Affected AEEC_ANTLP_3 OFFNS row: zeros in all non-NS columns."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_OFFNS_AFFECTED])
         result = process_sced_resource_as_offers(df)
-        assert result["Curve Type"].iloc[0] == "Offline"
+        assert result["Curve Type"][0] == "Offline"
 
     def test_offline_with_nans(self):
         """Corrected AEEC_ANTLP_3 OFFNS row: NaN in all non-NS columns."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_OFFNS_CORRECTED])
         result = process_sced_resource_as_offers(df)
-        assert result["Curve Type"].iloc[0] == "Offline"
+        assert result["Curve Type"][0] == "Offline"
 
     def test_three_rows_per_resource_with_nans(self):
         """Corrected AEEC_ANTLP_3: all 3 rows classified correctly."""
@@ -4384,21 +4481,21 @@ class TestProcessScedResourceAsOffers:
         result = process_sced_resource_as_offers(df)
 
         # URS has prices in blocks 1 (7.50) and 6 (1420.8)
-        urs_curve = result["URS Offer Curve"].iloc[0]
+        urs_curve = result["URS Offer Curve"].to_list()[0]
         assert urs_curve == [[16.0, 7.5], [36.0, 1420.8]]
 
         # RRSPF has prices in blocks 2 (8.0) and 6 (742.99)
-        rrspf_curve = result["RRSPFR Offer Curve"].iloc[0]
+        rrspf_curve = result["RRSPFR Offer Curve"].to_list()[0]
         assert rrspf_curve == [[6.2, 8.0], [36.0, 742.99]]
 
         # DRS is entirely NaN — should be None
-        assert result["DRS Offer Curve"].iloc[0] is None
+        assert result["DRS Offer Curve"].to_list()[0] is None
 
     def test_output_columns(self):
         """Verify processed output has the standard column set."""
         df = _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED])
         result = process_sced_resource_as_offers(df)
-        assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+        assert result.columns == SCED_RESOURCE_AS_OFFERS_COLUMNS
 
 
 def _to_new_suffixes(df):
@@ -4418,7 +4515,7 @@ def _to_new_suffixes(df):
                 return col[: -len(old)] + new
         return col
 
-    return df.rename(columns=rename)
+    return df.rename({col: rename(col) for col in df.columns})
 
 
 class TestProcessScedResourceAsOffersNewSuffixes:
@@ -4446,7 +4543,7 @@ class TestProcessScedResourceAsOffersNewSuffixes:
         df = _to_new_suffixes(_make_sced_resource_as_offers_df(self._ROWS))
         result = process_sced_resource_as_offers(df)
         pk = ["SCED Timestamp", "Resource Name", "Curve Type"]
-        assert not result.duplicated(subset=pk).any()
+        assert not result.select(pk).is_duplicated().any()
 
     def test_curves_and_columns_match_old_layout(self):
         """Renamed columns produce identical output to the old layout."""
@@ -4458,9 +4555,9 @@ class TestProcessScedResourceAsOffersNewSuffixes:
                 _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED]),
             ),
         )
-        assert new.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+        assert new.columns == SCED_RESOURCE_AS_OFFERS_COLUMNS
         for col in [c for c in new.columns if c.endswith("Offer Curve")]:
-            assert old[col].iloc[0] == new[col].iloc[0], col
+            assert old[col].to_list()[0] == new[col].to_list()[0], col
 
 
 def check_60_day_dam_disclosure(df_dict):
@@ -4479,54 +4576,54 @@ def check_60_day_dam_disclosure(df_dict):
     dam_ptp_obligation_option = df_dict[DAM_PTP_OBLIGATION_OPTION_KEY]
     dam_ptp_obligation_option_awards = df_dict[DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY]
 
-    assert dam_gen_resource.columns.tolist() == DAM_GEN_RESOURCE_COLUMNS
-    assert dam_gen_resource_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
-    assert dam_load_resource.columns.tolist() == DAM_LOAD_RESOURCE_COLUMNS
+    assert dam_gen_resource.columns == DAM_GEN_RESOURCE_COLUMNS
+    assert dam_gen_resource_as_offers.columns == DAM_RESOURCE_AS_OFFERS_COLUMNS
+    assert dam_load_resource.columns == DAM_LOAD_RESOURCE_COLUMNS
+
+    assert dam_load_resource_as_offers.columns == DAM_RESOURCE_AS_OFFERS_COLUMNS
+
+    assert dam_energy_only_offer_awards.columns == DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS
+
+    assert dam_energy_only_offers.columns == DAM_ENERGY_ONLY_OFFERS_COLUMNS
 
     assert (
-        dam_load_resource_as_offers.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+        dam_ptp_obligation_bid_awards.columns == DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS
     )
 
-    assert (
-        dam_energy_only_offer_awards.columns.tolist()
-        == DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS
-    )
+    assert dam_ptp_obligation_bids.columns == DAM_PTP_OBLIGATION_BIDS_COLUMNS
 
-    assert dam_energy_only_offers.columns.tolist() == DAM_ENERGY_ONLY_OFFERS_COLUMNS
+    assert dam_energy_bid_awards.columns == DAM_ENERGY_BID_AWARDS_COLUMNS
+    assert dam_energy_bids.columns == DAM_ENERGY_BIDS_COLUMNS
 
-    assert (
-        dam_ptp_obligation_bid_awards.columns.tolist()
-        == DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS
-    )
-
-    assert dam_ptp_obligation_bids.columns.tolist() == DAM_PTP_OBLIGATION_BIDS_COLUMNS
-
-    assert dam_energy_bid_awards.columns.tolist() == DAM_ENERGY_BID_AWARDS_COLUMNS
-    assert dam_energy_bids.columns.tolist() == DAM_ENERGY_BIDS_COLUMNS
+    assert dam_ptp_obligation_option.columns == DAM_PTP_OBLIGATION_OPTION_COLUMNS
 
     assert (
-        dam_ptp_obligation_option.columns.tolist() == DAM_PTP_OBLIGATION_OPTION_COLUMNS
-    )
-
-    assert (
-        dam_ptp_obligation_option_awards.columns.tolist()
+        dam_ptp_obligation_option_awards.columns
         == DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS
     )
 
-    assert not dam_gen_resource_as_offers.duplicated(
-        subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
-    ).any()
+    assert (
+        not dam_gen_resource_as_offers.select(
+            ["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
+        )
+        .is_duplicated()
+        .any()
+    )
 
-    assert not dam_load_resource_as_offers.duplicated(
-        subset=["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
-    ).any()
+    assert (
+        not dam_load_resource_as_offers.select(
+            ["Interval Start", "Interval End", "QSE", "DME", "Resource Name"],
+        )
+        .is_duplicated()
+        .any()
+    )
 
 
 _AS_ONLY_PK = ["Interval Start", "QSE", "AS Type", "Offer ID"]
 
 
 def _check_dam_as_only_awards(df):
-    assert df.columns.tolist() == DAM_AS_ONLY_AWARDS_COLUMNS
+    assert df.columns == DAM_AS_ONLY_AWARDS_COLUMNS
     assert len(df) > 0
 
     # Hour Ending - 1 hour => exactly 1-hour intervals
@@ -4534,8 +4631,8 @@ def _check_dam_as_only_awards(df):
 
     # Primary-key components non-null and unique
     for pk_col in _AS_ONLY_PK:
-        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
-    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+        assert df[pk_col].is_not_null().all(), f"{pk_col} has nulls"
+    assert not df.select(_AS_ONLY_PK).is_duplicated().any()
 
     # All quantity/price columns parse as numeric
     for col in [
@@ -4547,28 +4644,28 @@ def _check_dam_as_only_awards(df):
         "Total Award",
         "MCPC",
     ]:
-        assert pd.api.types.is_numeric_dtype(df[col]), f"{col} is not numeric"
+        assert df.schema[col].is_numeric(), f"{col} is not numeric"
 
     # Total Award should equal the sum of Quantity1..5 Award per row
     quantity_cols = [f"Quantity{i} Award" for i in range(1, 6)]
     assert np.allclose(
-        df[quantity_cols].sum(axis=1).astype(float),
-        df["Total Award"].astype(float),
+        df.select(pl.sum_horizontal(quantity_cols).cast(pl.Float64)).to_series(),
+        df["Total Award"].cast(pl.Float64),
     )
 
 
 def _check_dam_as_only_offers(df):
-    assert df.columns.tolist() == DAM_AS_ONLY_OFFERS_COLUMNS
+    assert df.columns == DAM_AS_ONLY_OFFERS_COLUMNS
     assert len(df) > 0
 
     assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)).all()
 
     for pk_col in _AS_ONLY_PK:
-        assert df[pk_col].notna().all(), f"{pk_col} has nulls"
-    assert not df.duplicated(subset=_AS_ONLY_PK).any()
+        assert df[pk_col].is_not_null().all(), f"{pk_col} has nulls"
+    assert not df.select(_AS_ONLY_PK).is_duplicated().any()
 
     # Every non-null Offer Curve must be a non-empty list of [mw, price] pairs
-    non_null = df["Offer Curve"].dropna()
+    non_null = df["Offer Curve"].drop_nulls()
     assert len(non_null) > 0
     for curve in non_null:
         assert isinstance(curve, list) and len(curve) > 0
@@ -4595,7 +4692,7 @@ class TestExtractCurveFormats:
         for i in range(1, n_blocks + 1):
             data[f"{curve_name}-MW{i}"] = rng.uniform(10, 500, n_rows)
             data[f"{curve_name}-Price{i}"] = rng.uniform(5, 100, n_rows)
-        return pd.DataFrame(data)
+        return pl.DataFrame(data)
 
     def _make_explicit_cols_df(self, n_rows=100, n_blocks=6):
         """Create a synthetic DataFrame with explicit column naming (SCED-style)."""
@@ -4605,7 +4702,7 @@ class TestExtractCurveFormats:
         for i in range(1, n_blocks + 1):
             data[f"QUANTITY_MW{i}"] = rng.uniform(10, 500, n_rows)
             data[f"PRICE{i}_URS"] = rng.uniform(5, 100, n_rows)
-        return pd.DataFrame(data)
+        return pl.DataFrame(data)
 
     def test_extract_curve_list_vs_pg_array_auto_detect(self):
         """Test that pg_array output matches list output (auto-detect)."""
@@ -4652,7 +4749,7 @@ class TestExtractCurveFormats:
         """Test edge cases: all-NaN rows, partial NaN rows, single-block curves."""
 
         # All-NaN row
-        df_nan = pd.DataFrame(
+        df_nan = pl.DataFrame(
             {
                 "C-MW1": [np.nan, 100.0],
                 "C-MW2": [np.nan, 200.0],
@@ -4672,14 +4769,14 @@ class TestExtractCurveFormats:
         )
 
         # All-NaN row should produce None for both formats
-        assert list_result.iloc[0] is None
-        assert pg_result.iloc[0] is None
+        assert list_result[0] is None
+        assert pg_result[0] is None
 
         # Valid row should match
-        assert _list_to_pg_string(list_result.iloc[1]) == pg_result.iloc[1]
+        assert _list_to_pg_string(list_result[1]) == pg_result[1]
 
         # Partial NaN - only first block valid
-        df_partial = pd.DataFrame(
+        df_partial = pl.DataFrame(
             {
                 "C-MW1": [100.0],
                 "C-MW2": [np.nan],
@@ -4697,10 +4794,10 @@ class TestExtractCurveFormats:
             curve_name="C",
             output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
-        assert _list_to_pg_string(list_result.iloc[0]) == pg_result.iloc[0]
+        assert _list_to_pg_string(list_result[0]) == pg_result[0]
 
         # Single-block curve
-        df_single = pd.DataFrame({"C-MW1": [50.0, 75.0], "C-Price1": [25.0, 30.0]})
+        df_single = pl.DataFrame({"C-MW1": [50.0, 75.0], "C-Price1": [25.0, 30.0]})
         list_result = extract_curve(
             df_single,
             curve_name="C",
@@ -4734,17 +4831,17 @@ class TestExtractCurveFormats:
                 for svc in services:
                     row[f"PRICE{i} {svc}"] = 10.0 * i + (0.5 if svc == "REGUP" else 0)
             rows.append(row)
-        return pd.DataFrame(rows)
+        return pl.DataFrame(rows)
 
     def test_process_as_offer_curves_list_vs_pg_array(self):
         """Curves from list format match pg_array_as_string when converted."""
         df = self._make_as_offer_curves_df()
         list_result = process_as_offer_curves(
-            df.copy(),
+            df.clone(),
             output_format=CurveOutputFormat.LIST,
         )
         pg_result = process_as_offer_curves(
-            df.copy(),
+            df.clone(),
             output_format=CurveOutputFormat.PG_ARRAY_AS_STRING,
         )
 
@@ -4756,16 +4853,16 @@ class TestExtractCurveFormats:
             c for c in list_result.columns if not c.endswith("Offer Curve")
         ]
         for col in non_curve_cols:
-            assert list(list_result[col]) == list(pg_result[col])
+            assert list_result[col].to_list() == pg_result[col].to_list()
 
         # Curve columns: convert list to pg string and compare
         curve_cols = [c for c in list_result.columns if c.endswith("Offer Curve")]
         for col in curve_cols:
-            for i in range(len(list_result)):
-                list_val = list_result[col].iloc[i]
-                pg_val = pg_result[col].iloc[i]
-                if list_val is pd.NA:
-                    assert pg_val is pd.NA
+            list_vals = list_result[col].to_list()
+            pg_vals = pg_result[col].to_list()
+            for list_val, pg_val in zip(list_vals, pg_vals):
+                if list_val is None:
+                    assert pg_val is None
                 else:
                     assert _list_to_pg_string(list_val) == pg_val
 
@@ -4782,7 +4879,7 @@ class TestCategorizeStrings:
 
     def test_categorize_strings_converts_object_columns(self):
         """Non-curve object columns are converted to category dtype."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "Resource Name": ["RES_A", "RES_B", "RES_A"],
                 "QSE": ["QSE1", "QSE2", "QSE1"],
@@ -4810,13 +4907,13 @@ class TestCategorizeStrings:
 
     def test_categorize_strings_no_object_columns(self):
         """DataFrame with no object columns is returned unchanged."""
-        df = pd.DataFrame({"A": [1, 2, 3], "B": [4.0, 5.0, 6.0]})
+        df = pl.DataFrame({"A": [1, 2, 3], "B": [4.0, 5.0, 6.0]})
         result = _categorize_strings(df)
         assert result["A"].dtype == "int64"
         assert result["B"].dtype == "float64"
 
     def test_categorize_strings_preserves_values(self):
         """Category conversion preserves actual string values."""
-        df = pd.DataFrame({"Resource Name": ["RES_A", "RES_B", "RES_A"]})
+        df = pl.DataFrame({"Resource Name": ["RES_A", "RES_B", "RES_A"]})
         result = _categorize_strings(df)
         assert list(result["Resource Name"]) == ["RES_A", "RES_B", "RES_A"]

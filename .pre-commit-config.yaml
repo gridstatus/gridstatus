@@ -53,6 +53,7 @@ repos:
             gridstatus/decorators\.py|
             gridstatus/eia\.py|
             gridstatus/ercot\.py|
+            gridstatus/ercot_60d_utils\.py|
             gridstatus/ercot_api/.*|
             gridstatus/gs_logging\.py|
             gridstatus/ieso\.py|

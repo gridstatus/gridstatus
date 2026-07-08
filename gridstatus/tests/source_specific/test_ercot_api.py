@@ -1,6 +1,7 @@
 import datetime
 
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus.base import Markets, NoDataFoundException
@@ -51,6 +52,17 @@ class TestErcotAPI(TestHelperMixin):
         # Runs before all tests in this class
         cls.iso = ErcotAPI(sleep_seconds=3, max_retries=5)
 
+    @staticmethod
+    def _interval_equals(df: pl.DataFrame, duration: pd.Timedelta) -> bool:
+        delta = df.select(
+            (pl.col("Interval End") - pl.col("Interval Start")).alias("delta"),
+        )["delta"]
+        return delta.eq(duration).all()
+
+    @staticmethod
+    def _is_tz_datetime(dtype: pl.DataType, tz: str) -> bool:
+        return isinstance(dtype, pl.Datetime) and dtype.time_zone == tz
+
     """utils"""
 
     def test_handle_end_date(self):
@@ -97,8 +109,10 @@ class TestErcotAPI(TestHelperMixin):
     """get_wind_actual_and_forecast_hourly"""
 
     def _check_wind_actual_and_forecast_hourly(self, df):
-        assert df.columns.tolist() == WIND_ACTUAL_AND_FORECAST_COLUMNS
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == WIND_ACTUAL_AND_FORECAST_COLUMNS
+        assert self._interval_equals(df, pd.Timedelta("1h"))
 
     @pytest.mark.integration
     @api_vcr.use_cassette("test_get_wind_actual_and_forecast_hourly_today.yaml")
@@ -117,7 +131,7 @@ class TestErcotAPI(TestHelperMixin):
     def test_get_wind_actual_and_forecast_hourly_latest(self):
         df = self.iso.get_wind_actual_and_forecast_hourly("latest")
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         self._check_wind_actual_and_forecast_hourly(df)
 
     @pytest.mark.integration
@@ -132,7 +146,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_wind_actual_and_forecast_hourly(df)
 
-        assert df["Publish Time"].nunique() == 2
+        assert df["Publish Time"].n_unique() == 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(
             date.date(),
@@ -144,12 +158,13 @@ class TestErcotAPI(TestHelperMixin):
     """get_wind_actual_and_forecast_by_geographical_region_hourly"""
 
     def _check_wind_actual_and_forecast_by_geographical_region_hourly(self, df):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
         assert (
-            df.columns.tolist()
-            == WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
+            list(df.columns) == WIND_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
         )
 
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert self._interval_equals(df, pd.Timedelta("1h"))
 
     @pytest.mark.integration
     @api_vcr.use_cassette(
@@ -176,7 +191,7 @@ class TestErcotAPI(TestHelperMixin):
             "latest",
         )
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
 
     @pytest.mark.integration
@@ -197,7 +212,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_wind_actual_and_forecast_by_geographical_region_hourly(df)
 
-        assert df["Publish Time"].nunique() == 2
+        assert df["Publish Time"].n_unique() == 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(
             date.date(),
@@ -209,9 +224,11 @@ class TestErcotAPI(TestHelperMixin):
     """get_solar_actual_and_forecast_hourly"""
 
     def _check_solar_actual_and_forecast_hourly(self, df):
-        assert df.columns.tolist() == SOLAR_ACTUAL_AND_FORECAST_COLUMNS
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == SOLAR_ACTUAL_AND_FORECAST_COLUMNS
 
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert self._interval_equals(df, pd.Timedelta("1h"))
 
     @pytest.mark.integration
     @api_vcr.use_cassette("test_get_solar_actual_and_forecast_hourly_today.yaml")
@@ -231,7 +248,7 @@ class TestErcotAPI(TestHelperMixin):
     def test_get_solar_actual_and_forecast_hourly_latest(self):
         df = self.iso.get_solar_actual_and_forecast_hourly("latest")
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         self._check_solar_actual_and_forecast_hourly(df)
 
     @pytest.mark.integration
@@ -244,7 +261,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_solar_actual_and_forecast_hourly(df)
 
-        assert df["Publish Time"].nunique() == 2
+        assert df["Publish Time"].n_unique() == 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(
             date.date(),
@@ -256,11 +273,12 @@ class TestErcotAPI(TestHelperMixin):
     """get_solar_actual_and_forecast_by_geographical_region_hourly"""
 
     def _check_solar_actual_and_forecast_by_geographical_region_hourly(self, df):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
         assert (
-            df.columns.tolist()
-            == SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
+            list(df.columns) == SOLAR_ACTUAL_AND_FORECAST_BY_GEOGRAPHICAL_REGION_COLUMNS
         )
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert self._interval_equals(df, pd.Timedelta("1h"))
 
     @pytest.mark.integration
     @api_vcr.use_cassette(
@@ -288,7 +306,7 @@ class TestErcotAPI(TestHelperMixin):
             "latest",
         )
 
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
     @pytest.mark.integration
@@ -309,7 +327,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_solar_actual_and_forecast_by_geographical_region_hourly(df)
 
-        assert df["Publish Time"].nunique() == 2
+        assert df["Publish Time"].n_unique() == 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(
             date.date(),
@@ -321,6 +339,8 @@ class TestErcotAPI(TestHelperMixin):
     """get_load_forecast_by_model"""
 
     def _check_load_forecast_by_model(self, df):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
         check_load_forecast_by_model(df)
 
     def test_get_load_forecast_by_model_date_range(self):
@@ -333,7 +353,7 @@ class TestErcotAPI(TestHelperMixin):
         self._check_load_forecast_by_model(df)
 
         # Two hours of data
-        assert df["Publish Time"].nunique() == 2
+        assert df["Publish Time"].n_unique() == 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(date.date())
         assert df["Interval End"].max() >= self.local_start_of_day(
@@ -358,9 +378,11 @@ class TestErcotAPI(TestHelperMixin):
     ]
 
     def _check_load_by_weather_zone(self, df):
-        assert df.columns.tolist() == self.LOAD_BY_WEATHER_ZONE_COLUMNS
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
-        assert df["Interval Start"].is_monotonic_increasing
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == self.LOAD_BY_WEATHER_ZONE_COLUMNS
+        assert self._interval_equals(df, pd.Timedelta("1h"))
+        assert df["Interval Start"].is_sorted()
 
     def test_get_load_by_weather_zone_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
@@ -379,7 +401,7 @@ class TestErcotAPI(TestHelperMixin):
         ) + pd.DateOffset(days=2)
 
         # 48 hours of data (2 operating days)
-        assert len(df) == 48
+        assert df.height == 48
 
     """get_load_by_forecast_zone"""
 
@@ -395,9 +417,11 @@ class TestErcotAPI(TestHelperMixin):
     ]
 
     def _check_load_by_forecast_zone(self, df):
-        assert df.columns.tolist() == self.LOAD_BY_FORECAST_ZONE_COLUMNS
-        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
-        assert df["Interval Start"].is_monotonic_increasing
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == self.LOAD_BY_FORECAST_ZONE_COLUMNS
+        assert self._interval_equals(df, pd.Timedelta("1h"))
+        assert df["Interval Start"].is_sorted()
 
     def test_get_load_by_forecast_zone_historical_date_range(self):
         date = self.local_today() - pd.DateOffset(days=HISTORICAL_DAYS_THRESHOLD * 3)
@@ -416,12 +440,14 @@ class TestErcotAPI(TestHelperMixin):
         ) + pd.DateOffset(days=2)
 
         # 48 hours of data (2 operating days)
-        assert len(df) == 48
+        assert df.height == 48
 
     """get_as_prices"""
 
     def _check_as_prices(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Market",
@@ -439,7 +465,7 @@ class TestErcotAPI(TestHelperMixin):
         )
 
         assert (df["Market"] == "DAM").all()
-        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+        assert self._interval_equals(df, pd.Timedelta("1h"))
 
     @pytest.mark.integration
     def test_get_as_prices_today_or_latest(self):
@@ -484,15 +510,17 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_mcpc_dam"""
 
-    def _check_get_mcpc_dam(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_mcpc_dam(self, df: pl.DataFrame):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "AS Type",
             "MCPC",
         ]
 
-        assert list(df["AS Type"].unique()) == [
+        assert sorted(df["AS Type"].unique().to_list()) == [
             "ECRS",
             "NSPIN",
             "REGDN",
@@ -547,8 +575,10 @@ class TestErcotAPI(TestHelperMixin):
         "NSPNM",
     }
 
-    def _check_get_dam_asdc_aggregated(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_get_dam_asdc_aggregated(self, df: pl.DataFrame):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "AS Type",
@@ -577,6 +607,8 @@ class TestErcotAPI(TestHelperMixin):
     """get_as_reports"""
 
     def _check_as_reports(self, df, before_full_columns=False):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
         """Check AS reports in original wide format"""
         # Earlier datasets only have these limited columns
         if before_full_columns:
@@ -626,7 +658,7 @@ class TestErcotAPI(TestHelperMixin):
                 "Bid Curve - OFFNS",
             ]
 
-        assert df.columns.tolist() == columns
+        assert list(df.columns) == columns
 
         bid_curve_columns = [
             "Bid Curve - RRSPFR",
@@ -642,8 +674,7 @@ class TestErcotAPI(TestHelperMixin):
 
         for column in bid_curve_columns:
             if column in df.columns:
-                # Column should be a list of lists
-                first_non_null_value = df[column].dropna().iloc[0]
+                first_non_null_value = df[column].drop_nulls().head(1).to_list()[0]
                 assert isinstance(first_non_null_value, list)
                 assert all(isinstance(x, list) for x in first_non_null_value)
 
@@ -696,9 +727,11 @@ class TestErcotAPI(TestHelperMixin):
         self._check_as_reports(df)
 
         # Check for the repeated hour
-        assert {"2024-11-03 01:00:00-05:00", "2024-11-03 01:00:00-06:00"}.issubset(
-            set(df["Interval Start"].astype(str).unique()),
-        )
+        fall_back_hours = df.filter(
+            (pl.col("Interval Start").dt.date() == datetime.date(2024, 11, 3))
+            & (pl.col("Interval Start").dt.hour() == 1),
+        )["Interval Start"]
+        assert fall_back_hours.n_unique() == 2
 
     """get_as_reports_dam"""
 
@@ -711,7 +744,7 @@ class TestErcotAPI(TestHelperMixin):
 
         _ErcotChecks()._check_as_reports_dam(df)
 
-        assert df["Interval Start"].dt.date.unique() == date.date()
+        assert df["Interval Start"].dt.date().unique().to_list() == [date.date()]
 
     """get_as_reports_sced"""
 
@@ -725,12 +758,14 @@ class TestErcotAPI(TestHelperMixin):
 
         _ErcotChecks()._check_as_reports_sced(df)
 
-        assert df["SCED Timestamp"].dt.date.unique() == date.date()
+        assert df["SCED Timestamp"].dt.date().unique().to_list() == [date.date()]
 
     """get_as_plan"""
 
     def _check_as_plan(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -771,7 +806,7 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["Publish Time"].dt.date.unique().tolist() == [date]
 
-        assert df["ECRS"].notna().any()
+        assert df["ECRS"].is_not_null().all().any()
 
     @pytest.mark.integration
     def test_get_as_plan_historical_date_range(self):
@@ -802,7 +837,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_as_plan(df)
 
-        assert df["ECRS"].isna().all()
+        assert df["ECRS"].is_null().all()
 
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval End"].max() == self.local_start_of_day(
@@ -818,7 +853,9 @@ class TestErcotAPI(TestHelperMixin):
     """get_lmp_by_settlement_point"""
 
     def _check_lmp_by_settlement_point(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "SCED Timestamp",
@@ -885,8 +922,10 @@ class TestErcotAPI(TestHelperMixin):
     """get_hourly_resource_outage_capacity"""
 
     def _check_hourly_resource_outage_capacity(self, df):
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
         # New files
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -905,7 +944,7 @@ class TestErcotAPI(TestHelperMixin):
             "Total New Equip Resource MW Zone West",
             "Total New Equip Resource MW Zone Houston",
             "Total New Equip Resource MW",
-        ] or df.columns.tolist() == [
+        ] or list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -944,7 +983,7 @@ class TestErcotAPI(TestHelperMixin):
         self._check_hourly_resource_outage_capacity(df)
 
         assert (df["Publish Time"].dt.date == historical_date).all()
-        assert df["Publish Time"].nunique() == 24
+        assert df["Publish Time"].n_unique() == 24
 
         assert df["Interval Start"].min() == self.local_start_of_day(historical_date)
         assert df["Interval End"].max() >= self.local_start_of_day(
@@ -969,7 +1008,7 @@ class TestErcotAPI(TestHelperMixin):
             start_date,
             (start_date + pd.DateOffset(days=1)).date(),
         ]
-        assert df["Publish Time"].nunique() == 2 * 24
+        assert df["Publish Time"].n_unique() == 2 * 24
 
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() >= self.local_start_of_day(
@@ -979,7 +1018,9 @@ class TestErcotAPI(TestHelperMixin):
     """lmp_by_bus"""
 
     def _check_lmp_by_bus(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "SCED Timestamp",
@@ -989,13 +1030,19 @@ class TestErcotAPI(TestHelperMixin):
             "LMP",
         ]
 
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert self._is_tz_datetime(
+            df.schema["Interval Start"],
+            self.iso.default_timezone,
+        )
+        assert self._is_tz_datetime(
+            df.schema["Interval End"],
+            self.iso.default_timezone,
+        )
 
         assert (df["Market"] == Markets.REAL_TIME_SCED.name).all()
         assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
 
-        assert df.dtypes["LMP"] == "float64"
+        assert df.schema["LMP"].is_float()
 
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
@@ -1052,7 +1099,9 @@ class TestErcotAPI(TestHelperMixin):
     """lmp_by_bus_dam"""
 
     def _check_lmp_by_bus_dam(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Market",
@@ -1061,17 +1110,23 @@ class TestErcotAPI(TestHelperMixin):
             "LMP",
         ]
 
-        assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
+        assert self._is_tz_datetime(
+            df.schema["Interval Start"],
+            self.iso.default_timezone,
+        )
+        assert self._is_tz_datetime(
+            df.schema["Interval End"],
+            self.iso.default_timezone,
+        )
 
         assert (df["Market"] == Markets.DAY_AHEAD_HOURLY.name).all()
 
         assert df.dtypes["Location"] == "object"
         assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
 
-        assert df.dtypes["LMP"] == "float64"
+        assert df.schema["LMP"].is_float()
 
-        assert ((df["Interval End"] - df["Interval Start"]) == pd.Timedelta("1h")).all()
+        assert self._interval_equals(df, pd.Timedelta("1h"))
 
     @pytest.mark.integration
     def test_get_lmp_by_bus_dam_today_and_latest(self):
@@ -1170,7 +1225,9 @@ class TestErcotAPI(TestHelperMixin):
     ]
 
     def _check_shadow_prices_dam(self, df):
-        assert df.columns.tolist() == self.expected_shadow_prices_dam_columns
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == self.expected_shadow_prices_dam_columns
 
         self._check_time_columns(
             df,
@@ -1180,7 +1237,8 @@ class TestErcotAPI(TestHelperMixin):
 
         assert (
             df.loc[df["Contingency Name"] == "BASE CASE", "Limiting Facility"]
-            .isna()
+            .is_null()
+            .all()
             .all()
         )
 
@@ -1273,7 +1331,9 @@ class TestErcotAPI(TestHelperMixin):
     ]
 
     def _check_shadow_prices_sced(self, df):
-        assert df.columns.tolist() == self.expected_shadow_prices_sced_columns
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == self.expected_shadow_prices_sced_columns
 
         time_cols = ["Interval Start", "Interval End", "SCED Timestamp"]
 
@@ -1349,7 +1409,9 @@ class TestErcotAPI(TestHelperMixin):
     """get_spp_real_time_15_min"""
 
     def _check_spp_real_time_15_min(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -1389,7 +1451,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_spp_real_time_15_min(df)
 
-        assert df["Interval Start"].nunique() == 96 * 2
+        assert df["Interval Start"].n_unique() == 96 * 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
@@ -1397,7 +1459,9 @@ class TestErcotAPI(TestHelperMixin):
     """get_spp_day_ahead_hourly"""
 
     def _check_spp_day_ahead_hourly(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert isinstance(df, pl.DataFrame)
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -1434,7 +1498,7 @@ class TestErcotAPI(TestHelperMixin):
 
         self._check_spp_day_ahead_hourly(df)
 
-        assert df["Interval Start"].nunique() == 24 * 2
+        assert df["Interval Start"].n_unique() == 24 * 2
 
         assert df["Interval Start"].min() == self.local_start_of_day(start_date)
         assert df["Interval End"].max() == self.local_start_of_day(end_date)
@@ -1478,7 +1542,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df_load[df_load["Resource Name"] == resource_name].shape[0] == 24
 
         for df in [df_load, df_gen]:
-            assert df.columns.tolist() == DAM_RESOURCE_AS_OFFERS_COLUMNS
+            assert list(df.columns) == DAM_RESOURCE_AS_OFFERS_COLUMNS
 
             assert df["Interval Start"].min() == pd.Timestamp(date_with_issue)
             assert df["Interval End"].max() == pd.Timestamp(
@@ -1557,8 +1621,9 @@ class TestErcotAPI(TestHelperMixin):
         check_60_day_sced_disclosure(df_dict)
 
         for df in df_dict.values():
-            assert df["Interval Start"].min() == start_date
-            assert df["Interval End"].max() == end_date
+            if "Interval Start" in df.columns:
+                assert df["Interval Start"].min() == start_date
+                assert df["Interval End"].max() == end_date
 
     """get_historical_data"""
 
@@ -1613,7 +1678,7 @@ class TestErcotAPI(TestHelperMixin):
         # This a forecast
         assert data["DELIVERY_DATE"].max().date() == datetime.date(2023, 1, 9)
         # Any change in the shape would be a regression since this is historical data
-        assert data.shape == (10368, 31)
+        assert (data.height, data.width) == (10368, 31)
 
         start_date = datetime.date(2020, 12, 1)
         end_date = datetime.date(2020, 12, 2)
@@ -1652,7 +1717,7 @@ class TestErcotAPI(TestHelperMixin):
 
         # Since this is historical data, we do not except the shape to change. A change
         # would be a regression.
-        assert data.shape == (5184, 19)
+        assert (data.height, data.width) == (5184, 19)
 
     """hit_ercot_api"""
 
@@ -1678,7 +1743,10 @@ class TestErcotAPI(TestHelperMixin):
             actual_by_wzn_endpoint,
             operatingDayFrom=two_days_ago,
         )
-        result_rows, result_cols = two_days_actual_by_wzn.shape
+        result_rows, result_cols = (
+            two_days_actual_by_wzn.height,
+            two_days_actual_by_wzn.width,
+        )
         assert result_rows in {24, 48}
         assert result_cols == 12
 
@@ -1697,8 +1765,8 @@ class TestErcotAPI(TestHelperMixin):
             operatingDayFrom=two_days_ago,
             totalFrom=in_between_load,
         )
-        assert len(higher_loads_result["Total"]) < result_rows
-        assert all(higher_loads_result["Total"] > in_between_load)
+        assert higher_loads_result.height < result_rows
+        assert higher_loads_result.filter(pl.col("Total") <= in_between_load).is_empty()
 
         """
         Now we test the page_size and max_pages arguments. We know that our two days
@@ -1714,7 +1782,7 @@ class TestErcotAPI(TestHelperMixin):
             wowWhatAFakeParameter=True,
             thisOneIsAlsoFake=42,
         )
-        assert small_pages_result.shape == (20, 12)
+        assert (small_pages_result.height, small_pages_result.width) == (20, 12)
 
     """endpoints_map"""
 
@@ -1791,7 +1859,7 @@ class TestErcotAPI(TestHelperMixin):
         ):
             df = self.iso.get_indicative_lmp_by_settlement_point(date, end)
 
-            assert df.columns.tolist() == [
+            assert list(df.columns) == [
                 "RTD Timestamp",
                 "Interval Start",
                 "Interval End",
@@ -1800,9 +1868,15 @@ class TestErcotAPI(TestHelperMixin):
                 "LMP",
             ]
 
-            assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
-            assert df.dtypes["Interval End"] == "datetime64[ns, US/Central]"
-            assert df.dtypes["LMP"] == "float64"
+            assert self._is_tz_datetime(
+                df.schema["Interval Start"],
+                self.iso.default_timezone,
+            )
+            assert self._is_tz_datetime(
+                df.schema["Interval End"],
+                self.iso.default_timezone,
+            )
+            assert df.schema["LMP"].is_float()
             assert (
                 (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
             ).all()
@@ -1815,8 +1889,8 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_cop_adjustment_period_snapshot_60_day"""
 
-    def _check_cop_adjustment_period_snapshot_60_day(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == [
+    def _check_cop_adjustment_period_snapshot_60_day(self, df: pl.DataFrame) -> None:
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Resource Name",
@@ -1839,12 +1913,10 @@ class TestErcotAPI(TestHelperMixin):
             "Hour Beginning Planned SOC",
         ]
 
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert self._interval_equals(df, pd.Timedelta(hours=1))
 
-        assert df["Resource Name"].dtype == object
-        assert df["QSE"].dtype == object
+        assert df.schema["Resource Name"] == pl.Utf8
+        assert df.schema["QSE"] == pl.Utf8
 
     def test_get_cop_adjustment_period_snapshot_60_day_date(self):
         # Check the most recent date that data is available
@@ -1862,7 +1934,7 @@ class TestErcotAPI(TestHelperMixin):
             date,
         ) + pd.Timedelta(hours=23)
 
-        assert df["RRS"].isnull().all()
+        assert df["RRS"].is_null().all()
 
         for col in [
             "RRSPFR",
@@ -1873,7 +1945,7 @@ class TestErcotAPI(TestHelperMixin):
             "Maximum SOC",
             "Hour Beginning Planned SOC",
         ]:
-            assert df[col].notnull().all()
+            assert df[col].is_not_null().all()
 
     def test_get_cop_adjustment_period_snapshot_60_day_historical_date_range(self):
         start_date = self.local_start_of_today() - pd.DateOffset(days=500)
@@ -1893,7 +1965,7 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval Start"].max() == end_date - pd.Timedelta(hours=1)
 
         # Column only present in older data. We add it as null to keep columns same
-        assert df["RRS"].isnull().all()
+        assert df["RRS"].is_null().all()
 
     def test_get_cop_adjustment_period_snapshot_60_day_missing_columns_are_null(self):
         # This is an early date when many columns were not present
@@ -1916,9 +1988,9 @@ class TestErcotAPI(TestHelperMixin):
             "Maximum SOC",
             "Hour Beginning Planned SOC",
         ]:
-            assert df[col].isnull().all()
+            assert df[col].is_null().all()
 
-        assert df["RRS"].notna().all()
+        assert df["RRS"].is_not_null().all()
 
         assert df["Interval Start"].min() == self.local_start_of_day(date)
         assert df["Interval Start"].max() == self.local_start_of_day(
@@ -1927,16 +1999,16 @@ class TestErcotAPI(TestHelperMixin):
 
     """get_system_load_charging_4_seconds"""
 
-    def _check_system_load_charging_4_seconds(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == [
+    def _check_system_load_charging_4_seconds(self, df: pl.DataFrame) -> None:
+        assert list(df.columns) == [
             "Time",
             "System Demand",
             "ESR Charging MW",
         ]
 
-        assert df.dtypes["Time"] == "datetime64[ns, US/Central]"
-        assert df.dtypes["System Demand"] == "float64"
-        assert df.dtypes["ESR Charging MW"] == "float64"
+        assert self._is_tz_datetime(df.schema["Time"], self.iso.default_timezone)
+        assert df.schema["System Demand"].is_float()
+        assert df.schema["ESR Charging MW"].is_float()
 
     def test_get_system_load_charging_4_seconds_today(self):
         with api_vcr.use_cassette(

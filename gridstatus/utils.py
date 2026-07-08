@@ -99,7 +99,7 @@ def concat_dataframes(dfs: list) -> object:
     whether the decorated method produced pandas or polars frames.
     """
     if not dfs:
-        return pl.DataFrame()
+        raise ValueError("No objects to concatenate")
 
     if is_polars(dfs[0]):
         return pl.concat(dfs, how="diagonal_relaxed")
