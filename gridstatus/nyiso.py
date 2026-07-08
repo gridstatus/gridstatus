@@ -4,6 +4,7 @@ from io import BytesIO
 from typing import BinaryIO, Dict, Literal, NamedTuple
 
 import pandas as pd
+import polars as pl
 import requests
 
 import gridstatus
@@ -96,12 +97,35 @@ class NYISO(ISOBase):
     status_homepage = "https://www.nyiso.com/system-conditions"
     interconnection_homepage = "https://www.nyiso.com/interconnections"
 
+    def _parse_time_stamp_column(
+        self,
+        df: pl.DataFrame,
+        time_stamp_col: str,
+    ) -> pl.DataFrame:
+        if df.schema[time_stamp_col] == pl.Utf8:
+            stripped = pl.col(time_stamp_col).str.replace(r"\s+(EDT|EST)$", "")
+            return df.with_columns(
+                pl.coalesce(
+                    stripped.str.to_datetime(
+                        format="%m/%d/%Y %H:%M:%S",
+                        strict=False,
+                    ),
+                    stripped.str.to_datetime(
+                        format="%m/%d/%Y %H:%M",
+                        strict=False,
+                    ),
+                ).alias(time_stamp_col),
+            )
+        return df.with_columns(
+            pl.col(time_stamp_col).cast(pl.Datetime("us")).alias(time_stamp_col),
+        )
+
     def _handle_time(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         dataset_name: str,
         groupby: str | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
 
         if "Time Stamp" in df.columns:
@@ -109,47 +133,54 @@ class NYISO(ISOBase):
         elif "Timestamp" in df.columns:
             time_stamp_col = "Timestamp"
 
-        def time_to_datetime(s: pd.Series, dst: str = "infer") -> pd.Series:
-            return pd.to_datetime(s).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=dst,
-            )
+        df = self._parse_time_stamp_column(df, time_stamp_col)
 
         if "Time Zone" in df.columns:
-            dst = df["Time Zone"] == "EDT"
-            df[time_stamp_col] = time_to_datetime(
-                df[time_stamp_col],
-                dst,
+            df = df.with_columns(
+                pl.when(pl.col("Time Zone") == "EDT")
+                .then(pl.lit("earliest"))
+                .otherwise(pl.lit("latest"))
+                .alias("_ambiguous"),
             )
-
+            df = df.with_columns(
+                pl.col(time_stamp_col).dt.replace_time_zone(
+                    self.default_timezone,
+                    ambiguous=pl.col("_ambiguous"),
+                ),
+            ).drop("_ambiguous")
         elif "Name" in df.columns or groupby:
-            groupby = groupby or "Name"
-            # once we group by name, the time series for each group is no longer ambiguous
-            df[time_stamp_col] = df.groupby(groupby, group_keys=False)[
-                time_stamp_col
-            ].apply(
-                time_to_datetime,
-                "infer",
+            groupby_col = groupby or "Name"
+            df = utils.localize_ambiguous_infer_polars(
+                df,
+                time_stamp_col,
+                self.default_timezone,
+                group_cols=[groupby_col],
             )
         else:
-            df[time_stamp_col] = time_to_datetime(
-                df[time_stamp_col],
-                "infer",
+            df = utils.localize_ambiguous_infer_polars(
+                df,
+                time_stamp_col,
+                self.default_timezone,
             )
 
-        df = df.rename(columns={time_stamp_col: "Time"})
+        df = df.rename({time_stamp_col: "Time"})
 
         if time_type != "instantaneous":
-            interval_duration = pd.Timedelta(minutes=interval_duration_minutes)
+            interval_duration = pl.duration(minutes=interval_duration_minutes)
             if time_type == "start":
-                df["Interval Start"] = df["Time"]
-                df["Interval End"] = df["Interval Start"] + interval_duration
+                df = df.with_columns(
+                    pl.col("Time").alias("Interval Start"),
+                    (pl.col("Time") + interval_duration).alias("Interval End"),
+                )
             elif time_type == "end":
-                df["Interval Start"] = df["Time"] - interval_duration
-                df["Interval End"] = df["Time"]
-                df["Time"] = df["Interval Start"]
+                df = df.with_columns(
+                    (pl.col("Time") - interval_duration).alias("Interval Start"),
+                    pl.col("Time").alias("Interval End"),
+                ).with_columns(
+                    pl.col("Interval Start").alias("Time"),
+                )
 
-            utils.move_cols_to_front(
+            df = utils.move_cols_to_front(
                 df,
                 ["Time", "Interval Start", "Interval End"],
             )
@@ -162,7 +193,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         status_df = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -170,31 +201,42 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        status_df = status_df.rename(
-            columns={"Message": "Status"},
+        status_df = status_df.rename({"Message": "Status"})
+
+        state_change = "**State Change. System now operating in "
+
+        def _parse_status_fields(status: str) -> dict[str, str | list[str] | None]:
+            notes: list[str] | None = None
+            if status == "Start of day system state is NORMAL":
+                return {"Status": "Normal", "Notes": [status]}
+            if state_change in status:
+                notes = [status]
+                parsed_status = status[
+                    status.index(state_change) + len(state_change) : -len(" state.**")
+                ].capitalize()
+                return {"Status": parsed_status, "Notes": notes}
+            return {"Status": status, "Notes": None}
+
+        status_df = status_df.rename({"Status": "_orig_status"})
+        status_df = (
+            status_df.with_columns(
+                pl.col("_orig_status")
+                .map_elements(
+                    _parse_status_fields,
+                    return_dtype=pl.Struct(
+                        {
+                            "Status": pl.Utf8,
+                            "Notes": pl.List(pl.Utf8),
+                        },
+                    ),
+                )
+                .alias("_parsed"),
+            )
+            .unnest("_parsed")
+            .drop("_orig_status")
         )
 
-        def _parse_status(row: pd.Series) -> pd.Series:
-            STATE_CHANGE = "**State Change. System now operating in "
-
-            row["Notes"] = None
-            if row["Status"] == "Start of day system state is NORMAL":
-                row["Notes"] = [row["Status"]]
-                row["Status"] = "Normal"
-            elif STATE_CHANGE in row["Status"]:
-                row["Notes"] = [row["Status"]]
-
-                row["Status"] = row["Status"][
-                    row["Status"].index(STATE_CHANGE) + len(STATE_CHANGE) : -len(
-                        " state.**",
-                    )
-                ].capitalize()
-
-            return row
-
-        status_df = status_df.apply(_parse_status, axis=1)
-        status_df = status_df[["Time", "Status", "Notes"]]
-        return status_df
+        return status_df.select(["Time", "Status", "Notes"])
 
     @support_date_range(frequency="MONTH_START")
     def get_fuel_mix(
@@ -202,7 +244,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         # note: this is simlar datastructure to pjm
         mix_df = self._download_nyiso_archive(
             date=date,
@@ -211,16 +253,15 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        mix_df = mix_df.pivot_table(
-            index=["Time"],
-            columns="Fuel Category",
+        mix_df = mix_df.pivot(
+            index="Time",
+            on="Fuel Category",
             values="Gen MW",
-            aggfunc="first",
-        ).reset_index()
+            aggregate_function="first",
+        )
 
-        mix_df.columns.name = None
-
-        return mix_df
+        fuel_cols = sorted(c for c in mix_df.columns if c != "Time")
+        return mix_df.select(["Time", *fuel_cols])
 
     @support_date_range(frequency="MONTH_START")
     def get_load(
@@ -228,7 +269,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns load at a previous date in 5 minute intervals for
           each zone and total load
 
@@ -239,7 +280,7 @@ class NYISO(ISOBase):
             verbose (bool): Whether to print verbose output. Optional.
 
         Returns:
-            pandas.DataFrame: Load data for NYISO and each zone
+            polars.DataFrame: Load data for NYISO and each zone
 
         """
         data = self._download_nyiso_archive(
@@ -249,21 +290,16 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        # pivot table
-        df = data.pivot_table(
-            index=["Time"],
-            columns="Name",
+        df = data.pivot(
+            index="Time",
+            on="Name",
             values="Load",
-            aggfunc="first",
+            aggregate_function="first",
         )
 
-        df.insert(0, "Load", df.sum(axis=1))
-
-        df.reset_index(inplace=True)
-        # drop NA loads
-        # data = data.dropna(subset=["Load"])
-
-        return df
+        value_cols = [c for c in df.columns if c != "Time"]
+        df = df.with_columns(pl.sum_horizontal(value_cols).alias("Load"))
+        return df.select(["Time", "Load", *value_cols])
 
     @support_date_range(frequency="MONTH_START")
     def get_btm_solar(
@@ -271,7 +307,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns estimated BTM solar generation at a previous date in hourly
             intervals for system and each zone.
 
@@ -285,7 +321,7 @@ class NYISO(ISOBase):
             verbose (bool): Whether to print verbose output. Optional.
 
         Returns:
-            pandas.DataFrame: BTM solar data for NYISO system and each zone
+            polars.DataFrame: BTM solar data for NYISO system and each zone
 
         """
         data = self._download_nyiso_archive(
@@ -296,21 +332,20 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = data.pivot_table(
+        df = data.pivot(
             index=["Time", "Interval Start", "Interval End"],
-            columns="Zone Name",
+            on="Zone Name",
             values="MW Value",
-            aggfunc="first",
+            aggregate_function="first",
         )
 
-        # move system to first column
-        df.insert(0, "SYSTEM", df.pop("SYSTEM"))
-
-        df = df.reset_index()
-
-        df.columns.name = None
-
-        return df
+        zone_cols = [
+            c for c in df.columns if c not in ["Time", "Interval Start", "Interval End"]
+        ]
+        other_cols = [c for c in zone_cols if c != "SYSTEM"]
+        return df.select(
+            ["Time", "Interval Start", "Interval End", "SYSTEM", *other_cols],
+        )
 
     @support_date_range(frequency="MONTH_START")
     def get_btm_solar_forecast(
@@ -318,7 +353,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         data = self._download_nyiso_archive(
             date=date,
             end=end,
@@ -326,29 +361,40 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = data.pivot_table(
+        df = data.pivot(
             index=["Time", "Interval Start", "Interval End"],
-            columns="Zone Name",
+            on="Zone Name",
             values="MW Value",
-            aggfunc="first",
+            aggregate_function="first",
         )
 
-        # move system to first column
-        df.insert(0, "SYSTEM", df.pop("SYSTEM"))
-
-        df = df.reset_index()
+        zone_cols = [
+            c for c in df.columns if c not in ["Time", "Interval Start", "Interval End"]
+        ]
+        other_cols = [c for c in zone_cols if c != "SYSTEM"]
+        df = df.select(
+            ["Time", "Interval Start", "Interval End", "SYSTEM", *other_cols],
+        )
 
         # Report is published day before the forecast at 7:55 AM in NYISO time
-        df.insert(
-            3,
-            "Publish Time",
-            df["Interval Start"].dt.floor("D")
-            - pd.Timedelta(days=1, hours=-7, minutes=-55),
+        df = df.with_columns(
+            (
+                pl.col("Interval Start").dt.truncate("1d")
+                - pl.duration(days=1)
+                + pl.duration(hours=7, minutes=55)
+            ).alias("Publish Time"),
         )
 
-        df.columns.name = None
-
-        return df
+        return df.select(
+            [
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "SYSTEM",
+                *other_cols,
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_btm_installed_capacity(
@@ -356,7 +402,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns NYISO's daily estimate of installed behind-the-meter solar capacity
         by zone.
 
@@ -373,15 +419,15 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Zone Name",
                 "MW Value",
-            ]
-        ].rename(
-            columns={
+            ],
+        ).rename(
+            {
                 "Zone Name": "Zone",
                 "MW Value": "MW",
             },
@@ -393,7 +439,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get load forecast for a date in 1 hour intervals"""
         # todo optimize this to accept a date range
         data = self._download_nyiso_archive(
@@ -403,13 +449,12 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data[
-            ["Time", "Interval Start", "Interval End", "File Date", "NYISO"]
-        ].rename(
-            columns={
+        data = data.select(
+            ["Time", "Interval Start", "Interval End", "File Date", "NYISO"],
+        ).rename(
+            {
                 "File Date": "Forecast Time",
                 "NYISO": "Load Forecast",
-                "Time": "Time",
             },
         )
 
@@ -421,7 +466,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get zonal load forecast for a date in 1 hour intervals"""
         data = self._download_nyiso_archive(
             date,
@@ -430,7 +475,7 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data[
+        data = data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -447,9 +492,9 @@ class NYISO(ISOBase):
                 "N.Y.C.",
                 "North",
                 "West",
-            ]
-        ].rename(
-            columns={
+            ],
+        ).rename(
+            {
                 "File Date": "Publish Time",
             },
         )
@@ -461,7 +506,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | Literal["latest"] = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get forecasted generation outage capacity for the next 30 days."""
         if end is not None:
             raise ValueError(
@@ -480,36 +525,33 @@ class NYISO(ISOBase):
             utc=True,
         ).tz_convert(self.default_timezone)
 
-        df = pd.read_csv(BytesIO(response.content))
+        df = pl.read_csv(BytesIO(response.content), infer_schema_length=None)
         df = df.rename(
-            columns={
+            {
                 "Date": "Interval Start",
                 "Forecasted Generation Outage (MW)": "Generation Outage",
             },
         )
-        df["Interval Start"] = pd.to_datetime(df["Interval Start"]).dt.tz_localize(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("Interval Start")
+            .str.to_datetime(strict=False)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
-        df["Publish Time"] = publish_time
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+            pl.lit(publish_time).alias("Publish Time"),
+            pl.col("Generation Outage").cast(pl.Float64, strict=False),
+        )
 
-        df["Generation Outage"] = pd.to_numeric(
-            df["Generation Outage"],
-            errors="coerce",
-        )
-
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Generation Outage",
-                ]
-            ]
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Generation Outage",
+            ],
+        ).sort(["Interval Start"])
 
     @support_date_range(frequency="MONTH_START")
     def get_zonal_load_hourly(
@@ -517,7 +559,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get hourly integrated real-time load by zone."""
         data = self._download_nyiso_archive(
             date=date,
@@ -529,28 +571,26 @@ class NYISO(ISOBase):
         )
 
         df = data.rename(
-            columns={
+            {
                 "Name": "Zone",
                 "Integrated Load": "Load",
             },
         )
 
-        df["PTID"] = pd.to_numeric(df["PTID"], errors="coerce")
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Zone",
-                    "PTID",
-                    "Load",
-                ]
-            ]
-            .sort_values(["Interval Start", "Zone"])
-            .reset_index(drop=True)
+        df = df.with_columns(
+            pl.col("PTID").cast(pl.Float64, strict=False),
+            pl.col("Load").cast(pl.Float64, strict=False),
         )
+
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Zone",
+                "PTID",
+                "Load",
+            ],
+        ).sort(["Interval Start", "Zone"])
 
     @support_date_range(frequency="MONTH_START")
     def get_interface_limits_and_flows_5_min(
@@ -558,11 +598,12 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get interface limits and flows for a date"""
         if date == "latest":
-            data = pd.read_csv(
-                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
+            data = pl.read_csv(
+                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",
+                infer_schema_length=None,
             )
             data = self._handle_time(
                 data,
@@ -580,14 +621,14 @@ class NYISO(ISOBase):
 
         # The source has these values as MWH but they are actually MW
         data = data.rename(
-            columns={
+            {
                 "Flow (MWH)": "Flow MW",
                 "Positive Limit (MWH)": "Positive Limit MW",
                 "Negative Limit (MWH)": "Negative Limit MW",
             },
         )
 
-        data = data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -596,10 +637,8 @@ class NYISO(ISOBase):
                 "Flow MW",
                 "Positive Limit MW",
                 "Negative Limit MW",
-            ]
-        ].sort_values(["Interval Start", "Interface Name"])
-
-        return data
+            ],
+        ).sort(["Interval Start", "Interface Name"])
 
     @support_date_range(frequency="MONTH_START")
     def get_lake_erie_circulation_real_time(
@@ -607,7 +646,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         data = self._download_nyiso_archive(
             date,
             end=end,
@@ -617,11 +656,9 @@ class NYISO(ISOBase):
         )
 
         # The source has MWH in the column name but it's actually MW
-        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MW"})
+        data = data.rename({"Lake Erie Circulation (MWH)": "MW"})
 
-        data = data[["Time", "MW"]].sort_values("Time")
-
-        return data
+        return data.select(["Time", "MW"]).sort("Time")
 
     @support_date_range(frequency="MONTH_START")
     def get_lake_erie_circulation_day_ahead(
@@ -629,7 +666,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         data = self._download_nyiso_archive(
             date,
             end=end,
@@ -638,11 +675,9 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        data = data.rename(columns={"Lake Erie Circulation (MWH)": "MW"})
+        data = data.rename({"Lake Erie Circulation (MWH)": "MW"})
 
-        data = data[["Time", "MW"]].sort_values("Time")
-
-        return data
+        return data.select(["Time", "MW"]).sort("Time")
 
     @lmp_config(
         supports={
@@ -663,7 +698,7 @@ class NYISO(ISOBase):
         locations: list | None = None,
         location_type: NYISOLocationType | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Supported Markets:
             - ``REAL_TIME_5_MIN`` (RTC)
@@ -703,9 +738,9 @@ class NYISO(ISOBase):
                 )
             else:
                 url = f"https://mis.nyiso.com/public/realtime/realtime_{file_location_type}_lbmp.csv"
-                df = pd.read_csv(url)
+                df = pl.read_csv(url, infer_schema_length=None)
                 df = self._handle_time(df, dataset_name=marketname)
-                df["Market"] = market.value
+                df = df.with_columns(pl.lit(market.value).alias("Market"))
         else:
             filename = marketname + f"_{file_location_type}"
 
@@ -721,38 +756,61 @@ class NYISO(ISOBase):
 
     def _process_lmp_data(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
         market: Markets,
         location_type: NYISOLocationType,
         locations: list | str,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         columns = {
             "Name": "Location",
             "LBMP ($/MWHr)": "LMP",
             "Marginal Cost Losses ($/MWHr)": "Loss",
             "Marginal Cost Congestion ($/MWHr)": "Congestion",
-            "Marginal Cost Congestion ($/MWH": "Congestion",  # Deal with older data
+            "Marginal Cost Congestion ($/MWH": "Congestion",
         }
 
-        df = df.rename(columns=columns)
+        df = df.rename(
+            {k: v for k, v in columns.items() if k in df.columns},
+        )
+
+        df = df.with_columns(
+            pl.col("LMP").cast(pl.Float64, strict=False),
+            pl.col("Loss").cast(pl.Float64, strict=False),
+            pl.col("Congestion").cast(pl.Float64, strict=False),
+        )
 
         # In NYISO raw data, a negative congestion number means a higher LMP. We
         # flip the sign to make it consistent with other ISOs where a negative
         # congestion number means a lower LMP. Thus, LMP = Energy + Loss + Congestion
         # for NYISO, as in other ISOs.
-        df["Congestion"] *= -1
-        df["Energy"] = (df["LMP"] - df["Loss"] - df["Congestion"]).round(2)
-        df["Market"] = market.value
-        df["Location Type"] = NYISOLocationType(location_type).value.capitalize()
+        df = df.with_columns(
+            (-pl.col("Congestion")).alias("Congestion"),
+        )
+        df = df.with_columns(
+            (pl.col("LMP") - pl.col("Loss") - pl.col("Congestion"))
+            .round(2)
+            .alias(
+                "Energy",
+            ),
+            pl.lit(market.value).alias("Market"),
+            pl.lit(NYISOLocationType(location_type).value.capitalize()).alias(
+                "Location Type",
+            ),
+        )
 
         # We manually update the location type for the reference bus location because
         # it's included in the generator data.
-        if REFERENCE_BUS_LOCATION in df["Location"].unique():
-            df.loc[
-                df["Location"] == REFERENCE_BUS_LOCATION,
-                "Location Type",
-            ] = "Reference Bus"
+        if (
+            REFERENCE_BUS_LOCATION
+            in df["Location"].unique(maintain_order=True).to_list()
+        ):
+            df = df.with_columns(
+                pl.when(pl.col("Location") == REFERENCE_BUS_LOCATION)
+                .then(pl.lit("Reference Bus"))
+                .otherwise(pl.col("Location Type"))
+                .alias("Location Type"),
+            )
 
         # NYISO includes both 5 min (RTD - Real Time Dispatch) and
         # 15 min (RTC - Real Time Commitment) data in the daily file
@@ -775,37 +833,44 @@ class NYISO(ISOBase):
 
             most_recent_5_min_timestamp = most_recent_5_min_data["Interval Start"].max()
 
-            daily_subset = (
-                df[df["Interval Start"] == most_recent_5_min_timestamp]
-                .sort_values(["Interval Start", "Location"])
-                .reset_index(drop=True)
-            )
+            daily_subset = df.filter(
+                pl.col("Interval Start") == most_recent_5_min_timestamp,
+            ).sort(["Interval Start", "Location"])
 
-            if daily_subset[["LMP", "Loss", "Congestion"]].equals(
-                most_recent_5_min_data[["LMP", "Loss", "Congestion"]],
+            most_recent_subset = most_recent_5_min_data.filter(
+                pl.col("Interval Start") == most_recent_5_min_timestamp,
+            ).sort(["Interval Start", "Location"])
+
+            compare_cols = ["LMP", "Loss", "Congestion"]
+            if daily_subset.select(compare_cols).equals(
+                most_recent_subset.select(compare_cols),
             ):
-                # When equal, the daily data has the most recent 5 min data
-                mask_15_min = df["Interval Start"] > most_recent_5_min_timestamp
+                mask_15_min = pl.col("Interval Start") > most_recent_5_min_timestamp
             else:
-                # When not equal, the data at this timestamp is 15 min data
-                mask_15_min = df["Interval Start"] >= most_recent_5_min_timestamp
+                mask_15_min = pl.col("Interval Start") >= most_recent_5_min_timestamp
 
-            df.loc[~mask_15_min, "Market"] = Markets.REAL_TIME_5_MIN.value
-            df.loc[mask_15_min, "Market"] = Markets.REAL_TIME_15_MIN.value
+            df = df.with_columns(
+                pl.when(~mask_15_min)
+                .then(pl.lit(Markets.REAL_TIME_5_MIN.value))
+                .when(mask_15_min)
+                .then(pl.lit(Markets.REAL_TIME_15_MIN.value))
+                .otherwise(pl.col("Market"))
+                .alias("Market"),
+            )
 
             # For 15-min data, the original "Interval End" column contains the correct
             # end time (since the raw data has timestamps as interval END). However,
             # "Interval Start" was calculated assuming a 5-minute interval, so we need
             # to recalculate it for 15-minute intervals.
             # Interval Start = Interval End - 15 minutes
-            df.loc[mask_15_min, "Interval Start"] = df.loc[
-                mask_15_min,
-                "Interval End",
-            ] - pd.Timedelta(
-                minutes=15,
+            df = df.with_columns(
+                pl.when(mask_15_min)
+                .then(pl.col("Interval End") - pl.duration(minutes=15))
+                .otherwise(pl.col("Interval Start"))
+                .alias("Interval Start"),
             )
 
-        df = df[
+        df = df.select(
             [
                 "Time",
                 "Interval Start",
@@ -817,15 +882,13 @@ class NYISO(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
+            ],
+        )
 
         df = utils.filter_lmp_locations(df, locations)
 
-        return (
-            df[df["Market"] == market.value]
-            .sort_values(["Interval Start", "Location"])
-            .reset_index(drop=True)
+        return df.filter(pl.col("Market") == market.value).sort(
+            ["Interval Start", "Location"],
         )
 
     @lmp_config(
@@ -844,7 +907,7 @@ class NYISO(ISOBase):
         locations: list | None = None,
         location_type: NYISOLocationType | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Deprecated. Use the per-dataset methods instead:
         :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_real_time_15_min`,
         :meth:`get_lmp_real_time_hourly`, :meth:`get_lmp_day_ahead_hourly`.
@@ -871,7 +934,7 @@ class NYISO(ISOBase):
         market: Markets,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[pl.DataFrame, pl.DataFrame]:
         """Fetch both zone and generator LMPs for a market.
 
         The generator data also contains the single Reference Bus location.
@@ -899,7 +962,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time 5-minute (RTD) LMPs for all zone and generator locations."""
         zone, generator = self._get_lmp_zone_and_generator(
             date,
@@ -908,7 +971,7 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = pd.concat([zone, generator], axis=0)
+        df = pl.concat([zone, generator], how="diagonal")
 
         # Only keep intervals where both zone and generator data are present so the
         # combined dataset is internally consistent.
@@ -916,16 +979,16 @@ class NYISO(ISOBase):
             zone["Interval Start"].max(),
             generator["Interval Start"].max(),
         )
-        df = df[df["Interval Start"] <= maximum_timestamp]
+        df = df.filter(pl.col("Interval Start") <= maximum_timestamp)
 
-        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+        return df.sort(["Interval Start", "Location"])
 
     def get_lmp_real_time_15_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time 15-minute (RTC) LMPs for all zone and generator locations."""
         zone, generator = self._get_lmp_zone_and_generator(
             date,
@@ -934,16 +997,16 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = pd.concat([zone, generator], axis=0)
+        df = pl.concat([zone, generator], how="diagonal")
 
-        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+        return df.sort(["Interval Start", "Location"])
 
     def get_lmp_real_time_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time hourly LMPs for all zone and generator locations."""
         zone, generator = self._get_lmp_zone_and_generator(
             date,
@@ -952,16 +1015,16 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = pd.concat([zone, generator], axis=0)
+        df = pl.concat([zone, generator], how="diagonal")
 
-        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+        return df.sort(["Interval Start", "Location"])
 
     def get_lmp_day_ahead_hourly(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead hourly LMPs for all zone and generator locations."""
         zone, generator = self._get_lmp_zone_and_generator(
             date,
@@ -970,9 +1033,9 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = pd.concat([zone, generator], axis=0)
+        df = pl.concat([zone, generator], how="diagonal")
 
-        return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
+        return df.sort(["Interval Start", "Location"])
 
     def get_raw_interconnection_queue(self) -> BinaryIO:
         url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
@@ -981,13 +1044,13 @@ class NYISO(ISOBase):
         response = requests.get(url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self) -> pd.DataFrame:
+    def get_interconnection_queue(self) -> pl.DataFrame:
         """Return NYISO interconnection queue
 
         Additional Non-NYISO queue info: https://www3.dps.ny.gov/W/PSCWeb.nsf/All/286D2C179E9A5A8385257FBF003F1F7E?OpenDocument
 
         Returns:
-            pandas.DataFrame: Interconnection queue containing, active, withdrawn, \
+            polars.DataFrame: Interconnection queue containing, active, withdrawn, \
                 and completed project
 
         """  # noqa
@@ -996,60 +1059,42 @@ class NYISO(ISOBase):
         # harded coded for now. perhaps this url can be parsed from the html here:
         raw_data = self.get_raw_interconnection_queue()
 
-        # Create ExcelFile so we only need to download file once
-        excel_file = pd.ExcelFile(raw_data)
-
-        # Drop extra rows at bottom
-        active = (
-            pd.read_excel(excel_file, sheet_name="Interconnection Queue")
-            .dropna(
-                subset=["Queue Pos.", "Project Name"],
+        def _process_active_sheet(df: pd.DataFrame) -> pd.DataFrame:
+            return (
+                df.dropna(
+                    subset=["Queue Pos.", "Project Name"],
+                )
+                .copy()
+                .rename(columns={"Points of Interconnection": "Interconnection Point"})
             )
-            .copy()
-            # Active projects can have multiple values for "Points of Interconnection"
-        ).rename(columns={"Points of Interconnection": "Interconnection Point"})
 
-        cluster_active = (
-            pd.read_excel(excel_file, sheet_name=" Cluster Projects")
-            .dropna(
-                subset=["Queue Pos.", "Project Name"],
-            )
-            .copy()
-            # Active projects can have multiple values for "Points of Interconnection"
-        ).rename(columns={"Points of Interconnection": "Interconnection Point"})
+        active = utils.read_excel_via_pandas(
+            raw_data,
+            sheet_name="Interconnection Queue",
+            process=_process_active_sheet,
+        )
+        cluster_active = utils.read_excel_via_pandas(
+            raw_data,
+            sheet_name=" Cluster Projects",
+            process=_process_active_sheet,
+        )
+        active = pl.concat([active, cluster_active], how="diagonal")
+        active = active.with_columns(
+            pl.lit(InterconnectionQueueStatus.ACTIVE.value).alias("Status"),
+        )
 
-        active = pd.concat([active, cluster_active])
-
-        active["Status"] = InterconnectionQueueStatus.ACTIVE.value
-
-        withdrawn = pd.read_excel(excel_file, sheet_name="Withdrawn")
-        cluster_withdrawn = pd.read_excel(
-            excel_file,
+        withdrawn = utils.read_excel_via_pandas(raw_data, sheet_name="Withdrawn")
+        cluster_withdrawn = utils.read_excel_via_pandas(
+            raw_data,
             sheet_name="Cluster Projects-Withdrawn",
         )
-        withdrawn = pd.concat([withdrawn, cluster_withdrawn])
+        withdrawn = pl.concat([withdrawn, cluster_withdrawn], how="diagonal")
+        withdrawn = withdrawn.with_columns(
+            pl.lit(InterconnectionQueueStatus.WITHDRAWN.value).alias("Status"),
+            pl.col("Last Update").alias("Withdrawn Date"),
+            pl.lit(None).alias("Withdrawal Comment"),
+        ).rename({"Utility ": "Utility", "Owner/Developer": "Developer Name"})
 
-        withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
-        # assume it was withdrawn when last updated
-        withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
-        withdrawn["Withdrawal Comment"] = None
-        withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
-
-        withdrawn = withdrawn.rename(columns={"Owner/Developer": "Developer Name"})
-
-        # make completed look like the other two sheets
-        completed = pd.read_excel(excel_file, sheet_name="In Service", header=[0, 1])
-        completed.insert(15, "SGIA Tender Date", None)
-        completed.insert(16, "CY Complete Date", None)
-        completed.insert(17, "Proposed Initial-Sync Date", None)
-
-        completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
-
-        if (
-            "SGIA Tender Date" in active.columns
-            and "SGIA Tender Date" not in completed.columns
-        ):
-            active = active.drop(columns=["SGIA Tender Date"])
         completed_colnames_map = {
             ("Queue", "Pos."): "Queue Pos.",
             ("Queue", "Owner/Developer"): "Developer Name",
@@ -1076,81 +1121,88 @@ class NYISO(ISOBase):
             ("Proposed", "COD.3"): "Proposed COD.3",
             ("Status", ""): "Status",
         }
-        completed.columns = completed.columns.to_flat_index().map(
-            lambda c: completed_colnames_map[c],
+
+        def _process_completed_sheet(df: pd.DataFrame) -> pd.DataFrame:
+            completed = df.copy()
+            completed.insert(15, "SGIA Tender Date", None)
+            completed.insert(16, "CY Complete Date", None)
+            completed.insert(17, "Proposed Initial-Sync Date", None)
+            completed["Status"] = InterconnectionQueueStatus.COMPLETED.value
+            completed.columns = completed.columns.to_flat_index().map(
+                lambda c: completed_colnames_map[c],
+            )
+            completed["Actual Completion Date"] = completed["Last Updated Date"]
+            return completed
+
+        completed = utils.read_excel_via_pandas(
+            raw_data,
+            sheet_name="In Service",
+            header=[0, 1],
+            process=_process_completed_sheet,
         )
 
-        # assume it was finished when last updated
-        completed["Actual Completion Date"] = completed["Last Updated Date"]
+        if (
+            "SGIA Tender Date" in active.columns
+            and "SGIA Tender Date" not in completed.columns
+        ):
+            active = active.drop("SGIA Tender Date")
 
         dfs = [
             df
             for df in [active, withdrawn, completed]
-            if not df.empty and not df.isna().all().all()
+            if df.height > 0 and not df.select(pl.all().is_null().all()).row(0)[0]
         ]
-        queue = pd.concat(dfs)
+        queue = pl.concat(dfs, how="diagonal")
 
         # fix extra space in column name
 
-        queue["Type/ Fuel"] = queue["Type/ Fuel"].map(
-            {
-                "S": "Solar",
-                "ES": "Energy Storage",
-                "W": "Wind",
-                "AC": "AC Transmission",
-                "DC": "DC Transmission",
-                "CT": "Combustion Turbine",
-                "CC": "Combined Cycle",
-                "M": "Methane",
-                #    "CR": "",
-                "H": "Hydro",
-                "L": "Load",
-                "ST": "Steam Turbine",
-                "CC-NG": "Natural Gas",
-                "FC": "Fuel Cell",
-                "PS": "Pumped Storage",
-                "NU": "Nuclear",
-                "D": "Dual Fuel",
-                #    "C": "",
-                "NG": "Natural Gas",
-                "Wo": "Wood",
-                "F": "Flywheel",
-                #    "CW": "",
-                "CC-D": "Combined Cycle - Dual Fuel",
-                "SW": "=Solid Waste",
-                #    "CR=CSR - ES + Solar": "",
-                "CT-NG": "Combustion Turbine - Natural Gas",
-                "DC/AC": "DC/AC Transmission",
-                "CT-D": "Combustion Turbine - Dual Fuel",
-                "CS-NG": "Steam Turbine & Combustion Turbine-  Natural Gas",
-                "ST-NG": "Steam Turbine - Natural Gas",
-            },
-        )
-
-        queue["Capacity (MW)"] = (
-            queue[["SP (MW)", "WP (MW)"]]
-            .replace(
-                "TBD",
-                0,
-            )
-            .replace(" ", 0)
-            .fillna(0)
-            .astype(float)
-            .max(axis=1)
-        )
-
-        queue["Date of IR"] = pd.to_datetime(queue["Date of IR"])
-        queue["Proposed COD"] = pd.to_datetime(
-            queue["Proposed COD"],
-            errors="coerce",
-        )
-        queue["Proposed In-Service Date"] = pd.to_datetime(
-            queue["Proposed In-Service Date"],
-            errors="coerce",
-        )
-        queue["Proposed Initial-Sync Date"] = pd.to_datetime(
-            queue["Proposed Initial-Sync Date"],
-            errors="coerce",
+        queue = queue.with_columns(
+            pl.col("Type/ Fuel").replace(
+                {
+                    "S": "Solar",
+                    "ES": "Energy Storage",
+                    "W": "Wind",
+                    "AC": "AC Transmission",
+                    "DC": "DC Transmission",
+                    "CT": "Combustion Turbine",
+                    "CC": "Combined Cycle",
+                    "M": "Methane",
+                    "H": "Hydro",
+                    "L": "Load",
+                    "ST": "Steam Turbine",
+                    "CC-NG": "Natural Gas",
+                    "FC": "Fuel Cell",
+                    "PS": "Pumped Storage",
+                    "NU": "Nuclear",
+                    "D": "Dual Fuel",
+                    "NG": "Natural Gas",
+                    "Wo": "Wood",
+                    "F": "Flywheel",
+                    "CC-D": "Combined Cycle - Dual Fuel",
+                    "SW": "=Solid Waste",
+                    "CT-NG": "Combustion Turbine - Natural Gas",
+                    "DC/AC": "DC/AC Transmission",
+                    "CT-D": "Combustion Turbine - Dual Fuel",
+                    "CS-NG": "Steam Turbine & Combustion Turbine-  Natural Gas",
+                    "ST-NG": "Steam Turbine - Natural Gas",
+                },
+            ),
+            pl.max_horizontal(
+                pl.col("SP (MW)")
+                .replace("TBD", 0)
+                .replace(" ", 0)
+                .fill_null(0)
+                .cast(pl.Float64, strict=False),
+                pl.col("WP (MW)")
+                .replace("TBD", 0)
+                .replace(" ", 0)
+                .fill_null(0)
+                .cast(pl.Float64, strict=False),
+            ).alias("Capacity (MW)"),
+            pl.col("Date of IR").str.to_datetime(strict=False),
+            pl.col("Proposed COD").str.to_datetime(strict=False),
+            pl.col("Proposed In-Service Date").str.to_datetime(strict=False),
+            pl.col("Proposed Initial-Sync Date").str.to_datetime(strict=False),
         )
 
         # TODO handle other 2 sheets
@@ -1188,11 +1240,11 @@ class NYISO(ISOBase):
 
         return queue
 
-    def get_generators(self, verbose: bool = False) -> pd.DataFrame:
+    def get_generators(self, verbose: bool = False) -> pl.DataFrame:
         """Get a list of generators in NYISO. When possible return capacity and fuel type information
 
         Returns:
-            pandas.DataFrame: a DataFrame of generators and locations
+            polars.DataFrame: a DataFrame of generators and locations
 
             **Possible Columns**
 
@@ -1225,7 +1277,7 @@ class NYISO(ISOBase):
 
         logger.info(f"Requesting {generator_url}")
 
-        df = pd.read_csv(generator_url)
+        df = pl.read_csv(generator_url, infer_schema_length=None)
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
@@ -1233,20 +1285,6 @@ class NYISO(ISOBase):
 
         logger.info(f"Requesting {capacity_url_2024}")
 
-        generators = pd.read_excel(
-            capacity_url_2024,
-            sheet_name=[
-                "Table III-2a",
-                "Table III-2b",
-            ],
-            skiprows=3,
-            header=[0, 1, 2, 3, 4],
-        )
-
-        generators["Table III-2a"]["Generator Type"] = "Market Generator"
-        generators["Table III-2b"]["Generator Type"] = "Non-Market Generator"
-
-        # manually transcribed column names (inspect spreadsheet for confirmation)
         mapped_columns = [
             "LINE REF. NO.",
             "Owner, Operator, and / or Billing Organization",
@@ -1271,23 +1309,40 @@ class NYISO(ISOBase):
             "Generator Type",
         ]
 
-        # Rename the columns separately, so they match on the concat
-        generators["Table III-2a"].columns = mapped_columns
-        generators["Table III-2b"].columns = mapped_columns
+        def _process_table_2a(sheet_df: pd.DataFrame) -> pd.DataFrame:
+            sheet_df = sheet_df.copy()
+            sheet_df.columns = mapped_columns
+            sheet_df["Generator Type"] = "Market Generator"
+            return sheet_df
 
-        # combine both sheets
-        generators = pd.concat(generators.values())
+        def _process_table_2b(sheet_df: pd.DataFrame) -> pd.DataFrame:
+            sheet_df = sheet_df.copy()
+            sheet_df.columns = mapped_columns
+            sheet_df["Generator Type"] = "Non-Market Generator"
+            return sheet_df
 
-        generators = generators.dropna(subset=["PTID"])
+        gen_2a = utils.read_excel_via_pandas(
+            capacity_url_2024,
+            sheet_name="Table III-2a",
+            skiprows=3,
+            header=[0, 1, 2, 3, 4],
+            process=_process_table_2a,
+        )
+        gen_2b = utils.read_excel_via_pandas(
+            capacity_url_2024,
+            sheet_name="Table III-2b",
+            skiprows=3,
+            header=[0, 1, 2, 3, 4],
+            process=_process_table_2b,
+        )
 
-        generators["PTID"] = generators["PTID"].astype(int)
-
-        # in other data
-        generators = generators.drop(columns=["Zone", "LINE REF. NO."])
+        generators = pl.concat([gen_2a, gen_2b], how="diagonal")
+        generators = generators.drop_nulls(subset=["PTID"])
+        generators = generators.with_columns(pl.col("PTID").cast(pl.Int64))
+        generators = generators.drop(["Zone", "LINE REF. NO."])
 
         # TODO: df has both Generator PTID and Aggregation PTID
-        combined = pd.merge(
-            df,
+        combined = df.join(
             generators,
             left_on="Generator PTID",
             right_on="PTID",
@@ -1312,8 +1367,6 @@ class NYISO(ISOBase):
             "ST": "Steam Turbine (Fossil)",
             "WT": "Wind Turbine",
         }
-        combined["Unit Type"] = combined["Unit Type"].map(unit_type_map)
-
         fuel_type_map = {
             "BAT": "Battery",
             "BUT": "Butane",
@@ -1333,41 +1386,37 @@ class NYISO(ISOBase):
             "WD": "Wood and/or Wood Waste",
             "WND": "Wind",
         }
-        combined["Fuel Type 1"] = combined["Fuel Type 1"].map(
-            fuel_type_map,
-        )
-        combined["Fuel Type 2"] = combined["Fuel Type 2"].map(
-            fuel_type_map,
-        )
-
-        combined["Is Dual Fuel"] = combined["Is Dual Fuel"] == "YES"
-
         state_code_map = {
             36: "New York",
             42: "Pennsylvania",
             25: "Massachusetts",
             34: "New Jersey",
         }
-        combined["State"] = combined["State"].map(state_code_map)
+
+        combined = combined.with_columns(
+            pl.col("Unit Type").replace(unit_type_map),
+            pl.col("Fuel Type 1").replace(fuel_type_map),
+            pl.col("Fuel Type 2").replace(fuel_type_map),
+            (pl.col("Is Dual Fuel") == "YES").alias("Is Dual Fuel"),
+            pl.col("State").replace(state_code_map),
+        )
 
         # todo map county codes to names. info on first sheet of excel
 
         return combined
 
-    def get_loads(self) -> pd.DataFrame:
+    def get_loads(self) -> pl.DataFrame:
         """Get a list of loads in NYISO
 
         Returns:
-            pandas.DataFrame: a DataFrame of loads and locations
+            polars.DataFrame: a DataFrame of loads and locations
         """
 
         url = "http://mis.nyiso.com/public/csv/load/load.csv"
 
         logger.info(f"Requesting {url}")
 
-        df = pd.read_csv(url)
-
-        return df
+        return pl.read_csv(url, infer_schema_length=None)
 
     def _set_marketname(self, market: Markets) -> str:
         if market in [Markets.REAL_TIME_5_MIN, Markets.REAL_TIME_15_MIN]:
@@ -1399,7 +1448,7 @@ class NYISO(ISOBase):
         filename: str | None = None,
         groupby: str | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Download a dataset from NYISO's archive
 
         Arguments:
@@ -1416,7 +1465,7 @@ class NYISO(ISOBase):
             verbose (bool): print out requested url
 
         Returns:
-            pandas.DataFrame: the downloaded data
+            polars.DataFrame: the downloaded data
 
         """
         if filename is None:
@@ -1445,10 +1494,14 @@ class NYISO(ISOBase):
             csv_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{csv_filename}"
             logger.info(f"Requesting {csv_url}")
 
-            df = pd.read_csv(csv_url)
+            df = pl.read_csv(csv_url, infer_schema_length=None)
             df = self._handle_time(df, dataset_name, groupby=groupby)
             if add_file_date:
-                df["File Date"] = self._get_load_forecast_file_date(date, verbose)
+                df = df.with_columns(
+                    pl.lit(self._get_load_forecast_file_date(date, verbose)).alias(
+                        "File Date",
+                    ),
+                )
         else:
             zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
             z = utils.get_zip_folder(zip_url, verbose=verbose)
@@ -1479,20 +1532,22 @@ class NYISO(ISOBase):
                 if csv_filename not in z.namelist():
                     logger.info(f"{csv_filename} not found in {zip_url}")
                     continue
-                df = pd.read_csv(z.open(csv_filename))
+                content = z.open(csv_filename).read()
+                df = pl.read_csv(BytesIO(content), infer_schema_length=None)
 
                 if add_file_date:
                     # NB: The File Date is the last modified time of the individual csv file
-                    df["File Date"] = pd.Timestamp(
+                    file_date = pd.Timestamp(
                         *z.getinfo(csv_filename).date_time,
                         tz=self.default_timezone,
                     )
+                    df = df.with_columns(pl.lit(file_date).alias("File Date"))
                 df = self._handle_time(df, dataset_name, groupby=groupby)
                 all_dfs.append(df)
 
-            df = pd.concat(all_dfs)
+            df = pl.concat(all_dfs, how="diagonal")
 
-        return df.sort_values("Time").reset_index(drop=True)
+        return df.sort("Time")
 
     def _get_load_forecast_file_date(
         self,
@@ -1500,24 +1555,24 @@ class NYISO(ISOBase):
         verbose: bool = False,
     ) -> pd.Timestamp:
         """Retrieves the last updated time for load forecast file from the archive"""
-        data = pd.read_html(
+        data = utils.read_html_via_pandas(
             "http://mis.nyiso.com/public/P-7list.htm",
             skiprows=2,
             header=0,
         )[0]
 
-        last_updated_date = data.loc[
-            data["CSV Files"] == date.strftime("%m-%d-%Y"),
-            "Last Updated",
-        ].iloc[0]
+        last_updated_date = data.filter(
+            pl.col("CSV Files") == date.strftime("%m-%d-%Y"),
+        )["Last Updated"][0]
 
-        return pd.Timestamp(last_updated_date, tz=self.default_timezone)
+        clean = str(last_updated_date).replace(" EDT", "").replace(" EST", "")
+        return pd.Timestamp(clean, tz=self.default_timezone)
 
     def get_capacity_prices(
         self,
         date: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Pull the most recent capacity market report's market clearing prices
 
         Arguments:
@@ -1577,11 +1632,19 @@ class NYISO(ISOBase):
 
         logger.info(f"Requesting {url}")
 
-        df = pd.read_excel(url, sheet_name="MCP Table", header=[0, 1])
+        def _process_mcp_table(sheet_df: pd.DataFrame) -> pd.DataFrame:
+            sheet_df = sheet_df.rename(
+                columns={"Unnamed: 0_level_0": "", "Date": ""},
+            )
+            sheet_df = sheet_df.set_index("")
+            return sheet_df.dropna(how="any", axis="columns").reset_index()
 
-        df.rename(columns={"Unnamed: 0_level_0": "", "Date": ""}, inplace=True)
-        df.set_index("", inplace=True)
-        return df.dropna(how="any", axis="columns")
+        return utils.read_excel_via_pandas(
+            url,
+            sheet_name="MCP Table",
+            header=[0, 1],
+            process=_process_mcp_table,
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_as_prices_day_ahead_hourly(
@@ -1589,7 +1652,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Pull the most recent ancillary service market report's market clearing prices
 
         Arguments:
@@ -1610,7 +1673,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Pull the most recent ancillary service market report's market clearing prices
 
         Arguments:
@@ -1627,11 +1690,11 @@ class NYISO(ISOBase):
 
     def _handle_as_prices(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         rt_or_dam: Literal["rt", "dam"],
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "Name": "Zone",
                 "10 Min Spinning Reserve ($/MWHr)": "10 Min Spin Reserves",
                 "10 Min Non-Synchronous Reserve ($/MWHr)": "10 Min Non-Spin Reserves",
@@ -1640,14 +1703,20 @@ class NYISO(ISOBase):
             },
         )
         if rt_or_dam == "rt":
-            df["Interval End"] = df["Interval Start"]
-            df["Interval Start"] = df["Interval Start"] - pd.Timedelta(minutes=5)
+            df = df.with_columns(
+                pl.col("Interval Start").alias("Interval End"),
+                (pl.col("Interval Start") - pl.duration(minutes=5)).alias(
+                    "Interval Start",
+                ),
+            )
         else:
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-                minutes=60,
+            df = df.with_columns(
+                (pl.col("Interval Start") + pl.duration(minutes=60)).alias(
+                    "Interval End",
+                ),
             )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1656,8 +1725,8 @@ class NYISO(ISOBase):
                 "10 Min Non-Spin Reserves",
                 "30 Min Reserves",
                 "Regulation Capacity",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_limiting_constraints_real_time(
@@ -1665,10 +1734,11 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
-            data = pd.read_csv(
+            data = pl.read_csv(
                 "https://mis.nyiso.com/public/csv/LimitingConstraints/currentLimitingConstraints.csv",
+                infer_schema_length=None,
             )
             data = self._handle_time(
                 data,
@@ -1684,26 +1754,18 @@ class NYISO(ISOBase):
                 verbose=verbose,
             )
 
-        data = data.rename(columns={"Constraint Cost($)": "Constraint Cost"})
+        data = data.rename({"Constraint Cost($)": "Constraint Cost"})
 
-        data = (
-            data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Limiting Facility",
-                    "Facility PTID",
-                    "Contingency",
-                    "Constraint Cost",
-                ]
-            ]
-            .sort_values(["Interval Start", "Limiting Facility", "Contingency"])
-            .reset_index(
-                drop=True,
-            )
-        )
-
-        return data
+        return data.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Limiting Facility",
+                "Facility PTID",
+                "Contingency",
+                "Constraint Cost",
+            ],
+        ).sort(["Interval Start", "Limiting Facility", "Contingency"])
 
     @support_date_range(frequency="DAY_START")
     def get_limiting_constraints_day_ahead(
@@ -1711,7 +1773,7 @@ class NYISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._download_nyiso_archive(
             date,
             end=end,
@@ -1720,23 +1782,15 @@ class NYISO(ISOBase):
             verbose=verbose,
         )
 
-        df = df.rename(columns={"Constraint Cost($)": "Constraint Cost"})
+        df = df.rename({"Constraint Cost($)": "Constraint Cost"})
 
-        df = (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Limiting Facility",
-                    "Facility PTID",
-                    "Contingency",
-                    "Constraint Cost",
-                ]
-            ]
-            .sort_values(["Interval Start", "Limiting Facility", "Contingency"])
-            .reset_index(
-                drop=True,
-            )
-        )
-
-        return df
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Limiting Facility",
+                "Facility PTID",
+                "Contingency",
+                "Constraint Cost",
+            ],
+        ).sort(["Interval Start", "Limiting Facility", "Contingency"])

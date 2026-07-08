@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus.aeso.aeso import AESO
@@ -25,35 +26,37 @@ class TestAESO(TestHelperMixin):
     def setup_class(cls):
         cls.iso = AESO(api_key=os.getenv("AESO_API_KEY"))
 
-    def _check_supply_and_demand(self, df: pd.DataFrame) -> None:
+    def _check_tz_datetime(self, df: pl.DataFrame, col: str) -> None:
+        assert isinstance(df.schema[col], pl.Datetime)
+        assert df.schema[col].time_zone == self.iso.default_timezone
+
+    def _check_supply_and_demand(self, df: pl.DataFrame) -> None:
         expected_columns = list(SUPPLY_DEMAND_COLUMN_MAPPING.values())
         for col in expected_columns:
             assert col in df.columns, f"Expected column {col} not found in DataFrame"
 
-        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        self._check_tz_datetime(df, "Time")
 
     def test_get_supply_and_demand(self):
         with api_vcr.use_cassette("test_get_supply_and_demand.yaml"):
             df = self.iso.get_supply_and_demand()
             self._check_supply_and_demand(df)
 
-    def _check_fuel_mix(self, df: pd.DataFrame) -> None:
+    def _check_fuel_mix(self, df: pl.DataFrame) -> None:
         expected_columns = list(FUEL_MIX_COLUMN_MAPPING.values())
-        assert df.columns.tolist() == expected_columns
-        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Time")
 
-        numeric_cols = df.columns.drop("Time")
+        numeric_cols = [col for col in df.columns if col != "Time"]
         for col in numeric_cols:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
     def test_get_fuel_mix(self):
         with api_vcr.use_cassette("test_get_fuel_mix.yaml"):
             df = self.iso.get_fuel_mix()
             self._check_fuel_mix(df)
 
-    def _check_interchange(self, df: pd.DataFrame) -> None:
+    def _check_interchange(self, df: pl.DataFrame) -> None:
         expected_columns = [
             "Time",
             "Net Interchange Flow",
@@ -61,51 +64,49 @@ class TestAESO(TestHelperMixin):
             "Montana Flow",
             "Saskatchewan Flow",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Time")
 
         flow_columns = [col for col in df.columns if col != "Time"]
         for col in flow_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
         individual_flows = [
             col for col in flow_columns if col != "Net Interchange Flow"
         ]
-        assert (df["Net Interchange Flow"] == df[individual_flows].sum(axis=1)).all(), (
-            "Net Interchange Flow should be the sum of individual flows"
-        )
+        assert (
+            df.select(
+                pl.col("Net Interchange Flow")
+                == pl.sum_horizontal([pl.col(col) for col in individual_flows]),
+            )
+            .to_series()
+            .all()
+        ), "Net Interchange Flow should be the sum of individual flows"
 
     def test_get_interchange(self):
         with api_vcr.use_cassette("test_get_interchange.yaml"):
             df = self.iso.get_interchange()
             self._check_interchange(df)
 
-    def _check_reserves(self, df: pd.DataFrame) -> None:
+    def _check_reserves(self, df: pl.DataFrame) -> None:
         expected_columns = list(RESERVES_COLUMN_MAPPING.values())
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
 
-        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
+        self._check_tz_datetime(df, "Time")
 
     def test_get_reserves(self):
         with api_vcr.use_cassette("test_get_reserves.yaml"):
             df = self.iso.get_reserves()
             self._check_reserves(df)
 
-    def _check_asset_list(self, df: pd.DataFrame) -> None:
+    def _check_asset_list(self, df: pl.DataFrame) -> None:
         expected_columns = list(ASSET_LIST_COLUMN_MAPPING.values())
         for col in expected_columns:
             assert col in df.columns, f"Expected column {col} not found in DataFrame"
 
-        assert df["Asset ID"].dtype == "object"
-        assert df["Asset Name"].dtype == "object"
-        assert df["Asset Type"].dtype == "object"
-        assert df["Operating Status"].dtype == "object"
-        assert df["Pool Participant ID"].dtype == "object"
-        assert df["Pool Participant Name"].dtype == "object"
-        assert df["Net To Grid Asset Flag"].dtype == "object"
-        assert df["Asset Include Storage Flag"].dtype == "object"
+        string_columns = list(ASSET_LIST_COLUMN_MAPPING.values())
+        for col in string_columns:
+            assert df.schema[col] == pl.String
 
     def test_get_asset_list(self):
         with api_vcr.use_cassette("test_get_asset_list.yaml"):
@@ -116,9 +117,9 @@ class TestAESO(TestHelperMixin):
         with api_vcr.use_cassette("test_get_asset_list_empty.yaml"):
             df = self.iso.get_asset_list(asset_id="NONEXISTENT")
             self._check_asset_list(df)
-            assert len(df) == 0
+            assert df.height == 0
 
-    def _check_pool_price(self, df: pd.DataFrame) -> None:
+    def _check_pool_price(self, df: pl.DataFrame) -> None:
         """Check pool price DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -126,20 +127,20 @@ class TestAESO(TestHelperMixin):
             "Pool Price",
             "Rolling 30 Day Average Pool Price",
         ]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        assert df.schema["Pool Price"].is_numeric()
         assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(hours=1),
+            )
+            .to_series()
+            .all()
         )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert pd.api.types.is_numeric_dtype(df["Pool Price"])
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
 
-    def _check_forecast_pool_price(self, df: pd.DataFrame) -> None:
+    def _check_forecast_pool_price(self, df: pl.DataFrame) -> None:
         """Check forecast pool price DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -147,30 +148,27 @@ class TestAESO(TestHelperMixin):
             "Publish Time",
             "Forecast Pool Price",
         ]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        self._check_tz_datetime(df, "Publish Time")
+        assert df.schema["Forecast Pool Price"].is_numeric()
         assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(hours=1),
+            )
+            .to_series()
+            .all()
         )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert pd.api.types.is_numeric_dtype(df["Forecast Pool Price"])
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
 
         request_time = pd.Timestamp.now(tz=self.iso.default_timezone)
-        for _, row in df.iterrows():
-            if row["Interval Start"] > request_time:
-                # For future intervals: use request time floored to 5 minutes
+        for row in df.iter_rows(named=True):
+            interval_start = pd.Timestamp(row["Interval Start"])
+            if interval_start > request_time:
                 assert row["Publish Time"] == request_time.floor("5min")
             else:
-                # For past/current intervals: use 5 minutes before interval start
-                assert row["Publish Time"] == row["Interval Start"] - pd.Timedelta(
+                assert row["Publish Time"] == interval_start - pd.Timedelta(
                     minutes=5,
                 )
 
@@ -179,7 +177,7 @@ class TestAESO(TestHelperMixin):
         with api_vcr.use_cassette("test_get_pool_price_latest.yaml"):
             df = self.iso.get_pool_price(date="latest")
             self._check_pool_price(df)
-            assert len(df) > 0
+            assert df.height > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -206,14 +204,14 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_pool_price(df)
-            assert len(df) == expected_hours
+            assert df.height == expected_hours
 
     def test_get_forecast_pool_price_latest(self):
         """Test getting latest forecast pool price data."""
         with api_vcr.use_cassette("test_get_forecast_pool_price_latest.yaml"):
             df = self.iso.get_forecast_pool_price(date="latest")
             self._check_forecast_pool_price(df)
-            assert len(df) > 0
+            assert df.height > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -240,9 +238,9 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_forecast_pool_price(df)
-            assert len(df) == expected_hours
+            assert df.height == expected_hours
 
-    def _check_system_marginal_price(self, df: pd.DataFrame) -> None:
+    def _check_system_marginal_price(self, df: pl.DataFrame) -> None:
         """Check system marginal price DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -250,31 +248,31 @@ class TestAESO(TestHelperMixin):
             "System Marginal Price",
             "Volume",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert pd.api.types.is_numeric_dtype(df["System Marginal Price"])
-        assert pd.api.types.is_numeric_dtype(df["Volume"])
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        assert df.schema["System Marginal Price"].is_numeric()
+        assert df.schema["Volume"].is_numeric()
 
         assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=1)
-        ).all()
-        assert df["Interval Start"].is_monotonic_increasing
-        assert df["Interval End"].is_monotonic_increasing
-        assert not df["System Marginal Price"].isna().any()
-        assert not df["Volume"].isna().any()
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(minutes=1),
+            )
+            .to_series()
+            .all()
+        )
+        assert df["Interval Start"].is_sorted()
+        assert df["Interval End"].is_sorted()
+        assert not df["System Marginal Price"].is_null().any()
+        assert not df["Volume"].is_null().any()
 
     def test_get_system_marginal_price_latest(self):
         """Test getting latest system marginal price data."""
         with api_vcr.use_cassette("test_get_system_marginal_price_latest.yaml"):
             df = self.iso.get_system_marginal_price(date="latest")
             self._check_system_marginal_price(df)
-            assert len(df) > 0
+            assert df.height > 0
 
             current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
             assert df["Interval End"].max() >= current_time.floor("min")
@@ -311,27 +309,27 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_system_marginal_price(df)
-            assert len(df) == expected_minutes
+            assert df.height == expected_minutes
             assert df["Interval Start"].min() == start_date
             assert df["Interval End"].max() == end_date
 
-    def _check_load(self, df: pd.DataFrame) -> None:
+    def _check_load(self, df: pl.DataFrame) -> None:
         """Check load DataFrame structure and types."""
         expected_columns = ["Interval Start", "Interval End", "Load"]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        assert df.schema["Load"].is_numeric()
         assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(hours=1),
+            )
+            .to_series()
+            .all()
         )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert pd.api.types.is_numeric_dtype(df["Load"])
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
 
-    def _check_load_forecast(self, df: pd.DataFrame) -> None:
+    def _check_load_forecast(self, df: pl.DataFrame) -> None:
         """Check load forecast DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -340,28 +338,27 @@ class TestAESO(TestHelperMixin):
             "Load",
             "Load Forecast",
         ]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        self._check_tz_datetime(df, "Publish Time")
+        assert df.schema["Load"].is_numeric()
+        assert df.schema["Load Forecast"].is_numeric()
         assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(hours=1),
+            )
+            .to_series()
+            .all()
         )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert pd.api.types.is_numeric_dtype(df["Load"])
-        assert pd.api.types.is_numeric_dtype(df["Load Forecast"])
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
 
         current_time = pd.Timestamp.now(tz=self.iso.default_timezone)
         today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
 
-        for _, row in df.iterrows():
-            if row["Interval Start"] > current_time:
+        for row in df.iter_rows(named=True):
+            interval_start = pd.Timestamp(row["Interval Start"])
+            if interval_start > current_time:
                 expected_publish = (
                     today_7am
                     if current_time >= today_7am
@@ -369,13 +366,12 @@ class TestAESO(TestHelperMixin):
                 )
                 assert row["Publish Time"] == expected_publish
             else:
-                # Historical intervals should have 7am on their day or previous day
-                interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(
+                interval_day_7am = interval_start.floor("D") + pd.Timedelta(
                     hours=7,
                 )
                 expected_publish = (
                     interval_day_7am
-                    if row["Interval Start"] >= interval_day_7am
+                    if interval_start >= interval_day_7am
                     else interval_day_7am - pd.Timedelta(days=1)
                 )
                 assert row["Publish Time"] == expected_publish
@@ -385,8 +381,8 @@ class TestAESO(TestHelperMixin):
         with api_vcr.use_cassette("test_get_load_latest.yaml"):
             df = self.iso.get_load(date="latest")
             self._check_load(df)
-            assert len(df) > 0
-            assert not df["Load"].isna().any()
+            assert df.height > 0
+            assert not df["Load"].is_null().any()
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -413,14 +409,14 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_load(df)
-            assert len(df) == expected_hours
+            assert df.height == expected_hours
 
     def test_get_load_forecast_latest(self):
         """Test getting latest load forecast data."""
         with api_vcr.use_cassette("test_get_load_forecast_latest.yaml"):
             df = self.iso.get_load_forecast(date="latest")
             self._check_load_forecast(df)
-            assert len(df) > 0
+            assert df.height > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_hours",
@@ -447,7 +443,7 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_load_forecast(df)
-            assert len(df) == expected_hours
+            assert df.height == expected_hours
 
     def test_get_load_forecast_future_publish_times(self):
         """Test that future intervals have correct publish times."""
@@ -487,18 +483,19 @@ class TestAESO(TestHelperMixin):
         ):
             df = self.iso.get_load_forecast(date=date, end=end)
 
-            for _, row in df.iterrows():
-                interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(
+            for row in df.iter_rows(named=True):
+                interval_start = pd.Timestamp(row["Interval Start"])
+                interval_day_7am = interval_start.floor("D") + pd.Timedelta(
                     hours=7,
                 )
                 expected_publish = (
                     interval_day_7am
-                    if row["Interval Start"] >= interval_day_7am
+                    if interval_start >= interval_day_7am
                     else interval_day_7am - pd.Timedelta(days=1)
                 )
                 assert row["Publish Time"] == expected_publish
 
-    def _check_unit_status(self, df: pd.DataFrame) -> None:
+    def _check_unit_status(self, df: pl.DataFrame) -> None:
         """Check unit status DataFrame structure and types."""
         expected_columns = [
             "Time",
@@ -509,11 +506,11 @@ class TestAESO(TestHelperMixin):
             "Net Generation",
             "Dispatched Contingency Reserve",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert df.dtypes["Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        assert df["Asset"].dtype == "object"
-        assert df["Fuel Type"].dtype == "object"
-        assert df["Sub Fuel Type"].dtype == "object"
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Time")
+        assert df.schema["Asset"] == pl.String
+        assert df.schema["Fuel Type"] == pl.String
+        assert df.schema["Sub Fuel Type"] == pl.String
 
         numeric_columns = [
             "Maximum Capability",
@@ -521,18 +518,16 @@ class TestAESO(TestHelperMixin):
             "Dispatched Contingency Reserve",
         ]
         for col in numeric_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
     def test_get_unit_status(self):
         """Test getting current unit status data."""
         with api_vcr.use_cassette("test_get_unit_status.yaml"):
             df = self.iso.get_unit_status(date="latest")
             self._check_unit_status(df)
-            assert len(df) > 0
+            assert df.height > 0
 
-    def _check_generator_outages_hourly(self, df: pd.DataFrame) -> None:
+    def _check_generator_outages_hourly(self, df: pl.DataFrame) -> None:
         """Check generator outages DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -551,20 +546,18 @@ class TestAESO(TestHelperMixin):
             "Biomass and Other",
             "Mothball Outage",
         ]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        self._check_tz_datetime(df, "Publish Time")
         assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(hours=1),
+            )
+            .to_series()
+            .all()
         )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
 
         numeric_columns = [
             col
@@ -572,24 +565,28 @@ class TestAESO(TestHelperMixin):
             if col not in ["Interval Start", "Interval End", "Publish Time"]
         ]
         for col in numeric_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
-        # NB: Total Outage should be sum of all numeric columns except Mothball Outage and Total Outage
         outage_columns = [
             col
             for col in numeric_columns
             if col not in ["Mothball Outage", "Total Outage"]
         ]
-        assert (df["Total Outage"] == df[outage_columns].sum(axis=1)).all()
+        assert (
+            df.select(
+                pl.col("Total Outage")
+                == pl.sum_horizontal([pl.col(col) for col in outage_columns]),
+            )
+            .to_series()
+            .all()
+        )
 
     def test_get_generator_outages_hourly_latest(self):
         """Test getting latest generator outages data."""
         with api_vcr.use_cassette("test_get_generator_outages_hourly_latest.yaml"):
             df = self.iso.get_generator_outages_hourly(date="latest")
             self._check_generator_outages_hourly(df)
-            assert len(df) > 0
+            assert df.height > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date",
@@ -621,7 +618,7 @@ class TestAESO(TestHelperMixin):
                 self.iso.default_timezone,
             )
 
-    def _check_transmission_outages(self, df: pd.DataFrame) -> None:
+    def _check_transmission_outages(self, df: pl.DataFrame) -> None:
         """Check transmission outages DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -634,17 +631,10 @@ class TestAESO(TestHelperMixin):
             "Date Time Comments",
             "Interconnection",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        self._check_tz_datetime(df, "Publish Time")
         string_columns = [
             "Transmission Owner",
             "Type",
@@ -654,19 +644,25 @@ class TestAESO(TestHelperMixin):
             "Interconnection",
         ]
         for col in string_columns:
-            assert df[col].dtype == "object", (
+            assert df.schema[col] == pl.String, (
                 f"Column {col} should be object/string type"
             )
 
-        assert (df["Interval End"] >= df["Interval Start"]).all()
+        assert (
+            df.select(
+                pl.col("Interval End") >= pl.col("Interval Start"),
+            )
+            .to_series()
+            .all()
+        )
 
     def test_get_transmission_outages_latest(self):
         """Test getting latest transmission outages data."""
         with api_vcr.use_cassette("test_get_transmission_outages_latest.yaml"):
             df = self.iso.get_transmission_outages(date="latest")
             self._check_transmission_outages(df)
-            assert len(df) > 0
-            assert df["Publish Time"].nunique() == 1
+            assert df.height > 0
+            assert df["Publish Time"].n_unique() == 1
 
     @pytest.mark.parametrize(
         "start_date,end_date",
@@ -691,7 +687,7 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_transmission_outages(df)
-            assert df["Publish Time"].nunique() > 1
+            assert df["Publish Time"].n_unique() > 1
             assert df["Publish Time"].min().date() >= start_date.date()
             assert df["Publish Time"].max().date() <= end_date.date()
 
@@ -711,14 +707,14 @@ class TestAESO(TestHelperMixin):
         ):
             df = self.iso.get_transmission_outages(date=target_date)
             self._check_transmission_outages(df)
-            assert len(df) > 0
-            assert df["Publish Time"].nunique() == 1
-            publish_time = df["Publish Time"].iloc[0]
+            assert df.height > 0
+            assert df["Publish Time"].n_unique() == 1
+            publish_time = df[0, "Publish Time"]
             assert publish_time.date() < target_date.date(), (
                 f"Publish time {publish_time.date()} should be before target date {target_date.date()}"
             )
 
-    def _check_wind_solar_forecast(self, df: pd.DataFrame, forecast_type: str) -> None:
+    def _check_wind_solar_forecast(self, df: pl.DataFrame, forecast_type: str) -> None:
         """Check wind/solar forecast DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -732,17 +728,10 @@ class TestAESO(TestHelperMixin):
             "Most Likely Generation Percentage",
             "Maximum Generation Percentage",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Publish Time"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
+        self._check_tz_datetime(df, "Publish Time")
 
         numeric_columns = [
             "Minimum Generation Forecast",
@@ -754,40 +743,42 @@ class TestAESO(TestHelperMixin):
             "Maximum Generation Percentage",
         ]
         for col in numeric_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
-        assert df["Interval Start"].is_monotonic_increasing
-        assert (df["Interval End"] > df["Interval Start"]).all()
+        assert df["Interval Start"].is_sorted()
+        assert (
+            df.select(pl.col("Interval End") > pl.col("Interval Start"))
+            .to_series()
+            .all()
+        )
 
     def test_get_wind_forecast_12_hour_latest(self):
         """Test getting latest 12-hour wind forecast data."""
         with api_vcr.use_cassette("test_get_wind_forecast_12_hour_latest.yaml"):
             df = self.iso.get_wind_forecast_12_hour(date="latest")
             self._check_wind_solar_forecast(df, "wind")
-            assert len(df) > 0
+            assert df.height > 0
 
     def test_get_wind_forecast_7_day_latest(self):
         """Test getting latest 7-day wind forecast data."""
         with api_vcr.use_cassette("test_get_wind_forecast_7_day_latest.yaml"):
             df = self.iso.get_wind_forecast_7_day(date="latest")
             self._check_wind_solar_forecast(df, "wind")
-            assert len(df) > 0
+            assert df.height > 0
 
     def test_get_solar_forecast_12_hour_latest(self):
         """Test getting latest 12-hour solar forecast data."""
         with api_vcr.use_cassette("test_get_solar_forecast_12_hour_latest.yaml"):
             df = self.iso.get_solar_forecast_12_hour(date="latest")
             self._check_wind_solar_forecast(df, "solar")
-            assert len(df) > 0
+            assert df.height > 0
 
     def test_get_solar_forecast_7_day_latest(self):
         """Test getting latest 7-day solar forecast data."""
         with api_vcr.use_cassette("test_get_solar_forecast_7_day_latest.yaml"):
             df = self.iso.get_solar_forecast_7_day(date="latest")
             self._check_wind_solar_forecast(df, "solar")
-            assert len(df) > 0
+            assert df.height > 0
 
     def test_get_wind_forecast_12_hour_historical(self):
         """Test that historical 12-hour wind forecast raises NotSupported."""
@@ -822,7 +813,7 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_wind_solar_forecast(df, "wind")
-            assert len(df) > 0
+            assert df.height > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
 
@@ -868,7 +859,7 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_wind_solar_forecast(df, "solar")
-            assert len(df) > 0
+            assert df.height > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
 
@@ -881,7 +872,7 @@ class TestAESO(TestHelperMixin):
         ):
             self.iso.get_solar_forecast_7_day(date="2022-01-01")
 
-    def _check_daily_average_pool_price(self, df: pd.DataFrame) -> None:
+    def _check_daily_average_pool_price(self, df: pl.DataFrame) -> None:
         """Check daily average pool price DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -891,16 +882,18 @@ class TestAESO(TestHelperMixin):
             "Daily Off Peak Average",
             "30 Day Average",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
 
-        assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(days=1)).all()
+        assert (
+            df.select(
+                pl.col("Interval End") - pl.col("Interval Start")
+                == pl.duration(days=1),
+            )
+            .to_series()
+            .all()
+        )
 
         price_columns = [
             "Daily Average",
@@ -909,16 +902,14 @@ class TestAESO(TestHelperMixin):
             "30 Day Average",
         ]
         for col in price_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
     def test_get_daily_average_pool_price_latest(self):
         """Test getting latest daily average pool price data."""
         with api_vcr.use_cassette("test_get_daily_average_pool_price_latest.yaml"):
             df = self.iso.get_daily_average_pool_price(date="latest")
             self._check_daily_average_pool_price(df)
-            assert len(df) > 0
+            assert df.height > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date,expected_days",
@@ -942,9 +933,9 @@ class TestAESO(TestHelperMixin):
         ):
             df = self.iso.get_daily_average_pool_price(date=start_date, end=end_date)
             self._check_daily_average_pool_price(df)
-            assert len(df) == expected_days
+            assert df.height == expected_days
 
-    def _check_wind_solar(self, df: pd.DataFrame, generation_type: str) -> None:
+    def _check_wind_solar(self, df: pl.DataFrame, generation_type: str) -> None:
         """Check wind/solar actual generation DataFrame structure and types."""
         expected_columns = [
             "Interval Start",
@@ -952,40 +943,37 @@ class TestAESO(TestHelperMixin):
             "Actual Generation",
             f"Total {generation_type.capitalize()} Capacity",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert (
-            df.dtypes["Interval Start"]
-            == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
-        assert (
-            df.dtypes["Interval End"] == f"datetime64[ns, {self.iso.default_timezone}]"
-        )
+        assert df.columns == expected_columns
+        self._check_tz_datetime(df, "Interval Start")
+        self._check_tz_datetime(df, "Interval End")
 
         numeric_columns = [
             "Actual Generation",
             f"Total {generation_type.capitalize()} Capacity",
         ]
         for col in numeric_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
-                f"Column {col} should be numeric"
-            )
+            assert df.schema[col].is_numeric(), f"Column {col} should be numeric"
 
-        assert df["Interval Start"].is_monotonic_increasing
-        assert (df["Interval End"] > df["Interval Start"]).all()
+        assert df["Interval Start"].is_sorted()
+        assert (
+            df.select(pl.col("Interval End") > pl.col("Interval Start"))
+            .to_series()
+            .all()
+        )
 
     def test_get_wind_10_min_latest(self):
         """Test getting latest wind generation data."""
         with api_vcr.use_cassette("test_get_wind_10_min_latest.yaml"):
             df = self.iso.get_wind_10_min(date="latest")
             self._check_wind_solar(df, "wind")
-            assert len(df) > 0
+            assert df.height > 0
 
     def test_get_solar_10_min_latest(self):
         """Test getting latest solar generation data."""
         with api_vcr.use_cassette("test_get_solar_10_min_latest.yaml"):
             df = self.iso.get_solar_10_min(date="latest")
             self._check_wind_solar(df, "solar")
-            assert len(df) > 0
+            assert df.height > 0
 
     @pytest.mark.parametrize(
         "start_date,end_date",
@@ -1010,7 +998,7 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_wind_solar(df, "wind")
-            assert len(df) > 0
+            assert df.height > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
 
@@ -1037,6 +1025,6 @@ class TestAESO(TestHelperMixin):
                 end=end_date,
             )
             self._check_wind_solar(df, "solar")
-            assert len(df) > 0
+            assert df.height > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
