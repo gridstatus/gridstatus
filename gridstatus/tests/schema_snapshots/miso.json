@@ -1,0 +1,112 @@
+{
+  "iso": "MISO",
+  "fixed_date": "2026-06-15",
+  "methods": {
+    "get_fuel_mix": {
+      "error": "NotSupported: Only 'latest', 'today', and yesterday's date are supported"
+    },
+    "get_lmp": {
+      "columns": [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss"
+      ],
+      "dtypes": {
+        "Time": "datetime[EST]",
+        "Interval Start": "datetime[EST]",
+        "Interval End": "datetime[EST]",
+        "Market": "string",
+        "Location": "string",
+        "Location Type": "string",
+        "LMP": "float",
+        "Energy": "float",
+        "Congestion": "float",
+        "Loss": "float"
+      },
+      "row_count": 62688,
+      "frame_type": "polars"
+    },
+    "get_load": {
+      "error": "NotSupported: "
+    },
+    "get_load_forecast": {
+      "columns": [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "LRZ1 MTLF",
+        "LRZ2_7 MTLF",
+        "LRZ3_5 MTLF",
+        "LRZ4 MTLF",
+        "LRZ6 MTLF",
+        "LRZ8_9_10 MTLF",
+        "MISO MTLF"
+      ],
+      "dtypes": {
+        "Interval Start": "datetime[EST]",
+        "Interval End": "datetime[EST]",
+        "Publish Time": "datetime[EST]",
+        "LRZ1 MTLF": "int",
+        "LRZ2_7 MTLF": "int",
+        "LRZ3_5 MTLF": "int",
+        "LRZ4 MTLF": "int",
+        "LRZ6 MTLF": "int",
+        "LRZ8_9_10 MTLF": "int",
+        "MISO MTLF": "int"
+      },
+      "row_count": 144,
+      "frame_type": "polars"
+    },
+    "get_solar_forecast": {
+      "columns": [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "North",
+        "Central",
+        "South",
+        "MISO"
+      ],
+      "dtypes": {
+        "Interval Start": "datetime[EST]",
+        "Interval End": "datetime[EST]",
+        "Publish Time": "datetime[UTC]",
+        "North": "float",
+        "Central": "float",
+        "South": "float",
+        "MISO": "float"
+      },
+      "row_count": 168,
+      "frame_type": "polars"
+    },
+    "get_wind_forecast": {
+      "columns": [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "North",
+        "Central",
+        "South",
+        "MISO"
+      ],
+      "dtypes": {
+        "Interval Start": "datetime[EST]",
+        "Interval End": "datetime[EST]",
+        "Publish Time": "datetime[UTC]",
+        "North": "float",
+        "Central": "float",
+        "South": "float",
+        "MISO": "float"
+      },
+      "row_count": 168,
+      "frame_type": "polars"
+    }
+  }
+}
