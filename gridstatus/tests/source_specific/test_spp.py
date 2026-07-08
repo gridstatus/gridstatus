@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
@@ -21,6 +22,20 @@ api_vcr = setup_vcr(
     source="spp",
     record_mode=RECORD_MODE,
 )
+
+
+def _ts(value) -> pd.Timestamp:
+    return pd.Timestamp(value)
+
+
+def _mock_forecast_df(data: dict) -> pl.DataFrame:
+    df = pl.DataFrame(data)
+    for col in ("Interval Start", "Interval End"):
+        if col in df.columns:
+            df = df.with_columns(
+                pl.col(col).dt.convert_time_zone("US/Central").alias(col),
+            )
+    return df
 
 
 class TestSPP(BaseTestISO):
@@ -114,8 +129,7 @@ class TestSPP(BaseTestISO):
     ]
 
     def _check_fuel_mix(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.name is None
+        assert isinstance(df, pl.DataFrame)
         self._check_time_columns(
             df,
             instant_or_interval="interval",
@@ -160,25 +174,47 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
             fm = self.iso.get_fuel_mix(date="latest")
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
-        assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_COLS
+        assert fm[0, "Interval Start"].tzinfo.key == self.iso.default_timezone
         assert "BAA" not in fm.columns
 
     def test_get_fuel_mix_today(self):
         with api_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
             fm = self.iso.get_fuel_mix(date="today")
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_COLS
         assert "BAA" not in fm.columns
+
+    def test_get_load_latest(self):
+        with api_vcr.use_cassette("test_get_load_latest.yaml"):
+            df = self.iso.get_load(date="latest")
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+        assert "Load" in df.columns
+        assert df.schema["Load"].is_numeric()
+
+    def test_get_load_today(self):
+        with api_vcr.use_cassette("test_get_load_today.yaml"):
+            df = self.iso.get_load(date="today")
+        self._check_time_columns(
+            df,
+            instant_or_interval="interval",
+            skip_column_named_time=True,
+        )
+        assert "Load" in df.columns
+        assert df.schema["Load"].is_numeric()
 
     def test_get_fuel_mix_detailed_latest(self):
         with api_vcr.use_cassette("test_get_fuel_mix_detailed_latest.yaml"):
             fm = self.iso.get_fuel_mix_detailed(date="latest")
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_DETAILED_COLS
         assert "BAA" not in fm.columns
 
     def test_get_fuel_mix_too_old_raises(self):
@@ -195,8 +231,8 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette("test_get_fuel_mix_historical_recent.yaml"):
             fm = self.iso.get_fuel_mix(date=yesterday)
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_COLS
         assert "BAA" not in fm.columns
         assert fm["Interval Start"].min() >= yesterday
 
@@ -206,18 +242,18 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette("test_get_fuel_mix_by_baa_latest.yaml"):
             fm = self.iso.get_fuel_mix_by_baa(date="latest")
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
-        assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
-        assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_BAA_COLS
+        assert fm[0, "Interval Start"].tzinfo.key == self.iso.default_timezone
+        assert set(fm["BAA"].unique().to_list()) == {"SPP", "SWPW"}
 
     def test_get_fuel_mix_by_baa_today(self):
         with api_vcr.use_cassette("test_get_fuel_mix_by_baa_today.yaml"):
             fm = self.iso.get_fuel_mix_by_baa(date="today")
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
-        assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_BAA_COLS
+        assert set(fm["BAA"].unique().to_list()) == {"SPP", "SWPW"}
 
     def test_get_fuel_mix_by_baa_historical_recent(self):
         yesterday = pd.Timestamp.now(
@@ -228,10 +264,10 @@ class TestSPP(BaseTestISO):
         ):
             fm = self.iso.get_fuel_mix_by_baa(date=yesterday)
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
-        assert set(fm["BAA"].unique()).issubset({"SPP", "SWPW"})
-        assert "SPP" in fm["BAA"].values
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_BAA_COLS
+        assert set(fm["BAA"].unique().to_list()).issubset({"SPP", "SWPW"})
+        assert "SPP" in fm["BAA"].to_list()
         assert fm["Interval Start"].min() >= yesterday
 
     """get_fuel_mix_by_baa_detailed"""
@@ -240,9 +276,9 @@ class TestSPP(BaseTestISO):
         with api_vcr.use_cassette("test_get_fuel_mix_by_baa_detailed_latest.yaml"):
             fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
 
-        assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_BAA_COLS
-        assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
+        assert fm.height > 0
+        assert fm.columns == self.FUEL_MIX_DETAILED_BAA_COLS
+        assert set(fm["BAA"].unique().to_list()) == {"SPP", "SWPW"}
 
     """get_lmp_real_time_5_min_by_location"""
 
@@ -255,7 +291,7 @@ class TestSPP(BaseTestISO):
             LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
     ):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -270,14 +306,17 @@ class TestSPP(BaseTestISO):
             "Loss",
         ]
 
-        assert set(df["Location Type"]) == set(location_types)
+        assert set(df["Location Type"].to_list()) == set(location_types)
 
-        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+        assert df["Market"].unique().to_list() == [Markets.REAL_TIME_5_MIN.value]
         assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes() == 5
         ).all()
 
-        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+        assert np.allclose(
+            df["LMP"].to_numpy(),
+            (df["Energy"] + df["Congestion"] + df["Loss"]).to_numpy(),
+        )
 
     def test_get_lmp_real_time_5_min_by_location_latest(self):
         with api_vcr.use_cassette(
@@ -288,7 +327,7 @@ class TestSPP(BaseTestISO):
         self._check_lmp_real_time_5_min_by_location(df)
 
         # Latest data should have one interval
-        assert df["Interval Start"].nunique() == 1
+        assert df["Interval Start"].n_unique() == 1
         # Check that the max interval is relatively recent (within last 24 hours)
         max_interval = df["Interval Start"].max()
         assert max_interval >= self.local_start_of_today() - pd.Timedelta(days=1)
@@ -424,7 +463,7 @@ class TestSPP(BaseTestISO):
     """get_lmp_real_time_5_min_by_bus"""
 
     def _check_lmp_real_time_5_min_by_bus(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -438,14 +477,17 @@ class TestSPP(BaseTestISO):
             "Loss",
         ]
 
-        assert df["Market"].unique() == [Markets.REAL_TIME_5_MIN.value]
+        assert df["Market"].unique().to_list() == [Markets.REAL_TIME_5_MIN.value]
 
-        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
+        assert df["Location Type"].unique().to_list() == [LOCATION_TYPE_BUS]
         assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes() == 5
         ).all()
 
-        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+        assert np.allclose(
+            df["LMP"].to_numpy(),
+            (df["Energy"] + df["Congestion"] + df["Loss"]).to_numpy(),
+        )
 
     def test_get_lmp_real_time_5_min_by_bus_latest(self):
         with api_vcr.use_cassette(
@@ -455,7 +497,7 @@ class TestSPP(BaseTestISO):
 
         self._check_lmp_real_time_5_min_by_bus(df)
         # Latest data should have one interval
-        assert df["Interval Start"].nunique() == 1
+        assert df["Interval Start"].n_unique() == 1
         # Check that the max interval is relatively recent (within last 24 hours)
         max_interval = df["Interval Start"].max()
         assert max_interval >= self.local_start_of_today() - pd.Timedelta(days=1)
@@ -567,7 +609,7 @@ class TestSPP(BaseTestISO):
             LOCATION_TYPE_SETTLEMENT_LOCATION,
         ],
     ):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -582,13 +624,14 @@ class TestSPP(BaseTestISO):
             "Loss",
         ]
 
-        assert set(df["Location Type"]) == set(location_types)
-        assert df["Market"].unique() == [Markets.DAY_AHEAD_HOURLY.value]
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert set(df["Location Type"].to_list()) == set(location_types)
+        assert df["Market"].unique().to_list() == [Markets.DAY_AHEAD_HOURLY.value]
+        assert ((df["Interval End"] - df["Interval Start"]).dt.total_hours() == 1).all()
 
-        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+        assert np.allclose(
+            df["LMP"].to_numpy(),
+            (df["Energy"] + df["Congestion"] + df["Loss"]).to_numpy(),
+        )
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_latest_not_supported(self):
@@ -660,7 +703,7 @@ class TestSPP(BaseTestISO):
     """get_lmp_day_ahead_hourly_by_bus"""
 
     def _check_lmp_day_ahead_hourly_by_bus(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -674,13 +717,14 @@ class TestSPP(BaseTestISO):
             "Loss",
         ]
 
-        assert df["Market"].unique() == [Markets.DAY_AHEAD_HOURLY.value]
-        assert df["Location Type"].unique() == [LOCATION_TYPE_BUS]
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert df["Market"].unique().to_list() == [Markets.DAY_AHEAD_HOURLY.value]
+        assert df["Location Type"].unique().to_list() == [LOCATION_TYPE_BUS]
+        assert ((df["Interval End"] - df["Interval Start"]).dt.total_hours() == 1).all()
 
-        assert np.allclose(df["LMP"], df["Energy"] + df["Congestion"] + df["Loss"])
+        assert np.allclose(
+            df["LMP"].to_numpy(),
+            (df["Energy"] + df["Congestion"] + df["Loss"]).to_numpy(),
+        )
 
     @pytest.mark.integration
     def test_get_lmp_day_ahead_hourly_by_bus_latest_not_supported(self):
@@ -776,16 +820,16 @@ class TestSPP(BaseTestISO):
             f"test_get_operating_reserves_{yesterday.strftime('%Y%m%d')}_{yesterday_1230am.strftime('%Y%m%d')}.yaml",
         ):
             df = self.iso.get_operating_reserves(start=yesterday, end=yesterday_1230am)
-        assert len(df) > 0
-        assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
+        assert df.height > 0
+        assert df.columns == self.OPERATING_RESERVES_COLUMNS
 
     def test_get_operating_reserves_latest(self):
         with api_vcr.use_cassette(
             "test_get_operating_reserves_latest.yaml",
         ):
             df = self.iso.get_operating_reserves(date="latest")
-        assert len(df) > 0
-        assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
+        assert df.height > 0
+        assert df.columns == self.OPERATING_RESERVES_COLUMNS
 
     def test_get_operative_reserves_last_interval_of_day(self):
         two_days_ago = pd.Timestamp.now(
@@ -805,7 +849,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
-        assert df.columns.tolist() == self.OPERATING_RESERVES_COLUMNS
+        assert df.columns == self.OPERATING_RESERVES_COLUMNS
 
     @pytest.mark.parametrize(
         "date,end",
@@ -873,7 +917,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == three_days_ago
         assert df["Interval End"].max() == tomorrow
-        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+        assert df.columns == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
     def test_get_day_ahead_operating_reserve_prices_today(self):
         with api_vcr.use_cassette(
@@ -888,7 +932,7 @@ class TestSPP(BaseTestISO):
         assert df["Interval End"].max() == pd.Timestamp.now(
             tz=self.iso.default_timezone,
         ).normalize() + pd.Timedelta(days=1)
-        assert df.columns.tolist() == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
+        assert df.columns == self.DAY_AHEAD_MARGINAL_CLEARING_PRICES_COLUMNS
 
     """get_as_prices_real_time_5_min"""
 
@@ -907,14 +951,14 @@ class TestSPP(BaseTestISO):
         "Unc Up",
     ]
 
-    def _check_as_prices_real_time_5_min(self, df: pd.DataFrame):
+    def _check_as_prices_real_time_5_min(self, df: pl.DataFrame):
         assert list(df.columns) == self.REAL_TIME_MCP_COLUMNS
         assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes() == 5
         ).all()
 
         for col in self.REAL_TIME_MCP_COLUMNS[3:]:
-            assert pd.api.types.is_numeric_dtype(df[col])
+            assert df.schema[col] in (pl.Float32, pl.Float64, pl.Int32, pl.Int64)
 
     def test_get_as_prices_real_time_5_min_latest(self):
         with api_vcr.use_cassette("test_get_as_prices_real_time_5_min_latest.yaml"):
@@ -1004,8 +1048,8 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_lmp_real_time_weis(date="latest")
 
-        assert len(df) > 0
-        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+        assert df.height > 0
+        assert df.columns == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_1_hour_range(self):
         three_days_ago = pd.Timestamp.now(
@@ -1025,7 +1069,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == three_days_ago
         assert df["Interval End"].max() == three_days_ago_0015
-        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+        assert df.columns == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_cross_day(self):
         two_days_ago_2345 = (
@@ -1045,7 +1089,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == two_days_ago_2345
         assert df["Interval End"].max() <= one_day_ago_0010
-        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+        assert df.columns == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_single_interval(self):
         three_weeks_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
@@ -1059,8 +1103,8 @@ class TestSPP(BaseTestISO):
         # assert one interval that straddles date input
         assert df["Interval Start"].min() < three_weeks_ago
         assert df["Interval End"].max() > three_weeks_ago
-        assert df["Interval Start"].nunique() == 1
-        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+        assert df["Interval Start"].n_unique() == 1
+        assert df.columns == self.WEIS_LMP_COLUMNS
 
     def test_get_lmp_real_time_weis_last_interval_of_day(self):
         two_days_ago = pd.Timestamp.now(
@@ -1080,7 +1124,7 @@ class TestSPP(BaseTestISO):
 
         assert df["Interval Start"].min() == two_days_ago_2355
         assert df["Interval End"].max() == two_days_ago_2355 + pd.Timedelta(minutes=5)
-        assert df.columns.tolist() == self.WEIS_LMP_COLUMNS
+        assert df.columns == self.WEIS_LMP_COLUMNS
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1124,8 +1168,8 @@ class TestSPP(BaseTestISO):
             pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(days=14)
         ).date()
         df = self.iso.get_load(test_date)
-        assert isinstance(df, pd.DataFrame)
-        assert len(df) > 0
+        assert isinstance(df, pl.DataFrame)
+        assert df.height > 0
         assert "Interval Start" in df.columns
         assert "Interval End" in df.columns
         assert "Load" in df.columns
@@ -1136,7 +1180,7 @@ class TestSPP(BaseTestISO):
 
     def test_get_load_pre_baa_historical(self):
         date = pd.Timestamp("2026-03-30 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date + pd.Timedelta(minutes=5)],
                 "Interval End": [
@@ -1151,7 +1195,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1161,13 +1205,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load(date=date, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert len(df) == 2
-        assert df["Load"].tolist() == [20000.0, 20100.0]
+        assert df.columns == ["Interval Start", "Interval End", "Load"]
+        assert df.height == 2
+        assert df["Load"].to_list() == [20000.0, 20100.0]
 
     def test_get_load_post_baa_historical(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [
                     date,
@@ -1190,7 +1234,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1200,13 +1244,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load(date=date, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert len(df) == 2
-        assert df["Load"].tolist() == [20000.0, 20200.0]
+        assert df.columns == ["Interval Start", "Interval End", "Load"]
+        assert df.height == 2
+        assert df["Load"].to_list() == [20000.0, 20200.0]
 
     def test_get_load_pre_baa_historical_no_baa_column(self):
         date = pd.Timestamp("2026-03-28 08:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date],
                 "Interval End": [date + pd.Timedelta(minutes=5)],
@@ -1218,7 +1262,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1228,13 +1272,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load(date=date, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert len(df) == 1
-        assert df["Load"].iloc[0] == 18000.0
+        assert df.columns == ["Interval Start", "Interval End", "Load"]
+        assert df.height == 1
+        assert df[0, "Load"] == 18000.0
 
     def test_get_load_pre_baa_historical_null_baa_values(self):
         date = pd.Timestamp("2026-03-29 10:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date + pd.Timedelta(minutes=5)],
                 "Interval End": [
@@ -1250,7 +1294,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1260,12 +1304,12 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load(date=date, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert len(df) == 2
+        assert df.columns == ["Interval Start", "Interval End", "Load"]
+        assert df.height == 2
 
     def test_get_load_null_baa_mixed_load_values(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date],
                 "Interval End": [
@@ -1281,7 +1325,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1291,9 +1335,9 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load(date=date, verbose=False)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "Load"]
-        assert len(df) == 1
-        assert df["Load"].iloc[0] == 18500.0
+        assert df.columns == ["Interval Start", "Interval End", "Load"]
+        assert df.height == 1
+        assert df[0, "Load"] == 18500.0
 
     """get_load_forecast"""
 
@@ -1320,7 +1364,7 @@ class TestSPP(BaseTestISO):
     def test_get_load_forecast_post_baa(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
         publish_time = date
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [
                     date,
@@ -1344,7 +1388,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1354,14 +1398,14 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
-        assert len(df) == 2
-        assert df["Load Forecast"].tolist() == [19000.0, 19200.0]
+        assert df.columns == self.LOAD_FORECAST_COLS
+        assert df.height == 2
+        assert df["Load Forecast"].to_list() == [19000.0, 19200.0]
 
     def test_get_load_forecast_pre_baa_no_column(self):
         date = pd.Timestamp("2026-03-28 08:00:00-0500")
         publish_time = date
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date],
                 "Interval End": [date + pd.Timedelta(hours=1)],
@@ -1374,7 +1418,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1384,14 +1428,14 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
-        assert len(df) == 1
-        assert df["Load Forecast"].iloc[0] == 20000.0
+        assert df.columns == self.LOAD_FORECAST_COLS
+        assert df.height == 1
+        assert df[0, "Load Forecast"] == 20000.0
 
     def test_get_load_forecast_null_baa_mixed_values(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
         publish_time = date
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date],
                 "Interval End": [
@@ -1408,7 +1452,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1418,9 +1462,9 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_FORECAST_COLS
-        assert len(df) == 1
-        assert df["Load Forecast"].iloc[0] == 17500.0
+        assert df.columns == self.LOAD_FORECAST_COLS
+        assert df.height == 1
+        assert df[0, "Load Forecast"] == 17500.0
 
     """get_load_forecast_by_baa"""
 
@@ -1435,7 +1479,7 @@ class TestSPP(BaseTestISO):
     def test_get_load_forecast_by_baa_post_baa(self):
         now = self.local_now().floor("h")
         publish_time = now
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [now, now],
                 "Interval End": [
@@ -1452,7 +1496,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1462,14 +1506,14 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_by_baa(date=now, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP", "SWPW"}
+        assert df.height == 2
 
     def test_get_load_forecast_by_baa_pre_baa_no_column(self):
         date = pd.Timestamp("2026-03-28 12:00:00-0500")
         publish_time = date
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date + pd.Timedelta(hours=1)],
                 "Interval End": [
@@ -1485,7 +1529,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1495,14 +1539,14 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP"}
+        assert df.height == 2
 
     def test_get_load_forecast_by_baa_null_baa_mixed_values(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
         publish_time = date
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date],
                 "Interval End": [
@@ -1519,7 +1563,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -1529,13 +1573,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_by_baa(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_FORECAST_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
-        assert len(df) == 2
-        spp_row = df[df["BAA"] == "SPP"]
-        swpw_row = df[df["BAA"] == "SWPW"]
-        assert spp_row["Load Forecast"].iloc[0] == 14000.0
-        assert swpw_row["Load Forecast"].iloc[0] == 3500.0
+        assert df.columns == self.LOAD_FORECAST_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP", "SWPW"}
+        assert df.height == 2
+        spp_row = df.filter(pl.col("BAA") == "SPP")
+        swpw_row = df.filter(pl.col("BAA") == "SWPW")
+        assert spp_row[0, "Load Forecast"] == 14000.0
+        assert swpw_row[0, "Load Forecast"] == 3500.0
 
     def test_get_load_forecast_by_baa_empty_data(self):
         date = pd.Timestamp("2026-03-25 10:00:00-0500")
@@ -1656,9 +1700,9 @@ class TestSPP(BaseTestISO):
                 end=end,
             )
 
-        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
-        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 01:55:00-0600")
-        assert df["Publish Time"].nunique() == 12
+        assert _ts(df["Publish Time"].min()) == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert _ts(df["Publish Time"].max()) == pd.Timestamp("2025-11-02 01:55:00-0600")
+        assert df["Publish Time"].n_unique() == 12
 
         self._check_load_forecast(df, "SHORT_TERM")
 
@@ -1729,7 +1773,7 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_forecast_mid_term(date=three_days_ago)
 
-        assert (df["Publish Time"].unique() == three_days_ago).all()
+        assert df["Publish Time"].unique().to_list() == [three_days_ago]
 
         # Each file contains data going back into the past
         assert df["Interval Start"].min() <= three_days_ago
@@ -1770,9 +1814,9 @@ class TestSPP(BaseTestISO):
                 end=end,
             )
 
-        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
-        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 02:00:00-0600")
-        assert df["Publish Time"].nunique() == 2
+        assert _ts(df["Publish Time"].min()) == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert _ts(df["Publish Time"].max()) == pd.Timestamp("2025-11-02 02:00:00-0600")
+        assert df["Publish Time"].n_unique() == 2
 
         self._check_load_forecast(df, "MID_TERM")
 
@@ -1884,9 +1928,9 @@ class TestSPP(BaseTestISO):
                 end=end,
             )
 
-        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
-        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 01:55:00-0600")
-        assert df["Publish Time"].nunique() == 12
+        assert _ts(df["Publish Time"].min()) == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert _ts(df["Publish Time"].max()) == pd.Timestamp("2025-11-02 01:55:00-0600")
+        assert df["Publish Time"].n_unique() == 12
 
         self._check_solar_and_wind_forecast(df, "SHORT_TERM")
 
@@ -1937,7 +1981,7 @@ class TestSPP(BaseTestISO):
                 date=publish_time,
             )
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1948,8 +1992,8 @@ class TestSPP(BaseTestISO):
             "Solar Forecast",
             "Solar Actual",
         ]
-        assert (df["Publish Time"].unique() == publish_time).all()
-        assert df["Reserve Zone"].nunique() > 1
+        assert df["Publish Time"].unique().to_list() == [publish_time]
+        assert df["Reserve Zone"].n_unique() > 1
         assert df["Interval Start"].max() >= publish_time + pd.Timedelta(days=5)
 
     def test_get_solar_and_wind_forecast_mid_term_historical(self):
@@ -1962,7 +2006,7 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_solar_and_wind_forecast_mid_term(date=three_days_ago)
 
-        assert (df["Publish Time"].unique() == three_days_ago).all()
+        assert df["Publish Time"].unique().to_list() == [three_days_ago]
 
         # Each file contains data going back into the past
         assert df["Interval Start"].min() <= three_days_ago
@@ -2005,9 +2049,9 @@ class TestSPP(BaseTestISO):
                 end=end,
             )
 
-        assert df["Publish Time"].min() == pd.Timestamp("2025-11-02 01:00:00-0500")
-        assert df["Publish Time"].max() == pd.Timestamp("2025-11-02 02:00:00-0600")
-        assert df["Publish Time"].nunique() == 2
+        assert _ts(df["Publish Time"].min()) == pd.Timestamp("2025-11-02 01:00:00-0500")
+        assert _ts(df["Publish Time"].max()) == pd.Timestamp("2025-11-02 02:00:00-0600")
+        assert df["Publish Time"].n_unique() == 2
 
         self._check_solar_and_wind_forecast(df, "MID_TERM")
 
@@ -2017,7 +2061,7 @@ class TestSPP(BaseTestISO):
 
     def test_get_load_by_baa_post_baa(self):
         now = self.local_now().floor("5min")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [now, now, now],
                 "Interval End": [
@@ -2034,7 +2078,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2044,13 +2088,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa(date=now, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP", "SWPW"}
+        assert df.height == 2
 
     def test_get_load_by_baa_pre_baa_no_column(self):
         date = pd.Timestamp("2026-03-28 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date + pd.Timedelta(minutes=5)],
                 "Interval End": [
@@ -2065,7 +2109,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2075,13 +2119,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP"}
+        assert df.height == 2
 
     def test_get_load_by_baa_pre_baa_null_values(self):
         date = pd.Timestamp("2026-03-29 10:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date + pd.Timedelta(minutes=5)],
                 "Interval End": [
@@ -2097,7 +2141,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2107,13 +2151,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP"}
+        assert df.height == 2
 
     def test_get_load_by_baa_null_baa_mixed_load_values(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [date, date],
                 "Interval End": [
@@ -2129,7 +2173,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2139,17 +2183,17 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
-        assert len(df) == 2
-        spp_row = df[df["BAA"] == "SPP"]
-        swpw_row = df[df["BAA"] == "SWPW"]
-        assert spp_row["Load"].iloc[0] == 15000.0
-        assert swpw_row["Load"].iloc[0] == 3500.0
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP", "SWPW"}
+        assert df.height == 2
+        spp_row = df.filter(pl.col("BAA") == "SPP")
+        swpw_row = df.filter(pl.col("BAA") == "SWPW")
+        assert spp_row[0, "Load"] == 15000.0
+        assert swpw_row[0, "Load"] == 3500.0
 
     def test_get_load_by_baa_missing_actual_load_column(self):
         now = self.local_now().floor("5min")
-        source_df = pd.DataFrame(
+        source_df = pl.DataFrame(
             {
                 "Interval Start": [now],
                 "Interval End": [now + pd.Timedelta(minutes=5)],
@@ -2162,7 +2206,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2177,7 +2221,7 @@ class TestSPP(BaseTestISO):
 
     def test_get_load_by_baa_hourly_post_baa(self):
         now = self.local_now().floor("h")
-        source_df = pd.DataFrame(
+        source_df = _mock_forecast_df(
             {
                 "Interval Start": [now, now],
                 "Interval End": [
@@ -2193,7 +2237,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2203,13 +2247,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa_hourly(date=now, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP", "SWPW"}
+        assert df.height == 2
 
     def test_get_load_by_baa_hourly_pre_baa_no_column(self):
         date = pd.Timestamp("2026-03-28 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = _mock_forecast_df(
             {
                 "Interval Start": [date, date + pd.Timedelta(hours=1)],
                 "Interval End": [
@@ -2224,7 +2268,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2234,13 +2278,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP"}
+        assert df.height == 2
 
     def test_get_load_by_baa_hourly_pre_baa_null_values(self):
         date = pd.Timestamp("2026-03-29 10:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = _mock_forecast_df(
             {
                 "Interval Start": [date, date + pd.Timedelta(hours=1)],
                 "Interval End": [
@@ -2256,7 +2300,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2266,13 +2310,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP"}
-        assert len(df) == 2
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP"}
+        assert df.height == 2
 
     def test_get_load_by_baa_hourly_null_baa_mixed_load_values(self):
         date = pd.Timestamp("2026-04-02 12:00:00-0500")
-        source_df = pd.DataFrame(
+        source_df = _mock_forecast_df(
             {
                 "Interval Start": [date, date],
                 "Interval End": [
@@ -2288,7 +2332,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pl.DataFrame(), "mock-url"),
             ),
             patch.object(
                 self.iso,
@@ -2298,13 +2342,13 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert set(df["BAA"].unique()) == {"SPP", "SWPW"}
-        assert len(df) == 2
-        spp_row = df[df["BAA"] == "SPP"]
-        swpw_row = df[df["BAA"] == "SWPW"]
-        assert spp_row["Load"].iloc[0] == 14000.0
-        assert swpw_row["Load"].iloc[0] == 4000.0
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert set(df["BAA"].unique().to_list()) == {"SPP", "SWPW"}
+        assert df.height == 2
+        spp_row = df.filter(pl.col("BAA") == "SPP")
+        swpw_row = df.filter(pl.col("BAA") == "SWPW")
+        assert spp_row[0, "Load"] == 14000.0
+        assert swpw_row[0, "Load"] == 4000.0
 
     def test_get_load_by_baa_hourly_no_data(self):
         date = pd.Timestamp("2026-03-25 10:00:00-0500")
@@ -2316,8 +2360,8 @@ class TestSPP(BaseTestISO):
         ):
             df = self.iso.get_load_by_baa_hourly(date=date, verbose=False)
 
-        assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
-        assert len(df) == 0
+        assert df.columns == self.LOAD_BY_BAA_COLS
+        assert df.height == 0
 
     """get_status"""
 
@@ -2352,13 +2396,13 @@ class TestSPP(BaseTestISO):
     ]
 
     def _check_ver_curtailments(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self._ver_curtailment_cols
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self._ver_curtailment_cols
         assert "BAA" not in df.columns
 
     def _check_ver_curtailments_by_baa(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.tolist() == self._ver_curtailment_cols + ["BAA"]
+        assert isinstance(df, pl.DataFrame)
+        assert df.columns == self._ver_curtailment_cols + ["BAA"]
 
     def test_get_ver_curtailments_historical(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
@@ -2430,7 +2474,7 @@ class TestSPP(BaseTestISO):
             "Other MW",
         ]
 
-        assert df.columns.tolist() == columns
+        assert df.columns == columns
 
     def test_get_capacity_of_generation_on_outage(self):
         two_days_ago = pd.Timestamp.now() - pd.Timedelta(days=2)
@@ -2447,7 +2491,7 @@ class TestSPP(BaseTestISO):
 
         # confirm three weeks of data
         assert df.shape[0] / 168 == 3
-        assert df["Publish Time"].dt.date.nunique() == 3
+        assert df["Publish Time"].dt.date().n_unique() == 3
 
     def test_get_capacity_of_generation_on_outage_annual(self):
         year = 2020
@@ -2459,12 +2503,12 @@ class TestSPP(BaseTestISO):
         assert df["Interval Start"].min().date() == pd.Timestamp(f"{year}-01-01").date()
 
         # 2020 was a leap year
-        assert df["Publish Time"].nunique() == 366
+        assert df["Publish Time"].n_unique() == 366
 
         self._check_capacity_of_generation_on_outage(df)
 
     def _check_solar_and_wind(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Actual Wind MW",
@@ -2504,7 +2548,10 @@ class TestSPP(BaseTestISO):
 
         assert (df[forecast_col] >= 0).all()
 
-        assert (df["Interval End"] - df["Interval Start"] == interval).all()
+        assert (
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes()
+            == interval / pd.Timedelta(minutes=1)
+        ).all()
 
         assert (df["Forecast Type"] == forecast_type).all()
 
@@ -2530,21 +2577,24 @@ class TestSPP(BaseTestISO):
             else pd.Timedelta(hours=1)
         )
 
-        assert df.columns.tolist() == expected_cols
+        assert df.columns == expected_cols
 
         assert (df["Wind Forecast MW"] >= 0).all()
         assert (df["Solar Forecast MW"] >= 0).all()
 
-        assert (df["Interval End"] - df["Interval Start"] == interval).all()
+        assert (
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes()
+            == interval / pd.Timedelta(minutes=1)
+        ).all()
 
         assert (df["Forecast Type"] == forecast_type).all()
 
     """ get_hourly_load_historical (wide format, before 2026-03-24) """
 
     def _check_hourly_load_historical(self, df):
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -2597,7 +2647,7 @@ class TestSPP(BaseTestISO):
             self.iso.get_hourly_load_historical(pd.Timestamp("2026-03-24"))
 
     def test_get_hourly_load_historical_process_raises_on_new_data(self):
-        new_format_df = pd.DataFrame(
+        new_format_df = pl.DataFrame(
             {
                 "Market Hour": ["03/24/2026 06:00:00"],
                 "Balancing Area Name": ["SPP"],
@@ -2612,9 +2662,9 @@ class TestSPP(BaseTestISO):
     """ get_hourly_load (long format, >= 2026-03-24) """
 
     def _check_hourly_load(self, df):
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Balancing Area Name",
@@ -2623,13 +2673,13 @@ class TestSPP(BaseTestISO):
             "Load",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, US/Central]"
-        assert df["Interval End"].dtype == "datetime64[ns, US/Central]"
-        assert df["Balancing Area Name"].dtype == "object"
-        assert df["Control Zone Name"].dtype == "object"
-        assert df["Forecast Area Type"].dtype == "object"
-        assert df["Load"].dtype == "float64"
-        assert set(df["Forecast Area Type"].unique()).issubset({"CF", "NC"})
+        for col in ("Interval Start", "Interval End"):
+            assert df[col].dtype.time_zone == "US/Central"
+        assert df["Balancing Area Name"].dtype == pl.Utf8
+        assert df["Control Zone Name"].dtype == pl.Utf8
+        assert df["Forecast Area Type"].dtype == pl.Utf8
+        assert df["Load"].dtype == pl.Float64
+        assert set(df["Forecast Area Type"].unique().to_list()).issubset({"CF", "NC"})
 
     def test_get_hourly_load(self):
         date = pd.Timestamp("2026-03-24")
@@ -2641,7 +2691,7 @@ class TestSPP(BaseTestISO):
         self._check_hourly_load(df)
         assert df["Interval Start"].min().date() == date.date()
         assert df["Interval Start"].max().date() == date.date()
-        assert len(df) > 0
+        assert df.height > 0
 
     def test_get_hourly_load_raises_on_old_date(self):
         with pytest.raises(NoDataFoundException):
@@ -2657,8 +2707,8 @@ class TestSPP(BaseTestISO):
 
     """get_market_clearing_real_time"""
 
-    def _check_market_clearing_real_time(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_market_clearing_real_time(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Generation",
@@ -2678,7 +2728,7 @@ class TestSPP(BaseTestISO):
         ]
 
         assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes() == 5
         ).all()
 
     def test_market_clearing_real_time_latest(self):
@@ -2702,8 +2752,8 @@ class TestSPP(BaseTestISO):
 
     """get_market_clearing_day_ahead"""
 
-    def _check_market_clearing_day_ahead(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_market_clearing_day_ahead(self, df: pl.DataFrame):
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Generation",
@@ -2768,11 +2818,9 @@ class TestSPP(BaseTestISO):
         "Contingency Name",
     ]
 
-    def _check_binding_constraints_day_ahead(self, df: pd.DataFrame):
+    def _check_binding_constraints_day_ahead(self, df: pl.DataFrame):
         assert list(df.columns) == self.DAY_AHEAD_BINDING_CONSTRAINTS_COLUMNS
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert ((df["Interval End"] - df["Interval Start"]).dt.total_hours() == 1).all()
 
     def test_get_binding_constraints_day_ahead_latest(self):
         with api_vcr.use_cassette(
@@ -2814,13 +2862,13 @@ class TestSPP(BaseTestISO):
         "Contingent Facility",
     ]
 
-    def _check_binding_constraints_real_time(self, df: pd.DataFrame):
+    def _check_binding_constraints_real_time(self, df: pl.DataFrame):
         assert list(df.columns) == self.REAL_TIME_BINDING_CONSTRAINTS_COLUMNS
         assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
+            (df["Interval End"] - df["Interval Start"]).dt.total_minutes() == 5
         ).all()
         # check that NERC ID is integer type and non-negative
-        assert pd.api.types.is_integer_dtype(df["NERC ID"]), (
+        assert df["NERC ID"].dtype in (pl.Int64, pl.Int32, pl.UInt64, pl.UInt32), (
             "NERC ID column must be of integer type"
         )
 
@@ -2876,7 +2924,7 @@ class TestSPP(BaseTestISO):
 
         def fake_intervals_fetch(date, end=None, verbose=False):
             calls.append((date, end))
-            return pd.DataFrame(
+            return pl.DataFrame(
                 {
                     "Interval Start": [start_date],
                     "Interval End": [start_date + pd.Timedelta(minutes=5)],
@@ -2923,15 +2971,18 @@ class TestSPP(BaseTestISO):
     ]
 
     def _check_interchange_real_time(self, df):
-        assert len(df) > 0
-        assert df["Time"].dt.tz is not None
+        assert df.height > 0
+        assert (
+            isinstance(df.schema["Time"], pl.Datetime)
+            and df.schema["Time"].time_zone is not None
+        )
         assert list(df.columns) == self.interchange_real_time_cols
         # Core interchange regions are present
         regions = df["Region"].unique()
         assert "SPP NSI" in regions
         assert "SPP NAI" in regions
         # No null interchange values
-        assert df["Interchange"].notna().all()
+        assert df["Interchange"].is_not_null().all()
 
     def test_get_interchange_real_time_latest(self):
         with api_vcr.use_cassette("test_get_interchange_real_time_latest.yaml"):
@@ -2993,15 +3044,18 @@ class TestSPP(BaseTestISO):
     ]
 
     def _check_west_interchange_real_time(self, df):
-        assert len(df) > 0
-        assert df["Time"].dt.tz is not None
+        assert df.height > 0
+        assert (
+            isinstance(df.schema["Time"], pl.Datetime)
+            and df.schema["Time"].time_zone is not None
+        )
         assert list(df.columns) == self.west_interchange_real_time_cols
         # Core interchange regions are present
         regions = df["Region"].unique()
         assert "SWPW NSI" in regions
         assert "SWPW NAI" in regions
         # No null interchange values
-        assert df["Interchange"].notna().all()
+        assert df["Interchange"].is_not_null().all()
 
     def test_get_west_interchange_real_time_latest(self):
         with api_vcr.use_cassette(
@@ -3062,72 +3116,71 @@ class TestFillBaaColumn:
     """Tests for the fill_baa_column utility function."""
 
     def test_creates_baa_column_when_missing(self):
-        df = pd.DataFrame({"Load": [2000.0, 25000.0, 3000.0]})
+        df = pl.DataFrame({"Load": [2000.0, 25000.0, 3000.0]})
         result = fill_baa_column(df, "Load")
         assert "BAA" in result.columns
-        assert result["BAA"].tolist() == [
+        assert result["BAA"].to_list() == [
             BAAEnum.SWPW.value,
             BAAEnum.SPP.value,
             BAAEnum.SWPW.value,
         ]
 
     def test_fills_nan_baa_values(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "Load": [2000.0, 25000.0, 3000.0],
                 "BAA": [BAAEnum.SWPW.value, None, None],
             },
         )
         result = fill_baa_column(df, "Load")
-        assert result["BAA"].tolist() == [
+        assert result["BAA"].to_list() == [
             BAAEnum.SWPW.value,
             BAAEnum.SPP.value,
             BAAEnum.SWPW.value,
         ]
 
     def test_preserves_existing_baa_values(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "Load": [2000.0, 25000.0],
                 "BAA": [BAAEnum.SPP.value, BAAEnum.SWPW.value],
             },
         )
         result = fill_baa_column(df, "Load")
-        # Existing non-null values should not be overwritten
-        assert result["BAA"].tolist() == [
+        assert result["BAA"].to_list() == [
             BAAEnum.SPP.value,
             BAAEnum.SWPW.value,
         ]
 
     def test_nan_load_maps_to_spp(self):
-        df = pd.DataFrame({"Load": [float("nan"), 2000.0]})
+        df = pl.DataFrame({"Load": [float("nan"), 2000.0]})
         result = fill_baa_column(df, "Load")
-        assert result["BAA"].tolist() == [
+        assert result["BAA"].to_list() == [
             BAAEnum.SPP.value,
             BAAEnum.SWPW.value,
         ]
 
     def test_threshold_boundary(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {"Load": [BAA_LOAD_THRESHOLD_MW - 1, BAA_LOAD_THRESHOLD_MW]},
         )
         result = fill_baa_column(df, "Load")
-        assert result["BAA"].tolist() == [
+        assert result["BAA"].to_list() == [
             BAAEnum.SWPW.value,
             BAAEnum.SPP.value,
         ]
 
     def test_returns_same_dataframe(self):
-        df = pd.DataFrame({"Load": [2000.0]})
+        df = pl.DataFrame({"Load": [2000.0]})
         result = fill_baa_column(df, "Load")
-        assert result is df
+        assert result["BAA"].to_list() == [BAAEnum.SWPW.value]
 
     def test_all_baa_present_no_changes(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "Load": [2000.0, 25000.0],
                 "BAA": [BAAEnum.SPP.value, BAAEnum.SPP.value],
             },
         )
         result = fill_baa_column(df, "Load")
-        assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
+        assert result["BAA"].to_list() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
