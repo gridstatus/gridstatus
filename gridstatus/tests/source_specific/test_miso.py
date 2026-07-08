@@ -1,5 +1,5 @@
-import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus import MISO, NotSupported
@@ -50,8 +50,8 @@ class TestMISO(BaseTestISO):
     def test_get_fuel_mix_start_end_same_day(self):
         pass
 
-    def _check_fuel_mix(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_fuel_mix(self, df: pl.DataFrame):
+        assert df.columns == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -74,7 +74,7 @@ class TestMISO(BaseTestISO):
             "Solar",
             "Wind",
         ]:
-            assert df.dtypes[col] == "Int64"
+            assert df.schema[col] == pl.Int64
 
     def test_get_fuel_mix_today(self):
         with miso_vcr.use_cassette("test_get_fuel_mix_today.yaml"):
@@ -87,7 +87,7 @@ class TestMISO(BaseTestISO):
             df = self.iso.get_fuel_mix("latest")
 
         self._check_fuel_mix(df)
-        assert len(df) == 1
+        assert df.height == 1
 
     def test_get_fuel_mix_yesterdays_date(self):
         date = self.local_start_of_today() - pd.DateOffset(days=1)
@@ -97,12 +97,12 @@ class TestMISO(BaseTestISO):
             df = self.iso.get_fuel_mix(date)
 
         self._check_fuel_mix(df)
-        assert len(df) == 288
+        assert df.height == 288
 
     def test_get_interconnection_queue(self):
         with miso_vcr.use_cassette("test_get_interconnection_queue.yaml"):
             df = self.iso.get_interconnection_queue()
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Queue ID",
                 "Project Name",
                 "Interconnecting Entity",
@@ -135,12 +135,12 @@ class TestMISO(BaseTestISO):
                 "dp2NrisMw",
                 "sisPhase1",
             ]
-            assert not df.empty
+            assert not df.is_empty()
 
     """get_lmp_real_time_5_min_final"""
 
     def _check_lmp_real_time_5_min_final(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Market",
@@ -152,11 +152,11 @@ class TestMISO(BaseTestISO):
             "Loss",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            "5min",
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+            0
+        ].total_seconds() == pd.Timedelta("5min").total_seconds()
 
-        assert df["Market"].unique().tolist() == [Markets.REAL_TIME_5_MIN_FINAL.value]
+        assert df["Market"].unique().to_list() == [Markets.REAL_TIME_5_MIN_FINAL.value]
 
     def test_get_lmp_real_time_5_min_final_today_or_latest_raises(self):
         with pytest.raises(NotSupported):
@@ -249,7 +249,7 @@ class TestMISO(BaseTestISO):
             assert df["Interval End"].max() == self.local_start_of_day(
                 date,
             ) + pd.DateOffset(days=1)
-            assert sorted(list(df["Location Type"].unique())) == [
+            assert sorted(df["Location Type"].unique().to_list()) == [
                 "Gennode",
                 "Hub",
                 "Interface",
@@ -264,7 +264,7 @@ class TestMISO(BaseTestISO):
                 market=Markets.REAL_TIME_5_MIN,
                 locations=self.iso.hubs,
             )
-            assert set(data["Location"].unique()) == set(self.iso.hubs)
+            assert set(data["Location"].unique().to_list()) == set(self.iso.hubs)
 
     """get_load"""
 
@@ -298,7 +298,7 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast("today")
 
-        assert df.columns.tolist() == self.load_forecast_cols
+        assert df.columns == self.load_forecast_cols
 
         assert (df["Publish Time"] == self.local_start_of_today()).all()
         assert df["Interval Start"].min() == self.local_start_of_today()
@@ -320,16 +320,16 @@ class TestMISO(BaseTestISO):
         )
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(past_date)
-            assert df.columns.tolist() == self.load_forecast_cols
+            assert df.columns == self.load_forecast_cols
 
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_date,
             ) + pd.Timedelta(days=6)
 
-            assert (
-                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
-            )
+            assert df["Publish Time"].dt.date().unique().to_list() == [
+                pd.to_datetime(past_date).date(),
+            ]
 
     def test_get_load_forecast_historical_with_date_range(self):
         past_date = self.local_today() - pd.Timedelta(days=250)
@@ -341,7 +341,7 @@ class TestMISO(BaseTestISO):
                 end=end_date,
             )
 
-            assert df.columns.tolist() == self.load_forecast_cols
+            assert df.columns == self.load_forecast_cols
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 end_date,
@@ -357,14 +357,14 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(past_date)
 
-            assert df.columns.tolist() == self.load_forecast_cols
+            assert df.columns == self.load_forecast_cols
             assert df["Interval Start"].min() == self.local_start_of_day(past_date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_date,
             ) + pd.Timedelta(days=6)
-            assert (
-                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
-            )
+            assert df["Publish Time"].dt.date().unique().to_list() == [
+                pd.to_datetime(past_date).date(),
+            ]
 
     # 2026-04-25 → 2026-04-27 spans the layout change: op day 2026-04-25 reads
     # the legacy-format file and op day 2026-04-26 reads the new-format file in
@@ -387,7 +387,7 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(dst_start)
 
-            assert df.columns.tolist() == self.load_forecast_cols
+            assert df.columns == self.load_forecast_cols
             assert df["Interval Start"].min() == self.local_start_of_day(dst_start)
 
     def test_get_load_forecast_dst_fall_back(self):
@@ -398,7 +398,7 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_load_forecast(dst_end)
 
-            assert df.columns.tolist() == self.load_forecast_cols
+            assert df.columns == self.load_forecast_cols
             assert df["Interval Start"].min() == self.local_start_of_day(dst_end)
 
     solar_and_wind_forecast_cols = [
@@ -414,10 +414,10 @@ class TestMISO(BaseTestISO):
     """get_solar_forecast"""
 
     def _check_solar_and_wind_forecast(self, df):
-        assert df.columns.tolist() == self.solar_and_wind_forecast_cols
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            "1h",
-        )
+        assert df.columns == self.solar_and_wind_forecast_cols
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+            0
+        ].total_seconds() == pd.Timedelta("1h").total_seconds()
 
     def test_get_solar_forecast_historical(self):
         past_date = self.local_today() - pd.Timedelta(days=30)
@@ -434,9 +434,9 @@ class TestMISO(BaseTestISO):
                 past_date,
             ) + pd.Timedelta(days=7)
 
-            assert (
-                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
-            )
+            assert df["Publish Time"].dt.date().unique().to_list() == [
+                pd.to_datetime(past_date).date(),
+            ]
 
     def test_get_solar_forecast_historical_date_range(self):
         past_date = self.local_today() - pd.Timedelta(days=100)
@@ -455,7 +455,7 @@ class TestMISO(BaseTestISO):
                 end_date,
             ) + pd.Timedelta(days=6)
 
-            assert df["Publish Time"].dt.date.unique().tolist() == [
+            assert df["Publish Time"].dt.date().unique().to_list() == [
                 past_date,
                 past_date + pd.Timedelta(days=1),
                 past_date + pd.Timedelta(days=2),
@@ -485,9 +485,9 @@ class TestMISO(BaseTestISO):
             assert df["Interval End"].max() == self.local_start_of_day(
                 past_date,
             ) + pd.Timedelta(days=7)
-            assert (
-                df["Publish Time"].dt.date.unique() == pd.to_datetime(past_date).date()
-            )
+            assert df["Publish Time"].dt.date().unique().to_list() == [
+                pd.to_datetime(past_date).date(),
+            ]
 
     def test_get_wind_forecast_historical_date_range(self):
         past_date = self.local_today() - pd.Timedelta(days=100)
@@ -506,7 +506,7 @@ class TestMISO(BaseTestISO):
                 end_date,
             ) + pd.Timedelta(days=6)
 
-            assert df["Publish Time"].dt.date.unique().tolist() == [
+            assert df["Publish Time"].dt.date().unique().to_list() == [
                 past_date,
                 past_date + pd.Timedelta(days=1),
                 past_date + pd.Timedelta(days=2),
@@ -520,7 +520,7 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_wind_forecast(date)
             self._check_solar_and_wind_forecast(df)
-            assert df["South"].isnull().all()
+            assert df["South"].is_null().all()
 
     """get_status"""
 
@@ -547,7 +547,7 @@ class TestMISO(BaseTestISO):
     """get_generation_outages_forecast"""
 
     def _check_generation_outages(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -558,11 +558,13 @@ class TestMISO(BaseTestISO):
             "Unplanned Outages MW",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            "1d",
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+            0
+        ].total_seconds() == pd.Timedelta("1d").total_seconds()
 
-        assert (df["Region"].unique() == ["Central", "MISO", "North", "South"]).all()
+        assert sorted(df["Region"].unique().to_list()) == sorted(
+            ["Central", "MISO", "North", "South"],
+        )
 
     def test_get_generation_outages_forecast_latest(self):
         cassette_name = "test_get_generation_outages_forecast_latest.yaml"
@@ -574,9 +576,9 @@ class TestMISO(BaseTestISO):
             # Latest fetches the file published yesterday with the first forecast day today
             expected_start_date = self.local_start_of_today()
 
-            assert df["Publish Time"].unique() == expected_start_date - pd.DateOffset(
-                days=1,
-            )
+            assert df["Publish Time"].unique().to_list() == [
+                expected_start_date - pd.DateOffset(days=1),
+            ]
             assert df["Interval Start"].min() == expected_start_date
             assert df["Interval End"].max() == expected_start_date + pd.DateOffset(
                 days=7,
@@ -593,7 +595,7 @@ class TestMISO(BaseTestISO):
             assert df["Interval Start"].min() == start + pd.DateOffset(days=1)
             assert df["Interval End"].max() == end + pd.DateOffset(days=7)
             assert df["Publish Time"].min() == start
-            assert df["Publish Time"].nunique() == 3
+            assert df["Publish Time"].n_unique() == 3
 
     """get_generation_outages_estimated"""
 
@@ -606,9 +608,9 @@ class TestMISO(BaseTestISO):
             # Latest fetches the file published yesterday
             expected_start_date = self.local_start_of_today() - pd.DateOffset(days=30)
 
-            assert df[
-                "Publish Time"
-            ].unique() == self.local_start_of_today() - pd.DateOffset(days=1)
+            assert df["Publish Time"].unique().to_list() == [
+                self.local_start_of_today() - pd.DateOffset(days=1),
+            ]
 
             assert df["Interval Start"].min() == expected_start_date
             assert df["Interval End"].max() == self.local_start_of_today()
@@ -623,7 +625,7 @@ class TestMISO(BaseTestISO):
             assert df["Interval Start"].min() == start - pd.DateOffset(days=29)
             assert df["Interval End"].max() == end
             assert df["Publish Time"].min() == start
-            assert df["Publish Time"].nunique() == 3
+            assert df["Publish Time"].n_unique() == 3
 
     @pytest.mark.parametrize(
         "date,end",
@@ -637,7 +639,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Date",
                 "Constraint ID",
@@ -658,24 +660,24 @@ class TestMISO(BaseTestISO):
                 "To KV",
             ]
 
-            assert min(df["Date"]).date() == pd.to_datetime(date).date()
-            assert max(df["Date"]).date() <= pd.Timestamp(end).date()
-            assert df["Constraint ID"].dtype == np.int64
-            assert df["Constraint Name"].dtype == object
-            assert df["Contingency Name"].dtype == object
-            assert df["Constraint Type"].dtype == object
-            assert df["Flowgate Name"].dtype == object
-            assert df["Device Type"].dtype == object
-            assert df["Key1"].dtype == object
-            assert df["Key2"].dtype == object
-            assert df["Key3"].dtype == object
-            assert df["Direction"].dtype == np.int64
-            assert df["From Area"].dtype == object
-            assert df["To Area"].dtype == object
-            assert df["From Station"].dtype == object
-            assert df["To Station"].dtype == object
-            assert df["From KV"].dtype in [np.int64, np.float64]
-            assert df["To KV"].dtype in [np.int64, np.float64]
+            assert pd.Timestamp(df["Date"].min()).date() == pd.to_datetime(date).date()
+            assert pd.Timestamp(df["Date"].max()).date() <= pd.Timestamp(end).date()
+            assert df.schema["Constraint ID"] == pl.Int64
+            assert df.schema["Constraint Name"] in [pl.Utf8, pl.Null]
+            assert df.schema["Contingency Name"] in [pl.Utf8, pl.Null]
+            assert df.schema["Constraint Type"] in [pl.Utf8, pl.Null]
+            assert df.schema["Flowgate Name"] in [pl.Utf8, pl.Null]
+            assert df.schema["Device Type"] in [pl.Utf8, pl.Null]
+            assert df.schema["Key1"] in [pl.Utf8, pl.Null]
+            assert df.schema["Key2"] in [pl.Utf8, pl.Null]
+            assert df.schema["Key3"] in [pl.Utf8, pl.Null]
+            assert df.schema["Direction"] == pl.Int64
+            assert df.schema["From Area"] in [pl.Utf8, pl.Null]
+            assert df.schema["To Area"] in [pl.Utf8, pl.Null]
+            assert df.schema["From Station"] in [pl.Utf8, pl.Null]
+            assert df.schema["To Station"] in [pl.Utf8, pl.Null]
+            assert df.schema["From KV"] in [pl.Int64, pl.Float64]
+            assert df.schema["To KV"] in [pl.Int64, pl.Float64]
 
     @pytest.mark.parametrize(
         "date,end",
@@ -691,7 +693,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -711,21 +713,24 @@ class TestMISO(BaseTestISO):
                 "Reason",
             ]
 
-            assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
-            assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
-            assert df["Constraint ID"].dtype == np.int64
-            assert df["Constraint Name"].dtype == object
-            assert df["Branch Name"].dtype == object
-            assert df["Contingency Description"].dtype == object
-            assert df["Shadow Price"].dtype in [np.float64, np.int64]
-            assert df["Constraint Description"].dtype == object
-            assert df["Override"].dtype == np.int64
-            assert df["Curve Type"].dtype == object
-            assert df["BP1"].dtype in [np.float64, np.int64]
-            assert df["PC1"].dtype in [np.float64, np.int64]
-            assert df["BP2"].dtype in [np.float64, np.int64]
-            assert df["PC2"].dtype in [np.float64, np.int64]
-            assert df["Reason"].dtype == object
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
+            assert (
+                pd.Timestamp(df["Interval End"].max()).date()
+                <= pd.Timestamp(end).date()
+            )
+            assert df.schema["Constraint ID"] == pl.Int64
+            assert df.schema["Constraint Name"] in [pl.Utf8, pl.Null]
+            assert df.schema["Branch Name"] in [pl.Utf8, pl.Null]
+            assert df.schema["Contingency Description"] in [pl.Utf8, pl.Null]
+            assert df.schema["Shadow Price"] in [pl.Float64, pl.Int64]
+            assert df.schema["Constraint Description"] in [pl.Utf8, pl.Null]
+            assert df.schema["Override"] == pl.Int64
+            assert df.schema["Curve Type"] in [pl.Utf8, pl.Null]
+            assert df.schema["BP1"] in [pl.Float64, pl.Int64]
+            assert df.schema["PC1"] in [pl.Float64, pl.Int64]
+            assert df.schema["BP2"] in [pl.Float64, pl.Int64]
+            assert df.schema["PC2"] in [pl.Float64, pl.Int64]
+            assert df.schema["Reason"] in [pl.Utf8, pl.Null]
 
     @pytest.mark.parametrize(
         "date,end",
@@ -743,7 +748,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -762,9 +767,12 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            if not df.empty:
-                assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
-                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.is_empty():
+                assert df["Interval Start"].min().date() <= pd.Timestamp(date).date()
+                assert (
+                    pd.Timestamp(df["Interval End"].max()).date()
+                    <= pd.Timestamp(end).date()
+                )
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -786,7 +794,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -795,9 +803,12 @@ class TestMISO(BaseTestISO):
                 "Constraint Description",
             ]
 
-            if not df.empty:
-                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.is_empty():
+                assert df["Interval Start"].min().date() == pd.to_datetime(date).date()
+                assert (
+                    pd.Timestamp(df["Interval End"].max()).date()
+                    <= pd.Timestamp(end).date()
+                )
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -817,7 +828,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -836,9 +847,12 @@ class TestMISO(BaseTestISO):
                 "PC2",
             ]
 
-            if not df.empty:
-                assert min(df["Interval Start"]).date() <= pd.Timestamp(date).date()
-                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.is_empty():
+                assert df["Interval Start"].min().date() <= pd.Timestamp(date).date()
+                assert (
+                    pd.Timestamp(df["Interval End"].max()).date()
+                    <= pd.Timestamp(end).date()
+                )
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -854,7 +868,7 @@ class TestMISO(BaseTestISO):
                 year=year,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -873,9 +887,9 @@ class TestMISO(BaseTestISO):
                 "PC2",
             ]
 
-            if not df.empty:
-                assert min(df["Interval End"]).year == year
-                assert max(df["Interval End"]).year == year
+            if not df.is_empty():
+                assert pd.Timestamp(df["Interval End"].min()).year == year
+                assert pd.Timestamp(df["Interval End"].max()).year == year
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -895,7 +909,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -914,9 +928,12 @@ class TestMISO(BaseTestISO):
                 "Reason",
             ]
 
-            if not df.empty:
-                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.is_empty():
+                assert df["Interval Start"].min().date() == pd.to_datetime(date).date()
+                assert (
+                    pd.Timestamp(df["Interval End"].max()).date()
+                    <= pd.Timestamp(end).date()
+                )
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -938,7 +955,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -957,9 +974,12 @@ class TestMISO(BaseTestISO):
                 "REASON",
             ]
 
-            if not df.empty:
-                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.is_empty():
+                assert df["Interval Start"].min().date() == pd.to_datetime(date).date()
+                assert (
+                    pd.Timestamp(df["Interval End"].max()).date()
+                    <= pd.Timestamp(end).date()
+                )
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -981,7 +1001,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -990,9 +1010,12 @@ class TestMISO(BaseTestISO):
                 "Constraint Description",
             ]
 
-            if not df.empty:
-                assert min(df["Interval Start"]).date() == pd.to_datetime(date).date()
-                assert max(df["Interval End"]).date() <= pd.Timestamp(end).date()
+            if not df.is_empty():
+                assert df["Interval Start"].min().date() == pd.to_datetime(date).date()
+                assert (
+                    pd.Timestamp(df["Interval End"].max()).date()
+                    <= pd.Timestamp(end).date()
+                )
             else:
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
@@ -1011,7 +1034,7 @@ class TestMISO(BaseTestISO):
                 end=end,
             )
 
-            assert isinstance(df, pd.DataFrame)
+            assert isinstance(df, pl.DataFrame)
             assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -1024,22 +1047,22 @@ class TestMISO(BaseTestISO):
             # Each day has 24 hours, 7 days of forecast, and 4 regions
             days = (pd.Timestamp(end) - pd.Timestamp(date)).days
             expected_rows = 24 * 7 * 4 * days
-            assert len(df) == expected_rows
+            assert df.height == expected_rows
             expected_regions = ["Central", "MISO", "North", "South"]
-            assert sorted(df["Region"].unique()) == sorted(expected_regions)
+            assert sorted(df["Region"].unique().to_list()) == sorted(expected_regions)
 
-            assert df["Interval Start"].dt.tz.zone == self.iso.default_timezone
-            assert df["Interval End"].dt.tz.zone == self.iso.default_timezone
-            assert df["Publish Time"].dt.tz.zone == self.iso.default_timezone
-            assert (df["Interval End"] - df["Interval Start"]).unique() == [
-                pd.Timedelta(hours=1),
-            ]
-            assert min(df["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert df["Interval Start"].dtype.time_zone == self.iso.default_timezone
+            assert df["Interval End"].dtype.time_zone == self.iso.default_timezone
+            assert df["Publish Time"].dtype.time_zone == self.iso.default_timezone
+            assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+                0
+            ].total_seconds() == pd.Timedelta(hours=1).total_seconds()
+            assert df["Interval Start"].min().date() == pd.Timestamp(date).date()
 
     """get_zonal_load_hourly"""
 
     def _check_zonal_load_hourly(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "LRZ1",
@@ -1051,16 +1074,16 @@ class TestMISO(BaseTestISO):
             "MISO",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            "1h",
-        )
-        assert df["LRZ1"].dtype == float
-        assert df["LRZ2 7"].dtype == float
-        assert df["LRZ3 5"].dtype == float
-        assert df["LRZ4"].dtype == float
-        assert df["LRZ6"].dtype == float
-        assert df["LRZ8 9 10"].dtype == float
-        assert df["MISO"].dtype == float
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+            0
+        ].total_seconds() == pd.Timedelta("1h").total_seconds()
+        assert df.schema["LRZ1"] == pl.Float64
+        assert df.schema["LRZ2 7"] == pl.Float64
+        assert df.schema["LRZ3 5"] == pl.Float64
+        assert df.schema["LRZ4"] == pl.Float64
+        assert df.schema["LRZ6"] == pl.Float64
+        assert df.schema["LRZ8 9 10"] == pl.Float64
+        assert df.schema["MISO"] == pl.Float64
 
     def test_get_zonal_load_hourly_latest(self):
         cassette_name = "test_get_zonal_load_hourly_latest.yaml"
@@ -1097,7 +1120,7 @@ class TestMISO(BaseTestISO):
     """get_interchange_5_min"""
 
     def _check_get_interchange_5_min(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Net Scheduled Interchange",
@@ -1113,33 +1136,37 @@ class TestMISO(BaseTestISO):
             "TVA",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            "5min",
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+            0
+        ].total_seconds() == pd.Timedelta("5min").total_seconds()
 
-        for col in df:
+        for col in df.columns:
             if col not in ["Interval Start", "Interval End"]:
-                assert df[col].dtype == pd.Int64Dtype()
+                assert df.schema[col] == pl.Int64
 
         # The first values in Net Actual Interchange should be null because the actual
         # data does not go back as far as the scheduled data
-        assert df["Net Actual Interchange"].isna()[0]
+        assert df["Net Actual Interchange"].is_null()[0]
 
         # The last value in Net Scheduled Interchange should be null because the
         # scheduled data is one interval behind the actual data
-        assert df["Net Scheduled Interchange"].isna().iloc[-1]
+        assert df["Net Scheduled Interchange"].is_null()[-1]
 
     def test_get_interchange_5_min_latest(self):
         with miso_vcr.use_cassette("test_get_interchange_5_min_latest.yaml"):
             df = self.iso.get_interchange_5_min("latest")
             self._check_get_interchange_5_min(df)
 
-            assert df["Interval Start"].min() <= self.local_now() - pd.DateOffset(
+            assert pd.Timestamp(
+                df["Interval Start"].min(),
+            ) <= self.local_now() - pd.DateOffset(
                 days=1,
             )
 
             # Data should be near-real-time
-            assert df["Interval End"].max() >= self.local_now() - pd.DateOffset(
+            assert pd.Timestamp(
+                df["Interval End"].max(),
+            ) >= self.local_now() - pd.DateOffset(
                 minutes=5,
             )
 
@@ -1155,7 +1182,7 @@ class TestMISO(BaseTestISO):
     """get_binding_constraints_real_time_intraday"""
 
     def _check_binding_constraints_real_time_intraday(self, df):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Constraint Name",
@@ -1168,17 +1195,17 @@ class TestMISO(BaseTestISO):
             "PC2",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            "5min",
-        )
+        assert (df["Interval End"] - df["Interval Start"]).unique().to_list()[
+            0
+        ].total_seconds() == pd.Timedelta("5min").total_seconds()
 
-        assert df.dtypes["Constraint Name"] == "object"
-        assert df.dtypes["Shadow Price"] == "float64"
-        assert df.dtypes["Override"] == "Int64"
-        assert df.dtypes["BP1"] == "Int64"
-        assert df.dtypes["PC1"] == "Int64"
-        assert df.dtypes["BP2"] == "Int64"
-        assert df.dtypes["PC2"] == "Int64"
+        assert df.schema["Constraint Name"] in [pl.Utf8, pl.Null]
+        assert df.schema["Shadow Price"] == pl.Float64
+        assert df.schema["Override"] == pl.Int64
+        assert df.schema["BP1"] == pl.Int64
+        assert df.schema["PC1"] == pl.Int64
+        assert df.schema["BP2"] == pl.Int64
+        assert df.schema["PC2"] == pl.Int64
 
         assert (df["Constraint Name"] != "None").all()
 
@@ -1213,35 +1240,35 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_multiday_operating_margin(date=date)
 
-        assert len(df) > 0
+        assert df.height > 0
 
         # Check data types
-        assert df["Publish Date"].dtype == object
-        assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
-        assert df["Region"].dtype == object
-        assert df["Resource Committed"].dtype == np.float64
-        assert df["Committed Additional Emergency Headroom"].dtype == np.float64
-        assert df["Resource Uncommitted"].dtype == np.float64
-        assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
-        assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
-        assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
-        assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
-        assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
-        assert df["Uncommitted Additional Emergency Headroom"].dtype == np.float64
-        assert df["Emergency Resources Additional Headroom"].dtype == np.float64
-        assert df["Renewable Forecast"].dtype == np.float64
-        assert df["Wind Forecast"].dtype == np.float64
-        assert df["Solar Forecast"].dtype == np.float64
-        assert df["MISO Resources Available"].dtype == np.float64
-        assert df["NSI"].dtype == np.float64
-        assert df["Total Resources Available"].dtype == np.float64
-        assert df["Projected Load"].dtype == np.float64
-        assert df["Operating Reserve Requirement"].dtype == np.float64
-        assert df["Obligation"].dtype == np.float64
-        assert df["Resource Operating Margin"].dtype == np.float64
+        assert df.schema["Publish Date"] == pl.Date
+        assert isinstance(df.schema["Peak Hour"], pl.Datetime)
+        assert df.schema["Region"] == pl.Utf8
+        assert df.schema["Resource Committed"] == pl.Float64
+        assert df.schema["Committed Additional Emergency Headroom"] == pl.Float64
+        assert df.schema["Resource Uncommitted"] == pl.Float64
+        assert df.schema["Uncommitted Greater than 16 Hours"] == pl.Float64
+        assert df.schema["Uncommitted 12 to 16 Hours"] == pl.Float64
+        assert df.schema["Uncommitted 8 to 12 Hours"] == pl.Float64
+        assert df.schema["Uncommitted 4 to 8 Hours"] == pl.Float64
+        assert df.schema["Uncommitted Less than 4 Hours"] == pl.Float64
+        assert df.schema["Uncommitted Additional Emergency Headroom"] == pl.Float64
+        assert df.schema["Emergency Resources Additional Headroom"] == pl.Float64
+        assert df.schema["Renewable Forecast"] == pl.Float64
+        assert df.schema["Wind Forecast"] == pl.Float64
+        assert df.schema["Solar Forecast"] == pl.Float64
+        assert df.schema["MISO Resources Available"] == pl.Float64
+        assert df.schema["NSI"] == pl.Float64
+        assert df.schema["Total Resources Available"] == pl.Float64
+        assert df.schema["Projected Load"] == pl.Float64
+        assert df.schema["Operating Reserve Requirement"] == pl.Float64
+        assert df.schema["Obligation"] == pl.Float64
+        assert df.schema["Resource Operating Margin"] == pl.Float64
 
         # Check region values
-        assert (df["Region"] == "MISO").all()  # MISO stays uppercase
+        assert (df["Region"] == "MISO").all()
 
         # Check Publish Date matches input date
         assert (df["Publish Date"] == date.date()).all()
@@ -1250,7 +1277,7 @@ class TestMISO(BaseTestISO):
         assert (df["Peak Hour"] >= date).all()
 
         # Check data is sorted
-        assert df["Peak Hour"].is_monotonic_increasing
+        assert df["Peak Hour"].is_sorted()
 
         # Check reasonable value ranges
         assert (df["Projected Load"] > 0).all()
@@ -1269,35 +1296,35 @@ class TestMISO(BaseTestISO):
         with miso_vcr.use_cassette(cassette_name):
             df = self.iso.get_multiday_operating_margin_regional(date=date)
 
-        assert len(df) > 0
+        assert df.height > 0
 
         # Check data types
-        assert df["Publish Date"].dtype == object
-        assert df["Peak Hour"].dtype == "datetime64[ns, EST]"
-        assert df["Region"].dtype == object
-        assert df["Resource Committed"].dtype == np.float64
-        assert df["Committed Additional Emergency Headroom"].dtype == np.float64
-        assert df["Resource Uncommitted"].dtype == np.float64
-        assert df["Uncommitted Greater than 16 Hours"].dtype == np.float64
-        assert df["Uncommitted 12 to 16 Hours"].dtype == np.float64
-        assert df["Uncommitted 8 to 12 Hours"].dtype == np.float64
-        assert df["Uncommitted 4 to 8 Hours"].dtype == np.float64
-        assert df["Uncommitted Less than 4 Hours"].dtype == np.float64
-        assert df["Uncommitted Additional Emergency Headroom"].dtype == np.float64
-        assert df["Emergency Resources Additional Headroom"].dtype == np.float64
-        assert df["Renewable Forecast"].dtype == np.float64
-        assert df["Wind Forecast"].dtype == np.float64
-        assert df["Solar Forecast"].dtype == np.float64
-        assert df["MISO Resources Available"].dtype == np.float64
-        assert df["NSI"].dtype == np.float64
-        assert df["Total Resources Available"].dtype == np.float64
-        assert df["Projected Load"].dtype == np.float64
-        assert df["Region Resources Above Load"].dtype == np.float64
-        assert df["Max Possible RDT"].dtype == np.float64
+        assert df.schema["Publish Date"] == pl.Date
+        assert isinstance(df.schema["Peak Hour"], pl.Datetime)
+        assert df.schema["Region"] == pl.Utf8
+        assert df.schema["Resource Committed"] == pl.Float64
+        assert df.schema["Committed Additional Emergency Headroom"] == pl.Float64
+        assert df.schema["Resource Uncommitted"] == pl.Float64
+        assert df.schema["Uncommitted Greater than 16 Hours"] == pl.Float64
+        assert df.schema["Uncommitted 12 to 16 Hours"] == pl.Float64
+        assert df.schema["Uncommitted 8 to 12 Hours"] == pl.Float64
+        assert df.schema["Uncommitted 4 to 8 Hours"] == pl.Float64
+        assert df.schema["Uncommitted Less than 4 Hours"] == pl.Float64
+        assert df.schema["Uncommitted Additional Emergency Headroom"] == pl.Float64
+        assert df.schema["Emergency Resources Additional Headroom"] == pl.Float64
+        assert df.schema["Renewable Forecast"] == pl.Float64
+        assert df.schema["Wind Forecast"] == pl.Float64
+        assert df.schema["Solar Forecast"] == pl.Float64
+        assert df.schema["MISO Resources Available"] == pl.Float64
+        assert df.schema["NSI"] == pl.Float64
+        assert df.schema["Total Resources Available"] == pl.Float64
+        assert df.schema["Projected Load"] == pl.Float64
+        assert df.schema["Region Resources Above Load"] == pl.Float64
+        assert df.schema["Max Possible RDT"] == pl.Float64
 
         # Check all 4 regions are present
         expected_regions = {"North", "Central", "North and Central", "South"}
-        assert set(df["Region"].unique()) == expected_regions
+        assert set(df["Region"].unique().to_list()) == expected_regions
 
         # Check Publish Date matches input date
         assert (df["Publish Date"] == date.date()).all()
@@ -1307,8 +1334,8 @@ class TestMISO(BaseTestISO):
 
         # Check each region has data
         for region in expected_regions:
-            region_df = df[df["Region"] == region]
-            assert len(region_df) > 0
+            region_df = df.filter(pl.col("Region") == region)
+            assert region_df.height > 0
 
         # Check reasonable value ranges
         assert (df["Projected Load"] > 0).all()

@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 import pandas as pd
+import polars as pl
 import pytest
 import requests
 
@@ -28,6 +29,17 @@ LMP_COLUMNS = [
 ]
 
 
+def _check_tz_datetime(df: pl.DataFrame, col: str) -> None:
+    assert isinstance(df.schema[col], pl.Datetime)
+    assert df.schema[col].time_zone == "EST"
+
+
+def _check_float_columns(df: pl.DataFrame, exclude: list[str]) -> None:
+    for col in df.columns:
+        if col not in exclude:
+            assert df.schema[col] == pl.Float64
+
+
 class TestMISOAPI(TestHelperMixin):
     @classmethod
     def setup_class(cls):
@@ -36,9 +48,10 @@ class TestMISOAPI(TestHelperMixin):
         cls.iso = MISOAPI()
 
     def _check_lmp(self, df, market_value):
-        assert df.columns.tolist() == LMP_COLUMNS
-        assert list(df["Market"].unique()) == [market_value]
-        assert df["Location Type"].notna().all()
+        df = self._as_polars(df)
+        assert df.columns == LMP_COLUMNS
+        assert df["Market"].unique().to_list() == [market_value]
+        assert df["Location Type"].null_count() == 0
 
     """get_lmp_day_ahead_hourly_ex_ante"""
 
@@ -140,8 +153,9 @@ class TestMISOAPI(TestHelperMixin):
 
     """get_interchange_hourly"""
 
-    def _check_interchange_hourly(self, data: pd.DataFrame):
-        assert data.columns.tolist() == [
+    def _check_interchange_hourly(self, data: pl.DataFrame):
+        data = self._as_polars(data)
+        assert data.columns == [
             "Interval Start",
             "Interval End",
             "Net Scheduled Interchange Forward",
@@ -167,12 +181,9 @@ class TestMISOAPI(TestHelperMixin):
             "SPA Actual",
         ]
 
-        assert data["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert data["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                assert data[col].dtype == "float64"
+        _check_tz_datetime(data, "Interval Start")
+        _check_tz_datetime(data, "Interval End")
+        _check_float_columns(data, ["Interval Start", "Interval End"])
 
     def test_get_interchange_hourly_today(self):
         with api_vcr.use_cassette("test_get_interchange_hourly_today"):
@@ -211,16 +222,17 @@ class TestMISOAPI(TestHelperMixin):
     """MCP Tests"""
 
     def _check_mcp_columns(self, df, expected_products):
+        df = self._as_polars(df)
         core_columns = ["Interval Start", "Interval End", "Zone"]
         expected_columns = core_columns + expected_products
 
-        assert set(df.columns.tolist()) == set(expected_columns)
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-        assert isinstance(df["Zone"].iloc[0], str)
+        assert set(df.columns) == set(expected_columns)
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        assert df.schema["Zone"] == pl.Utf8
 
         for product in expected_products:
-            assert df[product].dtype in ["float64", "Float64"]
+            assert df.schema[product] in (pl.Float64, pl.Int64)
 
     @pytest.mark.integration
     def test_get_as_mcp_day_ahead_ex_ante_date_range(self):
@@ -485,7 +497,8 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
     def _check_test_get_day_ahead_cleared_demand(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
@@ -494,12 +507,9 @@ class TestMISOAPI(TestHelperMixin):
             "Virtual Bids Cleared",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
     @pytest.mark.integration
     def test_get_day_ahead_cleared_demand_daily(self):
@@ -531,19 +541,17 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_day_ahead_cleared_generation_hourly(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
             "Supply Cleared",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
     @pytest.mark.integration
     def test_get_day_ahead_cleared_generation_physical_hourly(self):
@@ -586,19 +594,18 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_day_ahead_net_scheduled_interchange_hourly(date)
 
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
             "Net Scheduled Interchange",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
@@ -606,14 +613,12 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_day_ahead_offered_generation_hourly(self, df, expected_columns):
-        assert df.columns.tolist() == expected_columns
+        df = self._as_polars(df)
+        assert df.columns == expected_columns
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
     @pytest.mark.integration
     def test_get_day_ahead_offered_generation_ecomax_hourly(self):
@@ -676,7 +681,9 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_generation_fuel_mix_by_region_day_ahead(date)
 
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
@@ -691,16 +698,18 @@ class TestMISOAPI(TestHelperMixin):
             "Storage",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
         # The API returns CENTRAL, NORTH, and SOUTH; the MISO system total is derived
         # by summing them for each interval.
-        assert set(df["Region"].unique()) == {"CENTRAL", "NORTH", "SOUTH", "MISO"}
+        assert set(df["Region"].unique().to_list()) == {
+            "CENTRAL",
+            "NORTH",
+            "SOUTH",
+            "MISO",
+        }
 
         value_columns = [
             "Total",
@@ -714,17 +723,19 @@ class TestMISOAPI(TestHelperMixin):
             "Storage",
         ]
         miso_total = (
-            df[df["Region"] == "MISO"]
-            .set_index("Interval Start")[value_columns]
-            .sort_index()
+            df.filter(pl.col("Region") == "MISO")
+            .select(["Interval Start", *value_columns])
+            .sort("Interval Start")
         )
         region_sum = (
-            df[df["Region"] != "MISO"]
-            .groupby("Interval Start")[value_columns]
-            .sum()
-            .sort_index()
+            df.filter(pl.col("Region") != "MISO")
+            .group_by("Interval Start")
+            .agg([pl.col(col).sum().alias(col) for col in value_columns])
+            .sort("Interval Start")
         )
-        assert ((miso_total - region_sum).abs().max() < 1.0).all()
+        joined = miso_total.join(region_sum, on="Interval Start", suffix="_sum")
+        for col in value_columns:
+            assert (joined[col] - joined[f"{col}_sum"]).abs().max() < 1.0
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
@@ -735,18 +746,16 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_test_get_real_time_cleared_demand(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Cleared Demand",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End"])
 
     @pytest.mark.integration
     def test_get_real_time_cleared_demand_daily(self):
@@ -779,18 +788,16 @@ class TestMISOAPI(TestHelperMixin):
         assert df["Interval End"].max() == date + pd.Timedelta(days=1)
 
     def _check_real_time_cleared_generation(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Generation Cleared",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End"])
 
     # @pytest.mark.integration
     @pytest.mark.skip(reason="MISO returns wrong data for a specific date")
@@ -819,7 +826,9 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_real_time_offered_generation_ecomax_hourly(date)
 
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Offered FRAC Economic Max",
@@ -827,12 +836,9 @@ class TestMISOAPI(TestHelperMixin):
             "Offered Economic Max Delta",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End"])
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
@@ -851,7 +857,9 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_real_time_committed_generation_ecomax_hourly(date)
 
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Committed FRAC Economic Max",
@@ -859,12 +867,9 @@ class TestMISOAPI(TestHelperMixin):
             "Committed Economic Max Delta",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End"])
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
@@ -883,7 +888,9 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_generation_fuel_mix_by_region_real_time(date)
 
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
@@ -898,16 +905,18 @@ class TestMISOAPI(TestHelperMixin):
             "Storage",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
         # The API returns CENTRAL, NORTH, and SOUTH; the MISO system total is derived
         # by summing them for each interval.
-        assert set(df["Region"].unique()) == {"CENTRAL", "NORTH", "SOUTH", "MISO"}
+        assert set(df["Region"].unique().to_list()) == {
+            "CENTRAL",
+            "NORTH",
+            "SOUTH",
+            "MISO",
+        }
 
         value_columns = [
             "Total",
@@ -921,17 +930,19 @@ class TestMISOAPI(TestHelperMixin):
             "Storage",
         ]
         miso_total = (
-            df[df["Region"] == "MISO"]
-            .set_index("Interval Start")[value_columns]
-            .sort_index()
+            df.filter(pl.col("Region") == "MISO")
+            .select(["Interval Start", *value_columns])
+            .sort("Interval Start")
         )
         region_sum = (
-            df[df["Region"] != "MISO"]
-            .groupby("Interval Start")[value_columns]
-            .sum()
-            .sort_index()
+            df.filter(pl.col("Region") != "MISO")
+            .group_by("Interval Start")
+            .agg([pl.col(col).sum().alias(col) for col in value_columns])
+            .sort("Interval Start")
         )
-        assert ((miso_total - region_sum).abs().max() < 1.0).all()
+        joined = miso_total.join(region_sum, on="Interval Start", suffix="_sum")
+        for col in value_columns:
+            assert (joined[col] - joined[f"{col}_sum"]).abs().max() < 1.0
 
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(
@@ -942,19 +953,17 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_test_actual_load(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
             "Load",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
     @pytest.mark.integration
     def test_get_actual_load_hourly(self):
@@ -988,23 +997,20 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_test_actual_load_local_resource_zone(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Local Resource Zone",
             "Load",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in [
-                "Interval Start",
-                "Interval End",
-                "Local Resource Zone",
-            ]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(
+            df,
+            ["Interval Start", "Interval End", "Local Resource Zone"],
+        )
 
     def test_get_actual_load_hourly_local_resource_zone(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
@@ -1046,7 +1052,8 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_test_medium_term_load_forecast(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1055,8 +1062,8 @@ class TestMISOAPI(TestHelperMixin):
             "Load Forecast",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
 
         for col in df.columns:
             if col not in [
@@ -1066,7 +1073,7 @@ class TestMISOAPI(TestHelperMixin):
                 "Region",
                 "Local Resource Zone",
             ]:
-                assert df[col].dtype == "Int64"
+                assert df.schema[col] == pl.Int64
 
     @pytest.mark.integration
     def test_get_load_forecast_mid_term_by_region(self):
@@ -1077,7 +1084,9 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_load_forecast_mid_term_by_region(publish_time)
 
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1086,10 +1095,10 @@ class TestMISOAPI(TestHelperMixin):
             "Load Forecast",
         ]
         assert (df["Publish Time"] == publish_time.normalize()).all()
-        assert df["Region"].isin(["NORTH", "CENTRAL", "SOUTH"]).all()
-        assert df["LRZ"].str.startswith("Z").all()
+        assert df["Region"].is_in(["NORTH", "CENTRAL", "SOUTH"]).all()
+        assert df["LRZ"].str.starts_with("Z").all()
         assert df["Interval Start"].min() >= publish_time + pd.Timedelta(days=1)
-        assert df["Load Forecast"].dtype == "Int64"
+        assert df.schema["Load Forecast"] == pl.Int64
 
     @pytest.mark.integration
     def test_get_load_forecast_mid_term_by_region_max_offset(self):
@@ -1122,6 +1131,7 @@ class TestMISOAPI(TestHelperMixin):
         )
 
     def _check_test_actual_load_hourly_pivoted(self, df):
+        df = self._as_polars(df)
         expected_columns = [
             "Interval Start",
             "Interval End",
@@ -1133,14 +1143,13 @@ class TestMISOAPI(TestHelperMixin):
             "LRZ8 9 10",
             "MISO",
         ]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
 
-        # All load columns should be float
         for col in expected_columns[2:]:
-            assert df[col].dtype == "float64"
+            assert df.schema[col] == pl.Float64
 
     def test_get_actual_load_hourly_pivoted(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
@@ -1161,16 +1170,16 @@ class TestMISOAPI(TestHelperMixin):
         )
 
         # Verify MISO total is sum of all LRZ zones
-        calculated_miso = df[
-            ["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"]
-        ].sum(axis=1)
-        pd.testing.assert_series_equal(
-            df["MISO"],
-            calculated_miso,
-            check_names=False,
-        )
+        df = self._as_polars(df)
+        calculated_miso = df.select(
+            pl.sum_horizontal(
+                ["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"],
+            ),
+        ).to_series()
+        assert (df["MISO"] - calculated_miso).abs().max() == 0
 
     def _check_test_medium_term_load_forecast_hourly_aggregated(self, df):
+        df = self._as_polars(df)
         expected_columns = [
             "Interval Start",
             "Interval End",
@@ -1183,14 +1192,14 @@ class TestMISOAPI(TestHelperMixin):
             "LRZ8_9_10 MTLF",
             "MISO MTLF",
         ]
-        assert df.columns.tolist() == expected_columns
+        assert df.columns == expected_columns
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-        assert df["Publish Time"].dtype == "datetime64[ns, EST]"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_tz_datetime(df, "Publish Time")
 
         for col in expected_columns[3:]:
-            assert df[col].dtype == "Int64"
+            assert df.schema[col] == pl.Int64
 
     def test_get_medium_term_load_forecast_hourly_aggregated(self):
         date = self.local_start_of_today() - pd.Timedelta(days=1)
@@ -1211,40 +1220,33 @@ class TestMISOAPI(TestHelperMixin):
         )
 
         # Verify MISO total is sum of all LRZ zones
-        calculated_miso = df[
-            [
-                "LRZ1 MTLF",
-                "LRZ2_7 MTLF",
-                "LRZ3_5 MTLF",
-                "LRZ4 MTLF",
-                "LRZ6 MTLF",
-                "LRZ8_9_10 MTLF",
-            ]
-        ].sum(axis=1)
-        pd.testing.assert_series_equal(
-            df["MISO MTLF"],
-            calculated_miso,
-            check_names=False,
-        )
+        df = self._as_polars(df)
+        calculated_miso = df.select(
+            pl.sum_horizontal(
+                [
+                    "LRZ1 MTLF",
+                    "LRZ2_7 MTLF",
+                    "LRZ3_5 MTLF",
+                    "LRZ4 MTLF",
+                    "LRZ6 MTLF",
+                    "LRZ8_9_10 MTLF",
+                ],
+            ),
+        ).to_series()
+        assert (df["MISO MTLF"] - calculated_miso).abs().max() == 0
 
     def _check_test_outage_forecast(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Region",
             "Outage Forecast",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
-
-        for col in df.columns:
-            if col not in [
-                "Interval Start",
-                "Interval End",
-                "Region",
-            ]:
-                assert df[col].dtype == "float64"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
+        _check_float_columns(df, ["Interval Start", "Interval End", "Region"])
 
     def test_get_outage_forecast(self):
         # Outage forecast is for future dates - use tomorrow
@@ -1271,7 +1273,8 @@ class TestMISOAPI(TestHelperMixin):
             self.iso.get_outage_forecast(yesterday)
 
     def _check_test_look_ahead_hourly(self, df):
-        assert df.columns.tolist() == [
+        df = self._as_polars(df)
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -1280,11 +1283,11 @@ class TestMISOAPI(TestHelperMixin):
             "Outage",
         ]
 
-        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
-        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+        _check_tz_datetime(df, "Interval Start")
+        _check_tz_datetime(df, "Interval End")
 
-        assert df["MTLF"].dtype == "Int64"
-        assert df["Outage"].dtype == "float64"
+        assert df.schema["MTLF"] == pl.Int64
+        assert df.schema["Outage"] == pl.Float64
 
     def test_get_look_ahead_hourly(self):
         # Look ahead is for today and future dates
@@ -1319,13 +1322,15 @@ class TestMISOAPI(TestHelperMixin):
         with api_vcr.use_cassette(f"get_pricing_nodes_{today.strftime('%Y-%m-%d')}"):
             df = self.iso.get_pricing_nodes()
 
-        assert df.shape[0] > 0
+        df = self._as_polars(df)
 
-        assert df.columns.tolist() == ["Node", "Location Type"]
+        assert df.height > 0
+
+        assert df.columns == ["Node", "Location Type"]
 
         for col in df.columns:
             if col not in ["Node", "Location Type"]:
-                assert df[col].dtype == "str"
+                assert df.schema[col] == pl.Utf8
 
     def test_get_pricing_nodes_by_date(self):
         today = pd.Timestamp(self.local_today())
@@ -1336,13 +1341,15 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_pricing_nodes(date)
 
-        assert df.shape[0] > 0
+        df = self._as_polars(df)
 
-        assert df.columns.tolist() == ["Node", "Location Type"]
+        assert df.height > 0
+
+        assert df.columns == ["Node", "Location Type"]
 
         for col in df.columns:
             if col not in ["Node", "Location Type"]:
-                assert df[col].dtype == "str"
+                assert df.schema[col] == pl.Utf8
 
     def test_get_pricing_nodes_by_date_range(self):
         today = pd.Timestamp(self.local_today())
@@ -1354,13 +1361,15 @@ class TestMISOAPI(TestHelperMixin):
         ):
             df = self.iso.get_pricing_nodes(date, end)
 
-        assert df.shape[0] > 0
+        df = self._as_polars(df)
 
-        assert df.columns.tolist() == ["Node", "Location Type"]
+        assert df.height > 0
+
+        assert df.columns == ["Node", "Location Type"]
 
         for col in df.columns:
             if col not in ["Node", "Location Type"]:
-                assert df[col].dtype == "str"
+                assert df.schema[col] == pl.Utf8
 
 
 class TestMISOAPIRetryMechanism:

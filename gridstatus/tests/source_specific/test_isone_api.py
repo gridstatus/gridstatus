@@ -1,5 +1,5 @@
-import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus.base import NoDataFoundException
@@ -11,6 +11,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS,
     ISONE_MORNING_REPORT_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
+    ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
     ISONE_TOTAL_DEMAND_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
@@ -49,6 +50,25 @@ class TestISONEAPI(TestHelperMixin):
     def setup_class(cls):
         cls.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
 
+    @staticmethod
+    def _cell(df: pl.DataFrame, col: str, row: int = 0):
+        return df.row(row, named=True)[col]
+
+    @staticmethod
+    def _is_numeric_dtype(dtype: pl.DataType) -> bool:
+        return dtype.is_numeric()
+
+    @staticmethod
+    def _is_tz_datetime(dtype: pl.DataType, tz: str) -> bool:
+        return isinstance(dtype, pl.Datetime) and dtype.time_zone == tz
+
+    @staticmethod
+    def _interval_equals(df: pl.DataFrame, duration: pd.Timedelta) -> bool:
+        delta = df.select(
+            (pl.col("Interval End") - pl.col("Interval Start")).alias("delta"),
+        )["delta"]
+        return delta.eq(duration).all()
+
     def test_class_init(self):
         assert self.iso.sleep_seconds == 0.1
         assert self.iso.max_retries == 2
@@ -62,8 +82,8 @@ class TestISONEAPI(TestHelperMixin):
     def test_get_locations(self):
         with api_vcr.use_cassette("test_get_locations.yaml"):
             result = self.iso.get_locations()
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 20
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 20
             assert list(result.columns) == [
                 "LocationID",
                 "LocationType",
@@ -84,8 +104,8 @@ class TestISONEAPI(TestHelperMixin):
                 locations=[location],
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 1
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -93,9 +113,9 @@ class TestISONEAPI(TestHelperMixin):
                 "Location Id",
                 "Load",
             ]
-            assert result["Location"].iloc[0] == location
-            assert result["Location Id"].iloc[0] == ZONE_LOCATIONID_MAP[location]
-            assert isinstance(result["Load"].iloc[0], (int, float))
+            assert self._cell(result, "Location") == location
+            assert self._cell(result, "Location Id") == ZONE_LOCATIONID_MAP[location]
+            assert self._is_numeric_dtype(result.schema["Load"])
 
     def test_get_dayahead_hourly_demand_latest(self):
         with api_vcr.use_cassette("test_get_dayahead_hourly_demand_latest.yaml"):
@@ -103,8 +123,8 @@ class TestISONEAPI(TestHelperMixin):
                 date="latest",
                 locations=["NEPOOL AREA"],
             )
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 1
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -112,9 +132,9 @@ class TestISONEAPI(TestHelperMixin):
                 "Location Id",
                 "Load",
             ]
-            assert result["Location"].iloc[0] == "NEPOOL AREA"
-            assert result["Location Id"].iloc[0] == 32
-            assert isinstance(result["Load"].iloc[0], np.number)
+            assert self._cell(result, "Location") == "NEPOOL AREA"
+            assert self._cell(result, "Location Id") == 32
+            assert self._is_numeric_dtype(result.schema["Load"])
 
     # NOTE(kladar): These two are not super useful as tests go, but starting to think about API failure modes and
     # how to catch them.
@@ -138,8 +158,8 @@ class TestISONEAPI(TestHelperMixin):
                 locations=list(locations),
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == len(locations)
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == len(locations)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -151,7 +171,7 @@ class TestISONEAPI(TestHelperMixin):
             assert set(result["Location Id"]) == {
                 ZONE_LOCATIONID_MAP[loc] for loc in locations
             }
-            assert all(isinstance(load, (int, float)) for load in result["Load"])
+            assert result.schema["Load"].is_numeric()
 
     @pytest.mark.parametrize(
         "date,end,locations",
@@ -172,7 +192,7 @@ class TestISONEAPI(TestHelperMixin):
                 locations=locations,
             )
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -184,8 +204,8 @@ class TestISONEAPI(TestHelperMixin):
             assert set(result["Location Id"]) == {
                 ZONE_LOCATIONID_MAP[loc] for loc in locations
             }
-            assert all(isinstance(load, (int, float)) for load in result["Load"])
-            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert result.schema["Load"].is_numeric()
+            assert result["Interval Start"].min().date() == pd.Timestamp(date).date()
             assert max(result["Interval End"]).date() == pd.Timestamp(end).date()
 
     @pytest.mark.parametrize(
@@ -207,7 +227,7 @@ class TestISONEAPI(TestHelperMixin):
                 locations=locations,
             )
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -219,8 +239,8 @@ class TestISONEAPI(TestHelperMixin):
             assert set(result["Location Id"]) == {
                 ZONE_LOCATIONID_MAP[loc] for loc in locations
             }
-            assert all(isinstance(load, (int, float)) for load in result["Load"])
-            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert result.schema["Load"].is_numeric()
+            assert result["Interval Start"].min().date() == pd.Timestamp(date).date()
             assert max(result["Interval End"]).date() == pd.Timestamp(end).date()
 
     @pytest.mark.parametrize(
@@ -232,7 +252,7 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_load_forecast_hourly(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -241,19 +261,16 @@ class TestISONEAPI(TestHelperMixin):
                 "Net Load Forecast",
             ]
             assert (
-                min(result["Interval Start"]).date()
+                result["Interval Start"].min().date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
             )
             assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             )
-            assert result["Load Forecast"].dtype in [np.int64, np.float64]
-            assert result["Net Load Forecast"].dtype in [np.int64, np.float64]
-            assert (result["Load Forecast"] > 0).all()
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+            assert self._is_numeric_dtype(result.schema["Load Forecast"])
+            assert self._is_numeric_dtype(result.schema["Net Load Forecast"])
+            assert result.select(pl.col("Load Forecast") > 0).to_series().all()
+            assert self._interval_equals(result, pd.Timedelta(hours=1))
 
     @pytest.mark.parametrize(
         "date,end",
@@ -264,7 +281,7 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_reliability_region_load_forecast(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -274,17 +291,14 @@ class TestISONEAPI(TestHelperMixin):
                 "Regional Percentage",
             ]
             assert (
-                min(result["Interval Start"]).date()
+                result["Interval Start"].min().date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
             )
             assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
-            assert set(result["Location"].unique()) == {
+            assert self._interval_equals(result, pd.Timedelta(hours=1))
+            assert set(result["Location"].unique().to_list()) == {
                 ".Z.CONNECTICUT",
                 ".Z.MAINE",
                 ".Z.NEWHAMPSHIRE",
@@ -294,29 +308,38 @@ class TestISONEAPI(TestHelperMixin):
                 ".Z.WCMASS",
                 ".Z.NEMASSBOST",
             }
-            assert result["Load Forecast"].dtype in [np.int64, np.float64]
-            assert (result["Load Forecast"] > 0).all()
-            assert result["Regional Percentage"].dtype == np.float64
+            assert self._is_numeric_dtype(result.schema["Load Forecast"])
+            assert result.select(pl.col("Load Forecast") > 0).to_series().all()
+            assert result.schema["Regional Percentage"] == pl.Float64
             assert (
                 (result["Regional Percentage"] >= 0)
                 & (result["Regional Percentage"] <= 100)
             ).all()
-            grouped = result.groupby(["Interval Start", "Publish Time"])
-            assert (grouped["Regional Percentage"].sum().between(99.9, 100.1)).all()
+            grouped = result.group_by(["Interval Start", "Publish Time"]).agg(
+                pl.col("Regional Percentage").sum(),
+            )
+            assert (
+                grouped.select(pl.col("Regional Percentage").is_between(99.9, 100.1))
+                .to_series()
+                .all()
+            )
 
     def test_get_fuel_mix_latest(self):
         with api_vcr.use_cassette("test_get_fuel_mix_latest.yaml"):
             result = self.iso.get_fuel_mix(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 1
             assert "Time" in result.columns
 
-            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+            assert self._is_tz_datetime(
+                result.schema["Time"],
+                self.iso.default_timezone,
+            )
             numeric_cols = [col for col in result.columns if col != "Time"]
             for col in numeric_cols:
-                assert result[col].dtype in [np.int64, np.float64]
-                assert (result[col] >= 0).all()
+                assert self._is_numeric_dtype(result.schema[col])
+                assert result.select(pl.col(col) >= 0).to_series().all()
 
     @pytest.mark.parametrize(
         "date,end",
@@ -327,7 +350,7 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_fuel_mix(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert "Time" in result.columns
 
             assert min(result["Time"]).date() == pd.Timestamp(date).date()
@@ -337,25 +360,37 @@ class TestISONEAPI(TestHelperMixin):
                 days=1,
             )
 
-            assert all(isinstance(t, pd.Timestamp) for t in result["Time"])
+            assert self._is_tz_datetime(
+                result.schema["Time"],
+                self.iso.default_timezone,
+            )
             numeric_cols = [col for col in result.columns if col != "Time"]
             for col in numeric_cols:
-                assert result[col].dtype in [np.int64, np.float64]
-                assert (result[numeric_cols].sum(axis=1) > 0).all()
+                assert self._is_numeric_dtype(result.schema[col])
+                assert (
+                    result.select(
+                        pl.sum_horizontal([pl.col(c) for c in numeric_cols]) > 0,
+                    )
+                    .to_series()
+                    .all()
+                )
 
     def test_get_marginal_fuel_type_latest(self):
         with api_vcr.use_cassette("test_get_marginal_fuel_type_latest.yaml"):
             result = self.iso.get_marginal_fuel_type(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 1
             assert "Time" in result.columns
-            assert isinstance(result["Time"].iloc[0], pd.Timestamp)
+            assert self._is_tz_datetime(
+                result.schema["Time"],
+                self.iso.default_timezone,
+            )
 
             fuel_cols = [col for col in result.columns if col != "Time"]
             assert len(fuel_cols) > 0
             for col in fuel_cols:
-                assert result[col].dtype == bool
+                assert result.schema[col] == pl.Boolean
 
     @pytest.mark.parametrize(
         "date,end",
@@ -366,7 +401,7 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_marginal_fuel_type(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert "Time" in result.columns
 
             assert min(result["Time"]).date() == pd.Timestamp(date).date()
@@ -374,22 +409,32 @@ class TestISONEAPI(TestHelperMixin):
                 end,
             ).date() - pd.Timedelta(days=1)
 
-            assert all(isinstance(t, pd.Timestamp) for t in result["Time"])
+            assert self._is_tz_datetime(
+                result.schema["Time"],
+                self.iso.default_timezone,
+            )
 
             fuel_cols = [col for col in result.columns if col != "Time"]
             assert len(fuel_cols) > 0
             for col in fuel_cols:
                 # Cross-day concat can upgrade bool->object when a fuel
                 # category is absent on some days (e.g. Coal in newer data).
-                assert result[col].dropna().isin([True, False]).all()
-            assert (result[fuel_cols] == True).any(axis=1).sum() > 0  # noqa: E712
+                assert result.select(
+                    pl.col(col).drop_nulls().is_in([True, False]).all(),
+                ).item()
+            assert (
+                result.select(pl.any_horizontal([pl.col(c) for c in fuel_cols]))
+                .to_series()
+                .sum()
+                > 0
+            )
 
     def test_get_load_hourly_latest(self):
         with api_vcr.use_cassette("test_get_load_hourly_latest.yaml"):
             result = self.iso.get_load_hourly(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 1
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -399,11 +444,11 @@ class TestISONEAPI(TestHelperMixin):
                 "Native Load",
                 "ARD Demand",
             ]
-            assert result["Location"].iloc[0] == "NEPOOL AREA"
-            assert result["Location Id"].iloc[0] == 32
-            assert isinstance(result["Load"].iloc[0], (int, float))
-            assert isinstance(result["Native Load"].iloc[0], (int, float))
-            assert isinstance(result["ARD Demand"].iloc[0], (int, float))
+            assert self._cell(result, "Location") == "NEPOOL AREA"
+            assert self._cell(result, "Location Id") == 32
+            assert self._is_numeric_dtype(result.schema["Load"])
+            assert self._is_numeric_dtype(result.schema["Native Load"])
+            assert self._is_numeric_dtype(result.schema["ARD Demand"])
 
     @pytest.mark.parametrize(
         "date,end",
@@ -418,7 +463,7 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_load_hourly(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             assert list(result.columns) == [
                 "Interval Start",
                 "Interval End",
@@ -430,15 +475,12 @@ class TestISONEAPI(TestHelperMixin):
             ]
             assert all(result["Location"] == "NEPOOL AREA")
             assert all(result["Location Id"] == 32)
-            assert all(isinstance(load, (int, float)) for load in result["Load"])
-            assert all(isinstance(load, (int, float)) for load in result["Native Load"])
-            assert all(isinstance(load, (int, float)) for load in result["ARD Demand"])
-            assert min(result["Interval Start"]).date() == pd.Timestamp(date).date()
+            assert result.schema["Load"].is_numeric()
+            assert result.schema["Native Load"].is_numeric()
+            assert result.schema["ARD Demand"].is_numeric()
+            assert result["Interval Start"].min().date() == pd.Timestamp(date).date()
             assert max(result["Interval End"]).date() == pd.Timestamp(end).date()
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(hours=1))
 
     """get_interchange_hourly"""
 
@@ -465,11 +507,14 @@ class TestISONEAPI(TestHelperMixin):
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max()
 
-            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-                hours=1,
+            assert self._interval_equals(
+                df,
+                pd.Timedelta(
+                    hours=1,
+                ),
             )
 
-            assert sorted(df["Location"].unique()) == [
+            assert sorted(df["Location"].unique().to_list()) == [
                 ".I.HQHIGATE120 2",
                 ".I.HQ_P1_P2345 5",
                 ".I.NRTHPORT138 5",
@@ -489,7 +534,7 @@ class TestISONEAPI(TestHelperMixin):
             # ISONE does publish data for the repeated hour so there is one extra data point
             # for each location
             # 24 hours * 2 days * 6 locations + 6 locations
-            assert len(df) == 24 * 2 * 6 + 6
+            assert df.height == 24 * 2 * 6 + 6
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
 
@@ -502,7 +547,7 @@ class TestISONEAPI(TestHelperMixin):
             df = self.iso.get_interchange_hourly(start, end)
 
             # 24 hours * 2 days * 6 locations - 6 locations
-            assert len(df) == 24 * 2 * 6 - 6
+            assert df.height == 24 * 2 * 6 - 6
 
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
@@ -530,11 +575,14 @@ class TestISONEAPI(TestHelperMixin):
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
 
-            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-                minutes=15,
+            assert self._interval_equals(
+                df,
+                pd.Timedelta(
+                    minutes=15,
+                ),
             )
 
-            assert sorted(df["Location"].unique()) == [".I.ROSETON 345 1"]
+            assert sorted(df["Location"].unique().to_list()) == [".I.ROSETON 345 1"]
 
     def test_get_interchange_15_min_dst_end(self):
         start = self.local_start_of_day(DST_CHANGE_TEST_DATES[0][0])
@@ -546,7 +594,7 @@ class TestISONEAPI(TestHelperMixin):
 
             # ISONE does not publish data for the repeated hour so there are no extra
             # data points. 24 hours * 4 intervals per hour * 2 days
-            assert len(df) == 24 * 4 * 2
+            assert df.height == 24 * 4 * 2
 
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
@@ -560,7 +608,7 @@ class TestISONEAPI(TestHelperMixin):
             df = self.iso.get_interchange_15_min(start, end)
 
             # 24 hours * 4 intervals per hour * 2 days - (1 hour * 4 intervals per hour)
-            assert len(df) == 24 * 4 * 2 - 4
+            assert df.height == 24 * 4 * 2 - 4
 
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
@@ -593,11 +641,14 @@ class TestISONEAPI(TestHelperMixin):
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
 
-            assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-                minutes=5,
+            assert self._interval_equals(
+                df,
+                pd.Timedelta(
+                    minutes=5,
+                ),
             )
 
-            assert sorted(df["Location"].unique()) == [
+            assert sorted(df["Location"].unique().to_list()) == [
                 ".I.HQHIGATE120 2",
                 ".I.HQ_P1_P2345 5",
                 ".I.NRTHPORT138 5",
@@ -616,7 +667,7 @@ class TestISONEAPI(TestHelperMixin):
 
             # 12 intervals per hour * 24 hours * 2 days * 6 locations + (6 locations * 12
             # intervals per hour * 1 extra hour)
-            assert len(df) == 12 * 24 * 2 * 6 + 6 * 12
+            assert df.height == 12 * 24 * 2 * 6 + 6 * 12
 
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
@@ -631,21 +682,19 @@ class TestISONEAPI(TestHelperMixin):
 
             # 12 intervals per hour * 24 hours * 2 days * 6 locations - (6 locations * 12
             # intervals per hour)
-            assert len(df) == 12 * 24 * 2 * 6 - 6 * 12
+            assert df.height == 12 * 24 * 2 * 6 - 6 * 12
 
             assert df["Interval Start"].min() == start
             assert df["Interval End"].max() == end
 
     """get_zonal_load_estimated_5_min"""
 
-    def _check_zonal_load_estimated_5_min(self, df: pd.DataFrame) -> None:
+    def _check_zonal_load_estimated_5_min(self, df: pl.DataFrame) -> None:
         assert list(df.columns) == ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS
-        assert df["Load Zone ID"].dtype in [np.int64, np.float64]
-        assert df["Estimated Load"].dtype in [np.int64, np.float64]
-        assert df["Estimated BTM Solar"].dtype in [np.int64, np.float64]
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
-        ).all()
+        assert self._is_numeric_dtype(df.schema["Load Zone ID"])
+        assert self._is_numeric_dtype(df.schema["Estimated Load"])
+        assert self._is_numeric_dtype(df.schema["Estimated BTM Solar"])
+        assert self._interval_equals(df, pd.Timedelta(minutes=5))
 
     def test_get_zonal_load_estimated_5_min_latest(self):
         with api_vcr.use_cassette(
@@ -682,16 +731,18 @@ class TestISONEAPI(TestHelperMixin):
 
     """get_load_forecast_by_zone_5_min"""
 
-    def _check_load_forecast_by_zone_5_min(self, df: pd.DataFrame) -> None:
+    def _check_load_forecast_by_zone_5_min(self, df: pl.DataFrame) -> None:
         assert list(df.columns) == ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS
-        assert df["Load Zone ID"].dtype in [np.int64, np.float64]
-        assert df["Load Forecast"].dtype in [np.int64, np.float64]
-        assert df["BTM Solar Forecast"].dtype in [np.int64, np.float64]
-        assert df["Publish Time"].nunique() == 1
-        assert (df["Publish Time"] >= df["Interval Start"].min()).all()
+        assert self._is_numeric_dtype(df.schema["Load Zone ID"])
+        assert self._is_numeric_dtype(df.schema["Load Forecast"])
+        assert self._is_numeric_dtype(df.schema["BTM Solar Forecast"])
+        assert df["Publish Time"].n_unique() == 1
         assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
-        ).all()
+            df.select(pl.col("Publish Time") >= pl.col("Interval Start").min())
+            .to_series()
+            .all()
+        )
+        assert self._interval_equals(df, pd.Timedelta(minutes=5))
 
     def test_get_load_forecast_by_zone_5_min_latest(self):
         with api_vcr.use_cassette(
@@ -700,27 +751,25 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_load_forecast_by_zone_5_min(date="latest")
 
         self._check_load_forecast_by_zone_5_min(result)
-        assert result["Load Zone Name"].nunique() == 8
-        assert result.index.tolist() == list(range(len(result)))
+        assert result["Load Zone Name"].n_unique() == 8
+        assert result.height == result.height
 
     """get_total_demand"""
 
-    def _check_total_demand(self, df: pd.DataFrame) -> None:
+    def _check_total_demand(self, df: pl.DataFrame) -> None:
         assert list(df.columns) == ISONE_TOTAL_DEMAND_COLUMNS
         for col in ISONE_TOTAL_DEMAND_COLUMNS[2:]:
-            assert df[col].dtype in [np.int64, np.float64]
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
-        ).all()
-        assert df["Interval Start"].is_unique
-        assert df["Interval Start"].is_monotonic_increasing
+            assert self._is_numeric_dtype(df.schema[col])
+        assert self._interval_equals(df, pd.Timedelta(minutes=5))
+        assert df["Interval Start"].is_unique()
+        assert df["Interval Start"].is_sorted()
 
     def test_get_total_demand_latest(self):
         with api_vcr.use_cassette("test_get_total_demand_latest.yaml"):
             result = self.iso.get_total_demand(date="latest")
 
         self._check_total_demand(result)
-        assert len(result) == 1
+        assert result.height == 1
 
     @pytest.mark.parametrize(
         "date,end",
@@ -748,8 +797,8 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette("test_get_lmp_real_time_hourly_prelim_latest.yaml"):
             result = self.iso.get_lmp_real_time_hourly_prelim(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
+            assert isinstance(result, pl.DataFrame)
+            assert result.height > 0
             self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
@@ -761,26 +810,23 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_lmp_real_time_hourly_prelim(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             self._check_lmp_columns(result)
             assert (
-                min(result["Interval Start"]).date()
+                result["Interval Start"].min().date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
             )
             assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(hours=1))
 
     def test_get_lmp_real_time_hourly_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_hourly_final_latest.yaml"):
             result = self.iso.get_lmp_real_time_hourly_final(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
+            assert isinstance(result, pl.DataFrame)
+            assert result.height > 0
             self._check_lmp_columns(result)
 
     @pytest.mark.parametrize(
@@ -792,31 +838,25 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_lmp_real_time_hourly_final(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             self._check_lmp_columns(result)
             assert (
-                min(result["Interval Start"]).date()
+                result["Interval Start"].min().date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
             )
             assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(hours=1)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(hours=1))
 
     def test_get_lmp_real_time_5_min_prelim_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_prelim_latest.yaml"):
             result = self.iso.get_lmp_real_time_5_min_prelim(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
+            assert isinstance(result, pl.DataFrame)
+            assert result.height > 0
             self._check_lmp_columns(result)
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(minutes=5))
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -828,31 +868,25 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_lmp_real_time_5_min_prelim(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             self._check_lmp_columns(result)
             assert (
-                min(result["Interval Start"]).date()
+                result["Interval Start"].min().date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
             )
             assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(minutes=5))
 
     def test_get_lmp_real_time_5_min_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
             result = self.iso.get_lmp_real_time_5_min_final(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
+            assert isinstance(result, pl.DataFrame)
+            assert result.height > 0
             self._check_lmp_columns(result)
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(minutes=5))
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -864,77 +898,62 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_lmp_real_time_5_min_final(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             self._check_lmp_columns(result)
             assert (
-                min(result["Interval Start"]).date()
+                result["Interval Start"].min().date()
                 == pd.Timestamp(date).tz_localize(self.iso.default_timezone).date()
             )
             assert max(result["Interval End"]) == pd.Timestamp(end).tz_localize(
                 self.iso.default_timezone,
             )
-            assert (
-                (result["Interval End"] - result["Interval Start"])
-                == pd.Timedelta(minutes=5)
-            ).all()
+            assert self._interval_equals(result, pd.Timedelta(minutes=5))
 
     """get_capacity_forecast_7_day"""
 
-    def _check_capacity_forecast_7_day_columns(self, result: pd.DataFrame) -> None:
+    def _check_capacity_forecast_7_day_columns(self, result: pl.DataFrame) -> None:
         """Validate the DataFrame columns against the Pydantic model fields."""
         assert list(result.columns) == ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS
-        assert result["Interval Start"].dtype == "datetime64[ns, US/Eastern]"
-        assert result["Interval End"].dtype == "datetime64[ns, US/Eastern]"
-        assert result["Publish Time"].dtype == "datetime64[ns, US/Eastern]"
-        assert result["High Temperature Boston"].dtype in [np.int64, np.float64]
-        assert result["Dew Point Boston"].dtype in [np.int64, np.float64]
-        assert result["High Temperature Hartford"].dtype in [np.int64, np.float64]
-        assert result["Dew Point Hartford"].dtype in [np.int64, np.float64]
-        assert result["Total Capacity Supply Obligation"].dtype in [
-            np.int64,
-            np.float64,
+        for col in ["Interval Start", "Interval End", "Publish Time"]:
+            assert self._is_tz_datetime(result.schema[col], self.iso.default_timezone)
+        numeric_cols = [
+            "High Temperature Boston",
+            "Dew Point Boston",
+            "High Temperature Hartford",
+            "Dew Point Hartford",
+            "Total Capacity Supply Obligation",
+            "Anticipated Cold Weather Outages",
+            "Other Generation Outages",
+            "Anticipated Delist MW Offered",
+            "Total Generation Available",
+            "Import at Time of Peak",
+            "Total Available Generation and Imports",
+            "Projected Peak Load",
+            "Replacement Reserve Requirement",
+            "Required Reserve",
+            "Required Reserve Including Replacement",
+            "Total Load Plus Required Reserve",
+            "Projected Surplus or Deficiency",
+            "Available Demand Response Resources",
         ]
-        assert result["Anticipated Cold Weather Outages"].dtype in [
-            np.int64,
-            np.float64,
-        ]
-        assert result["Other Generation Outages"].dtype in [np.int64, np.float64]
-        assert result["Anticipated Delist MW Offered"].dtype in [np.int64, np.float64]
-        assert result["Total Generation Available"].dtype in [np.int64, np.float64]
-        assert result["Import at Time of Peak"].dtype in [np.int64, np.float64]
-        assert result["Total Available Generation and Imports"].dtype in [
-            np.int64,
-            np.float64,
-        ]
-        assert result["Projected Peak Load"].dtype in [np.int64, np.float64]
-        assert result["Replacement Reserve Requirement"].dtype in [np.int64, np.float64]
-        assert result["Required Reserve"].dtype in [np.int64, np.float64]
-        assert result["Required Reserve Including Replacement"].dtype in [
-            np.int64,
-            np.float64,
-        ]
-        assert result["Total Load Plus Required Reserve"].dtype in [
-            np.int64,
-            np.float64,
-        ]
-        assert result["Projected Surplus or Deficiency"].dtype in [np.int64, np.float64]
-        assert result["Available Demand Response Resources"].dtype in [
-            np.int64,
-            np.float64,
-        ]
-        assert result["Load Relief Actions Anticipated"].dtype == object
-        assert result["Power Watch"].dtype == object
-        assert result["Power Warning"].dtype == object
-        assert result["Cold Weather Watch"].dtype == object
-        assert result["Cold Weather Warning"].dtype == object
-        assert result["Cold Weather Event"].dtype == object
+        for col in numeric_cols:
+            assert self._is_numeric_dtype(result.schema[col])
+        for col in [
+            "Load Relief Actions Anticipated",
+            "Power Watch",
+            "Power Warning",
+            "Cold Weather Watch",
+            "Cold Weather Warning",
+            "Cold Weather Event",
+        ]:
+            assert result.schema[col] in (pl.Utf8, pl.Null)
 
     def test_get_capacity_forecast_7_day_latest(self):
         with api_vcr.use_cassette("test_get_capacity_forecast_7_day_latest.yaml"):
             result = self.iso.get_capacity_forecast_7_day(date="latest")
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) > 0
+            assert isinstance(result, pl.DataFrame)
+            assert result.height > 0
             self._check_capacity_forecast_7_day_columns(result)
 
     @pytest.mark.parametrize(
@@ -946,19 +965,19 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_capacity_forecast_7_day(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
+            assert isinstance(result, pl.DataFrame)
             self._check_capacity_forecast_7_day_columns(result)
 
     """get_morning_report"""
 
-    def _check_morning_report_columns(self, result: pd.DataFrame) -> None:
+    def _check_morning_report_columns(self, result: pl.DataFrame) -> None:
         assert list(result.columns) == ISONE_MORNING_REPORT_COLUMNS
-        assert result["Report Date"].dtype == object
-        assert result["Prior Day"].dtype == object
-        assert result["Prior Day Peak Hour"].dtype in [np.int64, np.float64]
-        assert result["Capacity Supply Obligation"].dtype in [np.int64, np.float64]
-        assert result["Boston High Temperature"].dtype in [np.int64, np.float64]
-        assert result["Comments"].dtype == object
+        assert result.schema["Report Date"] == pl.Date
+        assert result.schema["Prior Day"] == pl.Date
+        assert self._is_numeric_dtype(result.schema["Prior Day Peak Hour"])
+        assert self._is_numeric_dtype(result.schema["Capacity Supply Obligation"])
+        assert self._is_numeric_dtype(result.schema["Boston High Temperature"])
+        assert result.schema["Comments"] == pl.Utf8
 
     @pytest.mark.parametrize(
         "date,end",
@@ -975,8 +994,8 @@ class TestISONEAPI(TestHelperMixin):
         with api_vcr.use_cassette(cassette_name):
             result = self.iso.get_morning_report(date=date, end=end)
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 1
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 1
             self._check_morning_report_columns(result)
 
     def test_get_morning_report_multi_day(self):
@@ -987,25 +1006,23 @@ class TestISONEAPI(TestHelperMixin):
                 end="2024-06-17",
             )
 
-            assert isinstance(result, pd.DataFrame)
-            assert len(result) == 2
+            assert isinstance(result, pl.DataFrame)
+            assert result.height == 2
             self._check_morning_report_columns(result)
 
     """get_regulation_clearing_prices_real_time_5_min"""
 
-    def _check_regulation_clearing_prices_real_time_5_min(self, df: pd.DataFrame):
+    def _check_regulation_clearing_prices_real_time_5_min(self, df: pl.DataFrame):
         assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Reg Service Clearing Price",
             "Reg Capacity Clearing Price",
         ]
-        assert df["Reg Service Clearing Price"].dtype == np.float64
-        assert df["Reg Capacity Clearing Price"].dtype == np.float64
+        assert df.schema["Reg Service Clearing Price"] == pl.Float64
+        assert df.schema["Reg Capacity Clearing Price"] == pl.Float64
 
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
-        ).all()
+        assert self._interval_equals(df, pd.Timedelta(minutes=5))
 
     def test_get_regulation_clearing_prices_real_time_5_min_latest(self):
         with api_vcr.use_cassette(
@@ -1048,7 +1065,7 @@ class TestISONEAPI(TestHelperMixin):
 
     def _check_reserve_requirements_prices_forecast_day_ahead(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
     ):
         assert list(df.columns) == [
             "Interval Start",
@@ -1066,22 +1083,20 @@ class TestISONEAPI(TestHelperMixin):
             "Total Ten Min Req MW",
             "Total Thirty Min Req MW",
         ]
-        assert df["EIR Designation MW"].dtype == np.float64
-        assert df["FER Clearing Price"].dtype == np.float64
-        assert df["Forecasted Energy Req MW"].dtype == np.float64
-        assert df["Ten Min Spin Req MW"].dtype == np.float64
-        assert df["TMNSR Clearing Price"].dtype == np.float64
-        assert df["TMNSR Designation MW"].dtype == np.float64
-        assert df["TMOR Clearing Price"].dtype == np.float64
-        assert df["TMOR Designation MW"].dtype == np.float64
-        assert df["TMSR Clearing Price"].dtype == np.float64
-        assert df["TMSR Designation MW"].dtype == np.float64
-        assert df["Total Ten Min Req MW"].dtype == np.float64
-        assert df["Total Thirty Min Req MW"].dtype == np.float64
+        assert df.schema["EIR Designation MW"] == pl.Float64
+        assert df.schema["FER Clearing Price"] == pl.Float64
+        assert df.schema["Forecasted Energy Req MW"] == pl.Float64
+        assert df.schema["Ten Min Spin Req MW"] == pl.Float64
+        assert df.schema["TMNSR Clearing Price"] == pl.Float64
+        assert df.schema["TMNSR Designation MW"] == pl.Float64
+        assert df.schema["TMOR Clearing Price"] == pl.Float64
+        assert df.schema["TMOR Designation MW"] == pl.Float64
+        assert df.schema["TMSR Clearing Price"] == pl.Float64
+        assert df.schema["TMSR Designation MW"] == pl.Float64
+        assert df.schema["Total Ten Min Req MW"] == pl.Float64
+        assert df.schema["Total Thirty Min Req MW"] == pl.Float64
 
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
+        assert self._interval_equals(df, pd.Timedelta(hours=1))
 
     def test_get_reserve_requirements_prices_forecast_day_ahead_latest(self):
         with api_vcr.use_cassette(
@@ -1118,39 +1133,35 @@ class TestISONEAPI(TestHelperMixin):
             self.iso.default_timezone,
         ) - pd.Timedelta(hours=1)
 
-    def _check_lmp_columns(self, df: pd.DataFrame):
+    def _check_lmp_columns(self, df: pl.DataFrame):
         """Shared helper to validate LMP column structure and dtypes."""
         assert list(df.columns) == LMP_COLUMNS
-        assert df["LMP"].dtype in [np.int64, np.float64]
-        assert df["Energy"].dtype in [np.int64, np.float64]
-        assert df["Congestion"].dtype in [np.int64, np.float64]
-        assert df["Loss"].dtype in [np.int64, np.float64]
+        for col in ["LMP", "Energy", "Congestion", "Loss"]:
+            assert self._is_numeric_dtype(df.schema[col])
 
     """get_reserve_zone_prices_designations_real_time_5_min"""
 
     def _check_reserve_zone_prices_designations(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         interval: pd.Timedelta,
     ):
         """Shared helper to validate reserve zone price data across different intervals."""
         assert list(df.columns) == ISONE_RESERVE_ZONE_ALL_COLUMNS
 
-        assert df["Reserve Zone Id"].dtype == np.int64
-        assert df["Reserve Zone Name"].dtype == object
-        assert df["Ten Min Spin Requirement"].dtype == np.float64
-        assert df["TMNSR Clearing Price"].dtype == np.float64
-        assert df["TMNSR Designated MW"].dtype == np.float64
-        assert df["TMOR Clearing Price"].dtype == np.float64
-        assert df["TMOR Designated MW"].dtype == np.float64
-        assert df["TMSR Clearing Price"].dtype == np.float64
-        assert df["TMSR Designated MW"].dtype == np.float64
-        assert df["Total 10 Min Requirement"].dtype == np.float64
-        assert df["Total 30 Min Requirement"].dtype == np.float64
+        assert df.schema["Reserve Zone Id"] == pl.Int64
+        assert df.schema["Reserve Zone Name"] == pl.Utf8
+        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
+            assert df.schema[col] == pl.Float64
 
-        assert list(df["Reserve Zone Id"].unique()) == [7000, 7001, 7002, 7003]
+        assert sorted(df["Reserve Zone Id"].unique().to_list()) == [
+            7000,
+            7001,
+            7002,
+            7003,
+        ]
 
-        assert ((df["Interval End"] - df["Interval Start"]) == interval).all()
+        assert self._interval_equals(df, interval)
 
     def test_get_reserve_zone_prices_designations_real_time_5_min_latest(self):
         with api_vcr.use_cassette(
@@ -1275,7 +1286,7 @@ class TestISONEAPI(TestHelperMixin):
 
     def _check_strike_prices_day_ahead(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
     ):
         assert list(df.columns) == [
             "Interval Start",
@@ -1291,19 +1302,17 @@ class TestISONEAPI(TestHelperMixin):
             "SPC Load Forecast MW",
             "Strike Price",
         ]
-        assert df["Expected Closeout Charge"].dtype == np.float64
-        assert df["Expected Closeout Charge Override"].dtype == np.float64
-        assert df["Expected RT Hub LMP"].dtype == np.float64
-        assert df["Percentile 10 RT Hub LMP"].dtype == np.float64
-        assert df["Percentile 25 RT Hub LMP"].dtype == np.float64
-        assert df["Percentile 75 RT Hub LMP"].dtype == np.float64
-        assert df["Percentile 90 RT Hub LMP"].dtype == np.float64
-        assert df["SPC Load Forecast MW"].dtype == np.float64
-        assert df["Strike Price"].dtype == np.float64
+        assert df.schema["Expected Closeout Charge"] == pl.Float64
+        assert df.schema["Expected Closeout Charge Override"] == pl.Float64
+        assert df.schema["Expected RT Hub LMP"] == pl.Float64
+        assert df.schema["Percentile 10 RT Hub LMP"] == pl.Float64
+        assert df.schema["Percentile 25 RT Hub LMP"] == pl.Float64
+        assert df.schema["Percentile 75 RT Hub LMP"] == pl.Float64
+        assert df.schema["Percentile 90 RT Hub LMP"] == pl.Float64
+        assert df.schema["SPC Load Forecast MW"] == pl.Float64
+        assert df.schema["Strike Price"] == pl.Float64
 
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
+        assert self._interval_equals(df, pd.Timedelta(hours=1))
 
     def test_get_ancillary_services_strike_prices_day_ahead_latest(self):
         with api_vcr.use_cassette(
@@ -1344,15 +1353,21 @@ class TestISONEAPI(TestHelperMixin):
 
     def _check_constraints(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         expected_columns: list[str],
         expected_interval: pd.Timedelta,
     ) -> None:
         assert list(df.columns) == expected_columns
-        assert df["Interval Start"].dtype == "datetime64[ns, US/Eastern]"
-        assert df["Interval End"].dtype == "datetime64[ns, US/Eastern]"
-        assert ((df["Interval End"] - df["Interval Start"]) == expected_interval).all()
-        assert df["Marginal Value"].dtype in [np.int64, np.float64]
+        assert self._is_tz_datetime(
+            df.schema["Interval Start"],
+            self.iso.default_timezone,
+        )
+        assert self._is_tz_datetime(
+            df.schema["Interval End"],
+            self.iso.default_timezone,
+        )
+        assert self._interval_equals(df, expected_interval)
+        assert self._is_numeric_dtype(df.schema["Marginal Value"])
 
     @pytest.mark.parametrize(
         "date,end",
@@ -1589,15 +1604,21 @@ class TestISONEAPI(TestHelperMixin):
             expected_interval=pd.Timedelta(minutes=5),
         )
 
-    def _check_fcm_reconfiguration(self, df: pd.DataFrame) -> None:
-        assert isinstance(df, pd.DataFrame)
-        assert len(df) > 0
+    def _check_fcm_reconfiguration(self, df: pl.DataFrame) -> None:
+        assert isinstance(df, pl.DataFrame)
+        assert df.height > 0
         assert list(df.columns) == ISONE_FCM_RECONFIGURATION_COLUMNS
         assert "ARA" in df.columns
-        assert df["Location Type"].isin(["Capacity Zone", "External Interface"]).all()
-        assert df["Location ID"].dtype in [np.int64, np.float64]
-        assert df["Location Name"].dtype == "object"
-        assert df["Capacity Zone Type"].notna().any()
+        assert (
+            df.select(
+                pl.col("Location Type").is_in(["Capacity Zone", "External Interface"]),
+            )
+            .to_series()
+            .all()
+        )
+        assert self._is_numeric_dtype(df.schema["Location ID"])
+        assert df.schema["Location Name"] == pl.Utf8
+        assert df["Capacity Zone Type"].is_not_null().any()
         numeric_cols = [
             "Total Supply Offers Submitted",
             "Total Demand Bids Submitted",
@@ -1607,7 +1628,7 @@ class TestISONEAPI(TestHelperMixin):
             "Clearing Price",
         ]
         for col in numeric_cols:
-            assert df[col].dtype in [np.int64, np.float64]
+            assert self._is_numeric_dtype(df.schema[col])
 
     def test_get_fcm_reconfiguration_monthly_latest(self):
         with api_vcr.use_cassette("test_get_fcm_reconfiguration_monthly_latest.yaml"):
@@ -1638,7 +1659,7 @@ class TestISONEAPI(TestHelperMixin):
             result = self.iso.get_fcm_reconfiguration_annual(date="latest")
 
             self._check_fcm_reconfiguration(result)
-            assert result["ARA"].isin(["1", "2", "3"]).all()
+            assert result.select(pl.col("ARA").is_in([1, 2, 3])).to_series().all()
 
     @pytest.mark.parametrize(
         "date",
@@ -1655,8 +1676,8 @@ class TestISONEAPI(TestHelperMixin):
             )
 
             self._check_fcm_reconfiguration(result)
-            assert result["ARA"].isin(["1", "2", "3"]).all()
-            unique_ara_values = result["ARA"].unique()
+            assert result.select(pl.col("ARA").is_in([1, 2, 3])).to_series().all()
+            unique_ara_values = result["ARA"].unique().to_list()
             assert len(unique_ara_values) >= 1
             cp_start_year = date.year if date.month >= 6 else date.year - 1
             expected_cp_start = pd.Timestamp(

@@ -7,6 +7,7 @@ import zipfile
 from typing import BinaryIO, Dict
 
 import pandas as pd
+import polars as pl
 import requests
 
 from gridstatus import utils
@@ -16,22 +17,30 @@ from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
 
-def add_interval_end(df: pd.DataFrame, duration_min: int) -> pd.DataFrame:
+def add_interval_end(df: pl.DataFrame, duration_min: int) -> pl.DataFrame:
     """Add an interval end column to a dataframe
 
     Args:
-        df (pandas.DataFrame): Dataframe with a time column
+        df (polars.DataFrame): Dataframe with a time column
         duration_min (int): Interval duration in minutes
 
     Returns:
-        pandas.DataFrame: Dataframe with an interval end column
+        polars.DataFrame: Dataframe with an interval end column
     """
-    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=duration_min)
-    df["Time"] = df["Interval Start"]
-    df = utils.move_cols_to_front(
-        df,
+    return utils.move_cols_to_front(
+        df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=duration_min)).alias(
+                "Interval End",
+            ),
+            pl.col("Interval Start").alias("Time"),
+        ),
         ["Time", "Interval Start", "Interval End"],
     )
+
+
+def _cast_constraint_description_utf8(df: pl.DataFrame) -> pl.DataFrame:
+    if "Constraint Description" in df.columns:
+        return df.with_columns(pl.col("Constraint Description").cast(pl.Utf8))
     return df
 
 
@@ -87,7 +96,7 @@ class MISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the fuel mix for a given day for a provided MISO.
 
         Arguments:
@@ -111,23 +120,28 @@ class MISO(ISOBase):
             )
 
         response_json = self._get_json(url, verbose=verbose)
-        return self._parse_fuel_mix(response_json)
+        df = self._parse_fuel_mix(response_json)
+        if date == "latest" and df.height > 1:
+            df = df.filter(pl.col("Interval Start") == pl.col("Interval Start").max())
+        return df
 
-    def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
-        df = pd.json_normalize(raw_json["Fuel"]["Type"])
-        df["INTERVALEST"] = pd.to_datetime(
-            df["INTERVALEST"],
-            format="%Y-%m-%d %I:%M:%S %p",
-        ).dt.tz_localize(
-            self.default_timezone,
+    def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pl.DataFrame:
+        df = pl.from_pandas(pd.json_normalize(raw_json["Fuel"]["Type"]))
+        df = df.with_columns(
+            pl.col("INTERVALEST")
+            .str.to_datetime(format="%Y-%m-%d %I:%M:%S %p")
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("INTERVALEST"),
         )
-
-        df_pivoted = df.pivot(index="INTERVALEST", columns="CATEGORY", values="ACT")
-        df_pivoted = df_pivoted.reset_index().rename(
-            columns={"INTERVALEST": "Interval Start"},
+        df_pivoted = df.pivot(
+            "CATEGORY",
+            index="INTERVALEST",
+            values="ACT",
+            aggregate_function="first",
+        ).rename(
+            {"INTERVALEST": "Interval Start"},
         )
         df_pivoted = add_interval_end(df_pivoted, 5)
-        df_pivoted.columns.name = None
         for col in [
             "Battery Storage",
             "Coal",
@@ -138,10 +152,24 @@ class MISO(ISOBase):
             "Solar",
             "Wind",
         ]:
-            df_pivoted[col] = df_pivoted[col].astype("Int64")
-        return df_pivoted
+            if col in df_pivoted.columns:
+                df_pivoted = df_pivoted.with_columns(pl.col(col).cast(pl.Int64))
+        output_cols = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Battery Storage",
+            "Coal",
+            "Imports",
+            "Natural Gas",
+            "Nuclear",
+            "Other",
+            "Solar",
+            "Wind",
+        ]
+        return df_pivoted.select([c for c in output_cols if c in df_pivoted.columns])
 
-    def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pd.DataFrame:
+    def get_load(self, date: str | pd.Timestamp, verbose: bool = False) -> pl.DataFrame:
         if date == "latest":
             return self.get_load(date="today", verbose=verbose)
 
@@ -150,26 +178,24 @@ class MISO(ISOBase):
 
             date = pd.to_datetime(r["LoadInfo"]["RefId"].split(" ")[0])
 
-            df = pd.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
+            df = pl.DataFrame([x["Load"] for x in r["LoadInfo"]["FiveMinTotalLoad"]])
 
-            df["Interval Start"] = df["Time"].apply(
-                lambda x, date=date: (
-                    date
-                    + pd.Timedelta(
-                        hours=int(
-                            x.split(":")[0],
-                        ),
-                        minutes=int(x.split(":")[1]),
-                    )
-                ),
+            def _time_to_interval_start(time_str: str) -> pd.Timestamp:
+                hours, minutes = map(int, time_str.split(":"))
+                return (date + pd.Timedelta(hours=hours, minutes=minutes)).tz_localize(
+                    self.default_timezone,
+                )
+
+            df = df.with_columns(
+                pl.col("Time")
+                .map_elements(
+                    _time_to_interval_start,
+                    return_dtype=pl.Datetime(time_zone=self.default_timezone),
+                )
+                .alias("Interval Start"),
+                pl.col("Value").cast(pl.Float64).alias("Load"),
             )
-            df["Interval Start"] = df["Interval Start"].dt.tz_localize(
-                self.default_timezone,
-            )
-            df = df.rename(columns={"Value": "Load"})
-            df["Load"] = pd.to_numeric(df["Load"])
-            df = add_interval_end(df, 5)
-            return df
+            return add_interval_end(df.select(["Interval Start", "Load"]), 5)
 
         else:
             raise NotSupported
@@ -180,7 +206,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         https://docs.misoenergy.org/marketreports/YYYYMMDD_df_al.xls
         """
@@ -188,15 +214,15 @@ class MISO(ISOBase):
             return self.get_load_forecast(date="today", verbose=verbose)
 
         df = self._get_load_forecast_file(date)
-        df = df.loc[
-            df["Interval Start"] >= date,
-            [col for col in df if "ActualLoad" not in col],
-        ]
-        df = utils.move_cols_to_front(
-            df,
-            ["Interval Start", "Interval End", "Publish Time"],
-        ).drop(columns=["Market Day", "HourEnding"])
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        cols = [col for col in df.columns if "ActualLoad" not in col]
+        return (
+            utils.move_cols_to_front(
+                df.filter(pl.col("Interval Start") >= date).select(cols),
+                ["Interval Start", "Interval End", "Publish Time"],
+            )
+            .drop(["Market Day", "HourEnding"])
+            .sort("Interval Start")
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_zonal_load_hourly(
@@ -204,7 +230,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         https://docs.misoenergy.org/marketreports/YYYYMMDD_df_al.xls
         """
@@ -218,17 +244,20 @@ class MISO(ISOBase):
             )
             df = self.get_historical_zonal_load_hourly(date.year)
             if end is None:
-                df = df[df["Interval Start"].dt.date == date.date()]
+                df = df.filter(pl.col("Interval Start").dt.date() == date.date())
             else:
-                df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
-            return df.reset_index(drop=True)
+                df = df.filter(
+                    (pl.col("Interval Start") >= date)
+                    & (pl.col("Interval Start") <= end),
+                )
+            return df
 
         # NB: Report available is based on publish time, which is 12am the next day
         date = date + pd.Timedelta(days=1)
         df = self._get_load_forecast_file(date)
 
         df = df.rename(
-            columns={
+            {
                 "LRZ1 ActualLoad": "LRZ1",
                 "LRZ2_7 ActualLoad": "LRZ2 7",
                 "LRZ3_5 ActualLoad": "LRZ3 5",
@@ -239,39 +268,38 @@ class MISO(ISOBase):
             },
         )
 
-        df = utils.move_cols_to_front(
-            df,
-            ["Interval Start", "Interval End"],
-        ).drop(columns=["Market Day", "HourEnding"])
-
-        df = df.sort_values("Interval Start").reset_index(drop=True)
-        df = df.dropna()
-        df = df.astype(
-            {
-                "LRZ1": float,
-                "LRZ2 7": float,
-                "LRZ3 5": float,
-                "LRZ4": float,
-                "LRZ6": float,
-                "LRZ8 9 10": float,
-                "MISO": float,
-            },
-        )
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "LRZ1",
-                "LRZ2 7",
-                "LRZ3 5",
-                "LRZ4",
-                "LRZ6",
-                "LRZ8 9 10",
-                "MISO",
-            ]
+        zonal_cols = [
+            "Interval Start",
+            "Interval End",
+            "LRZ1",
+            "LRZ2 7",
+            "LRZ3 5",
+            "LRZ4",
+            "LRZ6",
+            "LRZ8 9 10",
+            "MISO",
         ]
+        return (
+            utils.move_cols_to_front(
+                df,
+                ["Interval Start", "Interval End"],
+            )
+            .drop(["Market Day", "HourEnding"])
+            .sort("Interval Start")
+            .drop_nulls()
+            .with_columns(
+                pl.col("LRZ1").cast(pl.Float64),
+                pl.col("LRZ2 7").cast(pl.Float64),
+                pl.col("LRZ3 5").cast(pl.Float64),
+                pl.col("LRZ4").cast(pl.Float64),
+                pl.col("LRZ6").cast(pl.Float64),
+                pl.col("LRZ8 9 10").cast(pl.Float64),
+                pl.col("MISO").cast(pl.Float64),
+            )
+            .select(zonal_cols)
+        )
 
-    def _get_load_forecast_file(self, date: str | pd.Timestamp) -> pd.DataFrame:
+    def _get_load_forecast_file(self, date: str | pd.Timestamp) -> pl.DataFrame:
         url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_df_al.xls"  # noqa
         logger.info(f"Downloading hourly load and load forecast data from {url}")
         # Locate the header row dynamically: MISO changed the file layout on
@@ -301,14 +329,14 @@ class MISO(ISOBase):
         df["Publish Time"] = date.normalize()
 
         df.columns = df.columns.map(lambda x: x.replace("(MWh)", "").strip())
-        return df
+        return pl.from_pandas(df)
 
     def _get_load_data(self, verbose: bool = False) -> dict:
         url = "https://public-api.misoenergy.org/api/RealTimeTotalLoad"
         r = self._get_json(url, verbose=verbose)
         return r
 
-    def get_historical_zonal_load_hourly(self, year: int) -> pd.DataFrame:
+    def get_historical_zonal_load_hourly(self, year: int) -> pl.DataFrame:
         url = f"https://docs.misoenergy.org/marketreports/{year}12_dfal_HIST_xls.zip"
         logger.info(f"Downloading historical zonal load data from {url}")
 
@@ -376,22 +404,30 @@ class MISO(ISOBase):
                 "MISO": float,
             },
         )
+        zonal_cols = [
+            "Interval Start",
+            "Interval End",
+            "LRZ1",
+            "LRZ2 7",
+            "LRZ3 5",
+            "LRZ4",
+            "LRZ6",
+            "LRZ8 9 10",
+            "MISO",
+        ]
         return (
-            df_pivoted[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "LRZ1",
-                    "LRZ2 7",
-                    "LRZ3 5",
-                    "LRZ4",
-                    "LRZ6",
-                    "LRZ8 9 10",
-                    "MISO",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+            pl.from_pandas(df_pivoted)
+            .with_columns(
+                pl.col("LRZ1").cast(pl.Float64),
+                pl.col("LRZ2 7").cast(pl.Float64),
+                pl.col("LRZ3 5").cast(pl.Float64),
+                pl.col("LRZ4").cast(pl.Float64),
+                pl.col("LRZ6").cast(pl.Float64),
+                pl.col("LRZ8 9 10").cast(pl.Float64),
+                pl.col("MISO").cast(pl.Float64),
+            )
+            .select(zonal_cols)
+            .sort("Interval Start")
         )
 
     # Older datasets do not have every region. In that case, we insert the column
@@ -415,7 +451,7 @@ class MISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             return self.get_solar_forecast(date="today", verbose=verbose)
 
@@ -430,7 +466,7 @@ class MISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             return self.get_wind_forecast(date="today", verbose=verbose)
 
@@ -467,54 +503,54 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         fuel: str,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         excel_file = self._get_mom_forecast_report(date, verbose)
         publish_time = pd.to_datetime(excel_file.book.properties.modified, utc=True)
 
-        # The data schema changes on 2022-06-13
         skiprows = (
             4 if date > pd.Timestamp("2022-06-12", tz=self.default_timezone) else 3
         )
 
-        df = (
-            pd.read_excel(
-                excel_file,
-                sheet_name=f"{fuel.upper()} HOURLY",
-                skiprows=skiprows,
-                skipfooter=1,
-            )
-            .dropna(how="all")
-            .assign(**{"Publish Time": publish_time})
+        def _process_forecast(df: pd.DataFrame) -> pd.DataFrame:
+            return df.dropna(how="all")
+
+        df = utils.read_excel_via_pandas(
+            excel_file,
+            sheet_name=f"{fuel.upper()} HOURLY",
+            skiprows=skiprows,
+            skipfooter=1,
+            process=_process_forecast,
         )
 
-        # Handle older datasets
-        df = df.rename(columns={"Day HE": "DAY HE"})
+        df = df.with_columns(pl.lit(publish_time).alias("Publish Time"))
 
-        # Convert column that looks like this **03/27/2024 1 **03/27/2024 24 or to
-        # a valid datetime. Assume Hour Ending is in local time
+        if "Day HE" in df.columns:
+            df = df.rename({"Day HE": "DAY HE"})
 
-        df["hour"] = df["DAY HE"].str.extract(r"(\d+)$").astype(int)
-        df["date"] = pd.to_datetime(
-            df["DAY HE"].str.replace("**", "").str.split(" ").str[0],
-            format="%m/%d/%Y",
+        df = df.with_columns(
+            pl.col("DAY HE").str.extract(r"(\d+)$", 1).cast(pl.Int64).alias("hour"),
+            pl.col("DAY HE")
+            .str.replace_all(r"\*\*", "")
+            .str.split(" ")
+            .list.first()
+            .str.to_datetime(format="%m/%d/%Y")
+            .alias("date"),
         )
 
-        df["Interval Start"] = (
-            pd.to_datetime(df["date"])
-            + pd.to_timedelta(
-                df["hour"] - 1,
-                "h",
-            )
-            # This forecast does not handle DST changes
-        ).dt.tz_localize(self.default_timezone)
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.with_columns(
+            (pl.col("date") + pl.duration(hours=pl.col("hour") - 1))
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
         for col in self.solar_and_wind_forecast_region_cols:
             if col not in df.columns:
-                df[col] = pd.NA
+                df = df.with_columns(pl.lit(None).cast(pl.Float64).alias(col))
 
-        return df[self.solar_and_wind_forecast_cols]
+        return df.select(self.solar_and_wind_forecast_cols)
 
     @support_date_range(frequency="W-MON")
     def get_lmp_real_time_5_min_final(
@@ -522,7 +558,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Retrieves real time final lmp data that includes price corrections to the
         preliminary real time data.
 
@@ -544,7 +580,7 @@ class MISO(ISOBase):
         download_url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_5MIN_LMP.zip"
 
         try:
-            df = pd.read_csv(
+            df = utils.read_csv_exotic_via_pandas(
                 download_url,
                 compression="zip",
                 skiprows=4,
@@ -559,16 +595,20 @@ class MISO(ISOBase):
 
     def _handle_lmp_real_time_5_min_final(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         verbose: bool = False,
-    ) -> pd.DataFrame:
-        df["Interval Start"] = pd.to_datetime(df["MKTHOUR_EST"]).dt.tz_localize(
-            self.default_timezone,
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            pl.from_pandas(
+                pd.to_datetime(df["MKTHOUR_EST"].to_pandas()).dt.tz_localize(
+                    self.default_timezone,
+                ),
+            ).alias("Interval Start"),
         )
-        df = add_interval_end(df, 5).drop(columns=["Time"])
+        df = add_interval_end(df, 5).drop("Time")
 
         df = df.rename(
-            columns={
+            {
                 "CON_LMP": "Congestion",
                 "LOSS_LMP": "Loss",
                 "PNODENAME": "Location",
@@ -576,32 +616,36 @@ class MISO(ISOBase):
         )
         node_to_type = self._get_node_to_type_mapping(verbose)
 
-        df = df.merge(
+        df = df.join(
             node_to_type,
             left_on="Location",
             right_on="Node",
             how="left",
         )
 
-        df["Energy"] = df["LMP"] - df["Loss"] - df["Congestion"]
-        df["Market"] = Markets.REAL_TIME_5_MIN_FINAL.value
+        df = df.with_columns(
+            (pl.col("LMP") - pl.col("Loss") - pl.col("Congestion")).alias("Energy"),
+            pl.lit(Markets.REAL_TIME_5_MIN_FINAL.value).alias("Market"),
+        )
 
-        df = utils.move_cols_to_front(
-            df,
-            [
-                "Interval Start",
-                "Interval End",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-                "Energy",
-                "Congestion",
-                "Loss",
-            ],
-        ).drop(columns=["MKTHOUR_EST", "Node"])
-
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return (
+            utils.move_cols_to_front(
+                df,
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Market",
+                    "Location",
+                    "Location Type",
+                    "LMP",
+                    "Energy",
+                    "Congestion",
+                    "Loss",
+                ],
+            )
+            .drop([c for c in ["MKTHOUR_EST", "Time", "Node"] if c in df.columns])
+            .sort("Interval Start")
+        )
 
     @lmp_config(
         supports={
@@ -619,7 +663,7 @@ class MISO(ISOBase):
         market: str = Markets.REAL_TIME_5_MIN,
         locations: list = "ALL",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Supported Markets:
             - ``REAL_TIME_5_MIN`` - (Prelim ExPost 5 Minute)
@@ -647,21 +691,24 @@ class MISO(ISOBase):
             logger.info(f"Downloading LMP data from {url}")
             response_json = self._get_json(url, verbose=verbose)
 
-            # Convert JSON format to DataFrame
-            data = pd.DataFrame(response_json["data"], columns=response_json["headers"])
-
-            data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
-                self.default_timezone,
+            data = pl.from_pandas(
+                pd.DataFrame(response_json["data"], columns=response_json["headers"]),
             )
 
-            node_to_type_mapping = (
-                MISO()
-                ._get_node_to_type_mapping()
-                .set_index("Node")["Location Type"]
-                .to_dict()
+            data = data.with_columns(
+                pl.col("INTERVAL")
+                .str.to_datetime()
+                .dt.replace_time_zone(self.default_timezone)
+                .alias("Interval Start"),
             )
-            data["Location Type"] = data["CPNODE"].map(node_to_type_mapping)
-            data.rename(columns={"CPNODE": "Node"}, inplace=True)
+
+            node_to_type_mapping = self._get_node_to_type_mapping()
+            data = data.join(
+                node_to_type_mapping,
+                left_on="CPNODE",
+                right_on="Node",
+                how="left",
+            ).rename({"CPNODE": "Node"})
 
             interval_duration = 5
 
@@ -680,32 +727,35 @@ class MISO(ISOBase):
                 url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_prelim.csv"
 
             logger.info(f"Downloading LMP data from {url}")
-            raw_data = pd.read_csv(url, skiprows=4)
+            raw_data = pl.read_csv(url, skip_rows=4)
             data = self._handle_hourly_lmp(date, raw_data)
             interval_duration = 60
 
-        data = data.sort_values(["Interval Start", "Node"])
+        data = data.sort(["Interval Start", "Node"])
         data = add_interval_end(data, interval_duration)
 
-        data = data.rename(
-            columns={
-                "Node": "Location",
-                "Type": "Location Type",
-                "LMP": "LMP",
-                "MLC": "Loss",
-                "MCC": "Congestion",
-            },
+        rename_map = {
+            "Node": "Location",
+            "LMP": "LMP",
+            "MLC": "Loss",
+            "MCC": "Congestion",
+        }
+        if "Type" in data.columns:
+            rename_map["Type"] = "Location Type"
+        data = data.rename(rename_map)
+
+        data = data.with_columns(
+            pl.col("LMP").cast(pl.Float64, strict=False),
+            pl.col("Loss").cast(pl.Float64, strict=False),
+            pl.col("Congestion").cast(pl.Float64, strict=False),
         )
 
-        data[["LMP", "Loss", "Congestion"]] = data[["LMP", "Loss", "Congestion"]].apply(
-            pd.to_numeric,
-            errors="coerce",
+        data = data.with_columns(
+            (pl.col("LMP") - pl.col("Loss") - pl.col("Congestion")).alias("Energy"),
+            pl.lit(market.value).alias("Market"),
         )
 
-        data["Energy"] = data["LMP"] - data["Loss"] - data["Congestion"]
-        data["Market"] = market.value
-
-        data = data[
+        data = data.select(
             [
                 "Time",
                 "Interval Start",
@@ -717,12 +767,10 @@ class MISO(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
+            ],
+        )
 
-        data = utils.filter_lmp_locations(data, locations)
-
-        return data
+        return utils.filter_lmp_locations(data, locations)
 
     @lmp_config(
         supports={
@@ -739,7 +787,7 @@ class MISO(ISOBase):
         market: str = Markets.REAL_TIME_5_MIN,
         locations: list = "ALL",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Deprecated. Use the per-dataset methods instead:
         :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_day_ahead_hourly`,
         :meth:`get_lmp_real_time_hourly_prelim`,
@@ -766,7 +814,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get prelim ExPost real-time 5-minute LMPs for all nodes.
 
         Only today, yesterday, and "latest" are supported.
@@ -784,7 +832,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get ExPost day-ahead hourly LMPs for all nodes."""
         return self._get_lmp(
             date,
@@ -799,7 +847,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get prelim ExPost real-time hourly LMPs for all nodes.
 
         Only 4 days of data available, with the most recent being yesterday.
@@ -817,7 +865,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get final ExPost real-time hourly LMPs for all nodes."""
         return self._get_lmp(
             date,
@@ -830,45 +878,54 @@ class MISO(ISOBase):
     def _handle_hourly_lmp(
         self,
         date: str | pd.Timestamp,
-        raw_data: pd.DataFrame,
-    ) -> pd.DataFrame:
-        data_melted = raw_data.melt(
-            id_vars=["Node", "Type", "Value"],
-            value_vars=[col for col in raw_data.columns if col.startswith("HE")],
-            var_name="HE",
+        raw_data: pl.DataFrame,
+    ) -> pl.DataFrame:
+        he_cols = [col for col in raw_data.columns if col.startswith("HE")]
+        data_melted = raw_data.unpivot(
+            index=["Node", "Type", "Value"],
+            on=he_cols,
+            variable_name="HE",
             value_name="value",
         )
 
-        data = data_melted.pivot_table(
+        data = data_melted.pivot(
+            "Value",
             index=["Node", "Type", "HE"],
-            columns="Value",
             values="value",
-            aggfunc="first",
-        ).reset_index()
+            aggregate_function="first",
+        )
 
-        data["Interval Start"] = (
-            data["HE"]
-            .apply(
-                lambda x: date.replace(tzinfo=None, hour=int(x.split(" ")[1]) - 1),
+        base = pl.lit(
+            date.replace(tzinfo=None).replace(
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            ),
+        )
+        data = data.with_columns(
+            (
+                base
+                + pl.duration(
+                    hours=pl.col("HE").str.split(" ").list.get(1).cast(pl.Int64) - 1,
+                )
             )
-            .dt.tz_localize(self.default_timezone)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
 
         return data
 
-    def _get_node_to_type_mapping(self, verbose: bool = False) -> pd.DataFrame:
-        # use dam to get location types
+    def _get_node_to_type_mapping(self, verbose: bool = False) -> pl.DataFrame:
         today = utils._handle_date("today", self.default_timezone)
         url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
         logger.info(f"Downloading LMP data from {url}")
-        today_dam_data = pd.read_csv(url, skiprows=4)
-        node_to_type = (
-            today_dam_data[["Node", "Type"]]
-            .drop_duplicates()
-            .rename(columns={"Type": "Location Type"})
+        today_dam_data = pl.read_csv(url, skip_rows=4)
+        return (
+            today_dam_data.select(["Node", "Type"])
+            .unique()
+            .rename({"Type": "Location Type"})
         )
-
-        return node_to_type
 
     def get_raw_interconnection_queue(self, verbose: bool = False) -> BinaryIO:
         url = "https://www.misoenergy.org/api/giqueue/getprojects"
@@ -879,31 +936,26 @@ class MISO(ISOBase):
         response = requests.get(url, headers="")
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
+    def get_interconnection_queue(self, verbose: bool = False) -> pl.DataFrame:
         """Get the interconnection queue
 
         Returns:
-            pandas.DataFrame: Interconnection queue
+            polars.DataFrame: Interconnection queue
         """
         raw_data = self.get_raw_interconnection_queue(verbose)
         data = json.loads(raw_data.read().decode("utf-8"))
-        # todo there are also study documents available:  https://www.misoenergy.org/planning/generator-interconnection/GI_Queue/gi-interactive-queue/
-        # there is also a map that plots the locations of these projects:
-        queue = pd.DataFrame(data)
+        queue = pl.from_pandas(pd.DataFrame(data))
 
         queue = queue.rename(
-            columns={
+            {
                 "postGIAStatus": "Post Generator Interconnection Agreement Status",
                 "doneDate": "Interconnection Approval Date",
             },
         )
 
-        queue["Capacity (MW)"] = queue[
-            [
-                "summerNetMW",
-                "winterNetMW",
-            ]
-        ].max(axis=1)
+        queue = queue.with_columns(
+            pl.max_horizontal("summerNetMW", "winterNetMW").alias("Capacity (MW)"),
+        )
 
         rename = {
             "projectNumber": "Queue ID",
@@ -962,7 +1014,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the forecasted generation outages published on the date for the next
         seven days."""
         return self._get_generation_outages_data(date, type="forecast", verbose=verbose)
@@ -973,7 +1025,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the estimated generation outages published on the date for the past 30
         days. NOTE: since these are estimates, they change with each file published.
         """
@@ -984,9 +1036,8 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         type: str = "forecast",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
-            # Latest available file is for yesterday
             date = pd.Timestamp.now(
                 tz=self.default_timezone,
             ).normalize() - pd.DateOffset(days=1)
@@ -1001,41 +1052,33 @@ class MISO(ISOBase):
         if type == "actual":
             skiprows = 26
 
-        # There's an unavoidable warning from openpyxl about styles so we suppress it
+        def _process_outages(df: pd.DataFrame) -> pd.DataFrame:
+            df.columns = [col.replace(" **", "").strip() for col in df.columns]
+            df.columns = ["Region", "Type"] + list(df.columns[2:])
+            return df.drop(columns=[col for col in df.columns if "Unnamed" in col])
+
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
                 category=UserWarning,
                 module=re.escape("openpyxl.styles.stylesheet"),
             )
-            data = pd.read_excel(
+            data = utils.read_excel_via_pandas(
                 url,
                 sheet_name="OUTAGE",
                 skiprows=skiprows,
                 nrows=nrows,
+                process=_process_outages,
             )
 
-        data.columns = [col.replace(" **", "").strip() for col in data.columns]
-        data.columns = ["Region", "Type"] + list(data.columns[2:])
-
-        # Some of the files have empty columns called "Unnamed x" that we need to drop
-        data = data.drop(columns=[col for col in data.columns if "Unnamed" in col])
-
-        data = data.melt(id_vars=["Region", "Type"], value_name="MW", var_name="Date")
-        data = data.pivot(index=["Region", "Date"], columns=["Type"])
-
-        data.columns = data.columns.droplevel(0)
-        data.columns.name = None
-
-        data = data.reset_index()
-
-        data["Interval Start"] = pd.to_datetime(
-            data["Date"],
-            format="mixed",
-        ).dt.tz_localize(self.default_timezone)
-
-        data["Interval End"] = data["Interval Start"] + pd.DateOffset(days=1)
-        data["Publish Time"] = date.tz_convert(self.default_timezone)
+        date_cols = [c for c in data.columns if c not in ["Region", "Type"]]
+        data = data.unpivot(
+            index=["Region", "Type"],
+            on=date_cols,
+            variable_name="Date",
+            value_name="MW",
+        )
+        data = data.pivot("Type", index=["Region", "Date"], values="MW")
 
         rename_dict = {
             "Derated": "Derated Outages MW",
@@ -1044,14 +1087,164 @@ class MISO(ISOBase):
             "Unplanned": "Unplanned Outages MW",
         }
 
+        output_cols = [
+            "Interval Start",
+            "Interval End",
+            "Publish Time",
+            "Region",
+            *rename_dict.values(),
+        ]
+
         return (
-            data.rename(columns=rename_dict)[
-                ["Interval Start", "Interval End", "Publish Time", "Region"]
-                + list(rename_dict.values())
-            ]
-            .sort_values(["Interval Start", "Region"])
-            .reset_index(drop=True)
+            data.with_columns(
+                pl.col("Date")
+                .str.to_datetime(format="%m/%d/%y")
+                .dt.replace_time_zone(self.default_timezone)
+                .alias("Interval Start"),
+            )
+            .with_columns(
+                (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+                pl.lit(date.tz_convert(self.default_timezone)).alias("Publish Time"),
+            )
+            .rename(rename_dict)
+            .select(output_cols)
+            .sort(["Interval Start", "Region"])
         )
+
+    _SUBREGIONAL_PBC_COLS = [
+        "Interval Start",
+        "Interval End",
+        "CONSTRAINT_NAME",
+        "PRELIMINARY_SHADOW_PRICE",
+        "CURVETYPE",
+        "BP1",
+        "PC1",
+        "BP2",
+        "PC2",
+        "BP3",
+        "PC3",
+        "BP4",
+        "PC4",
+        "OVERRIDE",
+        "REASON",
+    ]
+
+    _RESERVE_PRODUCT_COLS = [
+        "Interval Start",
+        "Interval End",
+        "Constraint Name",
+        "Shadow Price",
+        "Constraint Description",
+    ]
+
+    def _subregional_pbc_empty_df(self) -> pl.DataFrame:
+        tz = self.default_timezone
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Datetime("ns", tz),
+                "Interval End": pl.Datetime("ns", tz),
+                "CONSTRAINT_NAME": pl.Utf8,
+                "PRELIMINARY_SHADOW_PRICE": pl.Float64,
+                "CURVETYPE": pl.Utf8,
+                "BP1": pl.Float64,
+                "PC1": pl.Float64,
+                "BP2": pl.Float64,
+                "PC2": pl.Float64,
+                "BP3": pl.Float64,
+                "PC3": pl.Float64,
+                "BP4": pl.Float64,
+                "PC4": pl.Float64,
+                "OVERRIDE": pl.Int64,
+                "REASON": pl.Utf8,
+            },
+        )
+
+    def _reserve_product_empty_df(self) -> pl.DataFrame:
+        tz = self.default_timezone
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Datetime("ns", tz),
+                "Interval End": pl.Datetime("ns", tz),
+                "Constraint Name": pl.Utf8,
+                "Shadow Price": pl.Float64,
+                "Constraint Description": pl.Utf8,
+            },
+        )
+
+    def _finalize_reserve_product(self, data: pl.DataFrame) -> pl.DataFrame:
+        tz = self.default_timezone
+        return data.select(self._RESERVE_PRODUCT_COLS).with_columns(
+            pl.col("Interval Start").cast(pl.Datetime("ns", tz)),
+            pl.col("Interval End").cast(pl.Datetime("ns", tz)),
+            pl.col("Constraint Name").cast(pl.Utf8),
+            pl.col("Constraint Description").cast(pl.Utf8),
+            pl.col("Shadow Price").cast(pl.Float64, strict=False),
+        )
+
+    def _read_subregional_pbc_csv(
+        self,
+        url: str,
+        interval_minutes: int,
+    ) -> pl.DataFrame:
+        def _process_pbc(df: pd.DataFrame) -> pd.DataFrame:
+            return df.iloc[:-1]
+
+        data = utils.read_csv_exotic_via_pandas(
+            url,
+            skiprows=3,
+            index_col=False,
+            process=_process_pbc,
+        )
+        data = data.rename({c: c.strip() for c in data.columns})
+        data = data.with_columns(
+            pl.col("PRELIMINARY_SHADOW_PRICE").cast(pl.Float64, strict=False),
+            pl.col("BP1").cast(pl.Float64, strict=False),
+            pl.col("PC1").cast(pl.Float64, strict=False),
+            pl.col("BP2").cast(pl.Float64, strict=False),
+            pl.col("PC2").cast(pl.Float64, strict=False),
+            pl.col("BP3").cast(pl.Float64, strict=False),
+            pl.col("PC3").cast(pl.Float64, strict=False),
+            pl.col("BP4").cast(pl.Float64, strict=False),
+            pl.col("PC4").cast(pl.Float64, strict=False),
+            pl.col("OVERRIDE").cast(pl.Int64, strict=False),
+            pl.col("REASON").cast(pl.Utf8),
+        )
+
+        if data.is_empty():
+            return self._subregional_pbc_empty_df()
+
+        interval_end = pd.to_datetime(
+            data["MARKET_HOUR_EST"].to_pandas(),
+        ).dt.tz_localize(
+            self.default_timezone,
+        )
+        data = data.with_columns(
+            pl.from_pandas(interval_end).alias("Interval End"),
+        )
+        data = data.with_columns(
+            (pl.col("Interval End") - pl.duration(minutes=interval_minutes)).alias(
+                "Interval Start",
+            ),
+        )
+        data = data.with_columns(
+            pl.col("Interval End").cast(pl.Datetime("ns", self.default_timezone)),
+            pl.col("Interval Start").cast(pl.Datetime("ns", self.default_timezone)),
+        )
+        return data.select(self._SUBREGIONAL_PBC_COLS)
+
+    def _get_constraint_header_dates_from_url(
+        self,
+        url: str,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        header = utils.read_excel_via_pandas(url, nrows=2, usecols=[0])
+        col = header.columns[0]
+        market_date = pd.to_datetime(header[col][0].split(": ")[1]).tz_localize(
+            self.default_timezone,
+        )
+        publish_date = pd.to_datetime(header[col][1].split(": ")[1]).tz_localize(
+            self.default_timezone,
+        )
+        return market_date, publish_date
 
     @support_date_range(frequency="DAY_START")
     def get_binding_constraints_supplemental(
@@ -1059,7 +1252,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the supplemental binding constraints data from MISO.
 
         Source URL: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ADay-Ahead%2FMarketReportName%3ABinding Constraints Supplemental (xls)&t=10&p=0&s=MarketReportPublished&sd=desc
@@ -1070,20 +1263,17 @@ class MISO(ISOBase):
             verbose (bool, optional): Verbosity. Defaults to False.
 
         Returns:
-            pandas.DataFrame: Supplemental binding constraints data
+            polars.DataFrame: Supplemental binding constraints data
         """
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_bcsf.xls"
         logger.info(f"Downloading supplemental binding constraints data from {url}")
 
-        excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
-            excel_file,
-        )
-        data = pd.read_excel(excel_file, skiprows=3)
-        data["Date"] = market_date
+        market_date, publish_date = self._get_constraint_header_dates_from_url(url)
+        data = utils.read_excel_via_pandas(url, skiprows=3)
+        data = data.with_columns(pl.lit(market_date).alias("Date"))
 
-        return data[
+        return data.select(
             [
                 "Date",
                 "Constraint ID",
@@ -1102,8 +1292,8 @@ class MISO(ISOBase):
                 "To Station",
                 "From KV",
                 "To KV",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_binding_constraints_day_ahead_hourly(
@@ -1111,17 +1301,14 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_bc.xls"
         logger.info(f"Downloading day-ahead binding constraints data from {url}")
 
-        excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
-            excel_file,
-        )
-        data = pd.read_excel(
-            excel_file,
+        market_date, publish_date = self._get_constraint_header_dates_from_url(url)
+        data = utils.read_excel_via_pandas(
+            url,
             skiprows=3,
             dtype={
                 "Constraint Description": object,
@@ -1133,20 +1320,26 @@ class MISO(ISOBase):
                 "PC2": float,
             },
         )
+        data = _cast_constraint_description_utf8(data)
 
-        data["Interval End"] = market_date + pd.to_timedelta(
-            data["Hour of Occurrence"],
-            unit="h",
+        data = data.with_columns(
+            (
+                pl.lit(market_date) + pl.duration(hours=pl.col("Hour of Occurrence"))
+            ).alias(
+                "Interval End",
+            ),
         )
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+        data = data.with_columns(
+            (pl.col("Interval End") - pl.duration(hours=1)).alias("Interval Start"),
+        )
         data = data.rename(
-            columns={
+            {
                 "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
                 "Constraint_ID": "Constraint ID",
             },
         )
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1164,15 +1357,14 @@ class MISO(ISOBase):
                 "BP2",
                 "PC2",
                 "Reason",
-            ]
-        ]
+            ],
+        )
 
-    # NOTE(kladar): Mostly this method is used for efficient backfilling
     def get_binding_constraints_day_ahead_yearly_historical(
         self,
         year: int,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the day-ahead binding constraints data from MISO for a given year.
 
         Args:
@@ -1180,29 +1372,33 @@ class MISO(ISOBase):
             verbose (bool, optional): Verbosity. Defaults to False.
 
         Returns:
-            pandas.DataFrame: Historical day-ahead binding constraints data
+            polars.DataFrame: Historical day-ahead binding constraints data
         """
         url = f"https://docs.misoenergy.org/marketreports/{year}_da_bc_HIST.csv"
         logger.info(f"Downloading day-ahead binding constraints data from {url}")
 
-        data = pd.read_csv(url)
-        data["Interval End"] = pd.to_datetime(data["Market Date"]).dt.tz_localize(
-            self.default_timezone,
-        ) + pd.to_timedelta(data["Hour of Occurrence"], unit="h")
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
-
-        data = data.rename(
-            columns={
-                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
-            },
+        data = pl.read_csv(url)
+        data = data.with_columns(
+            (
+                pl.col("Market Date")
+                .str.to_datetime()
+                .dt.replace_time_zone(
+                    self.default_timezone,
+                )
+                + pl.duration(hours=pl.col("Hour of Occurrence"))
+            ).alias("Interval End"),
+        )
+        data = data.with_columns(
+            (pl.col("Interval End") - pl.duration(hours=1)).alias("Interval Start"),
         )
         data = data.rename(
-            columns={
+            {
+                "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
                 "Constraint_ID": "Constraint ID",
             },
         )
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1220,8 +1416,8 @@ class MISO(ISOBase):
                 "BP2",
                 "PC2",
                 "Reason",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_subregional_power_balance_constraints_day_ahead_hourly(
@@ -1229,80 +1425,14 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_pbc.csv"
         logger.info(
             f"Downloading day-ahead subregional power balance constraints data from {url}",
         )
 
-        data = pd.read_csv(
-            url,
-            skiprows=3,
-            index_col=False,
-            dtype={
-                "PRELIMINARY_SHADOW_PRICE": float,
-                "BP1": float,
-                "PC1": float,
-                "BP2": float,
-                "PC2": float,
-                "BP3": float,
-                "PC3": float,
-                "BP4": float,
-                "PC4": float,
-                "REASON": object,
-            },
-        )
-
-        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
-        # in the column names, so we clean it all up.
-        data = data.iloc[:-1]
-        data.columns = data.columns.str.strip()
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "CONSTRAINT_NAME",
-                    "PRELIMINARY_SHADOW_PRICE",
-                    "CURVETYPE",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                    "BP3",
-                    "PC3",
-                    "BP4",
-                    "PC4",
-                    "OVERRIDE",
-                    "REASON",
-                ]
-            ]
-
-        data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
-            self.default_timezone,
-        )
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
-
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "CONSTRAINT_NAME",
-                "PRELIMINARY_SHADOW_PRICE",
-                "CURVETYPE",
-                "BP1",
-                "PC1",
-                "BP2",
-                "PC2",
-                "BP3",
-                "PC3",
-                "BP4",
-                "PC4",
-                "OVERRIDE",
-                "REASON",
-            ]
-        ]
+        return self._read_subregional_pbc_csv(url, interval_minutes=60)
 
     @support_date_range(frequency="DAY_START")
     def get_reserve_product_binding_constraints_day_ahead_hourly(
@@ -1310,50 +1440,36 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date - pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_rpe.xls"
         logger.info(
             f"Downloading day-ahead reserve product binding constraints data from {url}",
         )
 
-        excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
-            excel_file,
-        )
-        data = pd.read_excel(excel_file, skiprows=3)
-        data = data.iloc[:-1]
-        print(data)
-        print(market_date)
-        data["Interval End"] = market_date + pd.to_timedelta(
-            data[
-                "Hour of Occurence"
-            ],  # NOTE(kladar): sic, this is a persistent typo in the header from MISO
-            unit="h",
-        )
+        market_date, publish_date = self._get_constraint_header_dates_from_url(url)
 
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Constraint Name",
-                    "Shadow Price",
-                    "Constraint Description",
-                ]
-            ]
+        def _process_rpe(df: pd.DataFrame) -> pd.DataFrame:
+            return df.iloc[:-1]
 
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
+        data = utils.read_excel_via_pandas(url, skiprows=3, process=_process_rpe)
+        data = _cast_constraint_description_utf8(data)
 
-        return data[
-            [
-                "Interval Start",
+        if data.is_empty():
+            return self._reserve_product_empty_df()
+
+        data = data.with_columns(
+            (
+                pl.lit(market_date) + pl.duration(hours=pl.col("Hour of Occurence"))
+            ).alias(
                 "Interval End",
-                "Constraint Name",
-                "Shadow Price",
-                "Constraint Description",
-            ]
-        ]
+            ),
+        )
+        data = data.with_columns(
+            (pl.col("Interval End") - pl.duration(hours=1)).alias("Interval Start"),
+        )
+
+        return self._finalize_reserve_product(data)
 
     @support_date_range(frequency="DAY_START")
     def get_binding_constraints_real_time_5_min(
@@ -1361,17 +1477,22 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_bc.xls"
         logger.info(f"Downloading real-time binding constraints data from {url}")
 
-        excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
-            excel_file,
-        )
-        data = pd.read_excel(
-            excel_file,
+        market_date, publish_date = self._get_constraint_header_dates_from_url(url)
+
+        def _process_rt_bc(df: pd.DataFrame) -> pd.DataFrame:
+            df["Interval End"] = pd.to_datetime(
+                market_date.strftime("%Y-%m-%d") + " " + df["Hour of  Occurrence"],
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+            return df
+
+        data = utils.read_excel_via_pandas(
+            url,
             skiprows=3,
             dtype={
                 "Constraint Description": object,
@@ -1381,26 +1502,16 @@ class MISO(ISOBase):
                 "BP2": float,
                 "PC2": float,
             },
+            process=_process_rt_bc,
         )
-
-        data["Interval End"] = pd.to_datetime(
-            market_date.strftime("%Y-%m-%d")
-            + " "
-            + data[
-                "Hour of  Occurrence"
-            ],  # NOTE(kladar): sic, there are two spaces between "Hour of" and "Occurrence"
-        ).dt.tz_localize(
-            self.default_timezone,
-        )
-
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+        data = _cast_constraint_description_utf8(data)
         data = data.rename(
-            columns={
+            {
                 "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
             },
         )
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1417,15 +1528,14 @@ class MISO(ISOBase):
                 "PC1",
                 "BP2",
                 "PC2",
-            ]
-        ]
+            ],
+        )
 
-    # NOTE(kladar): Mostly this method is used for efficient backfilling
     def get_binding_constraints_real_time_yearly_historical(
         self,
         year: int,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the real-time binding constraints data from MISO for a given year.
 
         Args:
@@ -1433,41 +1543,56 @@ class MISO(ISOBase):
             verbose (bool, optional): Verbosity. Defaults to False.
 
         Returns:
-            pandas.DataFrame: Historical real-time binding constraints data
+            polars.DataFrame: Historical real-time binding constraints data
         """
         url = f"https://docs.misoenergy.org/marketreports/{year}_rt_bc_HIST.csv"
         logger.info(f"Downloading real-time binding constraints data from {url}")
 
-        data = pd.read_csv(
+        def _process_rt_hist(df: pd.DataFrame) -> pd.DataFrame:
+            df = df.iloc[:-2].copy()
+            df["Interval End"] = pd.to_datetime(
+                df["Market Date"] + " " + df["Hour of Occurrence"],
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval Start"] = df["Interval End"] - pd.Timedelta(hours=1)
+            for col in [
+                "Preliminary Shadow Price",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+                "Override",
+                "Constraint ID",
+                "Flowgate NERC ID",
+            ]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            for col in [
+                "Constraint Description",
+                "Constraint Name",
+                "Branch Name",
+                "Contingency Description",
+                "Curve Type",
+            ]:
+                if col in df.columns:
+                    df[col] = df[col].astype("object")
+            return df
+
+        data = utils.read_csv_exotic_via_pandas(
             url,
             skiprows=2,
-            dtype={
-                "Constraint Description": object,
-            },
+            dtype=str,
+            process=_process_rt_hist,
         )
-        data = data.iloc[
-            :-2
-        ]  # NOTE(kladar): The last two rows are report descriptions and disclaimers
-        data["Interval End"] = pd.to_datetime(
-            data["Market Date"] + " " + data["Hour of Occurrence"],
-        ).dt.tz_localize(
-            self.default_timezone,
-        )
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
-
+        data = _cast_constraint_description_utf8(data)
         data = data.rename(
-            columns={
+            {
                 "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
-            },
-        )
-        data = data.rename(
-            columns={
                 "Flowgate NERCID": "Flowgate NERC ID",
                 "Constraint_ID": "Constraint ID",
             },
         )
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1484,8 +1609,8 @@ class MISO(ISOBase):
                 "PC1",
                 "BP2",
                 "PC2",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_binding_constraint_overrides_real_time_5_min(
@@ -1493,19 +1618,24 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_or.xls"
         logger.info(
             f"Downloading real-time binding constraint overrides data from {url}",
         )
 
-        excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
-            excel_file,
-        )
-        data = pd.read_excel(
-            excel_file,
+        market_date, publish_date = self._get_constraint_header_dates_from_url(url)
+
+        def _process_rt_or(df: pd.DataFrame) -> pd.DataFrame:
+            df["Interval End"] = pd.to_datetime(
+                market_date.strftime("%Y-%m-%d") + " " + df["Hour of  Occurrence"],
+            ).dt.tz_localize(self.default_timezone)
+            df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+            return df
+
+        data = utils.read_excel_via_pandas(
+            url,
             skiprows=3,
             dtype={
                 "Constraint Description": object,
@@ -1515,24 +1645,15 @@ class MISO(ISOBase):
                 "PC2": float,
                 "Reason": object,
             },
+            process=_process_rt_or,
         )
-
-        data["Interval End"] = pd.to_datetime(
-            market_date.strftime("%Y-%m-%d")
-            + " "
-            + data[
-                "Hour of  Occurrence"
-            ],  # NOTE(kladar): sic, there are two spaces between "Hour of" and "Occurrence"
-        ).dt.tz_localize(self.default_timezone)
-
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
-
+        data = _cast_constraint_description_utf8(data)
         data = data.rename(
-            columns={
+            {
                 "Branch Name ( Branch Type / From CA / To CA )": "Branch Name",
             },
         )
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1549,8 +1670,8 @@ class MISO(ISOBase):
                 "BP2",
                 "PC2",
                 "Reason",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_subregional_power_balance_constraints_real_time_5_min(
@@ -1558,80 +1679,14 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_pbc.csv"
         logger.info(
             f"Downloading real-time subregional power balance constraints data from {url}",
         )
 
-        data = pd.read_csv(
-            url,
-            skiprows=3,
-            index_col=False,
-            dtype={
-                "PRELIMINARY_SHADOW_PRICE": float,
-                "BP1": float,
-                "PC1": float,
-                "BP2": float,
-                "PC2": float,
-                "BP3": float,
-                "PC3": float,
-                "BP4": float,
-                "PC4": float,
-                "REASON": object,
-            },
-        )
-
-        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
-        # in the column names, so we clean it all up.
-        data = data.iloc[:-1]
-        data.columns = data.columns.str.strip()
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "CONSTRAINT_NAME",
-                    "PRELIMINARY_SHADOW_PRICE",
-                    "CURVETYPE",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                    "BP3",
-                    "PC3",
-                    "BP4",
-                    "PC4",
-                    "OVERRIDE",
-                    "REASON",
-                ]
-            ]
-
-        data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
-            self.default_timezone,
-        )
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
-
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "CONSTRAINT_NAME",
-                "PRELIMINARY_SHADOW_PRICE",
-                "CURVETYPE",
-                "BP1",
-                "PC1",
-                "BP2",
-                "PC2",
-                "BP3",
-                "PC3",
-                "BP4",
-                "PC4",
-                "OVERRIDE",
-                "REASON",
-            ]
-        ]
+        return self._read_subregional_pbc_csv(url, interval_minutes=5)
 
     @support_date_range(frequency="DAY_START")
     def get_reserve_product_binding_constraints_real_time_5_min(
@@ -1639,43 +1694,29 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         query_date = date + pd.Timedelta("1D")
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_rt_rpe.xls"
         logger.info(
             f"Downloading real-time reserve product binding constraints data from {url}",
         )
 
-        data = pd.read_excel(url, skiprows=3)
+        def _process_rt_rpe(df: pd.DataFrame) -> pd.DataFrame:
+            df = df.iloc[:-1].copy()
+            if not df.empty:
+                df["Interval End"] = pd.to_datetime(
+                    df["Time of Occurence"],
+                ).dt.tz_localize(self.default_timezone)
+                df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+            return df
 
-        # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
-        # in the column names, so we clean it all up.
-        data = data.iloc[:-1]
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Constraint Name",
-                    "Shadow Price",
-                    "Constraint Description",
-                ]
-            ]
+        data = utils.read_excel_via_pandas(url, skiprows=3, process=_process_rt_rpe)
+        data = _cast_constraint_description_utf8(data)
 
-        data["Interval End"] = pd.to_datetime(data["Time of Occurence"]).dt.tz_localize(
-            self.default_timezone,
-        )  # NOTE(kladar) sic, this is a persistent typo from MISO
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
+        if data.is_empty():
+            return self._reserve_product_empty_df()
 
-        return data[
-            [
-                "Interval Start",
-                "Interval End",
-                "Constraint Name",
-                "Shadow Price",
-                "Constraint Description",
-            ]
-        ]
+        return self._finalize_reserve_product(data)
 
     @support_date_range(frequency=None)
     def get_binding_constraints_real_time_intraday(
@@ -1683,7 +1724,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time binding constraints data from MISO's intraday API.
 
         This provides active real-time constraint data updated every 5 minutes.
@@ -1712,70 +1753,77 @@ class MISO(ISOBase):
     def _parse_binding_constraints_real_time_intraday(
         self,
         response_json: dict,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         constraints = response_json.get("Constraint", [])
 
         if not constraints:
             raise NoDataFoundException("No real-time binding constraints data found")
 
-        df = pd.DataFrame(constraints)
+        df = pl.from_pandas(pd.DataFrame(constraints))
 
-        # MISO publishes empty binding constraints when there are no active constraints
         if (df["Name"] == "None").all():
             raise NoDataFoundException("No real-time binding constraints data found")
 
-        # Period is Interval End
-        df["Interval End"] = pd.to_datetime(df["Period"]).dt.tz_localize(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("Period")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval End"),
         )
-
         df = df.rename(
-            columns={
+            {
                 "Name": "Constraint Name",
                 "Price": "Shadow Price",
                 "OVERRIDE": "Override",
                 "CURVETYPE": "Curve Type",
             },
         )
-
-        # Shadow price is a float, all others are integers
-        df["Shadow Price"] = pd.to_numeric(df["Shadow Price"], errors="coerce")
-        for col in ["Override", "BP1", "PC1", "BP2", "PC2"]:
-            df[col] = df[col].replace({"": None}).astype("Int64")
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
-
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Constraint Name",
-                    "Shadow Price",
-                    "Override",
-                    "Curve Type",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+        df = df.with_columns(
+            pl.col("Shadow Price").cast(pl.Float64, strict=False),
+            pl.when(pl.col("Override") == "")
+            .then(None)
+            .otherwise(pl.col("Override"))
+            .cast(pl.Int64)
+            .alias("Override"),
+            pl.when(pl.col("BP1") == "")
+            .then(None)
+            .otherwise(pl.col("BP1"))
+            .cast(pl.Int64)
+            .alias("BP1"),
+            pl.when(pl.col("PC1") == "")
+            .then(None)
+            .otherwise(pl.col("PC1"))
+            .cast(pl.Int64)
+            .alias("PC1"),
+            pl.when(pl.col("BP2") == "")
+            .then(None)
+            .otherwise(pl.col("BP2"))
+            .cast(pl.Int64)
+            .alias("BP2"),
+            pl.when(pl.col("PC2") == "")
+            .then(None)
+            .otherwise(pl.col("PC2"))
+            .cast(pl.Int64)
+            .alias("PC2"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval End") - pl.duration(minutes=5)).alias("Interval Start"),
         )
 
-    def _get_constraint_header_dates_from_excel(
-        self,
-        file: pd.ExcelFile,
-    ) -> tuple[pd.Timestamp, pd.Timestamp]:
-        header = pd.read_excel(file, nrows=2, usecols=[0])
-        market_date = pd.to_datetime(header.iloc[0, 0].split(": ")[1]).tz_localize(
-            self.default_timezone,
-        )
-        publish_date = pd.to_datetime(header.iloc[1, 0].split(": ")[1]).tz_localize(
-            self.default_timezone,
-        )
-        return market_date, publish_date
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Constraint Name",
+                "Shadow Price",
+                "Override",
+                "Curve Type",
+                "BP1",
+                "PC1",
+                "BP2",
+                "PC2",
+            ],
+        ).sort("Interval Start")
 
     @support_date_range(frequency="DAY_START")
     def get_look_ahead_hourly(
@@ -1783,7 +1831,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             return self.get_look_ahead_hourly(date="today", verbose=verbose)
 
@@ -1792,67 +1840,76 @@ class MISO(ISOBase):
 
         publish_time = date.normalize()
 
-        df = pd.read_csv(url, skiprows=3, skipfooter=15, engine="python")
+        df = utils.read_csv_exotic_via_pandas(
+            url,
+            skiprows=3,
+            skipfooter=15,
+            engine="python",
+        )
         id_cols = ["Hourend_EST", "Region"]
         value_cols = [col for col in df.columns if col not in id_cols]
 
-        df_melted = df.melt(
-            id_vars=id_cols,
-            value_vars=value_cols,
-            var_name="date_col",
+        df_melted = df.unpivot(
+            index=id_cols,
+            on=value_cols,
+            variable_name="date_col",
             value_name="value",
         )
 
-        df_melted["date"] = df_melted["date_col"].str.extract(r"(\d{2}/\d{2}/\d{4})")
-        df_melted["type"] = (
-            df_melted["date_col"]
-            .str.contains("Outage")
-            .map({True: "Outage", False: "MTLF"})
+        df_melted = df_melted.with_columns(
+            pl.col("date_col").str.extract(r"(\d{2}/\d{2}/\d{4})", 1).alias("date"),
+            pl.when(pl.col("date_col").str.contains("Outage"))
+            .then(pl.lit("Outage"))
+            .otherwise(pl.lit("MTLF"))
+            .alias("type"),
         )
 
         df_wide = df_melted.pivot(
+            "type",
             index=["Hourend_EST", "Region", "date"],
-            columns="type",
             values="value",
-        ).reset_index()
+        )
 
-        df_wide["Hour Ending"] = (
-            df_wide["Hourend_EST"]
-            .str.extract(r"Hour   (\d+)")[0]
-            .astype(int)
-            .sub(1)  # Subtract 1 to convert from 1-24 to 0-23
-            .astype(str)
+        df_wide = df_wide.with_columns(
+            pl.col("Hourend_EST")
+            .str.extract(r"Hour   (\d+)", 1)
+            .cast(pl.Int64)
+            .sub(1)
+            .cast(pl.Utf8)
             .str.zfill(2)
+            .alias("Hour Ending"),
         )
 
-        df_wide["Interval End"] = pd.to_datetime(
-            df_wide["date"] + " " + df_wide["Hour Ending"],
-            format="mixed",
-        ).dt.tz_localize(self.default_timezone, nonexistent="shift_forward")
-        df_wide["Interval End"] = df_wide["Interval End"] + pd.Timedelta(
-            hours=1,
-        )  # Add back hour from 1-24 to 0-23 conversion
-        df_wide["Interval Start"] = df_wide["Interval End"] - pd.Timedelta(hours=1)
-        df_wide["Publish Time"] = publish_time
-        df_wide["MTLF"] = df_wide["MTLF"] * 1000  # GW to MW
-        df_wide["Outage"] = df_wide["Outage"] * 1000  # GW to MW
-
-        final_df = (
-            df_wide[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Region",
-                    "MTLF",
-                    "Outage",
-                ]
-            ]
-            .sort_values(["Interval Start", "Region"])
-            .reset_index(drop=True)
+        df_wide = df_wide.with_columns(
+            (pl.col("date") + " " + pl.col("Hour Ending") + ":00")
+            .str.to_datetime(format="%m/%d/%Y %H:%M")
+            .alias("Interval End Naive"),
+        )
+        df_wide = utils.localize_shift_forward_polars(
+            df_wide,
+            "Interval End Naive",
+            self.default_timezone,
+        )
+        df_wide = df_wide.with_columns(
+            (pl.col("Interval End Naive") + pl.duration(hours=1)).alias("Interval End"),
+        ).drop("Interval End Naive")
+        df_wide = df_wide.with_columns(
+            (pl.col("Interval End") - pl.duration(hours=1)).alias("Interval Start"),
+            pl.lit(publish_time).alias("Publish Time"),
+            (pl.col("MTLF") * 1000).alias("MTLF"),
+            (pl.col("Outage") * 1000).alias("Outage"),
         )
 
-        return final_df
+        return df_wide.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "MTLF",
+                "Outage",
+            ],
+        ).sort(["Interval Start", "Region"])
 
     @support_date_range(frequency=None)
     def get_interchange_5_min(
@@ -1860,18 +1917,13 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date != "latest":
             raise NotSupported(
                 "Only latest MISO interchange data is available. Use 'latest' as date.",
             )
 
-        # The actuals are available with historical data in the Imports endpoint. Data
-        # in this file is in UTC, confirmed using https://publiccharts.misoenergy.org/charts/interchange
         actual_url = "https://public-api.misoenergy.org/api/Interchange/GetNai/Imports"
-
-        # Scheduled data with historical 5-minute data including all components. Data
-        # in this file is in EST, confirmed using https://publiccharts.misoenergy.org/charts/interchange
         scheduled_url = (
             "https://public-api.misoenergy.org/api/Interchange/GetNsi/FiveMinute"
         )
@@ -1880,76 +1932,71 @@ class MISO(ISOBase):
             f"Downloading interchange data from {scheduled_url} and {actual_url}",
         )
 
-        # Get actual data - new API returns array of historical values
         actual_response = self._get_json(actual_url, verbose=verbose)
-        actual_data = pd.DataFrame(actual_response)
+        actual_data = pl.from_pandas(pd.DataFrame(actual_response))
+        actual_data = actual_data.with_columns(
+            pl.col("Time")
+            .str.to_datetime(format="%Y-%m-%d %I:%M:%S %p", time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Time"),
+            pl.col("Value").cast(pl.Float64, strict=False).cast(pl.Int64),
+        )
 
-        # Parse actual data timestamp (format: "2025-12-10 2:15:00 AM")
-        actual_data["Time"] = pd.to_datetime(
-            actual_data["Time"],
-            format="%Y-%m-%d %I:%M:%S %p",
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
-        # Convert Value to numeric
-        actual_data["Value"] = pd.to_numeric(actual_data["Value"])
-
-        # Get scheduled data - new API returns array in "instance" key
         scheduled_response = self._get_json(scheduled_url, verbose=verbose)
-        scheduled_data = pd.DataFrame(scheduled_response["instance"])
+        scheduled_data = pl.from_pandas(pd.DataFrame(scheduled_response["instance"]))
+        scheduled_data = scheduled_data.with_columns(
+            pl.col("timestamp")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("timestamp"),
+            pl.col("MISO").cast(pl.Float64, strict=False).cast(pl.Int64),
+        )
+        for col in ["AECI", "LGEE", "MHEB", "ONT", "PJM", "SOCO", "SPA", "SWPP", "TVA"]:
+            if col in scheduled_data.columns:
+                scheduled_data = scheduled_data.with_columns(
+                    pl.col(col).cast(pl.Float64, strict=False).cast(pl.Int64),
+                )
 
-        scheduled_data["timestamp"] = pd.to_datetime(
-            scheduled_data["timestamp"],
-        ).dt.tz_localize(self.default_timezone)
-
-        # Merge actual and scheduled data
-        data = scheduled_data.merge(
+        data = scheduled_data.join(
             actual_data,
             left_on="timestamp",
             right_on="Time",
-            how="outer",
-        ).rename(
-            columns={
-                "timestamp": "Interval End",
+            how="full",
+            suffix="_actual",
+        )
+        data = data.with_columns(
+            pl.coalesce(pl.col("timestamp"), pl.col("Time")).alias("Interval End"),
+        ).drop(["timestamp", "Time"])
+        data = data.rename(
+            {
                 "Value": "Net Actual Interchange",
                 "MISO": "Net Scheduled Interchange",
             },
         )
-
-        data["Interval End"] = data["Interval End"].fillna(data["Time"])
-        data = data.drop(columns=["Time"])
-
-        data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
-
-        # The actual data does not go as far back as the scheduled data so it has NAs.
-        # The scheduled data lags the actual by 1 interval so it has NAs as well.
-        # We must use Pandas nullable integer type to avoid issues with NAs.
-        # https://pandas.pydata.org/docs/user_guide/integer_na.html
-        for col in data:
-            if col not in ["Interval Start", "Interval End"]:
-                data[col] = data[col].astype("Int64")
-
-        return (
-            data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Net Scheduled Interchange",
-                    "Net Actual Interchange",
-                    "AECI",
-                    "LGEE",
-                    "MHEB",
-                    "ONT",
-                    "PJM",
-                    "SOCO",
-                    "SPA",
-                    "SWPP",
-                    "TVA",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+        data = data.with_columns(
+            (pl.col("Interval End") - pl.duration(minutes=5)).alias("Interval Start"),
         )
+
+        output_cols = [
+            "Interval Start",
+            "Interval End",
+            "Net Scheduled Interchange",
+            "Net Actual Interchange",
+            "AECI",
+            "LGEE",
+            "MHEB",
+            "ONT",
+            "PJM",
+            "SOCO",
+            "SPA",
+            "SWPP",
+            "TVA",
+        ]
+        for col in output_cols:
+            if col not in ["Interval Start", "Interval End"] and col in data.columns:
+                data = data.with_columns(pl.col(col).cast(pl.Int64, strict=False))
+
+        return data.select(output_cols).sort("Interval Start")
 
     @support_date_range(frequency="DAY_START")
     def get_multiday_operating_margin(
@@ -1957,7 +2004,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the multiday operating margin forecast.
 
         This data comes from the Multiday Operating Margin Forecast (MOMF) report
@@ -2006,7 +2053,7 @@ class MISO(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get the multiday operating margin forecast for all regions.
 
         This data comes from the Multiday Operating Margin Forecast (MOMF) report
@@ -2053,7 +2100,7 @@ class MISO(ISOBase):
                 sheet_data=all_sheets[region],
                 verbose=verbose,
             )
-            if len(df) > 0:
+            if df.height > 0:
                 dfs.append(df)
 
         if not dfs:
@@ -2061,15 +2108,15 @@ class MISO(ISOBase):
                 f"No data found for any region on {date}",
             )
 
-        return pd.concat(dfs, ignore_index=True)
+        return pl.concat(dfs, how="diagonal")
 
     def _get_multiday_operating_margin_data(
         self,
         date: str | pd.Timestamp,
         region: str = "MISO",
-        sheet_data: pd.DataFrame = None,
+        sheet_data: pd.DataFrame | pl.DataFrame | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Internal helper to process multiday operating margin sheet data.
 
         Args:
@@ -2081,7 +2128,10 @@ class MISO(ISOBase):
         Returns:
             DataFrame with operating margin forecast data.
         """
-        data = sheet_data
+        if isinstance(sheet_data, pl.DataFrame):
+            data = sheet_data.to_pandas()
+        else:
+            data = sheet_data
 
         # Map sheet names to display names
         region_display_names = {
@@ -2315,4 +2365,4 @@ class MISO(ISOBase):
                 [col for col in desired_order if col in result_df.columns]
             ]
 
-        return result_df.sort_values(["Peak Hour"]).reset_index(drop=True)
+        return pl.from_pandas(result_df).sort("Peak Hour")
