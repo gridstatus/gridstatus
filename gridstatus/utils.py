@@ -102,7 +102,7 @@ def concat_dataframes(dfs: list) -> object:
         return pl.DataFrame()
 
     if is_polars(dfs[0]):
-        return pl.concat(dfs, how="diagonal")
+        return pl.concat(dfs, how="diagonal_relaxed")
 
     return pd.concat(dfs).reset_index(drop=True)
 
