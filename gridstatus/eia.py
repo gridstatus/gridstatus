@@ -885,8 +885,14 @@ def _handle_time(df: pl.DataFrame, frequency: str = "1h") -> pl.DataFrame:
         raise NotImplementedError(f"Unsupported frequency: {frequency}")
 
     value_cols = [col for col in df.columns if col != "period"]
+    # EIA hourly periods are hour-terminated strings ("2026-07-08T05"), which
+    # polars cannot parse without a minute component, so pad before parsing.
     df = df.with_columns(
-        pl.col("period").str.to_datetime(time_zone="UTC").alias("Interval End"),
+        pl.when(pl.col("period").str.len_chars() == 13)
+        .then(pl.col("period") + ":00")
+        .otherwise(pl.col("period"))
+        .str.to_datetime(time_zone="UTC")
+        .alias("Interval End"),
     )
     df = df.with_columns(
         (pl.col("Interval End") - duration).alias("Interval Start"),
