@@ -137,7 +137,7 @@ def _parse_utc_to_local(df: pl.DataFrame, column: str, tz: str) -> pl.Series:
         df.get_column(column).to_pandas(),
         utc=True,
     ).dt.tz_convert(tz)
-    return pl.Series(column, parsed)
+    return pl.Series(column, parsed).cast(pl.Datetime("us", tz))
 
 
 def _drop_cols(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
@@ -1191,7 +1191,7 @@ class SPP(ISOBase):
                 utc=True,
                 format=format,
             ).dt.tz_convert(self.default_timezone),
-        )
+        ).cast(pl.Datetime("us", self.default_timezone))
         df = df.with_columns(interval_end)
         df = df.with_columns(
             (pl.col("Interval End") - duration).alias("Interval Start"),
