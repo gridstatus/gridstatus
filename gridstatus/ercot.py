@@ -3889,7 +3889,7 @@ class Ercot(ISOBase):
 
         return pl.from_pandas(df)
 
-    def _parse_html_table(self, html_content: bytes) -> pl.DataFrame:
+    def _parse_html_table(self, html_content: bytes) -> pd.DataFrame:
         logger.info("Parsing HTML table")
         soup = BeautifulSoup(html_content, "html.parser")
 
