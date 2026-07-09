@@ -1,5 +1,6 @@
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -1257,3 +1258,74 @@ class TestNYISO(BaseTestISO):
         assert df["Interval End"].dt.date.max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
         )
+
+    """get_area_control_error"""
+
+    expected_area_control_error_cols = [
+        "Time",
+        "Area Control Error",
+    ]
+
+    def test_get_area_control_error(self):
+        date = "2025-06-01"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{date}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=date)
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert df["Area Control Error"].dtype in [np.float64, np.int64]
+        assert df["Time"].dt.tz is not None
+        assert df["Time"].min() >= pd.Timestamp(date, tz=self.iso.default_timezone)
+        assert df["Time"].max() < pd.Timestamp(
+            "2025-07-01",
+            tz=self.iso.default_timezone,
+        )
+
+    def test_get_area_control_error_date_range(self):
+        start = "2025-06-05"
+        end = "2025-06-07"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=start, end=end)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert df["Time"].min() >= pd.Timestamp(start, tz=self.iso.default_timezone)
+        assert df["Time"].max() < pd.Timestamp(end, tz=self.iso.default_timezone)
+
+    def test_get_area_control_error_range_across_months(self):
+        # A range spanning two months exercises the MONTH_START decorator
+        # splitting into two per-month archive downloads.
+        start = "2025-05-30"
+        end = "2025-06-02"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=start, end=end)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        # Data from both months is present and ordered.
+        assert df["Time"].min() >= pd.Timestamp(start, tz=self.iso.default_timezone)
+        assert df["Time"].max() < pd.Timestamp(end, tz=self.iso.default_timezone)
+        assert set(df["Time"].dt.month.unique()) == {5, 6}
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_area_control_error_dst_fall_back(self):
+        # November 2025 contains the DST fall-back (Nov 2, 02:00 -> 01:00). The
+        # EDT/EST suffix in the source must resolve the ambiguous 1am hour.
+        date = "2025-11-01"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{date}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=date)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert df["Time"].dt.tz is not None
+        # The repeated 1am hour should carry both UTC offsets (EDT then EST).
+        repeat = df[
+            (df["Time"] >= pd.Timestamp("2025-11-02 00:59", tz="US/Eastern"))
+            & (df["Time"] <= pd.Timestamp("2025-11-02 02:01", tz="US/Eastern"))
+        ]
+        assert repeat["Time"].apply(lambda t: t.utcoffset()).nunique() == 2
