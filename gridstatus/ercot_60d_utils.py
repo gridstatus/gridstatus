@@ -554,6 +554,34 @@ def make_storage_resources(data):
     return pl.from_pandas(storage_resources)
 
 
+def extract_curve_as_pg_string_expr(mw_cols, price_cols):
+    """Polars expression version of extract_curve_as_pg_string().
+
+    Builds PG array strings like '{{100.0,25.5},{200.0,60.0}}' from paired
+    MW/price columns without leaving polars (no pandas copy of the frame).
+    """
+    pieces = [
+        pl.when(pl.col(mw).is_not_null() & pl.col(price).is_not_null()).then(
+            pl.concat_str(
+                [
+                    pl.lit("{"),
+                    pl.col(mw).round(2).cast(pl.Float64).cast(pl.String),
+                    pl.lit(","),
+                    pl.col(price).round(2).cast(pl.Float64).cast(pl.String),
+                    pl.lit("}"),
+                ],
+            ),
+        )
+        for mw, price in zip(mw_cols, price_cols)
+    ]
+    joined = pl.concat_str(pieces, separator=",", ignore_nulls=True)
+    return (
+        pl.when(joined != "")
+        .then(pl.concat_str([pl.lit("{"), joined, pl.lit("}")]))
+        .otherwise(None)
+    )
+
+
 def extract_curve_as_pg_string(df, mw_cols, price_cols):
     """Like extract_curve() but returns PG array strings directly.
 
@@ -1505,6 +1533,105 @@ def process_sced_as_offer_updates_in_op_hour(df):
     return pl.from_pandas(df)
 
 
+def _process_sced_resource_as_offers_polars(df: pl.DataFrame) -> pl.DataFrame:
+    """Polars-native version of process_sced_resource_as_offers() for the
+    PG_ARRAY_AS_STRING output format.
+
+    Mirrors the pandas logic below (suffix renames, curve-type classification,
+    per-AS-type curve extraction) while keeping the largest SCED disclosure
+    frame in polars the whole time.
+    """
+    new_to_old_suffix = {
+        "_REGUP": "_URS",
+        "_REGDN": "_DRS",
+        "_RRSPFR": "_RRSPF",
+        "_RRSUFR": "_RRSUF",
+        "_RRSFFR": "_RRSFF",
+        "_NSPIN": "_NS",
+    }
+
+    def _rename_suffix(col: str) -> str:
+        for new_suffix, old_suffix in new_to_old_suffix.items():
+            if col.endswith(new_suffix):
+                return col[: -len(new_suffix)] + old_suffix
+        return col
+
+    df = df.rename({c: _rename_suffix(c) for c in df.columns})
+
+    price_cols = [c for c in df.columns if c.startswith("PRICE")]
+    drs_cols = [c for c in price_cols if c.endswith("_DRS")]
+    ns_cols = [c for c in price_cols if c.endswith("_NS")]
+    non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
+    non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
+
+    def _has_value(cols: list[str]) -> pl.Expr:
+        # NaN values are treated as "no value" (same as zero), matching the
+        # pandas fillna(0) behavior for ERCOT corrected files (April 4, 2026+).
+        return pl.any_horizontal(pl.col(c).fill_null(0) != 0 for c in cols)
+
+    has_drs = _has_value(drs_cols)
+    has_non_drs = _has_value(non_drs_cols)
+    has_ns = _has_value(ns_cols)
+    has_non_drs_ns_ecrs = _has_value(non_drs_ns_ecrs_cols)
+
+    df = df.with_columns(
+        pl.when(has_non_drs & has_non_drs_ns_ecrs)
+        .then(pl.lit("Online"))
+        .when(has_ns & ~has_drs & ~has_non_drs_ns_ecrs)
+        .then(pl.lit("Offline"))
+        .when(has_drs & ~has_non_drs)
+        .then(pl.lit("Regulation Down"))
+        .otherwise(pl.lit("unknown"))
+        .alias("Curve Type"),
+    )
+
+    if df["Curve Type"].eq("unknown").any():
+        raise ValueError("Unknown curve type found")
+
+    as_type_mapping = {
+        "URS": "URS Offer Curve",
+        "DRS": "DRS Offer Curve",
+        "RRSPF": "RRSPFR Offer Curve",
+        "RRSUF": "RRSUFR Offer Curve",
+        "RRSFF": "RRSFFR Offer Curve",
+        "NS": "NonSpin Offer Curve",
+        "ECRS": "ECRS Offer Curve",
+    }
+
+    qty_cols = sorted([col for col in df.columns if col.startswith("QUANTITY_MW")])
+    block_count = len(qty_cols)
+
+    if block_count == 0:
+        return df
+
+    mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
+
+    curve_exprs = []
+    for as_suffix, curve_col in as_type_mapping.items():
+        as_price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
+        as_price_cols = [c for c in as_price_cols if c in df.columns]
+
+        if not as_price_cols:
+            curve_exprs.append(pl.lit(None, dtype=pl.String).alias(curve_col))
+            continue
+
+        curve_exprs.append(
+            extract_curve_as_pg_string_expr(
+                mw_cols=mw_cols[: len(as_price_cols)],
+                price_cols=as_price_cols,
+            ).alias(curve_col),
+        )
+
+    df = df.with_columns(curve_exprs)
+
+    df = df.select(SCED_RESOURCE_AS_OFFERS_COLUMNS)
+    return df.with_columns(
+        pl.col(c).cast(pl.Categorical)
+        for c, dtype in df.schema.items()
+        if dtype == pl.String and not c.endswith("Curve")
+    )
+
+
 def process_sced_resource_as_offers(
     df,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
@@ -1527,6 +1654,11 @@ def process_sced_resource_as_offers(
             directly, using ~3x less peak memory.
     """
     if isinstance(df, pl.DataFrame):
+        # The polars-native path avoids materializing a pandas copy of this
+        # frame (the largest in the SCED disclosure). Only the PG-string
+        # format is supported natively; the list format still needs pandas.
+        if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING:
+            return _process_sced_resource_as_offers_polars(df)
         df = df.to_pandas()
     # ERCOT renamed the AS-price column suffixes in late March 2026
     # (_URS->_REGUP, _DRS->_REGDN, _NS->_NSPIN, _RRSPF->_RRSPFR,

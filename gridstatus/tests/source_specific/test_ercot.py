@@ -1079,9 +1079,12 @@ class TestErcot(BaseTestISO):
         assert esr["SCED Timestamp"].dt.date().unique()[0] == date
 
         # Verify offer curves are parsed
-        assert esr["SCED1 Offer Curve"].apply(lambda x: isinstance(x, list)).any()
-        assert esr["SCED2 Offer Curve"].apply(lambda x: isinstance(x, list)).any()
-        assert esr["SCED TPO Offer Curve"].apply(lambda x: isinstance(x, list)).any()
+        assert esr["SCED1 Offer Curve"].dtype == pl.List(pl.List(pl.Float64))
+        assert esr["SCED1 Offer Curve"].is_not_null().any()
+        assert esr["SCED2 Offer Curve"].dtype == pl.List(pl.List(pl.Float64))
+        assert esr["SCED2 Offer Curve"].is_not_null().any()
+        assert esr["SCED TPO Offer Curve"].dtype == pl.List(pl.List(pl.Float64))
+        assert esr["SCED TPO Offer Curve"].is_not_null().any()
 
         # Also check the other datasets are still present
         check_60_day_sced_disclosure(df_dict)
@@ -1207,13 +1210,8 @@ class TestErcot(BaseTestISO):
         assert dam_esr["Resource Type"].unique().to_list() == ["ESR"]
 
         # Verify offer curves are parsed
-        assert (
-            dam_esr["QSE submitted Curve"]
-            .apply(
-                lambda x: isinstance(x, list),
-            )
-            .any()
-        )
+        assert dam_esr["QSE submitted Curve"].dtype == pl.List(pl.List(pl.Float64))
+        assert dam_esr["QSE submitted Curve"].is_not_null().any()
 
         assert DAM_ESR_AS_OFFERS_KEY in df_dict
         dam_esr_as_offers = df_dict[DAM_ESR_AS_OFFERS_KEY]

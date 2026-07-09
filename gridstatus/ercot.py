@@ -1,5 +1,8 @@
 import datetime
 import io
+import os
+import shutil
+import tempfile
 import time
 import warnings
 from dataclasses import dataclass
@@ -2837,107 +2840,135 @@ class Ercot(ISOBase):
         assert gen_resource_file, "Could not find gen resource file"
         assert smne_file, "Could not find smne file"
 
-        load_resource = pd.read_csv(z.open(load_resource_file))
-        gen_resource = pd.read_csv(z.open(gen_resource_file))
-        smne = pd.read_csv(z.open(smne_file))
-        # Skip ESR from the main disclosure file if we need correction data
-        esr = None
-        if not skip_esr and esr_file:
-            esr = pd.read_csv(z.open(esr_file))
-        as_offer_updates = (
-            pd.read_csv(z.open(as_offer_updates_file))
-            if as_offer_updates_file
-            else None
-        )
-        resource_as_offers = (
-            pd.read_csv(z.open(resource_as_offers_file))
-            if resource_as_offers_file and not skip_resource_as_offers
-            else None
+        def read_zip_csv(file: str) -> pl.DataFrame:
+            # Extract to a temp file instead of reading bytes into memory so
+            # polars can mmap the CSV; keeps peak RSS at ~the final frame size
+            # rather than frame + full decompressed CSV bytes.
+            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+                with z.open(file) as f:
+                    shutil.copyfileobj(f, tmp)
+                tmp_path = tmp.name
+            try:
+                df = pl.read_csv(tmp_path, infer_schema_length=None)
+            finally:
+                os.unlink(tmp_path)
+            # ERCOT CSVs quote empty fields ("") and write floats without a
+            # leading zero (e.g. "-.5"), both of which polars leaves as String
+            # columns where pandas produced float64 (with NaN for empties).
+            # Normalize empty strings to null and cast a String column to
+            # Float64 whenever every non-empty value parses as a number,
+            # matching the pandas.read_csv behavior. Columns are replaced one
+            # at a time to keep transient memory to a single column.
+            for col, dtype in df.schema.items():
+                if dtype != pl.String:
+                    continue
+                cleaned = df[col].replace("", None)
+                parsed = cleaned.cast(pl.Float64, strict=False)
+                if parsed.null_count() == cleaned.null_count():
+                    df = df.with_columns(parsed.rename(col))
+            return df
+
+        def parse_time_col(time_col: str) -> pl.Expr:
+            # ERCOT timestamps are MM/DD/YYYY, with or without seconds. Parse
+            # with explicit formats so polars never falls back to DD/MM.
+            return pl.coalesce(
+                pl.col(time_col).str.to_datetime("%m/%d/%Y %H:%M:%S", strict=False),
+                pl.col(time_col).str.to_datetime("%m/%d/%Y %H:%M", strict=False),
+            ).alias(time_col)
+
+        # Repeated Hour Flag is Y during the repeated hour
+        # So, it's N during DST And Y during Standard Time
+        # Pandas wants True for DST and False for Standard Time
+        # during ambiguous times
+        repeated_hour_ambiguous = (
+            pl.when(pl.col("Repeated Hour Flag") == "N")
+            .then(pl.lit("earliest"))
+            .otherwise(pl.lit("latest"))
         )
 
         def handle_time(
-            df: pd.DataFrame,
+            df: pl.DataFrame,
             time_col: str,
             is_interval_end: bool = False,
         ) -> pl.DataFrame:
-            df[time_col] = pd.to_datetime(df[time_col])
+            df = df.with_columns(parse_time_col(time_col))
 
             if "Repeated Hour Flag" in df.columns:
-                # Repeated Hour Flag is Y during the repeated hour
-                # So, it's N during DST And Y during Standard Time
-                # Pandas wants True for DST and False for Standard Time
-                # during ambiguous times
-                df[time_col] = df[time_col].dt.tz_localize(
-                    self.default_timezone,
-                    ambiguous=df["Repeated Hour Flag"] == "N",
+                df = df.with_columns(
+                    pl.col(time_col).dt.replace_time_zone(
+                        self.default_timezone,
+                        ambiguous=repeated_hour_ambiguous,
+                    ),
                 )
-                interval_start = df[time_col].dt.round(
-                    "15min",
-                    ambiguous=df["Repeated Hour Flag"] == "N",
-                )
-
             else:
                 # for SMNE data
-                df[time_col] = (
-                    df.sort_values("Interval Number", ascending=True)
-                    .groupby("Resource Code")[time_col]
-                    .transform(
-                        lambda x: x.dt.tz_localize(
-                            self.default_timezone,
-                            ambiguous="infer",
-                        ),
-                    )
+                df = utils.localize_ambiguous_infer_polars(
+                    df,
+                    time_col=time_col,
+                    tz=self.default_timezone,
+                    group_cols=["Resource Code"],
                 )
 
-                # convert to utc
-                # bc round doesn't work with dst changes
-                # without Repeated Hour Flag
-                interval_start = (
-                    df[time_col]
-                    .dt.tz_convert("utc")
-                    .dt.round("15min")
-                    .dt.tz_convert(self.default_timezone)
-                )
+            # convert to utc
+            # bc round doesn't work with dst changes
+            # without Repeated Hour Flag
+            rounded = (
+                pl.col(time_col)
+                .dt.convert_time_zone("UTC")
+                .dt.round("15m")
+                .dt.convert_time_zone(self.default_timezone)
+            )
 
-            interval_length = pd.Timedelta(minutes=15)
+            interval_length = pl.duration(minutes=15)
             if is_interval_end:
-                interval_end = interval_start
-                interval_start = interval_start - interval_length
+                interval_start = rounded - interval_length
+                interval_end = rounded
             else:
-                interval_end = interval_start + interval_length
+                interval_start = rounded
+                interval_end = rounded + interval_length
 
-            df.insert(0, "Interval Start", interval_start)
-            df.insert(
-                1,
-                "Interval End",
-                interval_end,
+            df = df.with_columns(
+                interval_start.alias("Interval Start"),
+                interval_end.alias("Interval End"),
             )
+            return utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
 
-            return pl.from_pandas(df)
-
-        def localize_sced_timestamp(df: pd.DataFrame) -> pd.DataFrame:
+        def localize_sced_timestamp(df: pl.DataFrame) -> pl.DataFrame:
             """Localize SCED Timestamp without adding Interval Start/End."""
-            df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
-            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
-            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
-                self.default_timezone,
-                ambiguous=df["Repeated Hour Flag"] == "N",
+            df = df.rename({"SCED Time Stamp": "SCED Timestamp"}, strict=False)
+            return df.with_columns(
+                parse_time_col("SCED Timestamp").dt.replace_time_zone(
+                    self.default_timezone,
+                    ambiguous=repeated_hour_ambiguous,
+                ),
             )
-            return df
 
-        load_resource = localize_sced_timestamp(load_resource)
-        gen_resource = localize_sced_timestamp(gen_resource)
+        load_resource = localize_sced_timestamp(read_zip_csv(load_resource_file))
+        gen_resource = localize_sced_timestamp(read_zip_csv(gen_resource_file))
 
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
-        smne = handle_time(smne, time_col="Interval Time", is_interval_end=True)
+        smne = handle_time(
+            read_zip_csv(smne_file),
+            time_col="Interval Time",
+            is_interval_end=True,
+        )
 
-        if esr is not None:
-            esr = localize_sced_timestamp(esr)
+        # Skip ESR from the main disclosure file if we need correction data
+        esr = None
+        if not skip_esr and esr_file:
+            esr = localize_sced_timestamp(read_zip_csv(esr_file))
+
+        as_offer_updates = (
+            read_zip_csv(as_offer_updates_file) if as_offer_updates_file else None
+        )
 
         # Process Resource AS Offers - has SCED Timestamp like other SCED data
-        if resource_as_offers is not None:
-            resource_as_offers = localize_sced_timestamp(resource_as_offers)
+        resource_as_offers = None
+        if resource_as_offers_file and not skip_resource_as_offers:
+            resource_as_offers = localize_sced_timestamp(
+                read_zip_csv(resource_as_offers_file),
+            )
 
         if process:
             logger.info("Processing 60 day SCED disclosure data")
@@ -2954,7 +2985,7 @@ class Ercot(ISOBase):
             if esr is not None:
                 esr = process_sced_esr(esr, output_format=output_format)
             if as_offer_updates is not None:
-                as_offer_updates = self.parse_doc(as_offer_updates).to_pandas()
+                as_offer_updates = self.parse_doc(as_offer_updates.to_pandas())
                 as_offer_updates = process_sced_as_offer_updates_in_op_hour(
                     as_offer_updates,
                 )
@@ -3373,7 +3404,7 @@ class Ercot(ISOBase):
             # weird that these files dont have this column like all other ERCOT files
             # add so we can parse
             doc["DSTFlag"] = "N"
-            data[key] = self.parse_doc(doc, verbose=verbose).to_pandas()
+            data[key] = self.parse_doc(doc, verbose=verbose)
 
         if process:
             file_to_function = {
