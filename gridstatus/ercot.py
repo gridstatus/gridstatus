@@ -2793,6 +2793,163 @@ class Ercot(ISOBase):
 
         return data
 
+    def _read_zip_csv_polars(self, z: ZipFile, file: str) -> pl.DataFrame:
+        # Extract to a temp file instead of reading bytes into memory so
+        # polars can mmap the CSV; keeps peak RSS at ~the final frame size
+        # rather than frame + full decompressed CSV bytes.
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+            with z.open(file) as f:
+                shutil.copyfileobj(f, tmp)
+            tmp_path = tmp.name
+        try:
+            # ERCOT CSVs quote empty fields (""), which pandas read as NaN;
+            # treating them as nulls at parse time lets polars infer numeric
+            # dtypes directly instead of leaving those columns as String,
+            # which roughly halves the read's peak memory.
+            df = pl.read_csv(
+                tmp_path,
+                infer_schema_length=None,
+                null_values=[""],
+            )
+        finally:
+            os.unlink(tmp_path)
+        # Match the pandas.read_csv dtypes: integer columns containing empty
+        # fields were float64 (with NaN) under pandas, and String columns
+        # where every non-null value parses as a number (e.g. floats written
+        # without a leading zero like "-.5") were float64 as well.
+        exprs = []
+        for col, dtype in df.schema.items():
+            if dtype == pl.Int64 and df[col].null_count() > 0:
+                exprs.append(pl.col(col).cast(pl.Float64))
+            elif dtype == pl.String:
+                parsed = df[col].cast(pl.Float64, strict=False)
+                if parsed.null_count() == df[col].null_count():
+                    exprs.append(pl.col(col).cast(pl.Float64, strict=False))
+        if exprs:
+            df = df.with_columns(exprs)
+        return df
+
+    def _localize_sced_timestamp_polars(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Parse and localize the SCED Timestamp column of a raw 60-day
+        disclosure frame without adding Interval Start/End.
+
+        Repeated Hour Flag is Y during the repeated hour, so it's N during DST
+        and Y during Standard Time: N maps to the earliest (DST) offset.
+        """
+        df = df.rename({"SCED Time Stamp": "SCED Timestamp"}, strict=False)
+        # ERCOT timestamps are MM/DD/YYYY, with or without seconds. Parse with
+        # explicit formats so polars never falls back to DD/MM.
+        parsed = pl.coalesce(
+            pl.col("SCED Timestamp").str.to_datetime("%m/%d/%Y %H:%M:%S", strict=False),
+            pl.col("SCED Timestamp").str.to_datetime("%m/%d/%Y %H:%M", strict=False),
+        )
+        ambiguous = (
+            pl.when(pl.col("Repeated Hour Flag") == "N")
+            .then(pl.lit("earliest"))
+            .otherwise(pl.lit("latest"))
+        )
+        return df.with_columns(
+            parsed.dt.replace_time_zone(
+                self.default_timezone,
+                ambiguous=ambiguous,
+            ).alias("SCED Timestamp"),
+        )
+
+    def _parse_doc_polars(self, doc: pl.DataFrame) -> pl.DataFrame:
+        """Polars-native version of parse_doc() for hourly documents
+        (DeliveryDate + HourEnding, optional DSTFlag).
+
+        Files with DeliveryInterval or TimeEnding columns fall back to the
+        pandas parse_doc() since those shapes are not needed on the
+        polars-native 60-day disclosure path.
+        """
+        doc = doc.rename(
+            {
+                "deliveryDate": "DeliveryDate",
+                "Delivery Date": "DeliveryDate",
+                "DELIVERY_DATE": "DeliveryDate",
+                "OperDay": "DeliveryDate",
+                "hourEnding": "HourEnding",
+                "Hour Ending": "HourEnding",
+                "HOUR_ENDING": "HourEnding",
+                "Repeated Hour Flag": "DSTFlag",
+                "RepeatedHourFlag": "DSTFlag",
+                "Date": "DeliveryDate",
+                "DeliveryHour": "HourEnding",
+                "Delivery Hour": "HourEnding",
+                "Delivery Interval": "DeliveryInterval",
+                # fix whitespace in column name
+                "DSTFlag    ": "DSTFlag",
+            },
+            strict=False,
+        )
+
+        if "DeliveryInterval" in doc.columns or "TimeEnding" in doc.columns:
+            return self.parse_doc(doc.to_pandas())
+
+        original_cols = doc.columns
+
+        hour_beginning = (
+            pl.col("HourEnding")
+            .cast(pl.String)
+            .str.split(":")
+            .list.first()
+            .cast(pl.Int64)
+            - 1
+        )
+        naive = pl.coalesce(
+            pl.col("DeliveryDate").str.to_datetime("%m/%d/%Y", strict=False),
+            pl.col("DeliveryDate").str.to_datetime("%m/%d/%Y %H:%M:%S", strict=False),
+        ) + pl.duration(hours=hour_beginning)
+        doc = doc.with_columns(naive.alias("Interval Start"))
+
+        if "DSTFlag" in original_cols:
+            # DSTFlag is Y during the repeated hour, so it's N during DST and
+            # Y during Standard Time: N maps to the earliest (DST) offset.
+            ambiguous = (
+                pl.when(pl.col("DSTFlag") == "N")
+                .then(pl.lit("earliest"))
+                .otherwise(pl.lit("latest"))
+            )
+            # Nonexistent (spring-forward) wall times localize to null and are
+            # replaced by shifting forward an hour, matching the pandas
+            # NonExistentTimeError fallback in parse_doc().
+            localized = pl.col("Interval Start").dt.replace_time_zone(
+                self.default_timezone,
+                ambiguous=ambiguous,
+                non_existent="null",
+            )
+            shifted = (
+                pl.col("Interval Start") + pl.duration(hours=1)
+            ).dt.replace_time_zone(
+                self.default_timezone,
+                ambiguous=ambiguous,
+                non_existent="null",
+            ) - pl.duration(hours=1)
+            doc = doc.with_columns(
+                pl.coalesce(localized, shifted).alias("Interval Start"),
+            )
+        else:
+            # matches the pandas ambiguous="infer" default
+            doc = utils.localize_ambiguous_infer_polars(
+                doc,
+                time_col="Interval Start",
+                tz=self.default_timezone,
+            )
+
+        doc = doc.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+            pl.col("Interval Start").alias("Time"),
+        )
+        doc = doc.sort("Time", maintain_order=True)
+
+        cols_to_keep = ["Time", "Interval Start", "Interval End"] + [
+            c
+            for c in original_cols
+            if c not in ("DeliveryDate", "HourEnding", "DSTFlag")
+        ]
+        return doc.select(cols_to_keep)
+
     def _handle_60_day_sced_disclosure(
         self,
         z: ZipFile,
@@ -2841,32 +2998,7 @@ class Ercot(ISOBase):
         assert smne_file, "Could not find smne file"
 
         def read_zip_csv(file: str) -> pl.DataFrame:
-            # Extract to a temp file instead of reading bytes into memory so
-            # polars can mmap the CSV; keeps peak RSS at ~the final frame size
-            # rather than frame + full decompressed CSV bytes.
-            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-                with z.open(file) as f:
-                    shutil.copyfileobj(f, tmp)
-                tmp_path = tmp.name
-            try:
-                df = pl.read_csv(tmp_path, infer_schema_length=None)
-            finally:
-                os.unlink(tmp_path)
-            # ERCOT CSVs quote empty fields ("") and write floats without a
-            # leading zero (e.g. "-.5"), both of which polars leaves as String
-            # columns where pandas produced float64 (with NaN for empties).
-            # Normalize empty strings to null and cast a String column to
-            # Float64 whenever every non-empty value parses as a number,
-            # matching the pandas.read_csv behavior. Columns are replaced one
-            # at a time to keep transient memory to a single column.
-            for col, dtype in df.schema.items():
-                if dtype != pl.String:
-                    continue
-                cleaned = df[col].replace("", None)
-                parsed = cleaned.cast(pl.Float64, strict=False)
-                if parsed.null_count() == cleaned.null_count():
-                    df = df.with_columns(parsed.rename(col))
-            return df
+            return self._read_zip_csv_polars(z, file)
 
         def parse_time_col(time_col: str) -> pl.Expr:
             # ERCOT timestamps are MM/DD/YYYY, with or without seconds. Parse
@@ -2933,18 +3065,24 @@ class Ercot(ISOBase):
             )
             return utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
 
-        def localize_sced_timestamp(df: pl.DataFrame) -> pl.DataFrame:
-            """Localize SCED Timestamp without adding Interval Start/End."""
-            df = df.rename({"SCED Time Stamp": "SCED Timestamp"}, strict=False)
-            return df.with_columns(
-                parse_time_col("SCED Timestamp").dt.replace_time_zone(
-                    self.default_timezone,
-                    ambiguous=repeated_hour_ambiguous,
-                ),
+        localize_sced_timestamp = self._localize_sced_timestamp_polars
+
+        if process:
+            logger.info("Processing 60 day SCED disclosure data")
+
+        # Each dataset is processed immediately after its read so the raw
+        # frame (several times larger than the processed one) is freed before
+        # the next file is read, keeping peak memory to roughly one raw frame.
+        load_resource = localize_sced_timestamp(read_zip_csv(load_resource_file))
+        if process:
+            load_resource = process_sced_load(
+                load_resource,
+                output_format=output_format,
             )
 
-        load_resource = localize_sced_timestamp(read_zip_csv(load_resource_file))
         gen_resource = localize_sced_timestamp(read_zip_csv(gen_resource_file))
+        if process:
+            gen_resource = process_sced_gen(gen_resource, output_format=output_format)
 
         # no repeated hour flag like other ERCOT data
         # likely will error on DST change
@@ -2953,15 +3091,28 @@ class Ercot(ISOBase):
             time_col="Interval Time",
             is_interval_end=True,
         )
+        if process:
+            smne = smne.rename(
+                {
+                    "Resource Code": "Resource Name",
+                },
+            )
 
         # Skip ESR from the main disclosure file if we need correction data
         esr = None
         if not skip_esr and esr_file:
             esr = localize_sced_timestamp(read_zip_csv(esr_file))
+            if process:
+                esr = process_sced_esr(esr, output_format=output_format)
 
         as_offer_updates = (
             read_zip_csv(as_offer_updates_file) if as_offer_updates_file else None
         )
+        if process and as_offer_updates is not None:
+            as_offer_updates = self._parse_doc_polars(as_offer_updates)
+            as_offer_updates = process_sced_as_offer_updates_in_op_hour(
+                as_offer_updates,
+            )
 
         # Process Resource AS Offers - has SCED Timestamp like other SCED data
         resource_as_offers = None
@@ -2969,27 +3120,7 @@ class Ercot(ISOBase):
             resource_as_offers = localize_sced_timestamp(
                 read_zip_csv(resource_as_offers_file),
             )
-
-        if process:
-            logger.info("Processing 60 day SCED disclosure data")
-            load_resource = process_sced_load(
-                load_resource,
-                output_format=output_format,
-            )
-            gen_resource = process_sced_gen(gen_resource, output_format=output_format)
-            smne = smne.rename(
-                {
-                    "Resource Code": "Resource Name",
-                },
-            )
-            if esr is not None:
-                esr = process_sced_esr(esr, output_format=output_format)
-            if as_offer_updates is not None:
-                as_offer_updates = self.parse_doc(as_offer_updates.to_pandas())
-                as_offer_updates = process_sced_as_offer_updates_in_op_hour(
-                    as_offer_updates,
-                )
-            if resource_as_offers is not None:
+            if process:
                 resource_as_offers = process_sced_resource_as_offers(
                     resource_as_offers,
                     output_format=output_format,
@@ -3023,7 +3154,7 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-    ) -> pd.DataFrame | pl.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """Fetch ESR data from the supplemental correction file for specific dates.
 
         The ESR supplemental correction file was published on Feb 5, 2026 and contains
@@ -3079,14 +3210,9 @@ class Ercot(ISOBase):
         if verbose:
             logger.info(f"Reading ESR correction data from {target_file}")
 
-        esr = pd.read_csv(z.open(target_file))
-
         # Localize the SCED Timestamp
-        esr = esr.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
-        esr["SCED Timestamp"] = pd.to_datetime(esr["SCED Timestamp"])
-        esr["SCED Timestamp"] = esr["SCED Timestamp"].dt.tz_localize(
-            self.default_timezone,
-            ambiguous=esr["Repeated Hour Flag"] == "N",
+        esr = self._localize_sced_timestamp_polars(
+            self._read_zip_csv_polars(z, target_file),
         )
 
         if process:
@@ -3180,14 +3306,9 @@ class Ercot(ISOBase):
             if verbose:
                 logger.info(f"Reading supplemental data from {target_file}")
 
-            df = pd.read_csv(z.open(target_file))
-
             # Localize SCED Timestamp
-            df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
-            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
-            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
-                self.default_timezone,
-                ambiguous=df["Repeated Hour Flag"] == "N",
+            df = self._localize_sced_timestamp_polars(
+                self._read_zip_csv_polars(z, target_file),
             )
 
             if process:
@@ -3203,7 +3324,7 @@ class Ercot(ISOBase):
         process: bool = False,
         verbose: bool = False,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-    ) -> pd.DataFrame | pl.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """Fetch SCED Resource AS Offers data from the supplemental file for
         data dates Dec 5, 2025 through Feb 2, 2026.
 
@@ -3263,16 +3384,11 @@ class Ercot(ISOBase):
                 f"Reading SCED Resource AS Offers supplemental data from {target_file}",
             )
 
-        df = pd.read_csv(z.open(target_file))
-
         # Localize SCED Timestamp (column is already named "SCED Timestamp"
         # in the supplemental file, but rename defensively in case a future
         # supplemental reverts to "SCED Time Stamp").
-        df = df.rename(columns={"SCED Time Stamp": "SCED Timestamp"})
-        df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"])
-        df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
-            self.default_timezone,
-            ambiguous=df["Repeated Hour Flag"] == "N",
+        df = self._localize_sced_timestamp_polars(
+            self._read_zip_csv_polars(z, target_file),
         )
 
         if process:
@@ -3397,61 +3513,57 @@ class Ercot(ISOBase):
                 if file in f:
                     files[key] = f
 
+        file_to_function = {
+            DAM_GEN_RESOURCE_KEY: process_dam_gen,
+            DAM_LOAD_RESOURCE_KEY: process_dam_load,
+            DAM_GEN_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
+            DAM_LOAD_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
+            DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: process_dam_energy_only_offer_awards,
+            DAM_ENERGY_ONLY_OFFERS_KEY: process_dam_energy_only_offers,
+            DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,  # noqa
+            DAM_PTP_OBLIGATION_BIDS_KEY: process_dam_ptp_obligation_bids,
+            DAM_ENERGY_BID_AWARDS_KEY: process_dam_energy_bid_awards,
+            DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
+            DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
+            DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
+            DAM_ESR_KEY: process_dam_esr,
+            DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
+            DAM_AS_ONLY_AWARDS_KEY: process_dam_as_only_awards,
+            DAM_AS_ONLY_OFFERS_KEY: process_dam_as_only_offers,
+        }
+
+        # These process functions accept output_format for curve extraction
+        supports_output_format = {
+            DAM_GEN_RESOURCE_KEY,
+            DAM_ESR_KEY,
+            DAM_ENERGY_ONLY_OFFERS_KEY,
+            DAM_ENERGY_BIDS_KEY,
+            DAM_GEN_RESOURCE_AS_OFFERS_KEY,
+            DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
+            DAM_ESR_AS_OFFERS_KEY,
+            DAM_AS_ONLY_OFFERS_KEY,
+        }
+
         data = {}
 
+        # Each file is processed immediately after its read so the raw frame
+        # is freed before the next file is read, keeping peak memory to
+        # roughly one raw frame.
         for key, file in files.items():
-            doc = pd.read_csv(z.open(file))
+            doc = self._read_zip_csv_polars(z, file)
             # weird that these files dont have this column like all other ERCOT files
             # add so we can parse
-            doc["DSTFlag"] = "N"
-            data[key] = self.parse_doc(doc, verbose=verbose)
+            doc = doc.with_columns(pl.lit("N").alias("DSTFlag"))
+            doc = self._parse_doc_polars(doc)
 
-        if process:
-            file_to_function = {
-                DAM_GEN_RESOURCE_KEY: process_dam_gen,
-                DAM_LOAD_RESOURCE_KEY: process_dam_load,
-                DAM_GEN_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
-                DAM_LOAD_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
-                DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: process_dam_energy_only_offer_awards,
-                DAM_ENERGY_ONLY_OFFERS_KEY: process_dam_energy_only_offers,
-                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,  # noqa
-                DAM_PTP_OBLIGATION_BIDS_KEY: process_dam_ptp_obligation_bids,
-                DAM_ENERGY_BID_AWARDS_KEY: process_dam_energy_bid_awards,
-                DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
-                DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
-                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
-                DAM_ESR_KEY: process_dam_esr,
-                DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
-                DAM_AS_ONLY_AWARDS_KEY: process_dam_as_only_awards,
-                DAM_AS_ONLY_OFFERS_KEY: process_dam_as_only_offers,
-            }
+            if process:
+                process_func = file_to_function[key]
+                if key in supports_output_format:
+                    doc = process_func(doc, output_format=output_format)
+                else:
+                    doc = process_func(doc)
 
-            # These process functions accept output_format for curve extraction
-            supports_output_format = {
-                DAM_GEN_RESOURCE_KEY,
-                DAM_ESR_KEY,
-                DAM_ENERGY_ONLY_OFFERS_KEY,
-                DAM_ENERGY_BIDS_KEY,
-                DAM_GEN_RESOURCE_AS_OFFERS_KEY,
-                DAM_LOAD_RESOURCE_AS_OFFERS_KEY,
-                DAM_ESR_AS_OFFERS_KEY,
-                DAM_AS_ONLY_OFFERS_KEY,
-            }
-
-            for file_name, process_func in file_to_function.items():
-                if file_name in data:
-                    if file_name in supports_output_format:
-                        data[file_name] = process_func(
-                            data[file_name],
-                            output_format=output_format,
-                        )
-                    else:
-                        data[file_name] = process_func(data[file_name])
-
-        data = {
-            key: pl.from_pandas(value) if isinstance(value, pd.DataFrame) else value
-            for key, value in data.items()
-        }
+            data[key] = doc
 
         return data
 
