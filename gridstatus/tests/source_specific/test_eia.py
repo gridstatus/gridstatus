@@ -1,8 +1,8 @@
 import datetime
 from typing import List
 
-import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 import gridstatus
@@ -24,6 +24,10 @@ api_vcr = setup_vcr(
 )
 
 
+def _null_count(df: pl.DataFrame) -> int:
+    return df.null_count().select(pl.sum_horizontal(pl.all())).item()
+
+
 def _check_interchange(df):
     columns = [
         "Interval Start",
@@ -34,11 +38,12 @@ def _check_interchange(df):
         "To BA Name",
         "MW",
     ]
-    # assert interval start and interval end are datetimes in utc
-    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
-    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
-    assert df.shape[0] > 0
-    assert df.columns.tolist() == columns
+    assert isinstance(df.schema["Interval Start"], pl.Datetime)
+    assert df.schema["Interval Start"].time_zone == "UTC"
+    assert isinstance(df.schema["Interval End"], pl.Datetime)
+    assert df.schema["Interval End"].time_zone == "UTC"
+    assert df.height > 0
+    assert df.columns == columns
 
 
 def _check_region_data(df):
@@ -53,10 +58,12 @@ def _check_region_data(df):
         "Total Interchange",
     ]
 
-    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
-    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
-    assert df.shape[0] > 0
-    assert df.columns.tolist() == columns
+    assert isinstance(df.schema["Interval Start"], pl.Datetime)
+    assert df.schema["Interval Start"].time_zone == "UTC"
+    assert isinstance(df.schema["Interval End"], pl.Datetime)
+    assert df.schema["Interval End"].time_zone == "UTC"
+    assert df.height > 0
+    assert df.columns == columns
 
 
 def _check_region_subba_data(df):
@@ -70,17 +77,21 @@ def _check_region_subba_data(df):
         "MW",
     ]
 
-    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
-    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
-    assert df.shape[0] > 0
-    assert df.columns.tolist() == columns
+    assert isinstance(df.schema["Interval Start"], pl.Datetime)
+    assert df.schema["Interval Start"].time_zone == "UTC"
+    assert isinstance(df.schema["Interval End"], pl.Datetime)
+    assert df.schema["Interval End"].time_zone == "UTC"
+    assert df.height > 0
+    assert df.columns == columns
 
 
 def _check_fuel_type(df):
-    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
-    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
-    assert df.shape[0] > 0
-    assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
+    assert isinstance(df.schema["Interval Start"], pl.Datetime)
+    assert df.schema["Interval Start"].time_zone == "UTC"
+    assert isinstance(df.schema["Interval End"], pl.Datetime)
+    assert df.schema["Interval End"].time_zone == "UTC"
+    assert df.height > 0
+    assert df.columns == EIA_FUEL_MIX_COLUMNS
 
 
 @pytest.mark.integration
@@ -117,7 +128,7 @@ def test_rto_interchange():
 
     assert df["Interval End"].min().date() == pd.Timestamp(start).date()
     assert df["Interval End"].max().date() == pd.Timestamp(end).date()
-    assert df.isnull().sum().sum() == 0
+    assert _null_count(df) == 0
 
     _check_interchange(df)
 
@@ -137,9 +148,7 @@ def test_rto_region_data():
 
     assert df["Interval End"].min().date() == pd.Timestamp(start).date()
     assert df["Interval End"].max().date() == pd.Timestamp(end).date()
-    # pick a respondent that we know has no nulls
-    # this check that pagination is working
-    assert df[df["Respondent"] == "BPAT"].isnull().sum().sum() == 0
+    assert _null_count(df.filter(pl.col("Respondent") == "BPAT")) == 0
     _check_region_data(df)
 
 
@@ -158,9 +167,7 @@ def test_rto_region_subba_data():
 
     assert df["Interval End"].min().date() == pd.Timestamp(start).date()
     assert df["Interval End"].max().date() == pd.Timestamp(end).date()
-    # pick a respondent that we know has no nulls
-    # this check that pagination is working
-    assert df[df["Subregion"] == "PGAE"].isnull().sum().sum() == 0
+    assert _null_count(df.filter(pl.col("Subregion") == "PGAE")) == 0
     _check_region_subba_data(df)
 
 
@@ -171,7 +178,6 @@ def test_fuel_type():
     start = (pd.Timestamp.utcnow() - pd.Timedelta(days=2)).normalize()
     end = start + pd.Timedelta(days=1)
 
-    # dataset that doesnt have a handler yet
     df = eia.get_dataset(
         dataset="electricity/rto/fuel-type-data",
         start=start,
@@ -192,7 +198,6 @@ def test_facets():
     start = "2025-01-01"
     end = "2025-01-04"
 
-    # dataset that doesnt have a handler yet
     df = eia.get_dataset(
         dataset="electricity/rto/fuel-type-data",
         start=start,
@@ -203,7 +208,7 @@ def test_facets():
 
     assert (df["Respondent Name"] == "PacifiCorp East").all()
 
-    assert df.columns.tolist() == EIA_FUEL_MIX_COLUMNS
+    assert df.columns == EIA_FUEL_MIX_COLUMNS
 
 
 @pytest.mark.integration
@@ -220,8 +225,8 @@ def test_daily_spots_and_futures():
         "percent_change",
     ]
 
-    assert d["petroleum"].columns.tolist() == cols_petrol
-    assert d["petroleum"].shape[0] > 0
+    assert d["petroleum"].columns == cols_petrol
+    assert d["petroleum"].height > 0
     cols_ng = [
         "date",
         "region",
@@ -232,8 +237,8 @@ def test_daily_spots_and_futures():
         "spark_spread",
     ]
 
-    assert d["natural_gas"].columns.tolist() == cols_ng
-    assert d["natural_gas"].shape[0] > 0
+    assert d["natural_gas"].columns == cols_ng
+    assert d["natural_gas"].height > 0
 
 
 @pytest.mark.integration
@@ -270,14 +275,14 @@ def test_get_coal_spots():
         "coke_exports",
     ]
 
-    assert d["weekly_spots"].columns.tolist() == cols_spot_price
-    assert d["weekly_spots"].shape[0] > 0
+    assert d["weekly_spots"].columns == cols_spot_price
+    assert d["weekly_spots"].height > 0
 
-    assert d["coal_exports"].columns.tolist() == cols_coal
-    assert d["coal_exports"].shape[0] > 0
+    assert d["coal_exports"].columns == cols_coal
+    assert d["coal_exports"].height > 0
 
-    assert d["coke_exports"].columns.tolist() == cols_coke
-    assert d["coke_exports"].shape[0] > 0
+    assert d["coke_exports"].columns == cols_coke
+    assert d["coke_exports"].height > 0
 
 
 @pytest.mark.integration
@@ -320,11 +325,11 @@ def test_eia_grid_monitor():
     ]
     df = eia.get_grid_monitor(area_id="CISO")
 
-    assert df.columns.tolist() == cols
+    assert df.columns == cols
 
 
 def _check_henry_hub_natural_gas_spot_prices(df):
-    assert df.columns.tolist() == [
+    assert df.columns == [
         "Interval Start",
         "Interval End",
         "period",
@@ -340,10 +345,14 @@ def _check_henry_hub_natural_gas_spot_prices(df):
         "units",
     ]
 
-    assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(days=1)
+    unique_deltas = (
+        (df["Interval End"] - df["Interval Start"])
+        .unique(maintain_order=True)
+        .to_list()
+    )
+    assert all(delta == pd.Timedelta(days=1) for delta in unique_deltas)
 
-    # Only RNGWHHD is present after 2024-04-05
-    assert set(df["series"].unique()) == set(
+    assert set(df["series"].unique(maintain_order=True).to_list()) == set(
         [
             "RNGWHHD",
             "RNGC1",
@@ -353,11 +362,11 @@ def _check_henry_hub_natural_gas_spot_prices(df):
         ],
     )
 
-    assert df["area_name"].isna().any()
-    assert not df["price"].isna().any()
-    assert not df["series"].isna().any()
+    assert df["area_name"].null_count() > 0
+    assert df["price"].null_count() == 0
+    assert df["series"].null_count() == 0
 
-    assert np.issubdtype(df["price"], np.float64)
+    assert df.schema["price"] == pl.Float64
 
 
 @pytest.mark.integration
@@ -393,7 +402,7 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
 
 
 def _check_generators_data(
-    df: pd.DataFrame,
+    df: pl.DataFrame,
     generator_status: str,
     columns: List[str] = None,
     expected_rows: int = None,
@@ -401,17 +410,19 @@ def _check_generators_data(
     expected_updated_at: pd.Timestamp = None,
     expected_all_na_columns: List[str] = None,
 ):
-    assert df.columns.tolist() == columns
+    assert df.columns == columns
     if expected_rows is not None:
-        assert df.shape[0] == expected_rows
+        assert df.height == expected_rows
 
-    assert df["Period"].unique() == expected_period
-    assert df["Entity ID"].notna().all()
-    assert df["Plant ID"].notna().all()
-    assert df["Generator ID"].notna().all()
+    assert df["Period"].unique(maintain_order=True).to_list() == [expected_period]
+    assert df["Entity ID"].null_count() == 0
+    assert df["Plant ID"].null_count() == 0
+    assert df["Generator ID"].null_count() == 0
 
     if expected_updated_at is not None:
-        assert df["Updated At"].unique() == expected_updated_at
+        assert df["Updated At"].unique(maintain_order=True).to_list() == [
+            expected_updated_at.to_pydatetime(),
+        ]
 
     # These columns should not be all empty
     if generator_status in ["operating", "retired"]:
@@ -423,11 +434,10 @@ def _check_generators_data(
             "Net Winter Capacity",
             "Unit Code",
         ]:
-            # Earlier datasets may not have all columns so we add them as pd.NA values
             if expected_all_na_columns is not None and col in expected_all_na_columns:
-                assert df[col].isna().all()
+                assert df[col].null_count() == df.height
             else:
-                assert df[col].notna().any()
+                assert df[col].null_count() < df.height
 
     # Different generator_status datasets have different columns
     elif generator_status in ["planned", "canceled_or_postponed"]:
@@ -438,17 +448,17 @@ def _check_generators_data(
             "Unit Code",
         ]:
             if expected_all_na_columns is not None and col in expected_all_na_columns:
-                assert df[col].isna().all()
+                assert df[col].null_count() == df.height
             else:
-                assert df[col].notna().any()
+                assert df[col].null_count() < df.height
 
     for col in GENERATOR_FLOAT_COLUMNS:
         if col in df.columns:
-            assert pd.api.types.is_float_dtype(df[col])
+            assert df.schema[col] == pl.Float64
 
     for col in GENERATOR_INT_COLUMNS:
         if col in df.columns:
-            assert pd.api.types.is_integer_dtype(df[col])
+            assert df.schema[col] == pl.Int64
 
 
 def test_get_generators_relative_date():

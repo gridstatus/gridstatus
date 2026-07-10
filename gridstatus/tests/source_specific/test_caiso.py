@@ -1,7 +1,9 @@
 import math
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from gridstatus import CAISO, Markets
@@ -37,10 +39,11 @@ class TestCAISO(BaseTestISO):
         "Thermal",
     ]
 
-    def _check_aggregated_generation_outages(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == self.AGGREGATED_GENERATION_OUTAGES_COLUMNS
-        assert df.shape[0] > 0
-        assert set(df["Trading Hub"].unique()) == {
+    def _check_aggregated_generation_outages(self, df: pl.DataFrame) -> None:
+        df = self._as_polars(df)
+        assert list(df.columns) == self.AGGREGATED_GENERATION_OUTAGES_COLUMNS
+        assert df.height > 0
+        assert set(df["Trading Hub"].unique().to_list()) == {
             "NP15",
             "PACE",
             "PACW",
@@ -50,23 +53,27 @@ class TestCAISO(BaseTestISO):
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
-        assert (interval_minutes == 60).all()
-        assert not df.duplicated(
-            subset=[
-                "Interval Start",
-                "Publish Time",
-                "Trading Hub",
-            ],
-        ).any()
-        assert df["Aggregated"].notna().all()
+        assert interval_minutes.eq(60).all()
+        assert (
+            not df.select(
+                pl.struct(
+                    ["Interval Start", "Publish Time", "Trading Hub"],
+                ).is_duplicated(),
+            )
+            .to_series()
+            .any()
+        )
+        assert df["Aggregated"].is_not_null().all()
         breakdown_hubs = {"NP15", "PACE", "PACW", "SP15"}
-        breakdown = df[df["Trading Hub"].isin(breakdown_hubs)]
-        component_sum = breakdown[
-            ["Hydro", "Not Available", "Renewable", "Thermal"]
-        ].sum(axis=1, min_count=1)
+        breakdown = df.filter(pl.col("Trading Hub").is_in(list(breakdown_hubs)))
+        component_sum = breakdown.select(
+            pl.sum_horizontal("Hydro", "Not Available", "Renewable", "Thermal"),
+        ).to_series()
         assert (breakdown["Aggregated"] == component_sum).all()
-        assert df.loc[df["Trading Hub"] == "ZP26", "Aggregated"].notna().all()
-        assert df.loc[df["Trading Hub"] == "ZP26", "Thermal"].isna().all()
+        assert (
+            df.filter(pl.col("Trading Hub") == "ZP26")["Aggregated"].is_not_null().all()
+        )
+        assert df.filter(pl.col("Trading Hub") == "ZP26")["Thermal"].is_null().all()
         for column in [
             "Aggregated",
             "Hydro",
@@ -74,7 +81,7 @@ class TestCAISO(BaseTestISO):
             "Renewable",
             "Thermal",
         ]:
-            assert pd.api.types.is_numeric_dtype(df[column])
+            assert df[column].dtype in {pl.Float64, pl.Int64, pl.Float32, pl.Int32}
 
     @pytest.mark.caiso_oasis
     @pytest.mark.real_sleep
@@ -88,8 +95,8 @@ class TestCAISO(BaseTestISO):
                 sleep=15,
             )
             self._check_aggregated_generation_outages(df)
-            assert df["Publish Time"].nunique() == 1
-            assert df["Publish Time"].iloc[0] == self.local_start_of_day(date)
+            assert df["Publish Time"].n_unique() == 1
+            assert df[0, "Publish Time"] == self.local_start_of_day(date)
             assert df["Interval Start"].min() == self.local_start_of_day(date)
             assert df["Interval End"].max() == self.local_start_of_day(
                 date,
@@ -111,7 +118,7 @@ class TestCAISO(BaseTestISO):
                 sleep=15,
             )
             self._check_aggregated_generation_outages(df)
-            assert df["Publish Time"].nunique() == 2
+            assert df["Publish Time"].n_unique() == 2
 
     """get_as"""
 
@@ -120,9 +127,9 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette(f"test_get_as_prices_{date}.yaml"):
             df = self.iso.get_as_prices(date)
 
-            assert df.shape[0] > 0
+            assert df.height > 0
 
-            assert df.columns.tolist() == [
+            assert list(df.columns) == [
                 "Time",
                 "Interval Start",
                 "Interval End",
@@ -168,15 +175,21 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_price_corrections(date=start, end=end)
 
-            assert df.columns.tolist() == self.PRICE_CORRECTIONS_COLUMNS
-            assert df.shape[0] > 0
+            assert list(df.columns) == self.PRICE_CORRECTIONS_COLUMNS
+            assert df.height > 0
 
             # Market comes from the PRC_CORR_GRP MARKET column.
-            assert set(df["Market"].unique()) <= {"DAM", "RTD", "RTPD", "HASP", "RUC"}
+            assert set(df["Market"].unique().to_list()) <= {
+                "DAM",
+                "RTD",
+                "RTPD",
+                "HASP",
+                "RUC",
+            }
 
             # Trade Date and Report Generated are Pacific-localized timestamps.
-            assert str(df["Trade Date"].dt.tz) == "US/Pacific"
-            assert str(df["Report Generated"].dt.tz) == "US/Pacific"
+            assert df["Trade Date"].dtype.time_zone == "US/Pacific"
+            assert df["Report Generated"].dtype.time_zone == "US/Pacific"
 
             # The report is keyed by trade date, so every correction falls in the
             # requested range (end exclusive).
@@ -211,18 +224,29 @@ class TestCAISO(BaseTestISO):
         "Loss",
     ]
 
-    def _check_ir_rc_prices(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == self.IR_RC_PRICES_COLUMNS
-        assert df.shape[0] > 0
-        assert set(df["Product"].unique()) == {"IRU", "IRD", "RCU", "RCD"}
+    def _check_ir_rc_prices(self, df: pl.DataFrame) -> None:
+        df = self._as_polars(df)
+        assert list(df.columns) == self.IR_RC_PRICES_COLUMNS
+        assert df.height > 0
+        assert set(df["Product"].unique().to_list()) == {"IRU", "IRD", "RCU", "RCD"}
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
-        assert (interval_minutes == 60).all()
-        assert not df.duplicated(
-            subset=["Interval Start", "Location", "Product"],
-        ).any()
-        ir_loss_null = df.loc[df["Product"].isin(["IRU", "IRD"]), "Loss"].isna().all()
+        assert interval_minutes.eq(60).all()
+        assert (
+            not df.select(
+                pl.struct(["Interval Start", "Location", "Product"]).is_duplicated(),
+            )
+            .to_series()
+            .any()
+        )
+        ir_loss_null = (
+            df.filter(
+                pl.col("Product").is_in(["IRU", "IRD"]),
+            )["Loss"]
+            .is_null()
+            .all()
+        )
         assert ir_loss_null
 
     @pytest.mark.parametrize("date", ["2026-05-01"])
@@ -262,19 +286,26 @@ class TestCAISO(BaseTestISO):
         "MW",
     ]
 
-    def _check_ir_rc_requirements_awards(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == self.IR_RC_REQUIREMENTS_AWARDS_COLUMNS
-        assert df.shape[0] > 0
-        assert set(df["Product"].unique()).issubset({"IRU", "IRD", "RCU", "RCD"})
-        assert set(df["Type"].unique()) == {"Requirement", "Award"}
+    def _check_ir_rc_requirements_awards(self, df: pl.DataFrame) -> None:
+        df = self._as_polars(df)
+        assert list(df.columns) == self.IR_RC_REQUIREMENTS_AWARDS_COLUMNS
+        assert df.height > 0
+        assert set(df["Product"].unique().to_list()).issubset(
+            {"IRU", "IRD", "RCU", "RCD"},
+        )
+        assert set(df["Type"].unique().to_list()) == {"Requirement", "Award"}
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
-        assert (interval_minutes == 60).all()
-        assert not df.duplicated(
-            subset=["Interval Start", "BAA", "Product", "Type"],
-        ).any()
-        assert pd.api.types.is_numeric_dtype(df["MW"])
+        assert interval_minutes.eq(60).all()
+        assert (
+            not df.select(
+                pl.struct(["Interval Start", "BAA", "Product", "Type"]).is_duplicated(),
+            )
+            .to_series()
+            .any()
+        )
+        assert df["MW"].dtype in {pl.Float64, pl.Int64, pl.Float32, pl.Int32}
 
     @pytest.mark.parametrize("date", ["2026-05-01"])
     def test_get_ir_rc_requirements_awards_dam(self, date):
@@ -283,7 +314,7 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_ir_rc_requirements_awards_dam(date=date)
             self._check_ir_rc_requirements_awards(df)
-            assert set(df["Product"].unique()) == {"IRU", "IRD", "RCU", "RCD"}
+            assert set(df["Product"].unique().to_list()) == {"IRU", "IRD", "RCU", "RCD"}
             assert df["Interval Start"].min() == self.local_start_of_day(date)
             assert df["Interval Start"].max() == self.local_start_of_day(
                 date,
@@ -296,7 +327,7 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_ir_rc_requirements_awards_2da(date=date)
             self._check_ir_rc_requirements_awards(df)
-            assert set(df["Product"].unique()) == {"IRU", "IRD"}
+            assert set(df["Product"].unique().to_list()) == {"IRU", "IRD"}
             assert df["Interval Start"].min() == self.local_start_of_day(date)
             assert df["Interval Start"].max() == self.local_start_of_day(
                 date,
@@ -309,7 +340,7 @@ class TestCAISO(BaseTestISO):
         ):
             df = self.iso.get_ir_rc_requirements_awards_3da(date=date)
             self._check_ir_rc_requirements_awards(df)
-            assert set(df["Product"].unique()) == {"IRU", "IRD"}
+            assert set(df["Product"].unique().to_list()) == {"IRU", "IRD"}
             assert df["Interval Start"].min() == self.local_start_of_day(date)
             assert df["Interval Start"].max() == self.local_start_of_day(
                 date,
@@ -359,10 +390,10 @@ class TestCAISO(BaseTestISO):
 
     def _check_load_forecast(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         expected_interval_minutes: int | None = None,
     ):
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -374,7 +405,7 @@ class TestCAISO(BaseTestISO):
             interval_minutes = (
                 df["Interval End"] - df["Interval Start"]
             ).dt.total_seconds() / 60
-            assert (interval_minutes == expected_interval_minutes).all()
+            assert interval_minutes.eq(expected_interval_minutes).all()
 
         assert df["Publish Time"].max() < self.local_now()
 
@@ -493,14 +524,12 @@ class TestCAISO(BaseTestISO):
             match_on=["method", "scheme", "host", "port", "path"],
         ):
             df = self.iso.get_seven_day_resource_adequacy_outlook(date)
-        assert df.shape[0] > 0
-        assert (
-            df.columns.tolist() == self._seven_day_resource_adequacy_outlook_columns()
-        )
+        assert df.height > 0
+        assert list(df.columns) == self._seven_day_resource_adequacy_outlook_columns()
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         expected_pub = pd.Timestamp(date, tz=self.iso.default_timezone).normalize()
         assert (df["Publish Time"] == expected_pub).all()
         self._check_time_columns(
@@ -520,27 +549,22 @@ class TestCAISO(BaseTestISO):
             match_on=["method", "scheme", "host", "port", "path"],
         ):
             df = self.iso.get_seven_day_resource_adequacy_outlook(start, end=end)
-        assert df.shape[0] > 0
-        assert (
-            df.columns.tolist() == self._seven_day_resource_adequacy_outlook_columns()
-        )
-        assert df["Publish Time"].nunique() == 2
-        assert df.columns[:3].tolist() == [
+        assert df.height > 0
+        assert list(df.columns) == self._seven_day_resource_adequacy_outlook_columns()
+        assert df["Publish Time"].n_unique() == 2
+        assert list(df.columns[:3]) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
         ]
         for col in ["Interval Start", "Interval End", "Publish Time"]:
-            assert isinstance(df.loc[0][col], pd.Timestamp)
-            assert df.loc[0][col].tz is not None
+            assert isinstance(df[0, col], (pd.Timestamp, datetime))
+            assert df[0, col].tzinfo is not None
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
         ).all()
-        sorted_df = df.sort_values(
-            by=["Interval Start", "Publish Time"],
-            kind="mergesort",
-        )
-        assert sorted_df["Interval Start"].is_monotonic_increasing
+        sorted_df = df.sort(["Interval Start", "Publish Time"])
+        assert sorted_df["Interval Start"].is_sorted()
 
     def test_get_seven_day_resource_adequacy_outlook_latest_matches_today(self):
         with caiso_vcr.use_cassette(
@@ -551,7 +575,7 @@ class TestCAISO(BaseTestISO):
             today_df = self.iso.get_seven_day_resource_adequacy_outlook("today")
         assert latest_df.equals(today_df)
         assert (
-            latest_df.columns.tolist()
+            list(latest_df.columns)
             == self._seven_day_resource_adequacy_outlook_columns()
         )
         assert (latest_df["Publish Time"] == self.local_start_of_today()).all()
@@ -559,9 +583,9 @@ class TestCAISO(BaseTestISO):
     """get_solar_and_wind_forecast_dam"""
 
     def _check_solar_and_wind_forecast(self, df, expected_count_unique_publish_times):
-        assert df.shape[0] > 0
+        assert df.height > 0
 
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -570,10 +594,15 @@ class TestCAISO(BaseTestISO):
             "Wind MW",
         ]
 
-        assert df["Location"].unique().tolist() == ["CAISO", "NP15", "SP15", "ZP26"]
+        assert df["Location"].unique(maintain_order=True).to_list() == [
+            "CAISO",
+            "NP15",
+            "SP15",
+            "ZP26",
+        ]
 
-        totals = df.loc[df["Location"] == "CAISO"]
-        non_totals = df.loc[df["Location"] != "CAISO"]
+        totals = df.filter(pl.col("Location") == "CAISO")
+        non_totals = df.filter(pl.col("Location") != "CAISO")
 
         assert math.isclose(
             totals["Solar MW"].sum(),
@@ -595,12 +624,12 @@ class TestCAISO(BaseTestISO):
 
         # Make sure there are no future publish times
         assert df["Publish Time"].max() < self.local_now()
-        assert df["Publish Time"].nunique() == expected_count_unique_publish_times
+        assert df["Publish Time"].n_unique() == expected_count_unique_publish_times
 
-    def _check_edam_wind_solar_forecast(self, df: pd.DataFrame) -> None:
-        assert df.shape[0] > 0
+    def _check_edam_wind_solar_forecast(self, df: pl.DataFrame) -> None:
+        assert df.height > 0
 
-        assert df.columns.tolist() == [
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Publish Time",
@@ -615,14 +644,18 @@ class TestCAISO(BaseTestISO):
             skip_column_named_time=True,
         )
 
-        assert isinstance(df.loc[0]["Publish Time"], pd.Timestamp)
-        assert df.loc[0]["Publish Time"].tz is not None
+        assert isinstance(df[0, "Publish Time"], (pd.Timestamp, datetime))
+        assert df[0, "Publish Time"].tzinfo is not None
 
-        assert pd.api.types.is_numeric_dtype(df["Solar"])
-        assert pd.api.types.is_numeric_dtype(df["Wind"])
+        assert df["Solar"].dtype in {pl.Float64, pl.Int64, pl.Float32, pl.Int32}
+        assert df["Wind"].dtype in {pl.Float64, pl.Int64, pl.Float32, pl.Int32}
 
-        assert df["BAA"].notna().all()
-        assert not df.duplicated(subset=["Interval Start", "BAA"]).any()
+        assert df["BAA"].is_not_null().all()
+        assert (
+            not df.select(pl.struct(["Interval Start", "BAA"]).is_duplicated())
+            .to_series()
+            .any()
+        )
 
         assert (
             df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
@@ -724,8 +757,8 @@ class TestCAISO(BaseTestISO):
             "test_get_renewables_forecast_hasp_latest.yaml",
         ):
             df = self.iso.get_renewables_forecast_hasp("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -751,8 +784,8 @@ class TestCAISO(BaseTestISO):
             f"test_get_renewables_forecast_hasp_date_range_{date}_{end}.yaml",
         ):
             df = self.iso.get_renewables_forecast_hasp(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -777,8 +810,8 @@ class TestCAISO(BaseTestISO):
             "test_get_renewables_hourly_latest.yaml",
         ):
             df = self.iso.get_renewables_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -798,8 +831,8 @@ class TestCAISO(BaseTestISO):
             f"test_get_renewables_hourly_date_range_{date}_{end}.yaml",
         ):
             df = self.iso.get_renewables_hourly(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -820,8 +853,8 @@ class TestCAISO(BaseTestISO):
             "test_get_renewables_forecast_rtd_latest.yaml",
         ):
             df = self.iso.get_renewables_forecast_rtd("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -842,8 +875,8 @@ class TestCAISO(BaseTestISO):
             f"test_get_renewables_forecast_rtd_date_range_{date}_{end}.yaml",
         ):
             df = self.iso.get_renewables_forecast_rtd(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -865,8 +898,8 @@ class TestCAISO(BaseTestISO):
             "test_get_renewables_forecast_rtpd_latest.yaml",
         ):
             df = self.iso.get_renewables_forecast_rtpd("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -887,8 +920,8 @@ class TestCAISO(BaseTestISO):
             f"test_get_renewables_forecast_rtpd_date_range_{date}_{end}.yaml",
         ):
             df = self.iso.get_renewables_forecast_rtpd(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -907,9 +940,9 @@ class TestCAISO(BaseTestISO):
 
     """get_curtailment_legacy"""
 
-    def _check_curtailment_legacy(self, df: pd.DataFrame):
-        assert df.shape[0] > 0
-        assert df.columns.tolist() == [
+    def _check_curtailment_legacy(self, df: pl.DataFrame):
+        assert df.height > 0
+        assert list(df.columns) == [
             "Time",
             "Interval Start",
             "Interval End",
@@ -954,8 +987,8 @@ class TestCAISO(BaseTestISO):
 
     """get_curtailment"""
 
-    def _check_curtailment(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_curtailment(self, df: pl.DataFrame):
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Curtailment Type",
@@ -1020,8 +1053,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_gas_prices(date=date)
 
             n_unique = 153
-            assert df["Fuel Region Id"].nunique() == n_unique
-            assert len(df) == n_unique * 24
+            assert df["Fuel Region Id"].n_unique() == n_unique
+            assert df.height == n_unique * 24
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
     def test_get_gas_prices_single_fuel_region(self, date):
@@ -1031,7 +1064,7 @@ class TestCAISO(BaseTestISO):
             test_region_1 = "FRPGE2GHG"
             df = self.iso.get_gas_prices(date=date, fuel_region_id=test_region_1)
             assert df["Fuel Region Id"].unique()[0] == test_region_1
-            assert len(df) == 24
+            assert df.height == 24
 
     @pytest.mark.parametrize("date", ["2022-10-15"])
     def test_get_gas_prices_list_of_fuel_regions(self, date):
@@ -1050,14 +1083,14 @@ class TestCAISO(BaseTestISO):
             assert set(df["Fuel Region Id"].unique()) == set(
                 [test_region_1, test_region_2],
             )
-            assert len(df) == 24 * 2
+            assert df.height == 24 * 2
 
     """get_fuel_regions"""
 
     def test_get_fuel_regions(self):
         with caiso_vcr.use_cassette("test_get_fuel_regions.yaml"):
             df = self.iso.get_fuel_regions()
-            assert df.columns.tolist() == [
+            assert list(df.columns) == [
                 "Fuel Region Id",
                 "Pricing Hub",
                 "Transportation Cost",
@@ -1066,7 +1099,7 @@ class TestCAISO(BaseTestISO):
                 "Miscellaneous Costs",
                 "Balancing Authority",
             ]
-            assert df.shape[0] > 180
+            assert df.height > 180
 
     """get_ghg_allowance"""
 
@@ -1075,8 +1108,8 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette(f"test_get_ghg_allowance_{date}.yaml"):
             df = self.iso.get_ghg_allowance(date)
 
-            assert len(df) == 1
-            assert df.columns.tolist() == [
+            assert df.height == 1
+            assert list(df.columns) == [
                 "Time",
                 "Interval Start",
                 "Interval End",
@@ -1162,7 +1195,7 @@ class TestCAISO(BaseTestISO):
                 market="DAY_AHEAD_HOURLY",
             )
             # assert all days are present
-            assert df["Location"].nunique() == len(locations)
+            assert df["Location"].n_unique() == len(locations)
 
     # all nodes having problems
     # also not working on oasis web portal
@@ -1176,7 +1209,7 @@ class TestCAISO(BaseTestISO):
     #         verbose=True,
     #     )
     #     # assert approx 16000 locations
-    #     assert df["Location"].nunique() > 16000
+    #     assert df["Location"].n_unique() > 16000
 
     @pytest.mark.parametrize(
         "date",
@@ -1192,7 +1225,7 @@ class TestCAISO(BaseTestISO):
                 market="DAY_AHEAD_HOURLY",
             )
             # assert approx 2300 locations
-            assert df["Location"].nunique() > 2300
+            assert df["Location"].n_unique() > 2300
 
     # NOTE(kladar): can't use self.iso.default_timezone because decorator is created before class is initialized
     @pytest.mark.parametrize(
@@ -1241,8 +1274,8 @@ class TestCAISO(BaseTestISO):
                 verbose=True,
             )
             # assert approx 2300 locations
-            assert df["Location"].nunique() > 2300
-            assert df["Interval Start"].dt.hour.nunique() == 2
+            assert df["Location"].n_unique() > 2300
+            assert df["Interval Start"].dt.hour().n_unique() == 2
 
     @pytest.mark.parametrize(
         "date",
@@ -1271,7 +1304,7 @@ class TestCAISO(BaseTestISO):
                 market="REAL_TIME_15_MIN",
             )
 
-        assert not df.empty
+        assert df.height > 0
 
     @pytest.mark.parametrize(
         "start",
@@ -1295,7 +1328,7 @@ class TestCAISO(BaseTestISO):
                     pass
 
     @staticmethod
-    def _check_as_data(df: pd.DataFrame, market: str) -> None:
+    def _check_as_data(df: pl.DataFrame, market: str) -> None:
         columns = [
             "Time",
             "Interval Start",
@@ -1327,9 +1360,9 @@ class TestCAISO(BaseTestISO):
             "Spinning Reserves Total (MW)",
             "Spinning Reserves Total Cost",
         ]
-        assert df.columns.tolist() == columns
-        assert df["Market"].unique()[0] == market
-        assert df.shape[0] > 0
+        assert list(df.columns) == columns
+        assert df["Market"].unique().to_list()[0] == market
+        assert df.height > 0
 
     CURTAILED_GENERATOR_COLUMNS = [
         "Publish Time",
@@ -1353,8 +1386,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_curtailed_non_operational_generator_report(
                 date=date,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
+            assert df.height > 0
+            assert list(df.columns) == self.CURTAILED_GENERATOR_COLUMNS
 
     @pytest.mark.parametrize("date", [pd.Timestamp("today") - pd.Timedelta(days=2)])
     def test_get_curtailed_non_operational_generator_report_two_days_ago(self, date):
@@ -1364,8 +1397,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_curtailed_non_operational_generator_report(
                 date=date,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
+            assert df.height > 0
+            assert list(df.columns) == self.CURTAILED_GENERATOR_COLUMNS
 
     @pytest.mark.parametrize("date", ["2021-11-07"])
     def test_get_curtailed_non_operational_generator_report_duplicates(self, date):
@@ -1375,8 +1408,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_curtailed_non_operational_generator_report(
                 date=date,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
+            assert df.height > 0
+            assert list(df.columns) == self.CURTAILED_GENERATOR_COLUMNS
 
     @pytest.mark.parametrize("date", ["2021-06-16"])
     def test_get_curtailed_non_operational_generator_report_before_2021_06_17(
@@ -1392,20 +1425,20 @@ class TestCAISO(BaseTestISO):
                     date=date,
                 )
 
-                assert df.shape[0] > 0
+                assert df.height > 0
 
         # Change in url format on this date
         date_with_new_format = pd.Timestamp("2025-01-13")
         df = self.iso.get_curtailed_non_operational_generator_report(
             date=date_with_new_format,
         )
-        assert df.shape[0] > 0
-        assert df.columns.tolist() == self.CURTAILED_GENERATOR_COLUMNS
+        assert df.height > 0
+        assert list(df.columns) == self.CURTAILED_GENERATOR_COLUMNS
 
     """get_tie_flows_real_time"""
 
-    def _check_tie_flows_real_time(self, df: pd.DataFrame):
-        assert df.columns.tolist() == [
+    def _check_tie_flows_real_time(self, df: pl.DataFrame):
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Interface ID",
@@ -1416,15 +1449,21 @@ class TestCAISO(BaseTestISO):
             "MW",
         ]
 
-        assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(
-            minutes=5,
+        assert (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds().unique().to_list() == [300.0]
+
+        assert df["Market"].unique().to_list() == [REAL_TIME_DISPATCH_MARKET_RUN_ID]
+
+        assert (
+            not df.select(
+                pl.struct(
+                    ["Interval Start", "Tie Name", "From BAA", "To BAA"],
+                ).is_duplicated(),
+            )
+            .to_series()
+            .any()
         )
-
-        assert df["Market"].unique() == REAL_TIME_DISPATCH_MARKET_RUN_ID
-
-        assert not df.duplicated(
-            subset=["Interval Start", "Tie Name", "From BAA", "To BAA"],
-        ).any()
 
     def test_get_tie_flows_real_time_latest(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_latest.yaml"):
@@ -1471,18 +1510,18 @@ class TestCAISO(BaseTestISO):
                 date=date,
             )
 
-            assert df.empty
+            assert df.is_empty()
 
     def test_get_pnodes(self):
         with caiso_vcr.use_cassette("test_get_pnodes.yaml"):
             df = self.iso.get_pnodes()
-            assert df.shape[0] > 0
+            assert df.height > 0
 
     """get_lmp_scheduling_point_tie_combination"""
 
-    def _check_lmp_scheduling_point_tie(self, df: pd.DataFrame):
-        assert df.shape[0] > 0
-        assert df.columns.tolist() == [
+    def _check_lmp_scheduling_point_tie(self, df: pl.DataFrame):
+        assert df.height > 0
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -1629,9 +1668,9 @@ class TestCAISO(BaseTestISO):
             ).dt.total_seconds() / 60
             assert (interval_minutes == 15).all()
 
-    def _check_lmp_hasp_15_min(self, df: pd.DataFrame):
-        assert df.shape[0] > 0
-        assert df.columns.tolist() == [
+    def _check_lmp_hasp_15_min(self, df: pl.DataFrame):
+        assert df.height > 0
+        assert list(df.columns) == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -1672,8 +1711,8 @@ class TestCAISO(BaseTestISO):
     def test_get_tie_flows_real_time_15_min_latest(self):
         with caiso_vcr.use_cassette("test_get_tie_flows_real_time_15_min_latest.yaml"):
             df = self.iso.get_tie_flows_real_time_15_min("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Interface ID",
@@ -1695,8 +1734,8 @@ class TestCAISO(BaseTestISO):
             f"test_get_tie_flows_real_time_15_min_date_range_{date}_{end}.yaml",
         ):
             df = self.iso.get_tie_flows_real_time_15_min(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Interface ID",
@@ -1729,8 +1768,8 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1740,7 +1779,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1755,8 +1794,8 @@ class TestCAISO(BaseTestISO):
             "test_get_nomogram_branch_shadow_prices_day_ahead_hourly_latest.yaml",
         ):
             df = self.iso.get_nomogram_branch_shadow_prices_day_ahead_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1766,7 +1805,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1780,8 +1819,8 @@ class TestCAISO(BaseTestISO):
             f"get_nomogram_branch_shadow_prices_hasp_hourly_{date}_{end}.yaml",
         ):
             df = self.iso.get_nomogram_branch_shadow_prices_hasp_hourly(date, end=end)
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1791,7 +1830,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1806,8 +1845,8 @@ class TestCAISO(BaseTestISO):
             "test_get_nomogram_branch_shadow_prices_hasp_hourly_latest.yaml",
         ):
             df = self.iso.get_nomogram_branch_shadow_prices_hasp_hourly("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1817,7 +1856,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1834,8 +1873,8 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1845,7 +1884,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1860,8 +1899,8 @@ class TestCAISO(BaseTestISO):
             "test_get_nomogram_branch_shadow_price_forecast_15_min_latest.yaml",
         ):
             df = self.iso.get_nomogram_branch_shadow_price_forecast_15_min("latest")
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1871,7 +1910,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1892,8 +1931,8 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1902,7 +1941,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1919,8 +1958,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_interval_nomogram_branch_shadow_prices_real_time_5_min(
                 "latest",
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "Location",
@@ -1929,7 +1968,7 @@ class TestCAISO(BaseTestISO):
                 "Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     @pytest.mark.parametrize(
@@ -1950,8 +1989,8 @@ class TestCAISO(BaseTestISO):
                 date,
                 end=end,
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "TI ID",
@@ -1961,7 +2000,7 @@ class TestCAISO(BaseTestISO):
                 "Shadow Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= pd.Timestamp(
                 date,
                 tz=self.iso.default_timezone,
@@ -1978,8 +2017,8 @@ class TestCAISO(BaseTestISO):
             df = self.iso.get_intertie_constraint_shadow_prices_real_time_5_min(
                 "latest",
             )
-            assert df.shape[0] > 0
-            assert df.columns.tolist() == [
+            assert df.height > 0
+            assert list(df.columns) == [
                 "Interval Start",
                 "Interval End",
                 "TI ID",
@@ -1989,14 +2028,14 @@ class TestCAISO(BaseTestISO):
                 "Shadow Price",
                 "Groups",
             ]
-            assert df["Groups"].apply(type).eq(list).all()
+            assert df["Groups"].map_elements(lambda x: isinstance(x, list)).all()
             assert df["Interval Start"].min() >= self.local_start_of_today()
 
     """get_system_load_and_resource_schedules"""
 
     def _check_system_load_and_resource_schedules(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         interval_minutes: int,
         schedule_columns: list[str],
     ):
@@ -2012,20 +2051,24 @@ class TestCAISO(BaseTestISO):
         )
 
         # Check that interval timestamps are valid
-        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
-        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert df["Interval Start"].dtype == pl.Datetime("us", "US/Pacific") or str(
+            df["Interval Start"].dtype,
+        ).startswith("Datetime")
+        assert df["Interval End"].dtype == pl.Datetime("us", "US/Pacific") or str(
+            df["Interval End"].dtype,
+        ).startswith("Datetime")
 
         assert (
-            (df["Interval End"] - df["Interval Start"])
-            == pd.Timedelta(minutes=interval_minutes)
+            (df["Interval End"] - df["Interval Start"]).dt.total_seconds()
+            == interval_minutes * 60
         ).all()
 
         # Check TAC Name is string
-        assert pd.api.types.is_string_dtype(df["TAC Name"])
+        assert df["TAC Name"].dtype == pl.Utf8
 
         # Check that schedule columns contain numeric data
         for col in schedule_columns:
-            assert pd.api.types.is_numeric_dtype(df[col]), (
+            assert df[col].dtype in {pl.Float64, pl.Int64, pl.Float32, pl.Int32}, (
                 f"Column {col} should be numeric"
             )
 
@@ -2302,7 +2345,7 @@ class TestCAISO(BaseTestISO):
     )
 
     @staticmethod
-    def _assert_daily_energy_storage_frame(method_name: str, df: pd.DataFrame) -> None:
+    def _assert_daily_energy_storage_frame(method_name: str, df: pl.DataFrame) -> None:
         if method_name == "get_storage_awards_fmm":
             assert df.shape == (960, 5)
             assert set(df.columns) == {
@@ -2578,10 +2621,10 @@ class TestCAISO(BaseTestISO):
         report_start = pd.Timestamp("2026-04-06", tz="US/Pacific")
         df = daily_energy_storage.build_storage_soc_hourly(html, report_start)
         assert df.shape == (48, 4)
-        ifm_df = df.loc[df["Schedule"] == "IFM"].sort_values("Interval Start")
-        assert len(ifm_df) == 24
-        deltas = ifm_df["Interval Start"].diff().dropna()
-        assert (deltas == pd.Timedelta(hours=1)).all()
+        ifm_df = df.filter(pl.col("Schedule") == "IFM").sort("Interval Start")
+        assert ifm_df.height == 24
+        deltas = ifm_df.get_column("Interval Start").diff()[1:]
+        assert all(d == pd.Timedelta(hours=1) for d in deltas)
 
 
 NOMOGRAM_GROUP_COLS = [
@@ -2655,23 +2698,23 @@ class TestCollapseGroupToArray:
             133.52,
             [3, 1, 5],
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        assert len(result) == 1
-        assert result["Groups"].iloc[0] == [1, 3, 5]
+        assert result.height == 1
+        assert result.row(0, named=True)["Groups"] == [1, 3, 5]
         assert "Group" not in result.columns
 
     def test_intertie_multiple_groups_collapsed(self):
         """Intertie constraint data collapses groups correctly."""
         rows = _make_intertie_rows("EPE_NET_ITC", "E", -51.39, [2, 1])
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, INTERTIE_GROUP_COLS)
 
-        assert len(result) == 1
-        assert result["Groups"].iloc[0] == [1, 2]
-        assert result["TI ID"].iloc[0] == "EPE_NET_ITC"
-        assert result["TI Direction"].iloc[0] == "E"
+        assert result.height == 1
+        assert result.row(0, named=True)["Groups"] == [1, 2]
+        assert result.row(0, named=True)["TI ID"] == "EPE_NET_ITC"
+        assert result.row(0, named=True)["TI Direction"] == "E"
 
     def test_single_group_returns_single_element_list(self):
         rows = _make_nomogram_rows(
@@ -2679,11 +2722,11 @@ class TestCollapseGroupToArray:
             100.0,
             [1],
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        assert len(result) == 1
-        assert result["Groups"].iloc[0] == [1]
+        assert result.height == 1
+        assert result.row(0, named=True)["Groups"] == [1]
 
     def test_nan_groups_dropped(self):
         rows = _make_nomogram_rows(
@@ -2691,11 +2734,11 @@ class TestCollapseGroupToArray:
             588.84,
             [1, np.nan, 3],
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        assert len(result) == 1
-        assert result["Groups"].iloc[0] == [1, 3]
+        assert result.height == 1
+        assert result.row(0, named=True)["Groups"] == [1, 3]
 
     def test_all_nan_groups_returns_empty_list(self):
         rows = _make_nomogram_rows(
@@ -2703,11 +2746,11 @@ class TestCollapseGroupToArray:
             100.0,
             [np.nan, np.nan],
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        assert len(result) == 1
-        assert result["Groups"].iloc[0] == []
+        assert result.height == 1
+        assert result.row(0, named=True)["Groups"] == []
 
     def test_float_groups_converted_to_int(self):
         rows = _make_nomogram_rows(
@@ -2715,10 +2758,10 @@ class TestCollapseGroupToArray:
             100.0,
             [1.0, 2.0],
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        groups = result["Groups"].iloc[0]
+        groups = result.row(0, named=True)["Groups"]
         assert groups == [1, 2]
         assert all(isinstance(v, int) for v in groups)
 
@@ -2733,16 +2776,16 @@ class TestCollapseGroupToArray:
             45.0,
             [1],
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        assert len(result) == 2
-        row_a = result[
-            result["Location"] == "24723_CONTROL_115_24865_TAP188_115_BR_2_1"
-        ].iloc[0]
-        row_b = result[
-            result["Location"] == "30900_DELANEY_500_24156_N.GILA_500_BR_1_1"
-        ].iloc[0]
+        assert result.height == 2
+        row_a = result.filter(
+            pl.col("Location") == "24723_CONTROL_115_24865_TAP188_115_BR_2_1",
+        ).row(0, named=True)
+        row_b = result.filter(
+            pl.col("Location") == "30900_DELANEY_500_24156_N.GILA_500_BR_1_1",
+        ).row(0, named=True)
         assert row_a["Groups"] == [2, 3, 5]
         assert row_b["Groups"] == [1]
 
@@ -2759,17 +2802,17 @@ class TestCollapseGroupToArray:
             [3, 4],
             ts="2025-01-01 09:00",
         )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         result = _collapse_group_to_array(df, NOMOGRAM_GROUP_COLS)
 
-        assert len(result) == 2
-        row_08 = result[
-            result["Interval Start"]
-            == pd.Timestamp("2025-01-01 08:00", tz="US/Pacific")
-        ].iloc[0]
-        row_09 = result[
-            result["Interval Start"]
-            == pd.Timestamp("2025-01-01 09:00", tz="US/Pacific")
-        ].iloc[0]
+        assert result.height == 2
+        row_08 = result.filter(
+            pl.col("Interval Start")
+            == pd.Timestamp("2025-01-01 08:00", tz="US/Pacific"),
+        ).row(0, named=True)
+        row_09 = result.filter(
+            pl.col("Interval Start")
+            == pd.Timestamp("2025-01-01 09:00", tz="US/Pacific"),
+        ).row(0, named=True)
         assert row_08["Groups"] == [1, 2]
         assert row_09["Groups"] == [3, 4]

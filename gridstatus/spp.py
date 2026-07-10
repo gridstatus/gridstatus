@@ -4,6 +4,7 @@ from enum import StrEnum
 from typing import BinaryIO, Callable
 
 import pandas as pd
+import polars as pl
 import pytz
 import requests
 import tqdm
@@ -127,7 +128,61 @@ class BAAEnum(StrEnum):
     SWPW = "SWPW"
 
 
-def fill_baa_column(df, load_col):
+def _timedelta_duration(td: pd.Timedelta) -> pl.Expr:
+    return pl.duration(microseconds=int(td / pd.Timedelta(microseconds=1)))
+
+
+def _parse_utc_to_local(df: pl.DataFrame, column: str, tz: str) -> pl.Series:
+    parsed = pd.to_datetime(
+        df.get_column(column).to_pandas(),
+        utc=True,
+    ).dt.tz_convert(tz)
+    return pl.Series(column, parsed).cast(pl.Datetime("us", tz))
+
+
+def _drop_cols(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
+    existing = [c for c in cols if c in df.columns]
+    return df.drop(existing) if existing else df
+
+
+def _select_cols(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
+    return df.select([c for c in cols if c in df.columns])
+
+
+def _rename_cols(df: pl.DataFrame, mapping: dict[str, str]) -> pl.DataFrame:
+    existing = {k: v for k, v in mapping.items() if k in df.columns}
+    return df.rename(existing) if existing else df
+
+
+def _strip_columns(df: pl.DataFrame) -> pl.DataFrame:
+    return df.rename({c: c.strip() for c in df.columns})
+
+
+def _ensure_columns(
+    df: pl.DataFrame,
+    cols: list[str],
+    defaults: dict[str, object] | None = None,
+) -> pl.DataFrame:
+    defaults = defaults or {}
+    for col in cols:
+        if col not in df.columns:
+            default = defaults.get(col, None)
+            df = df.with_columns(pl.lit(default).alias(col))
+    return df.select(cols)
+
+
+def _sum_across_cols(df: pl.DataFrame, cols: list[str], out_col: str) -> pl.DataFrame:
+    exprs = [
+        pl.col(c).cast(pl.Float64, strict=False).fill_null(0)
+        for c in cols
+        if c in df.columns
+    ]
+    if not exprs:
+        return df.with_columns(pl.lit(None).cast(pl.Float64).alias(out_col))
+    return df.with_columns(pl.sum_horizontal(*exprs).alias(out_col))
+
+
+def fill_baa_column(df: pl.DataFrame, load_col: str) -> pl.DataFrame:
     """Fill missing BAA values based on load magnitude.
 
     If the BAA column doesn't exist, creates it. If it exists but has NaN values,
@@ -141,24 +196,23 @@ def fill_baa_column(df, load_col):
     Returns:
         The DataFrame with BAA column filled in-place.
     """
+    if load_col not in df.columns:
+        raise KeyError(load_col)
+    inferred_baa = (
+        pl.when(
+            pl.col(load_col).is_not_null() & (pl.col(load_col) < BAA_LOAD_THRESHOLD_MW),
+        )
+        .then(pl.lit(BAAEnum.SWPW.value))
+        .otherwise(pl.lit(BAAEnum.SPP.value))
+    )
     if "BAA" not in df.columns:
-        df["BAA"] = df[load_col].apply(
-            lambda x: (
-                BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value
-            ),
-        )
-    else:
-        mask = df["BAA"].isna()
-        df.loc[mask, "BAA"] = df.loc[mask, load_col].apply(
-            lambda x: (
-                BAAEnum.SWPW.value
-                if pd.notna(x) and x < BAA_LOAD_THRESHOLD_MW
-                else BAAEnum.SPP.value
-            ),
-        )
-    return df
+        return df.with_columns(inferred_baa.alias("BAA"))
+    return df.with_columns(
+        pl.when(pl.col("BAA").is_null())
+        .then(inferred_baa)
+        .otherwise(pl.col("BAA"))
+        .alias("BAA"),
+    )
 
 
 def _binding_constraints_real_time_5_min_frequency(args_dict: dict) -> str:
@@ -218,7 +272,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get combined fuel mix summed across SPP and SWPW BAAs
 
         Args:
@@ -226,7 +280,7 @@ class SPP(ISOBase):
             end: optional end date for range queries
 
         Returns:
-            pd.DataFrame: fuel mix summed across both BAAs
+            pl.DataFrame: fuel mix summed across both BAAs
         """
         return self._get_combined_fuel_mix(
             date=date,
@@ -242,7 +296,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get combined detailed fuel mix summed across SPP and SWPW BAAs
 
         Breaks out self scheduled and market scheduled generation.
@@ -252,7 +306,7 @@ class SPP(ISOBase):
             end: optional end date for range queries
 
         Returns:
-            pd.DataFrame: detailed fuel mix summed across both BAAs
+            pl.DataFrame: detailed fuel mix summed across both BAAs
         """
         return self._get_combined_fuel_mix(
             date=date,
@@ -268,7 +322,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get fuel mix for both SPP and SWPW BAAs with a BAA column
 
         Args:
@@ -276,7 +330,7 @@ class SPP(ISOBase):
             end: optional end date for range queries
 
         Returns:
-            pd.DataFrame: fuel mix with BAA column differentiating SPP and SWPW
+            pl.DataFrame: fuel mix with BAA column differentiating SPP and SWPW
         """
         return self._get_combined_fuel_mix(
             date=date,
@@ -292,7 +346,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get detailed fuel mix for both SPP and SWPW BAAs with a BAA column
 
         Breaks out self scheduled and market scheduled generation.
@@ -302,7 +356,7 @@ class SPP(ISOBase):
             end: optional end date for range queries
 
         Returns:
-            pd.DataFrame: detailed fuel mix with BAA column
+            pl.DataFrame: detailed fuel mix with BAA column
         """
         return self._get_combined_fuel_mix(
             date=date,
@@ -319,7 +373,7 @@ class SPP(ISOBase):
         detailed: bool = False,
         verbose: bool = False,
         by_baa: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Fetch fuel mix for both SPP and SWPW BAAs and combine them.
 
         Args:
@@ -330,7 +384,7 @@ class SPP(ISOBase):
             by_baa: if True, keep BAA column; if False, sum across BAAs
 
         Returns:
-            pd.DataFrame: combined fuel mix
+            pl.DataFrame: combined fuel mix
         """
         spp_df = self._get_fuel_mix(
             date=date,
@@ -348,36 +402,32 @@ class SPP(ISOBase):
         )
 
         if by_baa:
-            df = pd.concat([spp_df, swpw_df], ignore_index=True)
-            df = df.sort_values(
+            return pl.concat([spp_df, swpw_df], how="diagonal").sort(
                 ["Interval Start", "BAA"],
-                ignore_index=True,
             )
-            return df
 
-        # Sum fuel columns across BAAs for each interval
         time_cols = ["Interval Start", "Interval End"]
         fuel_cols = [c for c in spp_df.columns if c not in time_cols + ["BAA"]]
 
-        spp_df = spp_df.drop(columns=["BAA"], errors="ignore")
-        swpw_df = swpw_df.drop(columns=["BAA"], errors="ignore")
+        spp_df = _drop_cols(spp_df, ["BAA"])
+        swpw_df = _drop_cols(swpw_df, ["BAA"])
 
-        df = pd.merge(
-            spp_df,
-            swpw_df,
-            on=time_cols,
-            suffixes=("_spp", "_swpw"),
-            how="outer",
-        )
+        spp_renamed = spp_df.rename({c: f"{c}_spp" for c in fuel_cols})
+        swpw_renamed = swpw_df.rename({c: f"{c}_swpw" for c in fuel_cols})
+        df = spp_renamed.join(swpw_renamed, on=time_cols, how="full", coalesce=True)
 
         for col in fuel_cols:
             spp_col = f"{col}_spp"
             swpw_col = f"{col}_swpw"
-            df[col] = df[spp_col].fillna(0) + df[swpw_col].fillna(0)
-            df = df.drop(columns=[spp_col, swpw_col])
+            df = df.with_columns(
+                (
+                    pl.col(spp_col).cast(pl.Float64, strict=False).fill_null(0)
+                    + pl.col(swpw_col).cast(pl.Float64, strict=False).fill_null(0)
+                ).alias(col),
+            ).drop([spp_col, swpw_col])
 
-        df = df.sort_values("Interval Start", ignore_index=True)
-        return df
+        result_cols = time_cols + fuel_cols
+        return df.select(result_cols).sort("Interval Start")
 
     def _get_fuel_mix(
         self,
@@ -386,7 +436,7 @@ class SPP(ISOBase):
         detailed: bool = False,
         verbose: bool = False,
         baa: BAAEnum = BAAEnum.SPP,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         now = pd.Timestamp.now(tz=self.default_timezone)
         two_hours_ago = now - pd.Timedelta(hours=2)
         one_year_ago = now - pd.Timedelta(days=365)
@@ -411,20 +461,21 @@ class SPP(ISOBase):
         if verbose:
             logger.info(f"Downloading fuel mix from {url}")
 
-        df_raw = pd.read_csv(url)
+        df_raw = pl.read_csv(url, infer_schema_length=None)
         df = process_gen_mix(df_raw, detailed=detailed)
 
-        df = df.drop(
-            columns=["Short Term Load Forecast", "Average Actual Load", "Time"],
-            errors="ignore",
+        df = _drop_cols(
+            df,
+            ["Short Term Load Forecast", "Average Actual Load", "Time"],
         )
 
         if date != "latest" and isinstance(date, pd.Timestamp):
-            df = df[df["Interval Start"] >= date]
             if end is None:
                 end = date.normalize() + pd.Timedelta(days=1)
-            df = df[df["Interval Start"] < end]
-            df = df.reset_index(drop=True)
+            df = df.filter(
+                (pl.col("Interval Start") >= pl.lit(date))
+                & (pl.col("Interval Start") < pl.lit(end)),
+            )
 
         return df
 
@@ -433,21 +484,17 @@ class SPP(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns total RTO load in 5 minute intervals from STLF data."""
         baa_df = self.get_load_by_baa(date=date, end=end, verbose=verbose)
 
-        if baa_df.empty:
+        if baa_df.is_empty():
             raise NoDataFoundException(f"No load data found for date {date}")
 
         return (
-            baa_df.groupby(
-                ["Interval Start", "Interval End"],
-                as_index=False,
-            )["Load"]
-            .sum()
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+            baa_df.group_by(["Interval Start", "Interval End"])
+            .agg(pl.col("Load").cast(pl.Float64, strict=False).sum())
+            .sort("Interval Start")
         )
 
     def get_load_forecast(
@@ -455,22 +502,19 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns total RTO load forecast in hourly intervals from MTLF data."""
         baa_df = self.get_load_forecast_by_baa(date=date, end=end, verbose=verbose)
 
-        if baa_df.empty:
+        if baa_df.is_empty():
             raise NoDataFoundException(
                 f"No load forecast by BAA data found for date {date}",
             )
 
-        summed = baa_df.groupby(
-            ["Interval Start", "Interval End", "Publish Time"],
-            as_index=False,
-        )["Load Forecast"].sum()
-
-        return summed.sort_values(["Interval Start", "Publish Time"]).reset_index(
-            drop=True,
+        return (
+            baa_df.group_by(["Interval Start", "Interval End", "Publish Time"])
+            .agg(pl.col("Load Forecast").cast(pl.Float64, strict=False).sum())
+            .sort(["Interval Start", "Publish Time"])
         )
 
     @support_date_range("5_MIN")
@@ -480,7 +524,7 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         drop_null_forecast_rows: bool = True,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """
         5-minute load forecast data for the SPP footprint (system-wide) for +/- 10
         minutes. Also includes actual load.
@@ -494,7 +538,7 @@ class SPP(ISOBase):
             drop_null_forecast_rows (bool): if True, drop rows with null forecast values
 
         Returns:
-            pd.DataFrame: forecast as dataframe.
+            pl.DataFrame: forecast as dataframe.
         """
         result = self._get_short_term_forecast_data(
             date,
@@ -520,7 +564,7 @@ class SPP(ISOBase):
             drop_null_forecast_rows=drop_null_forecast_rows,
         )
 
-        fill_baa_column(df, "STLF")
+        df = fill_baa_column(df, "STLF")
 
         return df
 
@@ -530,7 +574,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """
         Returns load forecast for +7 days in hourly intervals. Includes actual load
         for the past 24 hours. Data from https://portal.spp.org/pages/mtlf-vs-actual
@@ -540,7 +584,7 @@ class SPP(ISOBase):
             verbose (bool): print info
 
         Returns:
-            pd.DataFrame: forecast as dataframe.
+            pl.DataFrame: forecast as dataframe.
         """
         result = self._get_mid_term_forecast_data(
             date,
@@ -570,23 +614,22 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns hourly load forecast by BAA from MTLF data."""
         df = self._get_load_forecast_by_baa_raw(date=date, end=end, verbose=verbose)
 
-        if df is None or df.empty:
+        if df is None or df.is_empty():
             raise NoDataFoundException(
                 f"No load forecast by BAA data found for {date}",
             )
 
         return (
-            df.dropna(subset=["Load Forecast"])
-            .drop_duplicates(
+            df.filter(pl.col("Load Forecast").is_not_null())
+            .unique(
                 subset=["Interval Start", "Interval End", "Publish Time", "BAA"],
                 keep="last",
             )
-            .sort_values(["Interval Start", "Publish Time"])
-            .reset_index(drop=True)
+            .sort(["Interval Start", "Publish Time"])
         )
 
     @support_date_range("HOUR_START")
@@ -595,7 +638,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         result = self._get_mid_term_forecast_data(
             date=date,
             base_url=BASE_LOAD_FORECAST_MID_TERM_URL,
@@ -617,11 +660,14 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(hours=1),
         )
 
-        fill_baa_column(df, "MTLF")
+        df = fill_baa_column(df, "MTLF")
 
-        return df[
-            ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"]
-        ].rename(columns={"MTLF": "Load Forecast"})
+        return _rename_cols(
+            df.select(
+                ["Interval Start", "Interval End", "Publish Time", "BAA", "MTLF"],
+            ),
+            {"MTLF": "Load Forecast"},
+        )
 
     def _handle_dst_floor_date(
         self,
@@ -650,7 +696,7 @@ class SPP(ISOBase):
         base_url: str,
         file_prefix: str,
         buffer_minutes: int = 2,
-    ) -> tuple[pd.DataFrame, str] | None:
+    ) -> tuple[pl.DataFrame, str] | None:
         """Get short-term forecast data with common DST handling logic.
 
         Args:
@@ -691,7 +737,7 @@ class SPP(ISOBase):
         )
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return df, url
 
@@ -701,7 +747,7 @@ class SPP(ISOBase):
         base_url: str,
         file_prefix: str,
         buffer_minutes: int = 10,
-    ) -> tuple[pd.DataFrame, str] | None:
+    ) -> tuple[pl.DataFrame, str] | None:
         """Get mid-term forecast data with common DST handling logic.
 
         Args:
@@ -737,50 +783,46 @@ class SPP(ISOBase):
         )
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return df, url
 
     def _post_process_load_forecast(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         url: str,
         forecast_type: str,
         forecast_col: str,
         end_time_col: str,
         interval_duration: pd.Timedelta,
         drop_null_forecast_rows: bool = True,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        # Assume the publish time is in the name of the file. There are different
-        # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(
+        publish_time = pd.Timestamp(
             re.search(r"[0-9]{12}", url).group(0),
         ).tz_localize(
             tz=self.default_timezone,
-            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
-            # during DST.
             ambiguous=not url.endswith("d.csv"),
         )
 
-        df.columns = [col.strip() for col in df.columns]
+        df = _strip_columns(df).with_columns(
+            pl.lit(publish_time).alias("Publish Time"),
+            pl.lit(forecast_type).alias("Forecast Type"),
+        )
 
-        df["Forecast Type"] = forecast_type
-
-        df = (
-            utils.move_cols_to_front(
-                df,
-                ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
-            )
-            .drop(columns=["Time", "Interval"])
-            .sort_values(["Interval Start", "Publish Time"])
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
+        )
+        df = _drop_cols(df, ["Time", "Interval"]).sort(
+            ["Interval Start", "Publish Time"],
         )
 
         if drop_null_forecast_rows:
-            df = df.dropna(subset=[forecast_col])
+            df = df.filter(pl.col(forecast_col).is_not_null())
 
-        return df.reset_index(drop=True)
+        return df
 
     @support_date_range("5_MIN")
     def get_solar_and_wind_forecast_short_term(
@@ -788,7 +830,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """
         Returns solar and wind generation forecast for +4 hours in 5 minute intervals.
         Include actuals for past day in 5 minute intervals.
@@ -800,7 +842,7 @@ class SPP(ISOBase):
             verbose (bool): print info
 
         Returns:
-            pd.DataFrame: forecast as dataframe.
+            pl.DataFrame: forecast as dataframe.
         """
         result = self._get_short_term_forecast_data(
             date,
@@ -832,7 +874,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """
         Returns solar and wind generation forecast for +7 days in hourly intervals.
 
@@ -843,7 +885,7 @@ class SPP(ISOBase):
             verbose (bool): print info
 
         Returns:
-            pd.DataFrame: forecast as dataframe.
+            pl.DataFrame: forecast as dataframe.
         """
         result = self._get_mid_term_forecast_data(
             date,
@@ -873,7 +915,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """Returns hourly solar and wind forecasts and actuals by reserve zone.
 
         Data from https://portal.spp.org/pages/resource-forecast-by-reserve-zone.
@@ -903,23 +945,27 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns actual load by BAA from short-term load forecast data."""
         df = self._get_load_by_baa_raw(date=date, end=end, verbose=verbose)
 
-        if df is None or df.empty:
-            return pd.DataFrame(
-                columns=["Interval Start", "Interval End", "BAA", "Load"],
+        if df is None or df.is_empty():
+            return pl.DataFrame(
+                schema={
+                    "Interval Start": pl.Datetime("us", SPP.default_timezone),
+                    "Interval End": pl.Datetime("us", SPP.default_timezone),
+                    "BAA": pl.Utf8,
+                    "Load": pl.Float64,
+                },
             )
 
         return (
-            df.dropna(subset=["Load"])
-            .drop_duplicates(
+            df.filter(pl.col("Load").is_not_null())
+            .unique(
                 subset=["Interval Start", "Interval End", "BAA"],
                 keep="last",
             )
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+            .sort("Interval Start")
         )
 
     @support_date_range(frequency="5_MIN")
@@ -928,7 +974,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         result = self._get_short_term_forecast_data(
             date=date,
             base_url=BASE_LOAD_FORECAST_SHORT_TERM_URL,
@@ -951,12 +997,11 @@ class SPP(ISOBase):
             drop_null_forecast_rows=False,
         )
 
-        fill_baa_column(df, "Actual")
+        df = fill_baa_column(df, "Actual")
 
-        return (
-            df[["Interval Start", "Interval End", "BAA", "Actual"]]
-            .rename(columns={"Actual": "Load"})
-            .copy()
+        return _rename_cols(
+            df.select(["Interval Start", "Interval End", "BAA", "Actual"]),
+            {"Actual": "Load"},
         )
 
     @support_date_range("DAY_START")
@@ -965,7 +1010,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame | None:
+    ) -> pl.DataFrame | None:
         """Returns hourly actual load by BAA from mid-term load forecast data."""
 
         if date == "latest":
@@ -986,8 +1031,13 @@ class SPP(ISOBase):
         )
 
         if result is None:
-            return pd.DataFrame(
-                columns=["Interval Start", "Interval End", "BAA", "Load"],
+            return pl.DataFrame(
+                schema={
+                    "Interval Start": pl.Datetime("us", SPP.default_timezone),
+                    "Interval End": pl.Datetime("us", SPP.default_timezone),
+                    "BAA": pl.Utf8,
+                    "Load": pl.Float64,
+                },
             )
 
         df, url = result
@@ -1001,89 +1051,83 @@ class SPP(ISOBase):
             forecast_col="MTLF",
         )
 
-        fill_baa_column(df, "Averaged Actual")
+        df = fill_baa_column(df, "Averaged Actual")
 
-        result_df = (
-            df[["Interval Start", "Interval End", "BAA", "Averaged Actual"]]
-            .rename(columns={"Averaged Actual": "Load"})
-            .copy()
+        result_df = _rename_cols(
+            df.select(["Interval Start", "Interval End", "BAA", "Averaged Actual"]),
+            {"Averaged Actual": "Load"},
         )
 
         if date != "latest":
             date_ts = utils._handle_date(date, self.default_timezone)
             day_start = date_ts.normalize()
             day_end = day_start + pd.Timedelta(days=1)
-            result_df = result_df[
-                (result_df["Interval Start"] >= day_start)
-                & (result_df["Interval Start"] < day_end)
-            ]
+            result_df = result_df.filter(
+                (pl.col("Interval Start") >= pl.lit(day_start))
+                & (pl.col("Interval Start") < pl.lit(day_end)),
+            )
 
-        return (
-            result_df.dropna(subset=["Load"])
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return result_df.filter(pl.col("Load").is_not_null()).sort("Interval Start")
 
     def _post_process_solar_and_wind_forecast(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         url: str,
         forecast_type: str,
         end_time_col: str,
         interval_duration: pd.Timedelta,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        # Assume the publish time is in the name of the file. There are different
-        # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(
+        publish_time = pd.Timestamp(
             re.search(r"[0-9]{12}", url).group(0),
         ).tz_localize(
             tz=self.default_timezone,
-            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
-            # during DST.
             ambiguous=not url.endswith("d.csv"),
         )
 
-        df.columns = [col.strip() for col in df.columns]
-
-        df["Forecast Type"] = forecast_type
-
-        df = (
-            utils.move_cols_to_front(
-                df,
-                ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
-            )
-            .drop(columns=["Time", "Interval"])
-            .sort_values(["Interval Start", "Publish Time"])
+        df = _strip_columns(df).with_columns(
+            pl.lit(publish_time).alias("Publish Time"),
+            pl.lit(forecast_type).alias("Forecast Type"),
         )
 
-        return df.dropna(subset=["Wind Forecast MW", "Solar Forecast MW"]).reset_index(
-            drop=True,
+        df = utils.move_cols_to_front(
+            df,
+            ["Interval Start", "Interval End", "Publish Time", "Forecast Type"],
+        )
+        return (
+            _drop_cols(df, ["Time", "Interval"])
+            .sort(["Interval Start", "Publish Time"])
+            .filter(
+                pl.col("Wind Forecast MW").is_not_null()
+                & pl.col("Solar Forecast MW").is_not_null(),
+            )
         )
 
     def _post_process_solar_and_wind_forecast_by_reserve_zone(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         url: str,
         end_time_col: str,
         interval_duration: pd.Timedelta,
-    ) -> pd.DataFrame:
-        df.columns = [col.strip() for col in df.columns]
-
+    ) -> pl.DataFrame:
+        df = _strip_columns(df)
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        df["Publish Time"] = pd.Timestamp(
+        publish_time = pd.Timestamp(
             re.search(r"[0-9]{12}", url).group(0),
         ).tz_localize(
             tz=self.default_timezone,
             ambiguous=not url.endswith("d.csv"),
         )
 
-        df.columns = [col.strip() for col in df.columns]
+        df = _strip_columns(df).with_columns(
+            pl.lit(publish_time).alias("Publish Time"),
+        )
 
-        df = df.rename(
-            columns={
+        df = _rename_cols(
+            df,
+            {
                 "ReserveZone": "Reserve Zone",
                 "WindForecastMW": "Wind Forecast",
                 "WindActualMW": "Wind Actual",
@@ -1092,30 +1136,29 @@ class SPP(ISOBase):
             },
         )
 
-        df = (
-            utils.move_cols_to_front(
-                df,
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "BAA",
-                    "Reserve Zone",
-                ],
-            )
-            .drop(columns=["Time", "IntervalEnd", "Interval"], errors="ignore")
-            .sort_values(["Interval Start", "Publish Time", "Reserve Zone"])
+        df = utils.move_cols_to_front(
+            df,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "BAA",
+                "Reserve Zone",
+            ],
+        )
+        df = _drop_cols(df, ["Time", "IntervalEnd", "Interval"]).sort(
+            ["Interval Start", "Publish Time", "Reserve Zone"],
         )
 
-        return df.dropna(
-            subset=[
-                "Wind Forecast",
-                "Wind Actual",
-                "Solar Forecast",
-                "Solar Actual",
-            ],
-            how="all",
-        ).reset_index(drop=True)
+        value_cols = [
+            "Wind Forecast",
+            "Wind Actual",
+            "Solar Forecast",
+            "Solar Actual",
+        ]
+        return df.filter(
+            pl.any_horizontal([pl.col(c).is_not_null() for c in value_cols]),
+        )
 
     def _mid_term_solar_and_wind_url(self, date: pd.Timestamp) -> str:
         # Explicitly set the minutes to 00.
@@ -1131,32 +1174,31 @@ class SPP(ISOBase):
 
     def _handle_market_end_to_interval(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         column: str,
         interval_duration: pd.Timedelta,
         format: str | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Converts market end time to interval end time"""
 
-        df = df.rename(
-            columns={
-                column: "Interval End",
-            },
+        df = _rename_cols(df, {column: "Interval End"})
+        duration = _timedelta_duration(interval_duration)
+
+        interval_end = pl.Series(
+            "Interval End",
+            pd.to_datetime(
+                df.get_column("Interval End").to_pandas(),
+                utc=True,
+                format=format,
+            ).dt.tz_convert(self.default_timezone),
+        ).cast(pl.Datetime("us", self.default_timezone))
+        df = df.with_columns(interval_end)
+        df = df.with_columns(
+            (pl.col("Interval End") - duration).alias("Interval Start"),
         )
+        df = df.with_columns(pl.col("Interval Start").alias("Time"))
 
-        df["Interval End"] = pd.to_datetime(
-            df["Interval End"],
-            utc=True,
-            format=format,
-        ).dt.tz_convert(self.default_timezone)
-
-        df["Interval Start"] = df["Interval End"] - interval_duration
-
-        df["Time"] = df["Interval Start"]
-
-        df = utils.move_cols_to_front(df, ["Time", "Interval Start", "Interval End"])
-
-        return df
+        return utils.move_cols_to_front(df, ["Time", "Interval Start", "Interval End"])
 
     _ver_curtailment_numerical_cols = [
         "Wind Redispatch Curtailments",
@@ -1167,9 +1209,10 @@ class SPP(ISOBase):
         "Solar Curtailed For Energy",
     ]
 
-    def _process_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.rename(
-            columns={
+    def _process_ver_curtailments(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = _rename_cols(
+            df,
+            {
                 "WindRedispatchCurtailments": "Wind Redispatch Curtailments",
                 "WindManualCurtailments": "Wind Manual Curtailments",
                 "WindCurtailedForEnergy": "Wind Curtailed For Energy",
@@ -1197,33 +1240,29 @@ class SPP(ISOBase):
             "BAA",
         ]
 
-        # historical data doesnt have all columns
-        for col in cols:
-            if col not in df.columns:
-                # Default BAA to SPP for historical data
-                df[col] = pd.NA if col != "BAA" else BAAEnum.SPP
+        defaults = {col: BAAEnum.SPP for col in cols if col == "BAA"}
+        df = _ensure_columns(df, cols, defaults=defaults)
 
-        df = df[cols]
-
-        # Drop rows where all numerical curtailment columns are NaN
-        df = df.dropna(subset=self._ver_curtailment_numerical_cols, how="all")
-
-        df = df[~df["Interval Start"].isnull()]
-        df = df.sort_values("Interval Start").reset_index(drop=True)
-
-        return df
-
-    def _aggregate_ver_curtailments(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Sum VER curtailment numerical columns across BAAs."""
-        df = (
-            df.groupby(["Interval Start", "Interval End"], as_index=False)[
-                self._ver_curtailment_numerical_cols
-            ]
-            .sum()
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+        df = df.filter(
+            pl.any_horizontal(
+                [pl.col(c).is_not_null() for c in self._ver_curtailment_numerical_cols],
+            ),
         )
-        return df
+        df = df.filter(pl.col("Interval Start").is_not_null())
+        return df.sort("Interval Start")
+
+    def _aggregate_ver_curtailments(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Sum VER curtailment numerical columns across BAAs."""
+        return (
+            df.group_by(["Interval Start", "Interval End"])
+            .agg(
+                [
+                    pl.col(c).cast(pl.Float64, strict=False).sum()
+                    for c in self._ver_curtailment_numerical_cols
+                ],
+            )
+            .sort("Interval Start")
+        )
 
     @support_date_range("DAY_START")
     def get_capacity_of_generation_on_outage(
@@ -1231,7 +1270,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Capacity of Generation on Outage.
 
         Published daily at 8am CT for next 7 days
@@ -1246,7 +1285,7 @@ class SPP(ISOBase):
 
         logger.info(f"Downloading {url}")
 
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return self._process_capacity_of_generation_on_outage(df, publish_time=date)
 
@@ -1254,7 +1293,7 @@ class SPP(ISOBase):
         self,
         year: int,
         verbose: bool = True,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get VER Curtailments for a year. Starting 2014.
         Recent data use get_capacity_of_generation_on_outage
 
@@ -1263,21 +1302,17 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: VER Curtailments
+            pl.DataFrame: VER Curtailments
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"  # noqa
 
-        def process_csv(df, file_name):
-            # infer date from '2020/01/Capacity-Gen-Outage-20200101.csv'
-
+        def process_csv(df: pl.DataFrame, file_name: str) -> pl.DataFrame:
             publish_time_str = file_name.split(".")[0].split("-")[-1]
             publish_time = pd.to_datetime(publish_time_str).tz_localize(
                 self.default_timezone,
             )
 
-            df = self._process_capacity_of_generation_on_outage(df, publish_time)
-
-            return df
+            return self._process_capacity_of_generation_on_outage(df, publish_time)
 
         df = utils.download_csvs_from_zip_url(
             url,
@@ -1285,17 +1320,14 @@ class SPP(ISOBase):
             verbose=verbose,
         )
 
-        df = df.sort_values("Interval Start")
-
-        return df
+        return df.sort("Interval Start")
 
     def _process_capacity_of_generation_on_outage(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         publish_time: pd.Timestamp,
-    ) -> pd.DataFrame:
-        # strip whitespace from column names
-        df = df.rename(columns=lambda x: x.strip())
+    ) -> pl.DataFrame:
+        df = _strip_columns(df)
 
         df = self._handle_market_end_to_interval(
             df,
@@ -1303,33 +1335,29 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=60),
         )
 
-        df = df.rename(
-            columns={
-                "Outaged MW": "Total Outaged MW",
-            },
-        )
+        df = _rename_cols(df, {"Outaged MW": "Total Outaged MW"})
 
         publish_time = pd.to_datetime(publish_time.normalize())
 
-        df.insert(0, "Publish Time", publish_time)
+        df = df.with_columns(pl.lit(publish_time).alias("Publish Time"))
 
-        # drop Time column
-        df = df.drop(columns=["Time"])
+        return utils.move_cols_to_front(
+            _drop_cols(df, ["Time"]),
+            ["Publish Time"],
+        )
 
-        return df
-
-    def _fetch_ver_curtailments_daily(self, date: pd.Timestamp) -> pd.DataFrame:
+    def _fetch_ver_curtailments_daily(self, date: pd.Timestamp) -> pl.DataFrame:
         """Fetch and process a single day's VER curtailments CSV."""
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
         return self._process_ver_curtailments(df)
 
     def _fetch_ver_curtailments_annual(
         self,
         year: int,
         verbose: bool = True,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Fetch and process a full year's VER curtailments zip."""
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
         df = utils.download_csvs_from_zip_url(url, verbose=verbose)
@@ -1341,7 +1369,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get VER Curtailments summed across BAAs.
 
         Supports recent data. For historical annual data use
@@ -1359,7 +1387,7 @@ class SPP(ISOBase):
         self,
         year: int,
         verbose: bool = True,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get VER Curtailments summed across BAAs for a year. Starting 2014.
 
         Recent data use get_ver_curtailments. For data broken down by BAA use
@@ -1370,7 +1398,7 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: VER Curtailments
+            pl.DataFrame: VER Curtailments
         """
         df = self._fetch_ver_curtailments_annual(year, verbose=verbose)
         return self._aggregate_ver_curtailments(df)
@@ -1381,7 +1409,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get VER Curtailments broken down by BAA.
 
         Supports recent data. For historical annual data use
@@ -1397,7 +1425,7 @@ class SPP(ISOBase):
         self,
         year: int,
         verbose: bool = True,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get VER Curtailments broken down by BAA for a year. Starting 2014.
 
         Recent data use get_ver_curtailments_by_baa.
@@ -1407,11 +1435,11 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: VER Curtailments
+            pl.DataFrame: VER Curtailments
         """
         return self._fetch_ver_curtailments_annual(year, verbose=verbose)
 
-    def _get_load_and_forecast(self, verbose: bool = False) -> pd.DataFrame:
+    def _get_load_and_forecast(self, verbose: bool = False) -> pl.DataFrame:
         url = f"{MARKETPLACE_BASE_URL}/chart-api/load-forecast/asChart"
 
         logger.info(f"Getting load and forecast from {url}")
@@ -1427,11 +1455,11 @@ class SPP(ISOBase):
             elif d["label"] == "Short-Term Load Forecast":
                 data["Short-Term Forecast"] = d["data"]
 
-        df = pd.DataFrame(data)
+        df = pl.DataFrame(data)
 
-        df["Time"] = pd.to_datetime(
-            df["Time"],
-        ).dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            _parse_utc_to_local(df, "Time", self.default_timezone).alias("Time"),
+        )
 
         return df
 
@@ -1453,37 +1481,38 @@ class SPP(ISOBase):
         response = requests.get(url)
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
+    def get_interconnection_queue(self, verbose: bool = False) -> pl.DataFrame:
         """Get interconnection queue
 
         Returns:
             pandas.DataFrame: Interconnection queue
         """
         raw_data = self.get_raw_interconnection_queue(verbose)
-        queue = pd.read_csv(raw_data, skiprows=1)
+        queue = pl.from_pandas(pd.read_csv(raw_data, skiprows=1))
 
-        queue["Status (Original)"] = queue["Status"]
         completed_val = InterconnectionQueueStatus.COMPLETED.value
         active_val = InterconnectionQueueStatus.ACTIVE.value
         withdrawn_val = InterconnectionQueueStatus.WITHDRAWN.value
-        queue["Status"] = queue["Status"].map(
-            {
-                "IA FULLY EXECUTED/COMMERCIAL OPERATION": completed_val,
-                "IA FULLY EXECUTED/ON SCHEDULE": completed_val,
-                "IA FULLY EXECUTED/ON SUSPENSION": completed_val,
-                "IA PENDING": active_val,
-                "DISIS STAGE": active_val,
-                "None": active_val,
-                "WITHDRAWN": withdrawn_val,
-            },
+        queue = queue.with_columns(
+            pl.col("Status").alias("Status (Original)"),
+            pl.col("Status").replace(
+                {
+                    "IA FULLY EXECUTED/COMMERCIAL OPERATION": completed_val,
+                    "IA FULLY EXECUTED/ON SCHEDULE": completed_val,
+                    "IA FULLY EXECUTED/ON SUSPENSION": completed_val,
+                    "IA PENDING": active_val,
+                    "DISIS STAGE": active_val,
+                    "None": active_val,
+                    "WITHDRAWN": withdrawn_val,
+                },
+            ),
+            pl.concat_str(
+                [pl.col("Generation Type"), pl.col("Fuel Type")],
+                separator=" - ",
+                ignore_nulls=True,
+            ).alias("Generation Type"),
+            pl.col("Commercial Operation Date").alias("Proposed Completion Date"),
         )
-
-        queue["Generation Type"] = queue[["Generation Type", "Fuel Type"]].apply(
-            lambda x: " - ".join(x.dropna()),
-            axis=1,
-        )
-
-        queue["Proposed Completion Date"] = queue["Commercial Operation Date"]
 
         rename = {
             "Generation Interconnection Number": "Queue ID",
@@ -1534,7 +1563,7 @@ class SPP(ISOBase):
         location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
         use_daily_files: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get LMP data by location for the Real-Time 5 Minute Market
 
         Args:
@@ -1555,10 +1584,10 @@ class SPP(ISOBase):
                 location_type=location_type,
                 verbose=verbose,
             )
-            df.columns = df.columns.str.strip()
-
-            df = df.rename(
-                columns={
+            df = _strip_columns(df)
+            df = _rename_cols(
+                df,
+                {
                     "GMT Interval": "GMTIntervalEnd",
                     "Settlement Location Name": "Settlement Location",
                     "PNODE Name": "PNode",
@@ -1584,7 +1613,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get LMP data by bus for the Real-Time 5 Minute Market
 
         Args:
@@ -1614,7 +1643,7 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Internal function that consolidates logic for getting LMP data for the
         Real-Time 5 Minute Market
@@ -1637,7 +1666,7 @@ class SPP(ISOBase):
 
         logger.info(f"Getting data for {date} from {url}")
 
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return df
 
@@ -1648,7 +1677,7 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Internal function that consolidates logic for getting LMP data for the
         Real-Time 5 Minute Market
@@ -1667,7 +1696,7 @@ class SPP(ISOBase):
 
         logger.info(f"Getting data for {date} from {url} (daily file)")
 
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return df
 
@@ -1678,7 +1707,7 @@ class SPP(ISOBase):
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day ahead hourly LMP data
 
         Supported Location Types:
@@ -1708,7 +1737,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day ahead hourly LMP data by bus (pnode-level).
 
         Args:
@@ -1732,11 +1761,11 @@ class SPP(ISOBase):
             include_baa=True,
         )
 
-    def _get_feature_data(self, base_url: str, verbose: bool = False) -> pd.DataFrame:
+    def _get_feature_data(self, base_url: str, verbose: bool = False) -> pl.DataFrame:
         """Fetches data from ArcGIS Map Service with Feature Data
 
         Returns:
-            pd.DataFrame of features
+            pl.DataFrame of features
         """
         args = {
             "f": "json",
@@ -1745,15 +1774,14 @@ class SPP(ISOBase):
             "outFields": "*",
         }
         doc = self._get_json(base_url, verbose=verbose, params=args)
-        df = pd.DataFrame([feature["attributes"] for feature in doc["features"]])
-        return df
+        return pl.DataFrame([feature["attributes"] for feature in doc["features"]])
 
     def _get_dam_lmp(
         self,
         date: pd.Timestamp,
         location_type: str = LOCATION_TYPE_ALL,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if location_type == LOCATION_TYPE_BUS:
             endpoint = FS_DAM_LMP_BY_BUS
             file_prefix = "DA-LMP-B"
@@ -1763,17 +1791,17 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/{file_prefix}-{date.strftime('%Y%m%d')}0100.csv"  # noqa
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
         return df
 
     def _finalize_spp_df(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         market: Markets,
         location_type: str,
         verbose: bool = False,
         include_baa: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Finalizes DataFrame:
 
@@ -1805,27 +1833,31 @@ class SPP(ISOBase):
             interval_duration=interval_duration,
         )
 
-        df["Market"] = market.value
+        df = df.with_columns(pl.lit(market.value).alias("Market"))
 
         if location_type != LOCATION_TYPE_BUS:
-            df["Location"] = df["Settlement Location"]
-            df["Location Type"] = (
-                df["Location"]
-                .map(
+            df = df.with_columns(
+                pl.col("Settlement Location").alias("Location"),
+                pl.col("Settlement Location")
+                .replace_strict(
                     LMP_HUBS_AND_INTERFACES,
+                    default=LOCATION_TYPE_SETTLEMENT_LOCATION,
+                    return_dtype=pl.Utf8,
                 )
-                .fillna(LOCATION_TYPE_SETTLEMENT_LOCATION)
+                .alias("Location Type"),
             )
-
             df = utils.filter_lmp_locations(df, location_type=location_type)
         else:
-            df["Location"] = df["Pnode"]
-            df["Location Type"] = LOCATION_TYPE_BUS
+            df = df.with_columns(
+                pl.col("Pnode").alias("Location"),
+                pl.lit(LOCATION_TYPE_BUS).alias("Location Type"),
+            )
 
-        df = df.rename(
-            columns={
+        df = _rename_cols(
+            df,
+            {
                 "Pnode": "PNode",
-                "LMP": "LMP",  # for posterity
+                "LMP": "LMP",
                 "MLC": "Loss",
                 "MCC": "Congestion",
                 "MEC": "Energy",
@@ -1833,9 +1865,8 @@ class SPP(ISOBase):
         )
 
         if include_baa and "BAA" not in df.columns:
-            df["BAA"] = "SPP"
+            df = df.with_columns(pl.lit("SPP").alias("BAA"))
 
-        # Insert BAA before location if it exists
         cols = [
             "Time",
             "Interval Start",
@@ -1853,14 +1884,12 @@ class SPP(ISOBase):
         if "BAA" in df.columns:
             cols.insert(cols.index("Location"), "BAA")
 
-        df = df[cols]
-        df = df.reset_index(drop=True)
+        df = df.select(cols)
 
-        # Since Location = PNode for bus, we can drop PNode
         if location_type == LOCATION_TYPE_BUS:
-            df = df.drop(columns=["PNode"])
+            df = _drop_cols(df, ["PNode"])
 
-        return df.sort_values(["Time", "Location"])
+        return df.sort(["Time", "Location"])
 
     @support_date_range("5_MIN")
     def get_operating_reserves(
@@ -1868,7 +1897,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
         else:
@@ -1881,21 +1910,21 @@ class SPP(ISOBase):
             )
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
         return self._process_operating_reserves(df)
 
-    def _process_operating_reserves(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _process_operating_reserves(self, df: pl.DataFrame) -> pl.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(minutes=5),
         )
 
-        # don't need this column
-        df = df.drop(columns=["Interval"])
+        df = _drop_cols(df, ["Interval"])
 
-        df = df.rename(
-            columns={
+        return _rename_cols(
+            df,
+            {
                 "RegUP_Clr": "Reg_Up_Cleared",
                 "RegDN_Clr": "Reg_Dn_Cleared",
                 "RampUP_Clr": "Ramp_Up_Cleared",
@@ -1907,15 +1936,13 @@ class SPP(ISOBase):
             },
         )
 
-        return df
-
     def get_as_prices_real_time_5_min(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_files: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Provides Marginal Clearing Price information by Reserve Zone for each
         Real-Time 5-minute Market solution.
@@ -1927,7 +1954,7 @@ class SPP(ISOBase):
             use_daily_files: if True, use daily files instead of 5 minute files.
 
         Returns:
-            pd.DataFrame: Real-Time 5-minute Marginal Clearing Prices
+            pl.DataFrame: Real-Time 5-minute Marginal Clearing Prices
         """
         if use_daily_files:
             return self._get_as_prices_real_time_5_min_from_daily_files(
@@ -1948,7 +1975,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get AS prices from 5-minute interval files."""
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/rtbm-mcp?path=/RTBM-MCP-latestInterval.csv"
@@ -1962,7 +1989,7 @@ class SPP(ISOBase):
             )
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
         return self._process_as_prices_real_time(df)
 
     @support_date_range("DAY_START")
@@ -1971,29 +1998,26 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get AS prices from daily files."""
         if date == "latest":
             raise ValueError("Latest not supported with daily files")
 
         url = self._format_daily_mcp_url(date, end)
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
-        # Strip whitespace from column names for daily files
-        df.columns = df.columns.str.strip()
-        return self._process_as_prices_real_time(df)
+        return self._process_as_prices_real_time(_strip_columns(df))
 
-    def _process_as_prices_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _process_as_prices_real_time(self, df: pl.DataFrame) -> pl.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(minutes=5),
         )
 
-        df.columns = df.columns.str.strip()
+        df = _strip_columns(df)
 
-        # Column mapping to match day-ahead format
         column_mapping = {
             "RegUPService": "Reg Up Service",
             "RegDNService": "Reg DN Service",
@@ -2006,7 +2030,7 @@ class SPP(ISOBase):
             "UncUP": "Unc Up",
         }
 
-        df = df.rename(columns=column_mapping)
+        df = _rename_cols(df, column_mapping)
 
         cols_to_keep = [
             "Interval Start",
@@ -2014,9 +2038,9 @@ class SPP(ISOBase):
             "Reserve Zone",
         ] + list(column_mapping.values())
 
-        return df.sort_values(["Interval Start", "Reserve Zone"]).reset_index(
-            drop=True,
-        )[cols_to_keep]
+        return df.sort(["Interval Start", "Reserve Zone"]).select(
+            [c for c in cols_to_keep if c in df.columns],
+        )
 
     def _format_daily_mcp_url(
         self,
@@ -2046,7 +2070,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Provides Marginal Clearing Price information by Reserve Zone for each
         Day-Ahead Market solution for each Operating Day.
         Posting is updated each day after the DA Market results are posted.
@@ -2058,7 +2082,7 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: Day Ahead Marginal Clearing Prices
+            pl.DataFrame: Day Ahead Marginal Clearing Prices
         """
         if date == "latest":
             raise ValueError(
@@ -2068,19 +2092,19 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return self._process_day_ahead_operating_reserve_prices(df)
 
     def _process_day_ahead_operating_reserve_prices(
         self,
-        df: pd.DataFrame,
-    ) -> pd.DataFrame:
+        df: pl.DataFrame,
+    ) -> pl.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
-        ).assign(Market="DAM")
+        ).with_columns(pl.lit("DAM").alias("Market"))
 
         column_mapping = {
             "RegUP": "Reg_Up",
@@ -2092,19 +2116,16 @@ class SPP(ISOBase):
             "UncUP": "Unc_Up",
         }
 
-        df = df.rename(columns=column_mapping)
+        df = _rename_cols(df, column_mapping)
 
         cols_to_keep = [
             "Interval Start",
             "Interval End",
             "Market",
             "Reserve Zone",
-        ] + list(
-            column_mapping.values(),
-        )
+        ] + list(column_mapping.values())
 
-        # Older datasets might not have all the reserve types
-        return df[[c for c in cols_to_keep if c in df]]
+        return df.select([c for c in cols_to_keep if c in df.columns])
 
     @support_date_range("5_MIN")
     def get_lmp_real_time_weis(
@@ -2112,7 +2133,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get LMP data for real time WEIS
 
         Args:
@@ -2136,16 +2157,15 @@ class SPP(ISOBase):
         logger.info(f"Downloading {url}")
 
         try:
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
         except ConnectionResetError as e:
             logger.error(f"Error downloading {url}: {e}")
-            return pd.DataFrame()
+            return pl.DataFrame()
 
         return self._process_lmp_real_time_weis(df)
 
-    def _process_lmp_real_time_weis(self, df: pd.DataFrame) -> pd.DataFrame:
-        # strip whitespace from column names
-        df = df.rename(columns=lambda x: x.strip())
+    def _process_lmp_real_time_weis(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = _strip_columns(df)
 
         df = self._handle_market_end_to_interval(
             df,
@@ -2153,21 +2173,24 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=5),
         )
 
-        df["Location Type"] = LOCATION_TYPE_SETTLEMENT_LOCATION
-        df["Market"] = "REAL_TIME_WEIS"
+        df = df.with_columns(
+            pl.lit(LOCATION_TYPE_SETTLEMENT_LOCATION).alias("Location Type"),
+            pl.lit("REAL_TIME_WEIS").alias("Market"),
+        )
 
-        df = df.rename(
-            columns={
+        df = _rename_cols(
+            df,
+            {
                 "Settlement Location": "Location",
                 "Pnode": "PNode",
-                "LMP": "LMP",  # for posterity
+                "LMP": "LMP",
                 "MLC": "Loss",
                 "MCC": "Congestion",
                 "MEC": "Energy",
             },
         )
 
-        df = df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2179,10 +2202,8 @@ class SPP(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
-
-        return df
+            ],
+        )
 
     def _format_5_min_url(
         self,
@@ -2271,13 +2292,13 @@ class SPP(ISOBase):
         self,
         urls: list[str],
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         all_dfs = []
         for url in tqdm.tqdm(urls):
             logger.info(f"Fetching {url}")
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
             all_dfs.append(df)
-        return pd.concat(all_dfs)
+        return pl.concat(all_dfs, how="diagonal")
 
     def _get_marketplace_session(self) -> dict:
         """
@@ -2317,7 +2338,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Hourly Load in the legacy wide format (before 2026-03-24).
 
         Deprecated: SPP changed the hourly load data format on 2026-03-24.
@@ -2328,7 +2349,7 @@ class SPP(ISOBase):
             end: end date
 
         Returns:
-            pd.DataFrame: Hourly Load in wide format
+            pl.DataFrame: Hourly Load in wide format
         """
         if date >= HOURLY_LOAD_WIDE_FORMAT_END_DATE:
             raise NotSupported(
@@ -2338,7 +2359,7 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return self._process_hourly_load(df)
 
@@ -2348,7 +2369,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Hourly Load in the long format (on or after 2026-03-24).
 
         Args:
@@ -2356,7 +2377,7 @@ class SPP(ISOBase):
             end: end date
 
         Returns:
-            pd.DataFrame: Hourly Load with columns Time, Interval Start,
+            pl.DataFrame: Hourly Load with columns Time, Interval Start,
                 Interval End, Balancing Area Name, Control Zone Name,
                 Forecast Area Type, Load
         """
@@ -2374,11 +2395,11 @@ class SPP(ISOBase):
 
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return self._process_hourly_load_long(df)
 
-    def get_hourly_load_annual(self, year: int, verbose: bool = True) -> pd.DataFrame:
+    def get_hourly_load_annual(self, year: int, verbose: bool = True) -> pl.DataFrame:
         """Get Hourly Load for a year. Starting 2011.
         For recent data use `get_hourly_load`
 
@@ -2387,7 +2408,7 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: Hourly Load
+            pl.DataFrame: Hourly Load
         """
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
         df = utils.download_csvs_from_zip_url(
@@ -2398,7 +2419,7 @@ class SPP(ISOBase):
 
         return self._process_hourly_load(df)
 
-    def _process_hourly_load(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _process_hourly_load(self, df: pl.DataFrame) -> pl.DataFrame:
         """Process hourly load data in the legacy wide format.
 
         Deprecated: This method handles the wide format used before 2026-03-24.
@@ -2412,21 +2433,21 @@ class SPP(ISOBase):
                 "for the new long format.",
             )
 
-        # Some column names contain leading whitespace in some files - remove it
-        df = df.rename(columns=lambda x: x.strip())
+        df = _strip_columns(df)
+        df = df.filter(~pl.all_horizontal(pl.all().is_null()))
 
-        # Some files contain null rows. Drop them.
-        df = df.dropna(how="all")
-
-        # Some files don't have time 00:00 for the first interval in a day
-        # for example 12/2/2016 instead of 12/2/2016 00:00. This causes datetime
-        # conversion problems. This fixes it.
-        def clean_market_hour(val):
+        def clean_market_hour(val: str | None) -> str | None:
+            if val is None:
+                return val
             if val.endswith(":00"):
                 return val
             return val + " 00:00"
 
-        df["MarketHour"] = df["MarketHour"].apply(clean_market_hour)
+        df = df.with_columns(
+            pl.col("MarketHour")
+            .map_elements(clean_market_hour, return_dtype=pl.Utf8)
+            .alias("MarketHour"),
+        )
 
         df = self._handle_market_end_to_interval(
             df,
@@ -2462,29 +2483,19 @@ class SPP(ISOBase):
         ]
         all_cols = time_cols + load_cols
 
-        # historical data doesn't have all columns
-        for c in all_cols:
-            if c not in df.columns:
-                df[c] = pd.NA
+        df = _ensure_columns(df, all_cols)
+        df = df.filter(pl.col("Interval Start").is_not_null()).unique()
+        df = _sum_across_cols(df, load_cols, "System Total")
+        return df.sort("Time")
 
-        df = df[all_cols]
-
-        df = df[~df["Interval Start"].isnull()].drop_duplicates()
-
-        df = df.sort_values("Time")
-        df["System Total"] = df[load_cols].sum(axis=1, skipna=True)
-
-        return df
-
-    def _process_hourly_load_long(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _process_hourly_load_long(self, df: pl.DataFrame) -> pl.DataFrame:
         """Process hourly load data in the new long format (starting 2026-03-24).
 
         The new format has columns: Market Hour, Balancing Area Name,
         Control Zone Name, Forecast Area Type, Load MW.
         """
-        df = df.rename(columns=lambda x: x.strip())
-
-        df = df.dropna(how="all")
+        df = _strip_columns(df)
+        df = df.filter(~pl.all_horizontal(pl.all().is_null()))
 
         df = self._handle_market_end_to_interval(
             df,
@@ -2493,13 +2504,9 @@ class SPP(ISOBase):
             format="mixed",
         )
 
-        df = df[~df["Interval Start"].isnull()].drop_duplicates()
+        df = df.filter(pl.col("Interval Start").is_not_null()).unique()
 
-        df = df.rename(
-            columns={
-                "Load MW": "Load",
-            },
-        )
+        df = _rename_cols(df, {"Load MW": "Load"})
 
         col_order = [
             "Interval Start",
@@ -2510,18 +2517,14 @@ class SPP(ISOBase):
             "Load",
         ]
 
-        df = df[col_order]
-
-        df = df.sort_values(
+        return df.select(col_order).sort(
             [
                 "Interval Start",
                 "Balancing Area Name",
                 "Control Zone Name",
                 "Forecast Area Type",
             ],
-        ).reset_index(drop=True)
-
-        return df
+        )
 
     @support_date_range("DAY_START")
     def get_market_clearing_real_time(
@@ -2529,7 +2532,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Market Clearing Real Time
 
         Args:
@@ -2537,7 +2540,7 @@ class SPP(ISOBase):
             end: end date
 
         Returns:
-            pd.DataFrame: Market Clearing Real Time
+            pl.DataFrame: Market Clearing Real Time
         """
         if date == "latest":
             try:
@@ -2552,7 +2555,7 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"  # noqa
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return self._process_market_clearing(df, 5)
 
@@ -2562,7 +2565,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Market Clearing Day Ahead
 
         Args:
@@ -2570,7 +2573,7 @@ class SPP(ISOBase):
             end: end date
 
         Returns:
-            pd.DataFrame: Market Clearing Day Ahead
+            pl.DataFrame: Market Clearing Day Ahead
         """
         if date == "latest":
             date = self.local_now().normalize() + pd.DateOffset(days=1)
@@ -2585,30 +2588,33 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
 
         logger.info(f"Downloading {url}")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
 
         return self._process_market_clearing(df, 60)
 
-    def _process_market_clearing(self, df: pd.DataFrame, interval_minutes: int):
+    def _process_market_clearing(
+        self,
+        df: pl.DataFrame,
+        interval_minutes: int,
+    ) -> pl.DataFrame:
         df = self._handle_market_end_to_interval(
             df,
             column="GMTIntervalEnd",
             interval_duration=pd.Timedelta(minutes=interval_minutes),
         )
 
-        df.columns = df.columns.str.strip()
-
-        df = df.rename(
-            columns={
+        df = _strip_columns(df)
+        df = _rename_cols(
+            df,
+            {
                 "RegUP": "Reg Up",
                 "RegDN": "Reg Dn",
                 "RampUP": "Ramp Up",
                 "RampDN": "Ramp Dn",
                 "UncUP": "Unc Up",
             },
-        ).drop(columns=["Time", "Interval"])
-
-        return df.sort_values("Interval Start")
+        )
+        return _drop_cols(df, ["Time", "Interval"]).sort("Interval Start")
 
     @support_date_range("DAY_START")
     def get_binding_constraints_day_ahead_hourly(
@@ -2616,7 +2622,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Day-Ahead Binding Constraints
 
         Args:
@@ -2625,7 +2631,7 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: Day-Ahead Binding Constraints
+            pl.DataFrame: Day-Ahead Binding Constraints
         """
         if date == "latest":
             tomorrow = pd.Timestamp.now(
@@ -2643,16 +2649,16 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
         return self._process_binding_constraints_day_ahead_hourly(url)
 
-    def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
+    def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pl.DataFrame:
         logger.info(f"Downloading {url}...")
         try:
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 raise NoDataFoundException(f"No data found for {url}")
             raise
 
-        df.columns = df.columns.str.strip()
+        df = _strip_columns(df)
 
         df = self._handle_market_end_to_interval(
             df,
@@ -2660,10 +2666,12 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(hours=1),
         )
 
-        df = df.rename(columns={"NERCID": "NERC ID"})
-
-        df["NERC ID"] = pd.to_numeric(df["NERC ID"], errors="coerce").astype(
-            pd.Int64Dtype(),
+        df = _rename_cols(df, {"NERCID": "NERC ID"})
+        df = df.with_columns(
+            pl.col("NERC ID")
+            .cast(pl.Float64, strict=False)
+            .cast(pl.Int64, strict=False)
+            .alias("NERC ID"),
         )
 
         cols_to_keep = [
@@ -2679,7 +2687,7 @@ class SPP(ISOBase):
             "Contingency Name",
         ]
 
-        return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
+        return df.select(cols_to_keep).sort(["Interval Start", "Constraint Name"])
 
     # NB: SPP RTBM publishes per-interval CSVs and daily aggregates. Both are
     # aligned to local midnight. Interval files live under
@@ -2696,7 +2704,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Real-Time Binding Constraints
 
         Args:
@@ -2705,7 +2713,7 @@ class SPP(ISOBase):
             verbose: print url
 
         Returns:
-            pd.DataFrame: Real-Time Binding Constraints
+            pl.DataFrame: Real-Time Binding Constraints
         """
         if date == "latest":
             return self._get_binding_constraints_real_time_5_min_from_intervals(
@@ -2728,9 +2736,10 @@ class SPP(ISOBase):
         if end_ts is None:
             return df
 
-        return df[
-            (df["Interval Start"] >= start_ts) & (df["Interval Start"] < end_ts)
-        ].reset_index(drop=True)
+        return df.filter(
+            (pl.col("Interval Start") >= pl.lit(start_ts))
+            & (pl.col("Interval Start") < pl.lit(end_ts)),
+        )
 
     @support_date_range(_binding_constraints_real_time_5_min_frequency)
     def _fetch_binding_constraints_real_time_5_min(
@@ -2738,7 +2747,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Per-chunk fetch dispatching to interval or daily-file source."""
         start = utils._handle_date(date, self.default_timezone)
         if not utils.is_within_last_days(start, 1, self.default_timezone):
@@ -2787,7 +2796,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Real-Time Binding Constraints from daily files."""
 
         folder_year = date.strftime("%Y")
@@ -2796,9 +2805,8 @@ class SPP(ISOBase):
         url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/{folder_year}/{folder_month}/By_Day/RTBM-DAILY-BC-{date.strftime('%Y%m%d')}.csv"
 
         logger.info(f"Downloading {url} (daily file)...")
-        df = pd.read_csv(url)
-        df.columns = df.columns.str.strip()
-        return self._process_binding_constraints_real_time(df)
+        df = pl.read_csv(url, infer_schema_length=None)
+        return self._process_binding_constraints_real_time(_strip_columns(df))
 
     @support_date_range("5_MIN")
     def _get_binding_constraints_real_time_5_min_from_intervals(
@@ -2806,7 +2814,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get Real-Time Binding Constraints from 5-minute interval files."""
         if date == "latest":
             url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/RTBM-BC-latestInterval.csv"  # noqa
@@ -2819,16 +2827,17 @@ class SPP(ISOBase):
             )
 
         logger.info(f"Downloading {url}...")
-        df = pd.read_csv(url)
+        df = pl.read_csv(url, infer_schema_length=None)
         return self._process_binding_constraints_real_time(df)
 
-    def _process_binding_constraints_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
-        df.columns = df.columns.str.strip()
-
-        # Convert to title case to handle nonstandard input
-        df.columns = df.columns.str.title().str.replace("_", " ")
+    def _process_binding_constraints_real_time(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = _strip_columns(df)
         df = df.rename(
-            columns={
+            {c: c.strip().title().replace("_", " ") for c in df.columns},
+        )
+        df = _rename_cols(
+            df,
+            {
                 "Gmtintervalend": "GMTIntervalEnd",
                 "Nercid": "NERC ID",
                 "Tlr Level": "TLR Level",
@@ -2841,7 +2850,12 @@ class SPP(ISOBase):
             interval_duration=pd.Timedelta(minutes=5),
         )
 
-        df["NERC ID"] = pd.to_numeric(df["NERC ID"], errors="coerce").astype("Int64")
+        df = df.with_columns(
+            pl.col("NERC ID")
+            .cast(pl.Float64, strict=False)
+            .cast(pl.Int64, strict=False)
+            .alias("NERC ID"),
+        )
 
         cols_to_keep = [
             "Interval Start",
@@ -2856,7 +2870,7 @@ class SPP(ISOBase):
             "Contingent Facility",
         ]
 
-        return df[cols_to_keep].sort_values(["Interval Start", "Constraint Name"])
+        return df.select(cols_to_keep).sort(["Interval Start", "Constraint Name"])
 
     @support_date_range("MONTH_START")
     def get_interchange_real_time(
@@ -2864,7 +2878,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time interchange (tie flow) data.
 
         For "latest" and "today", returns ~2 days of 1-minute interchange data
@@ -2883,15 +2897,14 @@ class SPP(ISOBase):
             verbose: print info
 
         Returns:
-            pd.DataFrame: interchange data
+            pl.DataFrame: interchange data
         """
         if date == "latest":
             return self.get_interchange_real_time(
                 "today",
                 verbose=verbose,
-            ).reset_index(drop=True)
+            )
 
-        # Handle tuple date ranges by checking if the start is recent
         if isinstance(date, tuple):
             start = date[0]
         else:
@@ -2900,7 +2913,7 @@ class SPP(ISOBase):
         if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
             url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend/asFile"
             logger.info(f"Downloading {url}")
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
             return self._process_interchange_real_time(df)
 
         # Historical data: download monthly CSV
@@ -2914,7 +2927,7 @@ class SPP(ISOBase):
 
         logger.info(f"Downloading {url}")
         try:
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 raise NoDataFoundException(
@@ -2924,8 +2937,9 @@ class SPP(ISOBase):
             raise
 
         # Normalize historical column names to match real-time format
-        df = df.rename(
-            columns={
+        df = _rename_cols(
+            df,
+            {
                 "GMTTIME": "GMTTime",
                 "SPP_NSI": "SPP NSI",
                 "SPP_NAI": "SPP NAI",
@@ -2940,7 +2954,7 @@ class SPP(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time interchange (tie flow) data for SPP West (SWPW).
 
         For "latest" and "today", returns ~2 days of 1-minute interchange data
@@ -2959,15 +2973,14 @@ class SPP(ISOBase):
             verbose: print info
 
         Returns:
-            pd.DataFrame: interchange data
+            pl.DataFrame: interchange data
         """
         if date == "latest":
             return self.get_west_interchange_real_time(
                 "today",
                 verbose=verbose,
-            ).reset_index(drop=True)
+            )
 
-        # Handle tuple date ranges by checking if the start is recent
         if isinstance(date, tuple):
             start = date[0]
         else:
@@ -2976,7 +2989,7 @@ class SPP(ISOBase):
         if utils.is_within_last_days(start, days=2, tz=self.default_timezone):
             url = f"{MARKETPLACE_BASE_URL}/chart-api/interchange-trend-swpw/asFile"
             logger.info(f"Downloading {url}")
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
             return self._process_interchange_real_time(df)
 
         # Historical data: download monthly CSV
@@ -2988,7 +3001,7 @@ class SPP(ISOBase):
 
         logger.info(f"Downloading {url}")
         try:
-            df = pd.read_csv(url)
+            df = pl.read_csv(url, infer_schema_length=None)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 raise NoDataFoundException(
@@ -2998,8 +3011,9 @@ class SPP(ISOBase):
             raise
 
         # Normalize historical column names to match real-time format
-        df = df.rename(
-            columns={
+        df = _rename_cols(
+            df,
+            {
                 "GMTTIME": "GMTTime",
                 "SPP_NSI": "SWPW NSI",
                 "SPP_NAI": "SWPW NAI",
@@ -3008,71 +3022,55 @@ class SPP(ISOBase):
 
         return self._process_interchange_real_time(df)
 
-    def _process_interchange_real_time(self, df: pd.DataFrame) -> pd.DataFrame:
-        df["Time"] = pd.to_datetime(
-            df["GMTTime"],
-            utc=True,
-            format="ISO8601",
-        ).dt.tz_convert(self.default_timezone)
+    def _process_interchange_real_time(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = df.with_columns(
+            _parse_utc_to_local(df, "GMTTime", self.default_timezone).alias("Time"),
+        )
+        df = _drop_cols(df, ["GMTTime"])
+        df = df.filter(pl.col("Time").is_not_null())
 
-        df = df.drop(columns=["GMTTime"])
-
-        # Drop rows with null timestamps (bad data in some historical files)
-        df = df.dropna(subset=["Time"])
-
-        # Drop rows where all data columns are null (future forecast rows)
         data_cols = [c for c in df.columns if c != "Time"]
-        df = df.dropna(subset=data_cols, how="all")
+        df = df.filter(
+            pl.any_horizontal([pl.col(c).is_not_null() for c in data_cols]),
+        )
 
-        # Melt from wide to long format so schema is stable across time periods
-        id_cols = ["Time"]
-        value_cols = [c for c in df.columns if c not in id_cols]
-        df = df.melt(
-            id_vars=id_cols,
-            value_vars=value_cols,
-            var_name="Region",
+        df = df.unpivot(
+            index=["Time"],
+            on=data_cols,
+            variable_name="Region",
             value_name="Interchange",
         )
 
-        # Drop rows where interchange is null (region didn't exist in this period)
-        df = df.dropna(subset=["Interchange"])
-
-        return df.sort_values(["Time", "Region"]).reset_index(drop=True)
+        return df.filter(pl.col("Interchange").is_not_null()).sort(["Time", "Region"])
 
 
-def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
+def process_gen_mix(df: pl.DataFrame, detailed: bool = False) -> pl.DataFrame:
     """Parse SPP generation mix data from
     https://marketplace.spp.org/pages/generation-mix-historical
 
     Args:
-        df (pd.DataFrame): raw data
+        df (pl.DataFrame): raw data
         detailed (bool): whether to combine market and self columns
 
     Returns:
-        pd.DataFrame: processed data
+        pl.DataFrame: processed data
     """
-    new_df = df.copy()
+    new_df = _strip_columns(df)
 
-    # remove whitespace from column names
-    new_df.columns = new_df.columns.str.strip()
-
-    # rename columns to standardize
-    new_df = new_df.rename(
-        columns={
+    new_df = _rename_cols(
+        new_df,
+        {
             "GMTTime": "Time",
             "GMT MKT Interval": "Time",
             "Gas Self": "Natural Gas Self",
-            # rename below is based on documenation
             "Load": "Short Term Load Forecast",
         },
     )
 
-    # parse time
-    new_df["Time"] = pd.to_datetime(new_df["Time"], utc=True).dt.tz_convert(
-        SPP.default_timezone,
+    new_df = new_df.with_columns(
+        _parse_utc_to_local(new_df, "Time", SPP.default_timezone).alias("Time"),
     )
 
-    # combine market and self columns
     columns_to_combine = [
         "Coal",
         "Diesel Fuel Oil",
@@ -3094,22 +3092,22 @@ def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
             if market_col not in new_df.columns or self_col not in new_df.columns:
                 continue
 
-            new_df[col] = new_df[market_col] + new_df[self_col]
-            new_df = new_df.drop([market_col, self_col], axis=1)
+            new_df = new_df.with_columns(
+                (
+                    pl.col(market_col).cast(pl.Float64, strict=False).fill_null(0)
+                    + pl.col(self_col).cast(pl.Float64, strict=False).fill_null(0)
+                ).alias(col),
+            ).drop([market_col, self_col])
 
-    new_df = add_interval(new_df, 5)
-
-    return new_df
+    return add_interval(new_df, 5)
 
 
-def add_interval(df: pd.DataFrame, interval_min: int) -> pd.DataFrame:
+def add_interval(df: pl.DataFrame, interval_min: int) -> pl.DataFrame:
     """Adds Interval Start and Interval End columns to df"""
-    df["Interval Start"] = df["Time"]
-    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=interval_min)
-
-    df = utils.move_cols_to_front(
-        df,
-        ["Time", "Interval Start", "Interval End"],
+    duration = pl.duration(minutes=interval_min)
+    df = df.with_columns(
+        pl.col("Time").alias("Interval Start"),
+        (pl.col("Time") + duration).alias("Interval End"),
     )
 
-    return df
+    return utils.move_cols_to_front(df, ["Time", "Interval Start", "Interval End"])

@@ -3,8 +3,8 @@ from xml.etree import ElementTree
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
-from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO, utils
 from gridstatus.base import NotSupported
@@ -81,7 +81,7 @@ class TestIESO(BaseTestISO):
         end = yesterday.replace(hour=6, minute=5, second=0, microsecond=0)
         df = self.iso.get_fuel_mix(date=start, end=end)
         # ignore last row, since it is sometime midnight of next day
-        assert df[TIME_COLUMN].iloc[:-1].dt.date.unique().tolist() == [
+        assert df.slice(0, df.height - 1)[TIME_COLUMN].dt.date().unique().to_list() == [
             yesterday.date(),
         ]
         self._check_fuel_mix(df)
@@ -108,27 +108,27 @@ class TestIESO(BaseTestISO):
             f"test_get_generator_report_hourly_historical_{date.date()}.yaml",
         ):
             df = self.iso.get_generator_report_hourly(date_str)
-            assert isinstance(df, pd.DataFrame)
-            assert df.loc[0][TIME_COLUMN].strftime("%m/%d/%Y") == date_str
-            assert df.loc[0][TIME_COLUMN].tz is not None
+            assert isinstance(df, pl.DataFrame)
+            assert df[0, TIME_COLUMN].strftime("%m/%d/%Y") == date_str
+            assert df[0, TIME_COLUMN].tzinfo is not None
             self._check_get_generator_report_hourly(df)
 
             timestamp_obj = date.date()
             df = self.iso.get_generator_report_hourly(timestamp_obj)
-            assert isinstance(df, pd.DataFrame)
-            assert df.loc[0][TIME_COLUMN].strftime(
+            assert isinstance(df, pl.DataFrame)
+            assert df[0, TIME_COLUMN].strftime(
                 "%Y%m%d",
             ) == timestamp_obj.strftime("%Y%m%d")
-            assert df.loc[0][TIME_COLUMN].tz is not None
+            assert df[0, TIME_COLUMN].tzinfo is not None
             self._check_get_generator_report_hourly(df)
 
             date_obj = date.date()
             df = self.iso.get_generator_report_hourly(date_obj)
-            assert isinstance(df, pd.DataFrame)
-            assert df.loc[0][TIME_COLUMN].strftime(
+            assert isinstance(df, pl.DataFrame)
+            assert df[0, TIME_COLUMN].strftime(
                 "%Y%m%d",
             ) == date_obj.strftime("%Y%m%d")
-            assert df.loc[0][TIME_COLUMN].tz is not None
+            assert df[0, TIME_COLUMN].tzinfo is not None
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_historical_with_date_range(self):
@@ -143,7 +143,7 @@ class TestIESO(BaseTestISO):
                 end=end.date(),
             )
             self._check_get_generator_report_hourly(df)
-            assert df[TIME_COLUMN].dt.day.nunique() == 7
+            assert df[TIME_COLUMN].dt.day().n_unique() == 7
 
     def test_get_generator_report_hourly_range_two_days_with_end(self):
         start = (
@@ -176,7 +176,9 @@ class TestIESO(BaseTestISO):
             f"test_get_generator_report_hourly_start_end_same_day_{start.date()}.yaml",
         ):
             df = self.iso.get_generator_report_hourly(date=start, end=end)
-            assert df[TIME_COLUMN].iloc[:-1].dt.date.unique().tolist() == [start.date()]
+            assert df.slice(0, df.height - 1)[
+                TIME_COLUMN
+            ].dt.date().unique().to_list() == [start.date()]
             self._check_get_generator_report_hourly(df)
 
     def test_get_generator_report_hourly_latest(self):
@@ -296,24 +298,16 @@ class TestIESO(BaseTestISO):
     def test_get_storage_today(self):
         pass
 
-    # TODO: this is overridden in the base class
     def _check_time_columns(self, df, instant_or_interval="interval"):
-        assert isinstance(df, pd.DataFrame)
-
-        time_cols = [TIME_COLUMN, "Interval End"]
-        ordered_by_col = TIME_COLUMN
-
-        assert time_cols == df.columns[: len(time_cols)].tolist()
-        # check all time cols are localized timestamps
-        for col in time_cols:
-            assert isinstance(df.loc[0][col], pd.Timestamp)
-            assert df.loc[0][col].tz is not None
-
-        self._check_ordered_by_time(df, ordered_by_col)
+        super()._check_time_columns(
+            df,
+            instant_or_interval=instant_or_interval,
+            skip_column_named_time=True,
+        )
 
     def _check_fuel_mix(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.columns.name is None
+        assert isinstance(df, pl.DataFrame)
+        assert True
 
         time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
@@ -331,8 +325,8 @@ class TestIESO(BaseTestISO):
         ]
 
     def _check_get_generator_report_hourly(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[0] >= 0
+        assert isinstance(df, pl.DataFrame)
+        assert df.height >= 0
 
         time_type = "interval"
         self._check_time_columns(df, instant_or_interval=time_type)
@@ -344,26 +338,28 @@ class TestIESO(BaseTestISO):
             "Forecast MW",
         ]:
             assert col in df.columns
-            assert is_numeric_dtype(df[col])
+            assert df.schema[col] in (pl.Float64, pl.Int64, pl.Int32)
 
         for col in ["Generator Name", "Fuel Type"]:
             assert col in df.columns
-            assert df[col].dtype == "object"
+            assert df.schema[col] == pl.Utf8
 
-        assert list(df["Fuel Type"].unique()) == [
-            "BIOFUEL",
-            "GAS",
-            "HYDRO",
-            "NUCLEAR",
-            "OTHER",
-            "SOLAR",
-            "WIND",
-        ]
+        assert sorted(df["Fuel Type"].unique().to_list()) == sorted(
+            [
+                "BIOFUEL",
+                "GAS",
+                "HYDRO",
+                "NUCLEAR",
+                "OTHER",
+                "SOLAR",
+                "WIND",
+            ],
+        )
 
     """get_mcp_real_time_5_min"""
 
-    def _check_mcp(self, df: pd.DataFrame) -> None:
-        assert df.columns.tolist() == [
+    def _check_mcp(self, df: pl.DataFrame) -> None:
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -373,7 +369,7 @@ class TestIESO(BaseTestISO):
             "Energy",
         ]
 
-        assert sorted(df["Location"].unique()) == [
+        assert sorted(df["Location"].unique().to_list()) == [
             "Manitoba",
             "Manitoba SK",
             "Michigan",
@@ -391,9 +387,11 @@ class TestIESO(BaseTestISO):
             "Quebec X2Y",
         ]
 
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(minutes=5)
-        ).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=5))
+            .all(),
+        ).item()
 
     def test_get_mcp_real_time_5_min_date_range(self):
         with pytest.raises(NotSupported):
@@ -430,11 +428,13 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_hoep_real_time_hourly(start, end)
 
-        assert df.columns.tolist() == ["Interval Start", "Interval End", "HOEP"]
+        assert df.columns == ["Interval Start", "Interval End", "HOEP"]
 
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
         assert df["Interval Start"].min() == start
         assert df["Interval End"].max() == self.local_start_of_day(
             end.tz_localize(None) + pd.DateOffset(days=1),
@@ -451,7 +451,7 @@ class TestIESO(BaseTestISO):
             df = self.iso.get_hoep_historical_hourly(start)
 
         # NOTE: different columns from real-time
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "HOEP",
@@ -463,9 +463,11 @@ class TestIESO(BaseTestISO):
             "OR 30 Min",
         ]
 
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
         assert df["Interval Start"].min() == self.local_start_of_day("2024-01-01")
         assert df["Interval End"].max() == self.local_start_of_day("2025-01-01")
 
@@ -611,7 +613,7 @@ class TestIESO(BaseTestISO):
         with file_vcr.use_cassette(f"test_get_resource_adequacy_report_{date}.yaml"):
             df = self.iso.get_resource_adequacy_report(date, vintage="latest")
 
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
         assert df.shape == (24, 99)  # 24 rows and 99 columns for each file
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
@@ -619,9 +621,11 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
-        assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -633,12 +637,12 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_resource_adequacy_report(date, end=end, vintage="latest")
 
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 99
+        assert isinstance(df, pl.DataFrame)
+        assert df.width == 99
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
         expected_rows = ((pd.Timestamp(end) - pd.Timestamp(date)).days) * 24
-        assert df.shape[0] == expected_rows
+        assert df.height == expected_rows
 
     @pytest.mark.parametrize(
         "date, end",
@@ -650,8 +654,8 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_resource_adequacy_report(date, end=end, vintage="all")
 
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 99
+        assert isinstance(df, pl.DataFrame)
+        assert df.width == 99
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
 
@@ -704,8 +708,8 @@ class TestIESO(BaseTestISO):
                 last_modified,
             )
 
-        assert isinstance(df, pd.DataFrame)
-        assert df.shape[1] == 99
+        assert isinstance(df, pl.DataFrame)
+        assert df.width == 99
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
         assert (df["Last Modified"] > last_modified).all()
@@ -786,7 +790,7 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_forecast_surplus_baseload_generation(yesterday)
 
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
         self._check_forecast_surplus_baseload(df)
 
         assert df["Interval Start"].min().date() == today.date()
@@ -801,7 +805,7 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_forecast_surplus_baseload_generation(start, end=end)
 
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
         self._check_forecast_surplus_baseload(df)
 
         assert df["Interval Start"].min().date() == start.date() + pd.Timedelta(days=1)
@@ -813,10 +817,10 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_forecast_surplus_baseload_generation("latest")
 
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
         self._check_forecast_surplus_baseload(df)
 
-    def _check_forecast_surplus_baseload(self, df: pd.DataFrame) -> None:
+    def _check_forecast_surplus_baseload(self, df: pl.DataFrame) -> None:
         required_columns = [
             "Interval Start",
             "Interval End",
@@ -833,13 +837,15 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
 
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
         assert (
             df["Surplus State"]
-            .isin(
+            .is_in(
                 [
                     "No Surplus",
                     "Managed with Exports",
@@ -850,12 +856,12 @@ class TestIESO(BaseTestISO):
             .all()
         )
 
-        assert df["Action"].isin(["Other", "Manoeuvre", "Shutdown", None]).all()
+        assert df["Action"].is_in(["Other", "Manoeuvre", "Shutdown", None]).all()
 
-        assert is_numeric_dtype(df["Surplus Baseload MW"])
-        assert is_numeric_dtype(df["Export Forecast MW"])
+        assert df.schema["Surplus Baseload MW"] == pl.Float64
+        assert df.schema["Export Forecast MW"] == pl.Float64
 
-        publish_days = df["Publish Time"].nunique()
+        publish_days = df["Publish Time"].n_unique()
         assert publish_days == len(
             pd.date_range(
                 df["Publish Time"].min().date(),
@@ -863,7 +869,7 @@ class TestIESO(BaseTestISO):
                 freq="D",
             ),
         )
-        assert df["Publish Time"].iloc[0].date() == df[
+        assert df[0, "Publish Time"].date() == df[
             "Interval Start"
         ].min().date() - pd.Timedelta(days=1)
         assert len(df) == 24 * 10 * publish_days
@@ -951,12 +957,16 @@ class TestIESO(BaseTestISO):
         )
 
     def _check_intertie_schedule_flow(self, df):
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
+        assert isinstance(df, pl.DataFrame)
+        assert not df.is_empty()
         assert self._check_is_datetime_type(df[TIME_COLUMN])
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
-        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col(TIME_COLUMN))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
         zone_prefixes = ["Manitoba", "Michigan", "Minnesota", "New York"]
         flow_types = ["Flow", "Import", "Export"]
@@ -965,11 +975,11 @@ class TestIESO(BaseTestISO):
             for flow_type in flow_types:
                 col_name = f"{zone} {flow_type}"
                 assert col_name in df.columns
-                assert is_numeric_dtype(df[col_name])
+                assert df.schema[col_name] in (pl.Float64, pl.Int64, pl.Int32)
 
         pq_columns = [col for col in df.columns if col.startswith("PQ")]
         assert len(pq_columns) > 0
-        assert df[TIME_COLUMN].equals(df[TIME_COLUMN].sort_values())
+        assert df[TIME_COLUMN].equals(df[TIME_COLUMN].sort())
 
     """get_intertie_actual_schedule_flow_hourly"""
 
@@ -981,13 +991,16 @@ class TestIESO(BaseTestISO):
         for col in time_columns:
             assert self._check_is_datetime_type(df[col])
 
-        assert df[TIME_COLUMN].is_monotonic_increasing
+        assert df[TIME_COLUMN].is_sorted()
 
-        assert df[
-            [col for col in df.columns if col not in time_columns]
-        ].dtypes.unique() == np.dtype("float64")
+        numeric_cols = [col for col in df.columns if col not in time_columns]
+        assert all(df.schema[col] == pl.Float64 for col in numeric_cols)
 
-        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col(TIME_COLUMN))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
     def test_get_intertie_actual_schedule_flow_hourly_latest(self):
         with file_vcr.use_cassette(
@@ -999,7 +1012,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (df[TIME_COLUMN].dt.date == today.date()).all()
+        assert (df[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_intertie_actual_schedule_flow_hourly_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1028,14 +1041,17 @@ class TestIESO(BaseTestISO):
         for col in time_columns:
             assert self._check_is_datetime_type(df[col])
 
-        assert df[TIME_COLUMN].is_monotonic_increasing
+        assert df[TIME_COLUMN].is_sorted()
 
-        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(minutes=5)).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col(TIME_COLUMN))
+            .eq(pl.duration(minutes=5))
+            .all(),
+        ).item()
 
         # Make sure all columns except for the time columns are numeric
-        assert df[
-            [col for col in df.columns if col not in time_columns]
-        ].dtypes.unique() == np.dtype("float64")
+        numeric_cols = [col for col in df.columns if col not in time_columns]
+        assert all(df.schema[col] == pl.Float64 for col in numeric_cols)
 
     def test_get_intertie_flow_5_min_latest(self):
         with file_vcr.use_cassette(
@@ -1047,7 +1063,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (df[TIME_COLUMN].dt.date == today.date()).all()
+        assert (df[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_intertie_flow_5_min_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1076,14 +1092,17 @@ class TestIESO(BaseTestISO):
         for col in time_columns:
             assert self._check_is_datetime_type(df[col])
 
-        assert df[TIME_COLUMN].is_monotonic_increasing
+        assert df[TIME_COLUMN].is_sorted()
 
-        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(minutes=5)).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col(TIME_COLUMN))
+            .eq(pl.duration(minutes=5))
+            .all(),
+        ).item()
 
         # Make sure all columns except for the time columns are numeric
-        assert df[
-            [col for col in df.columns if col not in time_columns]
-        ].dtypes.unique() == np.dtype("float64")
+        numeric_cols = [col for col in df.columns if col not in time_columns]
+        assert all(df.schema[col] == pl.Float64 for col in numeric_cols)
 
     def test_get_intertie_limits_real_time_5_min_latest(self):
         with file_vcr.use_cassette(
@@ -1095,7 +1114,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (df[TIME_COLUMN].dt.date == today.date()).all()
+        assert (df[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_intertie_limits_real_time_5_min_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1124,14 +1143,17 @@ class TestIESO(BaseTestISO):
         for col in time_columns:
             assert self._check_is_datetime_type(df[col])
 
-        assert df[TIME_COLUMN].is_monotonic_increasing
+        assert df[TIME_COLUMN].is_sorted()
 
-        assert (df["Interval End"] - df[TIME_COLUMN] == pd.Timedelta(hours=1)).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col(TIME_COLUMN))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
         # Make sure all columns except for the time columns are numeric
-        assert df[
-            [col for col in df.columns if col not in time_columns]
-        ].dtypes.unique() == np.dtype("float64")
+        numeric_cols = [col for col in df.columns if col not in time_columns]
+        assert all(df.schema[col] == pl.Float64 for col in numeric_cols)
 
     def test_get_intertie_limits_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette(
@@ -1145,7 +1167,7 @@ class TestIESO(BaseTestISO):
         tomorrow = pd.Timestamp.now(
             tz=self.default_timezone,
         ).normalize() + pd.DateOffset(days=1)
-        assert df[TIME_COLUMN].iloc[0].normalize() == tomorrow
+        assert pd.Timestamp(df[0, TIME_COLUMN]).normalize() == tomorrow
 
     def test_get_intertie_limits_day_ahead_hourly_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1168,7 +1190,7 @@ class TestIESO(BaseTestISO):
 
     def _check_lmp_data(
         self,
-        data: pd.DataFrame,
+        data: pl.DataFrame,
         interval_minutes: int,
         predispatch: bool = False,
     ) -> None:
@@ -1185,22 +1207,23 @@ class TestIESO(BaseTestISO):
         if predispatch:
             column_list.insert(column_list.index("Interval End") + 1, "Publish Time")
 
-        assert data.columns.tolist() == column_list
+        assert data.columns == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
 
         assert np.allclose(
-            data["LMP"],
-            data["Energy"] + data["Loss"] + data["Congestion"],
+            data["LMP"].to_numpy(),
+            (data["Energy"] + data["Loss"] + data["Congestion"]).to_numpy(),
         )
 
-        assert (
-            data["Interval End"] - data["Interval Start"]
-            == pd.Timedelta(minutes=interval_minutes)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=interval_minutes))
+            .all(),
+        ).item()
 
-        assert data[TIME_COLUMN].is_monotonic_increasing
+        assert data[TIME_COLUMN].is_sorted()
 
         # Make sure none of the locations have :LMP or :HUB in them
         assert not data["Location"].str.contains(":LMP").any()
@@ -1214,7 +1237,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_real_time_5_min_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1246,8 +1269,8 @@ class TestIESO(BaseTestISO):
         # today or tomorrow.
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         tomorrow = today + pd.Timedelta(days=1)
-        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
-            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        assert ((data[TIME_COLUMN].dt.date() == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date() == tomorrow.date()).all()
         )
 
     def test_get_lmp_day_ahead_hourly_historical_date_range(self):
@@ -1277,11 +1300,12 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
     def test_get_lmp_predispatch_hourly_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1296,9 +1320,10 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_data(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         # Since we retrieve data by publish time, the data will go out 23 hours
         # after the end.
@@ -1312,7 +1337,7 @@ class TestIESO(BaseTestISO):
 
     def _check_lmp_virtual_zonal_data(
         self,
-        data: pd.DataFrame,
+        data: pl.DataFrame,
         interval_minutes: int,
         predispatch: bool = False,
     ) -> None:
@@ -1329,34 +1354,37 @@ class TestIESO(BaseTestISO):
         if predispatch:
             column_list.insert(column_list.index("Interval End") + 1, "Publish Time")
 
-        assert data.columns.tolist() == column_list
+        assert data.columns == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
 
         assert np.allclose(
-            data["LMP"],
-            data["Energy"] + data["Loss"] + data["Congestion"],
+            data["LMP"].to_numpy(),
+            (data["Energy"] + data["Loss"] + data["Congestion"]).to_numpy(),
         )
 
-        assert (
-            data["Interval End"] - data["Interval Start"]
-            == pd.Timedelta(minutes=interval_minutes)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=interval_minutes))
+            .all(),
+        ).item()
 
-        assert data[TIME_COLUMN].is_monotonic_increasing
+        assert data[TIME_COLUMN].is_sorted()
 
-        assert list(data["Location"].unique()) == [
-            "EAST",
-            "ESSA",
-            "NIAGARA",
-            "NORTHEAST",
-            "NORTHWEST",
-            "OTTAWA",
-            "SOUTHWEST",
-            "TORONTO",
-            "WEST",
-        ]
+        assert sorted(data["Location"].unique().to_list()) == sorted(
+            [
+                "EAST",
+                "ESSA",
+                "NIAGARA",
+                "NORTHEAST",
+                "NORTHWEST",
+                "OTTAWA",
+                "SOUTHWEST",
+                "TORONTO",
+                "WEST",
+            ],
+        )
 
     def test_get_lmp_real_time_5_min_virtual_zonal_latest(self):
         with file_vcr.use_cassette(
@@ -1368,7 +1396,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for tomorrow
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_real_time_5_min_virtual_zonal_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1402,8 +1430,8 @@ class TestIESO(BaseTestISO):
         # today or tomorrow.
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         tomorrow = today + pd.Timedelta(days=1)
-        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
-            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        assert ((data[TIME_COLUMN].dt.date() == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date() == tomorrow.date()).all()
         )
 
     def test_get_lmp_day_ahead_hourly_virtual_zonal_historical_date_range(self):
@@ -1433,13 +1461,14 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_virtual_zonal_data(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_virtual_zonal_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1454,9 +1483,10 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_virtual_zonal_data(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         assert data[TIME_COLUMN].min() == start
         # Since we retrieve data by publish time, the actual data will extend
@@ -1470,7 +1500,7 @@ class TestIESO(BaseTestISO):
 
     def _check_lmp_intertie(
         self,
-        data: pd.DataFrame,
+        data: pl.DataFrame,
         interval_minutes: int,
         predispatch: bool = False,
     ) -> None:
@@ -1493,47 +1523,52 @@ class TestIESO(BaseTestISO):
                 "Publish Time",
             )
 
-        assert data.columns.tolist() == column_list
+        assert data.columns == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
 
         assert np.allclose(
-            data["LMP"],
-            data["Energy"]
-            + data["Loss"]
-            + data["Congestion"]
-            + data["External Congestion"]
-            + data["Interchange Scheduling Limit Price"],
+            data["LMP"].to_numpy(),
+            (
+                data["Energy"]
+                + data["Loss"]
+                + data["Congestion"]
+                + data["External Congestion"]
+                + data["Interchange Scheduling Limit Price"]
+            ).to_numpy(),
         )
 
-        assert (
-            data["Interval End"] - data["Interval Start"]
-            == pd.Timedelta(minutes=interval_minutes)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=interval_minutes))
+            .all(),
+        ).item()
 
-        assert data[TIME_COLUMN].is_monotonic_increasing
+        assert data[TIME_COLUMN].is_sorted()
 
-        assert list(data["Location"].unique()) == [
-            "EC.MARITIMES_NYSI",
-            "MB.SEVENSISTERS_MBSK",
-            "MB.WHITESHELL_MBSI",
-            "MD.CALVERTCLIFF_MISI",
-            "MD.CALVERTCLIFF_NYSI",
-            "MI.LUDINGTON_MISI",
-            "MN.INTFALLS_MNSI",
-            "NY.ROSETON_NYSI",
-            "PQ.BEAUHARNOIS_PQBE",
-            "PQ.BRYSON_PQXY",
-            "PQ.KIPAWA_PQHZ",
-            "PQ.MACLAREN_PQDA",
-            "PQ.MASSON_PQHA",
-            "PQ.OUTAOUAIS_PQAT",
-            "PQ.PAUGAN_PQPC",
-            "PQ.QUYON_PQQC",
-            "PQ.RAPIDDESISLE_PQDZ",
-            "WC.PRAIRERANGES_MISI",
-        ]
+        assert sorted(data["Location"].unique().to_list()) == sorted(
+            [
+                "EC.MARITIMES_NYSI",
+                "MB.SEVENSISTERS_MBSK",
+                "MB.WHITESHELL_MBSI",
+                "MD.CALVERTCLIFF_MISI",
+                "MD.CALVERTCLIFF_NYSI",
+                "MI.LUDINGTON_MISI",
+                "MN.INTFALLS_MNSI",
+                "NY.ROSETON_NYSI",
+                "PQ.BEAUHARNOIS_PQBE",
+                "PQ.BRYSON_PQXY",
+                "PQ.KIPAWA_PQHZ",
+                "PQ.MACLAREN_PQDA",
+                "PQ.MASSON_PQHA",
+                "PQ.OUTAOUAIS_PQAT",
+                "PQ.PAUGAN_PQPC",
+                "PQ.QUYON_PQQC",
+                "PQ.RAPIDDESISLE_PQDZ",
+                "WC.PRAIRERANGES_MISI",
+            ],
+        )
 
     def test_get_lmp_real_time_5_min_intertie_latest(self):
         with file_vcr.use_cassette(
@@ -1545,7 +1580,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_real_time_5_min_intertie_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1580,8 +1615,8 @@ class TestIESO(BaseTestISO):
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         tomorrow = today + pd.Timedelta(days=1)
         print(data[TIME_COLUMN])
-        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
-            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        assert ((data[TIME_COLUMN].dt.date() == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date() == tomorrow.date()).all()
         )
 
     def test_get_lmp_day_ahead_hourly_intertie_historical_date_range(self):
@@ -1611,13 +1646,14 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_intertie(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_intertie_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1632,9 +1668,10 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_intertie(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         assert data[TIME_COLUMN].min() == start
         # Since we retrieve data by publish time, the actual data will extend
@@ -1648,7 +1685,7 @@ class TestIESO(BaseTestISO):
 
     def _check_lmp_ontario_zonal_data(
         self,
-        data: pd.DataFrame,
+        data: pl.DataFrame,
         interval_minutes: int,
         predispatch: bool = False,
     ) -> None:
@@ -1664,22 +1701,23 @@ class TestIESO(BaseTestISO):
         if predispatch:
             column_list.insert(column_list.index("Interval End") + 1, "Publish Time")
 
-        assert data.columns.tolist() == column_list
+        assert data.columns == column_list
 
         time_type = "interval"
         self._check_time_columns(data, instant_or_interval=time_type)
 
         assert np.allclose(
-            data["LMP"],
-            data["Energy"] + data["Loss"] + data["Congestion"],
+            data["LMP"].to_numpy(),
+            (data["Energy"] + data["Loss"] + data["Congestion"]).to_numpy(),
         )
 
-        assert (
-            data["Interval End"] - data["Interval Start"]
-            == pd.Timedelta(minutes=interval_minutes)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=interval_minutes))
+            .all(),
+        ).item()
 
-        assert data[TIME_COLUMN].is_monotonic_increasing
+        assert data[TIME_COLUMN].is_sorted()
         assert (data["Location"] == ONTARIO_LOCATION).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_latest(self):
@@ -1692,7 +1730,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1724,7 +1762,7 @@ class TestIESO(BaseTestISO):
             data = self.iso.get_lmp_real_time_5_min_ontario_zonal(start, end=end)
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
-        assert (data[TIME_COLUMN].dt.date == start.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == start.date()).all()
 
     def test_get_lmp_real_time_5_min_ontario_zonal_old_format(self):
         """Test with a date that uses the old XML schema (r1) with combined
@@ -1739,7 +1777,7 @@ class TestIESO(BaseTestISO):
             data = self.iso.get_lmp_real_time_5_min_ontario_zonal(start, end=end)
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=5)
-        assert (data[TIME_COLUMN].dt.date == start.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == start.date()).all()
         assert len(data) == 12  # 1 hour = 12 five-minute intervals
 
     """get_lmp_day_ahead_hourly_ontario_zonal"""
@@ -1757,8 +1795,8 @@ class TestIESO(BaseTestISO):
         # today or tomorrow.
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
         tomorrow = today + pd.Timedelta(days=1)
-        assert ((data[TIME_COLUMN].dt.date == today.date()).all()) or (
-            (data[TIME_COLUMN].dt.date == tomorrow.date()).all()
+        assert ((data[TIME_COLUMN].dt.date() == today.date()).all()) or (
+            (data[TIME_COLUMN].dt.date() == tomorrow.date()).all()
         )
 
     def test_get_lmp_day_ahead_hourly_ontario_zonal_historical_date_range(self):
@@ -1788,13 +1826,14 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data[TIME_COLUMN].dt.date == today.date()).all()
+        assert (data[TIME_COLUMN].dt.date() == today.date()).all()
 
     def test_get_lmp_predispatch_hourly_ontario_zonal_historical_date_range(self):
         start = pd.Timestamp.now(tz=self.default_timezone).normalize() - pd.DateOffset(
@@ -1809,9 +1848,10 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_ontario_zonal_data(data, interval_minutes=60, predispatch=True)
 
-        assert not data.duplicated(
-            subset=["Interval Start", "Publish Time", "Location"],
-        ).any()
+        assert (
+            data.height
+            == data.unique(subset=["Interval Start", "Publish Time", "Location"]).height
+        )
 
         assert data[TIME_COLUMN].min() == start
         # Since we retrieve data by publish time, the actual data will extend
@@ -1823,8 +1863,8 @@ class TestIESO(BaseTestISO):
 
     """get_transmission_outages_planned"""
 
-    def _check_transmission_outages_planned(self, data: pd.DataFrame) -> None:
-        assert isinstance(data, pd.DataFrame)
+    def _check_transmission_outages_planned(self, data: pl.DataFrame) -> None:
+        assert isinstance(data, pl.DataFrame)
         assert data.shape[0] >= 0
 
         assert set(data.columns) == {
@@ -1846,15 +1886,15 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(data["Interval End"])
         assert self._check_is_datetime_type(data["Publish Time"])
 
-        assert data["Outage ID"].dtype == "object"
-        assert data["Name"].dtype == "object"
-        assert data["Priority"].dtype == "object"
-        assert data["Recurrence"].dtype == "object"
-        assert data["Type"].dtype == "object"
-        assert data["Voltage"].dtype == "object"
-        assert data["Constraint"].dtype == "object"
-        assert data["Recall Time"].dtype == "object"
-        assert data["Status"].dtype == "object"
+        assert data.schema["Outage ID"] == pl.Utf8
+        assert data.schema["Name"] == pl.Utf8
+        assert data.schema["Priority"] == pl.Utf8
+        assert data.schema["Recurrence"] == pl.Utf8
+        assert data.schema["Type"] == pl.Utf8
+        assert data.schema["Voltage"] == pl.Utf8
+        assert data.schema["Constraint"] == pl.Utf8
+        assert data.schema["Recall Time"] == pl.Utf8
+        assert data.schema["Status"] == pl.Utf8
 
     def test_get_transmission_outages_planned_latest(self):
         with file_vcr.use_cassette("transmission_outages_planned_latest.yaml"):
@@ -1862,10 +1902,11 @@ class TestIESO(BaseTestISO):
 
         self._check_transmission_outages_planned(data)
 
-        assert not (
-            data.duplicated(
+        assert (
+            data.height
+            == data.unique(
                 subset=[c for c in data.columns if c != "Publish Time"],
-            ).any()
+            ).height
         )
 
     def test_get_transmission_outages_planned_historical_date_range(self):
@@ -1878,15 +1919,16 @@ class TestIESO(BaseTestISO):
 
         self._check_transmission_outages_planned(data)
 
-        assert not (
-            data.duplicated(
+        assert (
+            data.height
+            == data.unique(
                 subset=[c for c in data.columns if c != "Publish Time"],
-            ).any()
+            ).height
         )
 
     """get_in_service_transmission_limits"""
 
-    def _check_transmission_limits(self, data: pd.DataFrame) -> None:
+    def _check_transmission_limits(self, data: pl.DataFrame) -> None:
         assert set(data.columns) == {
             "Interval Start",
             "Interval End",
@@ -1903,15 +1945,16 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(data["Publish Time"])
         assert self._check_is_datetime_type(data["Issue Time"])
 
-        assert data["Facility"].dtype == "object"
-        assert data["Type"].dtype == "object"
-        assert data["Operating Limit"].dtype == "int64"
-        assert data["Comments"].dtype == "object"
+        assert data.schema["Facility"] == pl.Utf8
+        assert data.schema["Type"] == pl.Utf8
+        assert data.schema["Operating Limit"] == pl.Int64
+        assert data.schema["Comments"] == pl.Utf8
 
-        assert not (
-            data.duplicated(
+        assert (
+            data.height
+            == data.unique(
                 subset=[c for c in data.columns if c != "Publish Time"],
-            ).any()
+            ).height
         )
 
     def test_get_in_service_transmission_limits_latest(self):
@@ -1954,20 +1997,21 @@ class TestIESO(BaseTestISO):
 
     """get_load_daily_zonal_5_min"""
 
-    def _check_load_zonal(self, data: pd.DataFrame, frequency_minutes: int) -> None:
-        assert isinstance(data, pd.DataFrame)
+    def _check_load_zonal(self, data: pl.DataFrame, frequency_minutes: int) -> None:
+        assert isinstance(data, pl.DataFrame)
         assert data.shape[0] >= 0
         assert set(data.columns) == set(ZONAL_LOAD_COLUMNS)
-        assert (
-            data["Interval End"] - data["Interval Start"]
-            == pd.Timedelta(minutes=frequency_minutes)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=frequency_minutes))
+            .all(),
+        ).item()
 
         numeric_cols = [
             col for col in data.columns if col not in ["Interval Start", "Interval End"]
         ]
         for col in numeric_cols:
-            assert is_numeric_dtype(data[col])
+            assert data.schema[col] in (pl.Float64, pl.Int64, pl.Int32)
 
     def test_get_load_daily_zonal_5_min_latest(self):
         with file_vcr.use_cassette("test_get_load_zonal_5_min_latest.yaml"):
@@ -2007,13 +2051,13 @@ class TestIESO(BaseTestISO):
         assert data["Interval Start"].max() < end
         assert data["Interval End"].max() <= end + pd.Timedelta(minutes=5)
 
-        years_in_data = data["Interval Start"].dt.year.unique()
+        years_in_data = data["Interval Start"].dt.year().unique().to_list()
         if start.year != end.year:
             assert len(years_in_data) > 1
             assert start.year in years_in_data
             assert end.year in years_in_data
 
-        assert data["Interval Start"].is_monotonic_increasing
+        assert data["Interval Start"].is_sorted()
 
     """get_load_daily_zonal_hourly"""
 
@@ -2053,15 +2097,15 @@ class TestIESO(BaseTestISO):
         assert data["Interval Start"].min() == start
         assert data["Interval End"].max() == end
 
-        years_in_data = data["Interval Start"].dt.year.unique()
+        years_in_data = data["Interval Start"].dt.year().unique().to_list()
         assert 2025 in years_in_data
         assert 2026 in years_in_data
 
-        assert data["Interval Start"].is_monotonic_increasing
+        assert data["Interval Start"].is_sorted()
 
     """get_real_time_totals"""
 
-    def _check_real_time_totals(self, data: pd.DataFrame) -> None:
+    def _check_real_time_totals(self, data: pl.DataFrame) -> None:
         assert list(data.columns) == [
             "Interval Start",
             "Interval End",
@@ -2079,22 +2123,24 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(data["Interval Start"])
         assert self._check_is_datetime_type(data["Interval End"])
 
-        assert data["Total Energy"].dtype == "float64"
-        assert data["Total Loss"].dtype == "float64"
-        assert data["Market Total Load"].dtype == "float64"
-        assert data["Total Dispatchable Load Scheduled Off"].dtype == "float64"
-        assert data["Total 10S"].dtype == "float64"
-        assert data["Total 10N"].dtype == "float64"
-        assert data["Total 30R"].dtype == "float64"
-        assert data["Ontario Load"].dtype == "float64"
+        assert data.schema["Total Energy"] == pl.Float64
+        assert data.schema["Total Loss"] == pl.Float64
+        assert data.schema["Market Total Load"] == pl.Float64
+        assert data.schema["Total Dispatchable Load Scheduled Off"] == pl.Float64
+        assert data.schema["Total 10S"] == pl.Float64
+        assert data.schema["Total 10N"] == pl.Float64
+        assert data.schema["Total 30R"] == pl.Float64
+        assert data.schema["Ontario Load"] == pl.Float64
 
-        assert data["Flag"].dtype == "object"
+        assert data.schema["Flag"] == pl.Utf8
 
-        assert (
-            data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=5))
+            .all(),
+        ).item()
 
-        assert data["Interval Start"].is_monotonic_increasing
+        assert data["Interval Start"].is_sorted()
 
     def test_get_real_time_totals_latest(self):
         with file_vcr.use_cassette("test_get_real_time_totals_latest.yaml"):
@@ -2104,7 +2150,7 @@ class TestIESO(BaseTestISO):
 
         # Check that the data is for today
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data["Interval Start"].dt.date == today.date()).all()
+        assert (data["Interval Start"].dt.date() == today.date()).all()
 
     def test_get_real_time_totals_historical_date_range(self):
         start_date = self.local_start_of_today() - pd.DateOffset(days=30)
@@ -2122,17 +2168,19 @@ class TestIESO(BaseTestISO):
 
     """get_variable_generation_forecast"""
 
-    def _check_variable_generation_forecast(self, df: pd.DataFrame) -> None:
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
+    def _check_variable_generation_forecast(self, df: pl.DataFrame) -> None:
+        assert isinstance(df, pl.DataFrame)
+        assert not df.is_empty()
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
         assert self._check_is_datetime_type(df["Last Modified"])
 
-        assert (
-            df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert df.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
         expected_cols = [
             "Interval Start",
@@ -2143,7 +2191,7 @@ class TestIESO(BaseTestISO):
             "Generation Forecast",
         ]
         assert all(col in df.columns for col in expected_cols)
-        assert is_numeric_dtype(df["Generation Forecast"])
+        assert df.schema["Generation Forecast"] == pl.Float64
 
     def test_get_solar_embedded_forecast_latest(self):
         with file_vcr.use_cassette("test_get_solar_embedded_forecast_latest.yaml"):
@@ -2179,7 +2227,7 @@ class TestIESO(BaseTestISO):
 
         self._check_variable_generation_forecast(df)
 
-        assert df["Publish Time"].nunique() > 1
+        assert df["Publish Time"].n_unique() > 1
 
     def test_get_wind_embedded_forecast_latest(self):
         with file_vcr.use_cassette("test_get_wind_embedded_forecast_latest.yaml"):
@@ -2248,9 +2296,9 @@ class TestIESO(BaseTestISO):
         assert df["Interval Start"].min() == start + pd.Timedelta(days=1)
         assert df["Interval End"].max() == end + pd.Timedelta(days=2)
 
-    def _check_shadow_prices(self, df: pd.DataFrame):
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
+    def _check_shadow_prices(self, df: pl.DataFrame):
+        assert isinstance(df, pl.DataFrame)
+        assert not df.is_empty()
         assert set(df.columns) == {
             "Interval Start",
             "Interval End",
@@ -2261,7 +2309,7 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(df["Interval Start"])
         assert self._check_is_datetime_type(df["Interval End"])
         assert self._check_is_datetime_type(df["Publish Time"])
-        assert df["Shadow Price"].dtype == "float64"
+        assert df.schema["Shadow Price"] == pl.Float64
 
     def test_get_shadow_prices_real_time_5_min_latest(self):
         with file_vcr.use_cassette(
@@ -2269,8 +2317,8 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_shadow_prices_real_time_5_min("latest")
             self._check_shadow_prices(df)
-            assert df["Interval Start"].is_monotonic_increasing
-            assert df["Publish Time"].nunique() == 1
+            assert df["Interval Start"].is_sorted()
+            assert df["Publish Time"].n_unique() == 1
 
     @pytest.mark.parametrize(
         "date, end",
@@ -2304,8 +2352,8 @@ class TestIESO(BaseTestISO):
         ):
             df = self.iso.get_shadow_prices_day_ahead_hourly("latest")
             self._check_shadow_prices(df)
-            assert df["Interval Start"].is_monotonic_increasing
-            assert df["Publish Time"].nunique() == 1
+            assert df["Interval Start"].is_sorted()
+            assert df["Publish Time"].n_unique() == 1
 
     @pytest.mark.parametrize(
         "date, end",
@@ -2335,8 +2383,8 @@ class TestIESO(BaseTestISO):
 
         """get_lmp_real_time_operating_reserves"""
 
-    def _check_lmp_real_time_5_min_operating_reserves(self, data: pd.DataFrame) -> None:
-        assert data.columns.tolist() == [
+    def _check_lmp_real_time_5_min_operating_reserves(self, data: pl.DataFrame) -> None:
+        assert data.columns == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2351,7 +2399,7 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(data["Interval Start"])
         assert self._check_is_datetime_type(data["Interval End"])
 
-        assert data["Location"].dtype == "object"
+        assert data.schema["Location"] == pl.Utf8
         for col in [
             "LMP 10S",
             "Congestion 10S",
@@ -2360,14 +2408,16 @@ class TestIESO(BaseTestISO):
             "LMP 30R",
             "Congestion 30R",
         ]:
-            assert data[col].dtype == "float64"
+            assert data.schema[col] == pl.Float64
 
-        assert (
-            data["Interval End"] - data["Interval Start"] == pd.Timedelta(minutes=5)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(minutes=5))
+            .all(),
+        ).item()
 
-    def _check_lmp_day_ahead_operating_reserves(self, data: pd.DataFrame) -> None:
-        assert data.columns.tolist() == [
+    def _check_lmp_day_ahead_operating_reserves(self, data: pl.DataFrame) -> None:
+        assert data.columns == [
             "Interval Start",
             "Interval End",
             "Location",
@@ -2382,7 +2432,7 @@ class TestIESO(BaseTestISO):
         assert self._check_is_datetime_type(data["Interval Start"])
         assert self._check_is_datetime_type(data["Interval End"])
 
-        assert data["Location"].dtype == "object"
+        assert data.schema["Location"] == pl.Utf8
         for col in [
             "LMP 10S",
             "Congestion 10S",
@@ -2391,11 +2441,13 @@ class TestIESO(BaseTestISO):
             "LMP 30R",
             "Congestion 30R",
         ]:
-            assert data[col].dtype == "float64"
+            assert data.schema[col] == pl.Float64
 
-        assert (
-            data["Interval End"] - data["Interval Start"] == pd.Timedelta(hours=1)
-        ).all()
+        assert data.select(
+            (pl.col("Interval End") - pl.col("Interval Start"))
+            .eq(pl.duration(hours=1))
+            .all(),
+        ).item()
 
     def test_get_lmp_real_time_operating_reserves_latest(self):
         with file_vcr.use_cassette(
@@ -2405,7 +2457,7 @@ class TestIESO(BaseTestISO):
 
         self._check_lmp_real_time_5_min_operating_reserves(data)
         today = pd.Timestamp.now(tz=self.default_timezone).normalize()
-        assert (data["Interval Start"].dt.date == today.date()).all()
+        assert (data["Interval Start"].dt.date() == today.date()).all()
 
     def test_get_lmp_real_time_operating_reserves_historical_date_range(self):
         start_date = (pd.Timestamp.utcnow() - pd.DateOffset(days=3)).normalize()

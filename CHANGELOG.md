@@ -4,6 +4,7 @@
 
 ### Breaking Changes
 
+* **All data retrieval methods now return `polars.DataFrame` instead of `pandas.DataFrame`.** This is a full migration of the library to polars for lower memory overhead and faster processing. Method signatures still accept the same date arguments (strings, `pd.Timestamp`, datetimes). To get a pandas frame, call `.to_pandas()` on any result (requires `pyarrow`). pandas remains a dependency only for IO parse edges (HTML tables, Excel workbooks, exotic CSVs) that polars cannot read directly.
 * Removed the `save_to` parameter from data retrieval methods. Data is no longer written to CSV files as it is fetched; callers should save the returned DataFrame themselves (e.g. with `df.to_csv(...)`). The `load_folder` utility remains available for loading previously saved CSV folders.
 * Removed `MISOAPI.get_medium_term_load_forecast_hourly`. Use `get_load_forecast_mid_term_by_region` instead, which fetches the mid-term load forecast by publish date across the full horizon. Use `max_offset=1` to fetch only the first forecast day after the publish date. in [#892](https://github.com/gridstatus/gridstatus/pull/892)
 

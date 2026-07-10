@@ -2,6 +2,7 @@ from enum import StrEnum
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 from gridstatus.gs_logging import setup_gs_logger
 
@@ -428,6 +429,8 @@ def _categorize_strings(df):
     Curve columns (ending in 'Curve') and 'Block Indicators' contain structured
     data (lists or serialized arrays) that should not be categorized.
     """
+    if isinstance(df, pl.DataFrame):
+        df = df.to_pandas()
     df = df.copy()
     for col in df.select_dtypes(include=["object"]).columns:
         if col.endswith("Curve") or col == "Block Indicators":
@@ -548,7 +551,57 @@ def make_storage_resources(data):
         )[cols]
     )
 
-    return storage_resources
+    return pl.from_pandas(storage_resources)
+
+
+def _categorize_strings_polars(df: pl.DataFrame) -> pl.DataFrame:
+    """Polars version of _categorize_strings(): cast String columns to
+    Categorical, skipping curve columns and Block Indicators."""
+    return df.with_columns(
+        pl.col(c).cast(pl.Categorical)
+        for c, dtype in df.schema.items()
+        if dtype == pl.String and not (c.endswith("Curve") or c == "Block Indicators")
+    )
+
+
+def _is_present(expr: pl.Expr) -> pl.Expr:
+    """Whether a numeric curve value is present: not null and not NaN.
+
+    Matches the np.isnan() checks in the pandas curve extractors, where both
+    missing fields (null) and explicit NaN values mark an absent pair.
+    """
+    value = expr.cast(pl.Float64)
+    return value.is_not_null() & value.is_not_nan()
+
+
+def extract_curve_as_pg_string_expr(mw_cols, price_cols):
+    """Polars expression version of extract_curve_as_pg_string().
+
+    Builds PG array strings like '{{100.0,25.5},{200.0,60.0}}' from paired
+    MW/price columns without leaving polars (no pandas copy of the frame).
+    """
+    pieces = [
+        pl.when(
+            _is_present(pl.col(mw)) & _is_present(pl.col(price)),
+        ).then(
+            pl.concat_str(
+                [
+                    pl.lit("{"),
+                    pl.col(mw).round(2).cast(pl.Float64).cast(pl.String),
+                    pl.lit(","),
+                    pl.col(price).round(2).cast(pl.Float64).cast(pl.String),
+                    pl.lit("}"),
+                ],
+            ),
+        )
+        for mw, price in zip(mw_cols, price_cols)
+    ]
+    joined = pl.concat_str(pieces, separator=",", ignore_nulls=True)
+    return (
+        pl.when(joined != "")
+        .then(pl.concat_str([pl.lit("{"), joined, pl.lit("}")]))
+        .otherwise(None)
+    )
 
 
 def extract_curve_as_pg_string(df, mw_cols, price_cols):
@@ -557,6 +610,8 @@ def extract_curve_as_pg_string(df, mw_cols, price_cols):
     Returns pd.Series of strings like '{{100.0,25.5},{200.0,60.0}}'
     instead of Python list-of-lists. ~3x less peak memory.
     """
+    if isinstance(df, pl.DataFrame):
+        df = df.to_pandas()
     mw_arr = df[mw_cols].round(2).values  # (N, blocks) float64
     price_arr = df[price_cols].round(2).values
     valid = ~(np.isnan(mw_arr) | np.isnan(price_arr))
@@ -602,6 +657,8 @@ def extract_curve(
             per cell. CurveOutputFormat.PG_ARRAY_AS_STRING returns PG array strings like
             '{{mw,price},{mw,price}}' directly, using ~3x less peak memory.
     """
+    if isinstance(df, pl.DataFrame):
+        df = df.to_pandas()
     if mw_cols is None or price_cols is None:
         # Auto-detect by prefix
         mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
@@ -632,10 +689,53 @@ def extract_curve(
     return pd.Series(curves, index=df.index)
 
 
-def process_dam_gen(
-    df,
+def extract_curve_expr(mw_cols: list[str], price_cols: list[str]) -> pl.Expr:
+    """Polars expression version of extract_curve() for the LIST output
+    format.
+
+    Builds List(List(Float64)) cells like [[mw, price], ...] from paired
+    MW/price columns, with all-null rows becoming null cells.
+    """
+    pairs = [
+        pl.when(
+            _is_present(pl.col(mw)) & _is_present(pl.col(price)),
+        ).then(
+            pl.concat_arr(
+                [
+                    pl.col(mw).cast(pl.Float64).round(2),
+                    pl.col(price).cast(pl.Float64).round(2),
+                ],
+            ),
+        )
+        for mw, price in zip(mw_cols, price_cols)
+    ]
+    curve = pl.concat_list(pairs).list.drop_nulls()
+    return pl.when(curve.list.len() > 0).then(curve).cast(pl.List(pl.List(pl.Float64)))
+
+
+def _extract_curve_expr_by_prefix(
+    df: pl.DataFrame,
+    curve_name: str,
+    mw_suffix: str = "-MW",
+    price_suffix: str = "-Price",
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.Expr | None:
+    """Prefix-detected polars version of extract_curve() supporting both
+    output formats. Returns None when the frame has no matching curve columns
+    (extract_curve() returned np.nan in that case)."""
+    mw_cols = [x for x in df.columns if x.startswith(curve_name + mw_suffix)]
+    price_cols = [x for x in df.columns if x.startswith(curve_name + price_suffix)]
+    if len(mw_cols) == 0 or len(price_cols) == 0:
+        return None
+    if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING:
+        return extract_curve_as_pg_string_expr(mw_cols, price_cols)
+    return extract_curve_expr(mw_cols, price_cols)
+
+
+def process_dam_gen(
+    df: pl.DataFrame,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+) -> pl.DataFrame:
     time_cols = [
         "Interval Start",
         "Interval End",
@@ -681,21 +781,29 @@ def process_dam_gen(
 
     curve = "QSE submitted Curve"
 
-    df[curve] = extract_curve(df, "QSE submitted Curve", output_format=output_format)
+    curve_expr = _extract_curve_expr_by_prefix(
+        df,
+        "QSE submitted Curve",
+        output_format=output_format,
+    )
+    if curve_expr is None:
+        curve_expr = pl.lit(None, dtype=pl.Float64)
+    df = df.with_columns(curve_expr.alias(curve))
 
     all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
 
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+    df = df.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias(col)
+        for col in all_cols
+        if col not in df.columns
+    )
 
-    df = df[time_cols + all_cols]
+    df = df.select(time_cols + all_cols)
 
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
-def process_dam_load(df):
+def process_dam_load(df: pl.DataFrame) -> pl.DataFrame:
     time_cols = [
         "Time",
         "Interval Start",
@@ -727,28 +835,29 @@ def process_dam_load(df):
 
     all_cols = resource_cols + telemetry_cols + as_cols
 
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+    df = df.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias(col)
+        for col in all_cols
+        if col not in df.columns
+    )
 
-    df = df[time_cols + all_cols]
+    df = df.select(time_cols + all_cols)
 
     # rename for consistency
     # with gen columns
     df = df.rename(
-        columns={
+        {
             "Load Resource Name": "Resource Name",
         },
     )
 
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
 def process_dam_esr(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.DataFrame:
     time_cols = [
         "Interval Start",
         "Interval End",
@@ -794,45 +903,52 @@ def process_dam_esr(
 
     curve = "QSE submitted Curve"
 
-    df[curve] = extract_curve(df, "QSE submitted Curve", output_format=output_format)
+    curve_expr = _extract_curve_expr_by_prefix(
+        df,
+        "QSE submitted Curve",
+        output_format=output_format,
+    )
+    if curve_expr is None:
+        curve_expr = pl.lit(None, dtype=pl.Float64)
+    df = df.with_columns(curve_expr.alias(curve))
 
     all_cols = resource_cols + telemetry_cols + energy_award_cols + as_cols + [curve]
 
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
+    df = df.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias(col)
+        for col in all_cols
+        if col not in df.columns
+    )
 
-    df = df[time_cols + all_cols]
+    df = df.select(time_cols + all_cols)
 
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
 def process_dam_esr_as_offers(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.DataFrame:
     return process_as_offer_curves(df, output_format=output_format)
 
 
 def process_dam_or_gen_load_as_offers(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.DataFrame:
     if "QSE" not in df.columns:
         # after Interval End
-        index = df.columns.tolist().index("Interval End") + 1
-        df.insert(index, "QSE", np.nan)
+        df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias("QSE"))
 
     if "DME" not in df.columns:
         # after QSE
-        index = df.columns.tolist().index("QSE") + 1
-        df.insert(index, "DME", np.nan)
+        df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias("DME"))
 
     df = df.rename(
-        columns={
-            "Load Resource Name": "Resource Name",
-            "Generation Resource Name": "Resource Name",
+        {
+            old: "Resource Name"
+            for old in ("Load Resource Name", "Generation Resource Name")
+            if old in df.columns
         },
     )
 
@@ -840,9 +956,9 @@ def process_dam_or_gen_load_as_offers(
 
 
 def process_as_offer_curves(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.DataFrame:
     block_columns = [col for col in df.columns if col.startswith("BLOCK INDICATOR")]
     block_count = len(block_columns)
 
@@ -889,25 +1005,48 @@ def process_as_offer_curves(
 
         ancillary_services_column_lists.append(service_columns)
 
+    group_keys = ["Interval Start", "Interval End", "Resource Name", "QSE", "DME"]
+
+    n_blocks_expr = (
+        pl.sum_horizontal(pl.col(c).is_not_null() for c in block_columns)
+        if block_columns
+        else pl.lit(0)
+    )
+    has_price_exprs = []
+    for index, column_list in enumerate(ancillary_services_column_lists):
+        price_columns = [c for c in column_list if c.startswith("PRICE")]
+        has_price_exprs.append(
+            (
+                pl.any_horizontal(pl.col(c).is_not_null() for c in price_columns)
+                if price_columns
+                else pl.lit(True)
+            ).alias(f"__has_price_{index}"),
+        )
+
+    df = df.with_columns(n_blocks_expr.alias("__n_blocks"), *has_price_exprs)
+    # Sort by the group keys with nulls last so group iteration order matches
+    # the old sorted pandas groupby; maintain_order keeps the original row
+    # order within groups.
+    df = df.sort(group_keys, nulls_last=True, maintain_order=True)
+
     constructed_data = []
 
     # Group by each interval and resource name because each resource can have multiple
     # rows at one interval. These rows represent different AS products.
-    for (interval_start, interval_end, resource_name, qse, dme), group in df.groupby(
-        # We must use dropna=False because QSE and DME may be all null
-        ["Interval Start", "Interval End", "Resource Name", "QSE", "DME"],
-        dropna=False,
-    ):
-        # Find the block list with the most non-null elements which represents the
-        # number of blocks where the resource made an offer
-        block_lists = (
-            group[block_columns].dropna(axis="columns", how="all").values.tolist()
-        )
+    # We must use dropna=False because QSE and DME may be all null (polars
+    # group_by keeps null keys by default).
+    for key, group in df.group_by(group_keys, maintain_order=True):
+        interval_start, interval_end, resource_name, qse, dme = key
 
-        max_block_list = max(
-            block_lists,
-            key=lambda x: len([elem for elem in x if not pd.isnull(elem)]),
-        )
+        # Find the block list with the most non-null elements which represents the
+        # number of blocks where the resource made an offer. Block columns that
+        # are all null within the group are dropped from the list.
+        block_row_idx = int(group["__n_blocks"].arg_max())
+        max_block_list = [
+            group[c][block_row_idx]
+            for c in block_columns
+            if group[c].null_count() < group.height
+        ]
 
         group_data = {
             "Interval Start": interval_start,
@@ -915,22 +1054,16 @@ def process_as_offer_curves(
             "QSE": qse,
             "DME": dme,
             "Resource Name": resource_name,
-            "Multi-Hour Block Flag": group["Multi-Hour Block Flag"].iloc[0],
+            "Multi-Hour Block Flag": group["Multi-Hour Block Flag"][0],
             "Block Indicators": max_block_list,
         }
 
         # Iterate through each ancillary service and extract the offer curve data
         for index, column_list in enumerate(ancillary_services_column_lists):
             # Drop rows where all prices are NaN. This should leave us with only 1 row
-            price_columns = [c for c in column_list if c.startswith("PRICE")]
+            subset = group.filter(pl.col(f"__has_price_{index}"))
 
-            subset = group[column_list + block_columns].dropna(
-                axis="rows",
-                how="all",
-                subset=price_columns,
-            )
-
-            if len(subset) > 1:
+            if subset.height > 1:
                 # We've identified an issue where
                 # there are sometimes multiple offers for the same service at the same
                 # interval. In theory this should never happen. The QUANTITY MW are
@@ -938,34 +1071,48 @@ def process_as_offer_curves(
                 # quantity. This is a temporary fix until we can figure out why this
                 # is happening.
                 logger.info(
-                    f"Found {len(subset)} rows for {resource_name}across columns "
+                    f"Found {subset.height} rows for {resource_name}across columns "
                     f"{column_list}. Taking the row with the lowest quantity",
                 )
-                subset = subset.sort_values("QUANTITY MW1").head(1)
+                subset = subset.sort("QUANTITY MW1", nulls_last=True).head(1)
 
-            # Only keep the number of block indicators that are non-null
-            keep_block_count = subset[block_columns].notna().sum().sum()
-            subset = subset.drop(columns=block_columns).loc[
-                :,
-                column_list[: keep_block_count * 2],
-            ]
-
-            if subset.empty:
+            if subset.height == 0:
                 curve = None
             else:
-                subset_values = subset.replace({np.nan: 0}).values[0]
-
-                if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING:
-                    pairs = []
-                    for i in range(0, len(subset_values), 2):
-                        pairs.append(
-                            f"{{{subset_values[i]},{subset_values[i + 1]}}}",
-                        )
-                    curve = "{" + ",".join(pairs) + "}"
+                # Only keep the number of block indicators that are non-null
+                if block_columns:
+                    block_values = subset.select(block_columns).row(0)
+                    keep_block_count = sum(
+                        1 for v in block_values if v is not None and v == v
+                    )
                 else:
-                    curve = []
-                    for i in range(0, len(subset_values), 2):
-                        curve.append(subset_values[i : i + 2].tolist())
+                    keep_block_count = 0
+
+                kept_columns = column_list[: keep_block_count * 2]
+
+                if not kept_columns:
+                    curve = None
+                else:
+                    subset_values = np.asarray(
+                        [
+                            0
+                            if v is None or (isinstance(v, float) and np.isnan(v))
+                            else v
+                            for v in subset.select(kept_columns).row(0)
+                        ],
+                    )
+
+                    if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING:
+                        pairs = []
+                        for i in range(0, len(subset_values), 2):
+                            pairs.append(
+                                f"{{{subset_values[i]},{subset_values[i + 1]}}}",
+                            )
+                        curve = "{" + ",".join(pairs) + "}"
+                    else:
+                        curve = []
+                        for i in range(0, len(subset_values), 2):
+                            curve.append(subset_values[i : i + 2].tolist())
 
             curve_name = f"{present_ancillary_services[index]} Offer Curve"
             group_data[curve_name] = curve
@@ -975,7 +1122,37 @@ def process_as_offer_curves(
 
         constructed_data.append(group_data)
 
-    df = pd.DataFrame(constructed_data).replace({None: pd.NA})[
+    non_null_block_dtypes = [
+        df.schema[c] for c in block_columns if df[c].null_count() < df.height
+    ]
+    block_dtype = non_null_block_dtypes[0] if non_null_block_dtypes else pl.Null
+
+    curve_dtype = (
+        pl.String
+        if output_format == CurveOutputFormat.PG_ARRAY_AS_STRING
+        else pl.List(pl.List(pl.Float64))
+    )
+
+    # The old pandas implementation rebuilt this frame from the group keys,
+    # which pandas infers as nanosecond datetimes; pin ns to keep the output
+    # dtype identical.
+    schema = {
+        "Interval Start": pl.Datetime("ns", df.schema["Interval Start"].time_zone),
+        "Interval End": pl.Datetime("ns", df.schema["Interval End"].time_zone),
+        "QSE": df.schema["QSE"],
+        "DME": df.schema["DME"],
+        "Resource Name": df.schema["Resource Name"],
+        "Multi-Hour Block Flag": df.schema["Multi-Hour Block Flag"],
+        "Block Indicators": pl.List(block_dtype),
+    }
+    for service in all_ancillary_services:
+        schema[f"{service} Offer Curve"] = (
+            curve_dtype if service in present_ancillary_services else pl.Null
+        )
+
+    out = pl.from_dicts(constructed_data, schema=schema)
+
+    out = out.select(
         [
             "Interval Start",
             "Interval End",
@@ -985,262 +1162,256 @@ def process_as_offer_curves(
             "Multi-Hour Block Flag",
             "Block Indicators",
         ]
-        + as_offer_curve_column_names
-    ]
-
-    df = _categorize_strings(df)
-    return df
-
-
-def process_dam_energy_only_offer_awards(df):
-    df = df.rename(
-        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+        + as_offer_curve_column_names,
     )
 
-    df = df[DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS].sort_values(
+    return _categorize_strings_polars(out)
+
+
+def process_dam_energy_only_offer_awards(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
+
+    df = df.select(DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS).sort(
         ["Interval Start", "Settlement Point Name"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
 def process_dam_energy_only_offers(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
-    df = df.rename(
-        columns={
-            "Settlement Point": "Settlement Point Name",
-            "QSE Name": "QSE",
-            "Block/Curve indicator": "Block or Curve indicator",
-        },
-    )
+) -> pl.DataFrame:
+    rename_map = {
+        "Settlement Point": "Settlement Point Name",
+        "QSE Name": "QSE",
+        "Block/Curve indicator": "Block or Curve indicator",
+    }
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
 
     curve_name = "Energy Only Offer"
 
-    df[curve_name + " Curve"] = extract_curve(
+    curve_expr = _extract_curve_expr_by_prefix(
         df,
         curve_name,
         mw_suffix=" MW",
         price_suffix=" Price",
         output_format=output_format,
     )
+    if curve_expr is None:
+        curve_expr = pl.lit(None, dtype=pl.Float64)
+    df = df.with_columns(curve_expr.alias(curve_name + " Curve"))
 
-    df = df[DAM_ENERGY_ONLY_OFFERS_COLUMNS].sort_values(
+    df = df.select(DAM_ENERGY_ONLY_OFFERS_COLUMNS).sort(
         ["Interval Start", "Settlement Point Name"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
-def process_dam_ptp_obligation_bid_awards(df):
-    df = df.rename(columns={"QSE Name": "QSE"})
+def process_dam_ptp_obligation_bid_awards(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {"QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
 
-    df = df[DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS].sort_values(
+    df = df.select(DAM_PTP_OBLIGATION_BID_AWARDS_COLUMNS).sort(
         ["Interval Start", "QSE"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
-def process_dam_ptp_obligation_bids(df):
-    df = df.rename(columns={"QSE Name": "QSE"})
+def process_dam_ptp_obligation_bids(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {"QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
 
-    df = df[DAM_PTP_OBLIGATION_BIDS_COLUMNS].sort_values(["Interval Start", "QSE"])
-    df = _categorize_strings(df)
-    return df
-
-
-def process_dam_energy_bid_awards(df):
-    df = df.rename(
-        columns={"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"},
+    df = df.select(DAM_PTP_OBLIGATION_BIDS_COLUMNS).sort(
+        ["Interval Start", "QSE"],
+        nulls_last=True,
+        maintain_order=True,
     )
+    return _categorize_strings_polars(df)
 
-    df = df[DAM_ENERGY_BID_AWARDS_COLUMNS].sort_values(
+
+def process_dam_energy_bid_awards(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {"Settlement Point": "Settlement Point Name", "QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
+
+    df = df.select(DAM_ENERGY_BID_AWARDS_COLUMNS).sort(
         ["Interval Start", "Settlement Point Name"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
 def process_dam_energy_bids(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
-    df = df.rename(
-        columns={
-            "Settlement Point": "Settlement Point Name",
-            "QSE Name": "QSE",
-            "Block/Curve indicator": "Block or Curve indicator",
-        },
-    )
+) -> pl.DataFrame:
+    rename_map = {
+        "Settlement Point": "Settlement Point Name",
+        "QSE Name": "QSE",
+        "Block/Curve indicator": "Block or Curve indicator",
+    }
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
 
     curve_name = "Energy Only Bid"
 
-    df[curve_name + " Curve"] = extract_curve(
+    curve_expr = _extract_curve_expr_by_prefix(
         df,
         curve_name,
         mw_suffix=" MW",
         price_suffix=" Price",
         output_format=output_format,
     )
+    if curve_expr is None:
+        curve_expr = pl.lit(None, dtype=pl.Float64)
+    df = df.with_columns(curve_expr.alias(curve_name + " Curve"))
 
-    df = df[DAM_ENERGY_BIDS_COLUMNS].sort_values(
+    df = df.select(DAM_ENERGY_BIDS_COLUMNS).sort(
         ["Interval Start", "Settlement Point Name"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
-def process_dam_ptp_obligation_option(df):
-    df = df.rename(columns={"QSE Name": "QSE"})
+def process_dam_ptp_obligation_option(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {"QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
 
-    df = df[DAM_PTP_OBLIGATION_OPTION_COLUMNS].sort_values(["Interval Start", "QSE"])
-    df = _categorize_strings(df)
-    return df
-
-
-def process_dam_ptp_obligation_option_awards(df):
-    df = df.rename(columns={"QSE Name": "QSE"})
-
-    df = df[DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS].sort_values(
+    df = df.select(DAM_PTP_OBLIGATION_OPTION_COLUMNS).sort(
         ["Interval Start", "QSE"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
-def process_dam_as_only_awards(df):
-    df = df.rename(
-        columns={
-            "QSE Name": "QSE",
-            "Quantity1_Award": "Quantity1 Award",
-            "Quantity2_Award": "Quantity2 Award",
-            "Quantity3_Award": "Quantity3 Award",
-            "Quantity4_Award": "Quantity4 Award",
-            "Quantity5_Award": "Quantity5 Award",
-            "Total_Award": "Total Award",
-        },
+def process_dam_ptp_obligation_option_awards(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {"QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
+
+    df = df.select(DAM_PTP_OBLIGATION_OPTION_AWARDS_COLUMNS).sort(
+        ["Interval Start", "QSE"],
+        nulls_last=True,
+        maintain_order=True,
+    )
+    return _categorize_strings_polars(df)
+
+
+def process_dam_as_only_awards(df: pl.DataFrame) -> pl.DataFrame:
+    rename_map = {
+        "QSE Name": "QSE",
+        "Quantity1_Award": "Quantity1 Award",
+        "Quantity2_Award": "Quantity2 Award",
+        "Quantity3_Award": "Quantity3 Award",
+        "Quantity4_Award": "Quantity4 Award",
+        "Quantity5_Award": "Quantity5 Award",
+        "Total_Award": "Total Award",
+    }
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
+
+    df = df.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias(col)
+        for col in DAM_AS_ONLY_AWARDS_COLUMNS
+        if col not in df.columns
     )
 
-    for col in DAM_AS_ONLY_AWARDS_COLUMNS:
-        if col not in df.columns:
-            df[col] = np.nan
-
-    df = df[DAM_AS_ONLY_AWARDS_COLUMNS].sort_values(
+    df = df.select(DAM_AS_ONLY_AWARDS_COLUMNS).sort(
         ["Interval Start", "QSE", "AS Type", "Offer ID"],
+        nulls_last=True,
+        maintain_order=True,
     )
-    df = _categorize_strings(df)
-    return df
+    return _categorize_strings_polars(df)
 
 
 def process_dam_as_only_offers(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
-    df = df.rename(columns={"QSE Name": "QSE"})
+) -> pl.DataFrame:
+    rename_map = {"QSE Name": "QSE"}
+    df = df.rename({k: v for k, v in rename_map.items() if k in df.columns})
 
-    df["Offer Curve"] = extract_curve(
+    curve_expr = _extract_curve_expr_by_prefix(
         df,
         "AS Only Offer",
         mw_suffix=" MW",
         price_suffix=" Price",
         output_format=output_format,
     )
+    if curve_expr is None:
+        curve_expr = pl.lit(None, dtype=pl.Float64)
+    df = df.with_columns(curve_expr.alias("Offer Curve"))
 
-    for col in DAM_AS_ONLY_OFFERS_COLUMNS:
-        if col not in df.columns:
-            df[col] = np.nan
-
-    df = df[DAM_AS_ONLY_OFFERS_COLUMNS].sort_values(
-        ["Interval Start", "QSE", "AS Type", "Offer ID"],
+    df = df.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias(col)
+        for col in DAM_AS_ONLY_OFFERS_COLUMNS
+        if col not in df.columns
     )
-    df = _categorize_strings(df)
-    return df
+
+    df = df.select(DAM_AS_ONLY_OFFERS_COLUMNS).sort(
+        ["Interval Start", "QSE", "AS Type", "Offer ID"],
+        nulls_last=True,
+        maintain_order=True,
+    )
+    return _categorize_strings_polars(df)
+
+
+def _finalize_sced_frame(
+    df: pl.DataFrame,
+    curve_specs: list[tuple[str, str]],
+    rename_map: dict[str, str],
+    output_columns: list[str],
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+) -> pl.DataFrame:
+    """Shared tail for the SCED process functions: extract offer curves,
+    apply renames, null-fill missing columns, select the final column set,
+    and categorize strings."""
+    curve_exprs = []
+    for curve_name, out_col in curve_specs:
+        expr = _extract_curve_expr_by_prefix(
+            df,
+            curve_name,
+            output_format=output_format,
+        )
+        if expr is None:
+            expr = pl.lit(None, dtype=pl.Float64)
+        curve_exprs.append(expr.alias(out_col))
+    if curve_exprs:
+        df = df.with_columns(curve_exprs)
+
+    df = df.rename(
+        {old: new for old, new in rename_map.items() if old in df.columns},
+    )
+    df = df.with_columns(
+        pl.lit(None, dtype=pl.Float64).alias(col)
+        for col in output_columns
+        if col not in df.columns
+    )
+    return _categorize_strings_polars(df.select(output_columns))
 
 
 def process_sced_gen(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.DataFrame:
     # Strip whitespace from column names
-    df.columns = df.columns.str.strip()
-    time_cols = [
-        "SCED Timestamp",
-    ]
-
-    resource_cols = ["QSE", "DME", "Resource Name", "Resource Type"]
-
-    telemetry_cols = [
-        "Telemetered Resource Status",
-        "Output Schedule",
-        "HSL",
-        "HASL",
-        "HDL",
-        "LSL",
-        "LASL",
-        "LDL",
-        "Base Point",
-        "Telemetered Net Output",
-        "Ramp Rate Up",
-        "Ramp Rate Down",
-    ]
-
-    as_cols = [
-        "Ancillary Service REGUP",
-        "Ancillary Service REGDN",
-        "Ancillary Service RRS",
-        "Ancillary Service RRSFFR",
-        "Ancillary Service NSRS",
-        "Ancillary Service ECRS",
-        "AS Capability REGUP",
-        "AS Capability REGDN",
-        "AS Capability ECRS",
-        "AS Capability NSPIN",
-        "AS Capability RRSPF",
-        "AS Capability RRSFF",
-        "AS Awards NSPIN",
-        "AS Awards RRSFFR",
-        "AS Awards RRSPFR",
-        "AS Awards RRSUFR",
-        "AS Awards ECRS",
-        "AS Awards REGUP",
-        "AS Awards REGDN",
-    ]
-
-    tpo_cols = [
-        "Start Up Cold Offer",
-        "Start Up Hot Offer",
-        "Start Up Inter Offer",
-        "Min Gen Cost",
-        "SCED TPO Offer Curve",
-    ]
-
-    sced1_offer_col = "SCED1 Offer Curve"
-    sced2_offer_col = "SCED2 Offer Curve"
-
-    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve", output_format=output_format)
-    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve", output_format=output_format)
-    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO", output_format=output_format)
-
-    all_cols = (
-        resource_cols
-        + telemetry_cols
-        + as_cols
-        + [sced1_offer_col, sced2_offer_col]
-        + tpo_cols
-    )
-
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
-
-    df = df[time_cols + all_cols]
-
-    # standardized to same naming as load
-    # clean up column names
-    df = df.rename(
-        columns={
+    df = df.rename({c: c.strip() for c in df.columns if c != c.strip()})
+    return _finalize_sced_frame(
+        df,
+        curve_specs=[
+            ("SCED1 Curve", "SCED1 Offer Curve"),
+            ("SCED2 Curve", "SCED2 Offer Curve"),
+            ("Submitted TPO", "SCED TPO Offer Curve"),
+        ],
+        # standardized to same naming as load
+        # clean up column names
+        rename_map={
             "Ancillary Service RRS": "AS Responsibility for RRS",
             "Ancillary Service RRSFFR": "AS Responsibility for RRSFFR",
             "Ancillary Service NSRS": "AS Responsibility for NonSpin",
@@ -1255,79 +1426,19 @@ def process_sced_gen(
             "AS Awards REGDN": "AS Awards RegDown",
             "AS Awards NSPIN": "AS Awards NonSpin",
         },
-    )
-
-    df = _categorize_strings(df[SCED_GEN_RESOURCE_COLUMNS])
-    return df
-
-
-def process_sced_load(
-    df,
-    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
-    time_cols = [
-        "SCED Timestamp",
-    ]
-
-    resource_cols = ["QSE", "DME", "Resource Name"]
-
-    telemetry_cols = [
-        "Telemetered Resource Status",
-        "Max Power Consumption",
-        "Low Power Consumption",
-        "Real Power Consumption",
-        "HASL",
-        "HDL",
-        "LASL",
-        "LDL",
-        "Base Point",
-        "Self Provided RRSFFR",
-        "Self Provided RRSUFR",
-        "Self Provided ECRS",
-        "Ramp Rate Up",
-        "Ramp Rate Down",
-    ]
-
-    as_cols = [
-        "AS Responsibility for RRS",
-        "AS Responsibility for RRSFFR",
-        "AS Responsibility for NonSpin",
-        "AS Responsibility for RegUp",
-        "AS Responsibility for RegDown",
-        "AS Responsibility for ECRS",
-        "AS Awards NSPIN",
-        "AS Awards RRSFFR",
-        "AS Awards RRSPFR",
-        "AS Awards RRSUFR",
-        "AS Awards ECRS",
-        "AS Awards REGUP",
-        "AS Awards REGDN",
-        "AS Capability NSPIN",
-        "AS Capability ECRS",
-        "AS Capability REGUP",
-        "AS Capability REGDN",
-        "AS Capability RRSPF",
-        "AS Capability RRSFF",
-        "AS Capability RRSUF",
-    ]
-
-    bid_curve_col = "SCED Bid to Buy Curve"
-
-    df[bid_curve_col] = extract_curve(
-        df,
-        "SCED Bid to Buy Curve",
+        output_columns=SCED_GEN_RESOURCE_COLUMNS,
         output_format=output_format,
     )
 
-    all_cols = resource_cols + telemetry_cols + as_cols + [bid_curve_col]
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
 
-    df = df[time_cols + all_cols]
-
-    df = df.rename(
-        columns={
+def process_sced_load(
+    df: pl.DataFrame,
+    output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
+) -> pl.DataFrame:
+    return _finalize_sced_frame(
+        df,
+        curve_specs=[("SCED Bid to Buy Curve", "SCED Bid to Buy Curve")],
+        rename_map={
             # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
             "AS Capability REGUP": "AS Capability RegUp",
             "AS Capability REGDN": "AS Capability RegDown",
@@ -1336,96 +1447,24 @@ def process_sced_load(
             "AS Awards REGDN": "AS Awards RegDown",
             "AS Awards NSPIN": "AS Awards NonSpin",
         },
+        output_columns=SCED_LOAD_RESOURCE_COLUMNS,
+        output_format=output_format,
     )
-
-    df = _categorize_strings(df[SCED_LOAD_RESOURCE_COLUMNS])
-    return df
 
 
 def process_sced_esr(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
-    time_cols = [
-        "SCED Timestamp",
-    ]
-
-    resource_cols = ["QSE", "DME", "Resource Name", "Resource Type"]
-
-    telemetry_cols = [
-        "Output Schedule",
-        "HSL",
-        "HDL",
-        "LSL",
-        "LDL",
-        "Telemetered Resource Status",
-        "Base Point",
-        "Telemetered Net Output",
-        "Ramp Rate Up",
-        "Ramp Rate Down",
-    ]
-
-    as_cols = [
-        "AS Capability REGUP",
-        "AS Capability REGDN",
-        "AS Capability ECRS",
-        "AS Capability NSPIN",
-        "AS Capability RRSPF",
-        "AS Capability RRSFF",
-        "AS Awards NSPIN",
-        "AS Awards RRSFFR",
-        "AS Awards RRSPFR",
-        "AS Awards RRSUFR",
-        "AS Awards ECRS",
-        "AS Awards REGUP",
-        "AS Awards REGDN",
-    ]
-
+) -> pl.DataFrame:
     # SOC columns added in Feb 2026 ESR data
-    soc_cols = [
-        "State of Charge",
-        "Minimum SOC",
-        "Maximum SOC",
-    ]
-
-    tpo_cols = [
-        "Start Up Cold Offer",
-        "Start Up Hot Offer",
-        "Start Up Inter Offer",
-        "Min Gen Cost",
-        "SCED TPO Offer Curve",
-    ]
-
-    other_cols = [
-        "Bid_Type",
-        "Proxy Extension",
-    ]
-
-    sced1_offer_col = "SCED1 Offer Curve"
-    sced2_offer_col = "SCED2 Offer Curve"
-
-    df[sced1_offer_col] = extract_curve(df, "SCED1 Curve", output_format=output_format)
-    df[sced2_offer_col] = extract_curve(df, "SCED2 Curve", output_format=output_format)
-    df[tpo_cols[-1]] = extract_curve(df, "Submitted TPO", output_format=output_format)
-
-    all_cols = (
-        resource_cols
-        + [sced1_offer_col, sced2_offer_col]
-        + telemetry_cols
-        + as_cols
-        + soc_cols
-        + other_cols
-        + tpo_cols
-    )
-
-    for col in all_cols:
-        if col not in df.columns:
-            df[col] = np.nan
-
-    df = df[time_cols + all_cols]
-
-    df = df.rename(
-        columns={
+    return _finalize_sced_frame(
+        df,
+        curve_specs=[
+            ("SCED1 Curve", "SCED1 Offer Curve"),
+            ("SCED2 Curve", "SCED2 Offer Curve"),
+            ("Submitted TPO", "SCED TPO Offer Curve"),
+        ],
+        rename_map={
             # Rename REGUP -> RegUp, REGDN -> RegDown, NSPIN -> NonSpin
             "AS Capability REGUP": "AS Capability RegUp",
             "AS Capability REGDN": "AS Capability RegDown",
@@ -1440,10 +1479,9 @@ def process_sced_esr(
             "Minimum SOC": "Min SOC",
             "Maximum SOC": "Max SOC",
         },
+        output_columns=SCED_ESR_COLUMNS,
+        output_format=output_format,
     )
-
-    df = _categorize_strings(df[SCED_ESR_COLUMNS])
-    return df
 
 
 def process_sced_as_offer_updates_in_op_hour(df):
@@ -1454,14 +1492,15 @@ def process_sced_as_offer_updates_in_op_hour(df):
 
     Expects df to already have Interval Start/End from parse_doc().
     """
-    df = _categorize_strings(df[SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS])
-    return df
+    return _categorize_strings_polars(
+        df.select(SCED_AS_OFFER_UPDATES_IN_OP_HOUR_COLUMNS),
+    )
 
 
 def process_sced_resource_as_offers(
-    df,
+    df: pl.DataFrame,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-):
+) -> pl.DataFrame:
     """Process SCED Resource AS Offers data.
 
     This data contains ancillary service offer curves at the SCED timestamp level.
@@ -1475,7 +1514,7 @@ def process_sced_resource_as_offers(
 
     Args:
         df: DataFrame with raw SCED resource AS offers data.
-        output_format: "list" (default) returns Python list-of-lists per cell.
+        output_format: "list" (default) returns list-of-lists per cell.
             "pg_array_as_string" returns PG array strings like '{{mw,price},{mw,price}}'
             directly, using ~3x less peak memory.
     """
@@ -1493,13 +1532,13 @@ def process_sced_resource_as_offers(
         "_NSPIN": "_NS",
     }
 
-    def _rename_suffix(col):
+    def _rename_suffix(col: str) -> str:
         for new_suffix, old_suffix in new_to_old_suffix.items():
             if col.endswith(new_suffix):
                 return col[: -len(new_suffix)] + old_suffix
         return col
 
-    df = df.rename(columns=_rename_suffix)
+    df = df.rename({c: _rename_suffix(c) for c in df.columns})
 
     # First create a curve_type column with the logic:
     # regulation down : values only in _DRS columns and not in other columns
@@ -1509,23 +1548,35 @@ def process_sced_resource_as_offers(
     drs_cols = [c for c in price_cols if c.endswith("_DRS")]
     ns_cols = [c for c in price_cols if c.endswith("_NS")]
     non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
-
-    # Use fillna(0) so that NaN values are treated as "no value" (same as zero).
-    # ERCOT corrected files (April 4, 2026+) use NaN instead of zero for empty
-    # AS Sub-Type Offer Prices (see ERCOT notice M-B040326-01).
-    has_drs = (df[drs_cols].fillna(0) != 0).any(axis=1)
-    has_non_drs = (df[non_drs_cols].fillna(0) != 0).any(axis=1)
-    has_ns = (df[ns_cols].fillna(0) != 0).any(axis=1)
-
     non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
-    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols].fillna(0) != 0).any(axis=1)
 
-    df["Curve Type"] = "unknown"
-    df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
-    df.loc[has_non_drs & has_non_drs_ns_ecrs, "Curve Type"] = "Online"
-    df.loc[has_ns & ~has_drs & ~has_non_drs_ns_ecrs, "Curve Type"] = "Offline"
+    def _has_value(cols: list[str]) -> pl.Expr:
+        # Treat null and NaN values as "no value" (same as zero). ERCOT
+        # corrected files (April 4, 2026+) use NaN instead of zero for empty
+        # AS Sub-Type Offer Prices (see ERCOT notice M-B040326-01). Unlike
+        # pandas fillna(0), polars fill_null() does not fill NaN, so both are
+        # filled explicitly.
+        return pl.any_horizontal(
+            pl.col(c).cast(pl.Float64).fill_nan(0).fill_null(0) != 0 for c in cols
+        )
 
-    if any(df["Curve Type"] == "unknown"):
+    has_drs = _has_value(drs_cols)
+    has_non_drs = _has_value(non_drs_cols)
+    has_ns = _has_value(ns_cols)
+    has_non_drs_ns_ecrs = _has_value(non_drs_ns_ecrs_cols)
+
+    df = df.with_columns(
+        pl.when(has_non_drs & has_non_drs_ns_ecrs)
+        .then(pl.lit("Online"))
+        .when(has_ns & ~has_drs & ~has_non_drs_ns_ecrs)
+        .then(pl.lit("Offline"))
+        .when(has_drs & ~has_non_drs)
+        .then(pl.lit("Regulation Down"))
+        .otherwise(pl.lit("unknown"))
+        .alias("Curve Type"),
+    )
+
+    if df["Curve Type"].eq("unknown").any():
         raise ValueError("Unknown curve type found")
 
     # Map source column suffixes to output curve names
@@ -1550,33 +1601,29 @@ def process_sced_resource_as_offers(
     mw_cols = [f"QUANTITY_MW{i}" for i in range(1, block_count + 1)]
 
     use_pg = output_format == CurveOutputFormat.PG_ARRAY_AS_STRING
-    extract_fn = extract_curve_as_pg_string if use_pg else extract_curve
+    null_dtype = pl.String if use_pg else pl.List(pl.List(pl.Float64))
 
     # Extract curves for each AS type
+    curve_exprs = []
     for as_suffix, curve_col in as_type_mapping.items():
         as_price_cols = [f"PRICE{i}_{as_suffix}" for i in range(1, block_count + 1)]
         as_price_cols = [c for c in as_price_cols if c in df.columns]
 
         if not as_price_cols:
-            df[curve_col] = None
+            curve_exprs.append(pl.lit(None, dtype=null_dtype).alias(curve_col))
             continue
 
-        df[curve_col] = extract_fn(
-            df,
-            mw_cols=mw_cols[: len(as_price_cols)],
-            price_cols=as_price_cols,
+        extract_fn = extract_curve_as_pg_string_expr if use_pg else extract_curve_expr
+        curve_exprs.append(
+            extract_fn(
+                mw_cols=mw_cols[: len(as_price_cols)],
+                price_cols=as_price_cols,
+            ).alias(curve_col),
         )
 
-        # Free source price columns immediately to reduce peak memory
-        if use_pg:
-            df.drop(columns=as_price_cols, inplace=True, errors="ignore")
+    df = df.with_columns(curve_exprs)
 
-    # Drop shared MW columns after all extractions
-    if use_pg:
-        df.drop(columns=mw_cols, inplace=True, errors="ignore")
-
-    df = _categorize_strings(df[SCED_RESOURCE_AS_OFFERS_COLUMNS])
-    return df
+    return _categorize_strings_polars(df.select(SCED_RESOURCE_AS_OFFERS_COLUMNS))
 
 
 # # backup for more node names

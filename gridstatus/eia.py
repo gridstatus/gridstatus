@@ -10,6 +10,7 @@ from zipfile import BadZipFile
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
@@ -48,7 +49,7 @@ class EIA:
 
         """
         if api_key is None:
-            api_key = os.environ.get("EIA_API_KEY")
+            api_key = os.getenv("EIA_API_KEY")
         self.api_key = api_key
 
         if api_key is None:
@@ -98,7 +99,7 @@ class EIA:
         except requests.exceptions.HTTPError as err:
             raise err
         response = data.json()["response"]
-        df = pd.DataFrame(response["data"])
+        df = pl.DataFrame(response["data"])
         return df, int(response["total"])
 
     def _facet_handler(self, facets):
@@ -230,9 +231,9 @@ class EIA:
 
                 page_dfs = [future.result() for future in futures]
 
-            raw_df = pd.concat([raw_df, *page_dfs], ignore_index=True)
+            raw_df = utils.concat_dataframes([raw_df, *page_dfs])
 
-        df = raw_df.copy()
+        df = raw_df
 
         if dataset in DATASET_CONFIG:
             df = DATASET_CONFIG[dataset]["handler"](df)
@@ -289,22 +290,12 @@ class EIA:
             url = grid_monitor["URL"]
             if verbose:
                 logger.info(f"Fetching data from {url}")
-            df = pd.read_excel(url, sheet_name="Published Hourly Data")
 
             rename = {
                 "Demand forecast": "Demand Forecast",
                 "Net generation": "Net Generation",
                 "Total interchange": "Total Interchange",
             }
-
-            df = df.rename(columns=rename)
-
-            df["Area Id"] = grid_monitor["ID"]
-            df["Area Type"] = grid_monitor["Type"]
-            df["Area Name"] = grid_monitor["Name"]
-
-            df.insert(0, "Interval End", pd.to_datetime(df["UTC time"], utc=True))
-            df.insert(0, "Interval Start", df["Interval End"] - pd.Timedelta("1h"))
 
             cols = [
                 "Interval Start",
@@ -342,9 +333,24 @@ class EIA:
                 "CO2 Emissions Intensity for Consumed Electricity",
             ]
 
-            df = df[cols]
+            def process(pdf: pd.DataFrame) -> pd.DataFrame:
+                pdf = pdf.rename(columns=rename)
+                pdf["Area Id"] = grid_monitor["ID"]
+                pdf["Area Type"] = grid_monitor["Type"]
+                pdf["Area Name"] = grid_monitor["Name"]
+                pdf.insert(0, "Interval End", pd.to_datetime(pdf["UTC time"], utc=True))
+                pdf.insert(
+                    0,
+                    "Interval Start",
+                    pdf["Interval End"] - pd.Timedelta("1h"),
+                )
+                return pdf[cols]
 
-            return df
+            return utils.read_excel_via_pandas(
+                url,
+                sheet_name="Published Hourly Data",
+                process=process,
+            )
 
         # Set the number of workers you want
         futures = []
@@ -362,7 +368,7 @@ class EIA:
 
         # Combine all the dataframes (assuming you want to do this)
         all_dfs = [future.result() for future in futures]
-        df = pd.concat(all_dfs, ignore_index=True)
+        df = pl.concat(all_dfs, how="diagonal")
 
         return df
 
@@ -381,17 +387,8 @@ class EIA:
 
         url = "https://www.eia.gov/todayinenergy/prices.php"
 
-        df_petrol = pd.DataFrame(columns=["product", "area", "price", "percent_change"])
-        df_ng = pd.DataFrame(
-            columns=[
-                "region",
-                "natural_gas_price",
-                "natural_gas_percent_change",
-                "electricity_price",
-                "electricity_percent_change",
-                "spark_spread",
-            ],
-        )
+        petrol_rows: list[dict[str, object]] = []
+        ng_rows: list[dict[str, object]] = []
 
         def contains_wholesale_petroleum(text):
             return text and "Wholesale Spot Petroleum Prices" in text
@@ -429,30 +426,36 @@ class EIA:
                         direction = float(
                             s1.find_next_sibling("td", class_=directions).text,
                         )
-                        df_petrol.loc[len(df_petrol)] = (
-                            text,
-                            s2,
-                            float(d1) if d1 != "NA" else np.nan,
-                            float(direction) if direction != "NA" else np.nan,
+                        petrol_rows.append(
+                            {
+                                "product": text,
+                                "area": s2,
+                                "price": float(d1) if d1 != "NA" else np.nan,
+                                "percent_change": (
+                                    float(direction) if direction != "NA" else np.nan
+                                ),
+                            },
                         )
                     else:
                         for i in range(rowspan_sum, rowspan + rowspan_sum):
                             s2_elements = parent.select("td.s2")
                             d1_elements = parent.select("td.d1")
                             direction_elements = parent.find_all(class_=directions)
-                            df_petrol.loc[len(df_petrol)] = (
-                                text,
-                                s2_elements[i].text,
-                                (
-                                    float(d1_elements[i].text)
-                                    if d1_elements[i].text != "NA"
-                                    else np.nan
-                                ),
-                                (
-                                    float(direction_elements[i].text)
-                                    if direction_elements[i].text != "NA"
-                                    else np.nan
-                                ),
+                            petrol_rows.append(
+                                {
+                                    "product": text,
+                                    "area": s2_elements[i].text,
+                                    "price": (
+                                        float(d1_elements[i].text)
+                                        if d1_elements[i].text != "NA"
+                                        else np.nan
+                                    ),
+                                    "percent_change": (
+                                        float(direction_elements[i].text)
+                                        if direction_elements[i].text != "NA"
+                                        else np.nan
+                                    ),
+                                },
                             )
 
                     rowspan_sum += rowspan
@@ -462,11 +465,15 @@ class EIA:
                     direction = float(
                         s1.find_next_sibling("td", class_=directions).text,
                     )
-                    df_petrol.loc[len(df_petrol)] = (
-                        text,
-                        s2,
-                        float(d1) if d1 != "NA" else np.nan,
-                        float(direction) if direction != "NA" else np.nan,
+                    petrol_rows.append(
+                        {
+                            "product": text,
+                            "area": s2,
+                            "price": float(d1) if d1 != "NA" else np.nan,
+                            "percent_change": (
+                                float(direction) if direction != "NA" else np.nan
+                            ),
+                        },
                     )
 
             natural_gas_spots = soup.select_one(
@@ -476,37 +483,42 @@ class EIA:
             for s1 in natural_gas_spots.select("td.s1"):
                 price_siblings = s1.find_next_siblings("td", class_="d1")
                 direction_siblings = s1.find_next_siblings("td", class_=directions)
-                df_ng.loc[len(df_ng)] = (
-                    s1.text,
-                    (
-                        float(price_siblings[0].text)
-                        if price_siblings[0].text != "NA"
-                        else np.nan
-                    ),
-                    (
-                        float(direction_siblings[0].text)
-                        if direction_siblings[0].text != "NA"
-                        else np.nan
-                    ),
-                    (
-                        float(price_siblings[1].text)
-                        if price_siblings[1].text != "NA"
-                        else np.nan
-                    ),
-                    (
-                        float(direction_siblings[1].text)
-                        if direction_siblings[1].text != "NA"
-                        else np.nan
-                    ),
-                    (
-                        float(price_siblings[2].text)
-                        if price_siblings[2].text != "NA"
-                        else np.nan
-                    ),
+                ng_rows.append(
+                    {
+                        "region": s1.text,
+                        "natural_gas_price": (
+                            float(price_siblings[0].text)
+                            if price_siblings[0].text != "NA"
+                            else np.nan
+                        ),
+                        "natural_gas_percent_change": (
+                            float(direction_siblings[0].text)
+                            if direction_siblings[0].text != "NA"
+                            else np.nan
+                        ),
+                        "electricity_price": (
+                            float(price_siblings[1].text)
+                            if price_siblings[1].text != "NA"
+                            else np.nan
+                        ),
+                        "electricity_percent_change": (
+                            float(direction_siblings[1].text)
+                            if direction_siblings[1].text != "NA"
+                            else np.nan
+                        ),
+                        "spark_spread": (
+                            float(price_siblings[2].text)
+                            if price_siblings[2].text != "NA"
+                            else np.nan
+                        ),
+                    },
                 )
 
-        df_ng["date"] = pd.to_datetime(close_date)
-        df_petrol["date"] = pd.to_datetime(close_date)
+        close_date_ts = pd.to_datetime(close_date)
+        df_petrol = pl.DataFrame(petrol_rows).with_columns(
+            pl.lit(close_date_ts).alias("date"),
+        )
+        df_ng = pl.DataFrame(ng_rows).with_columns(pl.lit(close_date_ts).alias("date"))
 
         df_ng = utils.move_cols_to_front(df_ng, cols_to_move=["date"])
         df_petrol = utils.move_cols_to_front(df_petrol, cols_to_move=["date"])
@@ -586,25 +598,39 @@ class EIA:
             else:
                 pass
 
-        weekly_spots = pd.DataFrame(spot_prices)
-        weekly_spots = weekly_spots.loc[weekly_spots["week_ending_date"] != "change"]
-        weekly_spots["week_ending_date"] = weekly_spots["week_ending_date"].map(
-            pd.to_datetime,
+        weekly_spots = pl.DataFrame(spot_prices)
+        weekly_spots = weekly_spots.filter(pl.col("week_ending_date") != "change")
+        weekly_spots = weekly_spots.with_columns(
+            pl.col("week_ending_date").str.to_datetime(),
         )
-        weekly_spots = pd.merge(
-            weekly_spots.drop_duplicates("week_ending_date", keep="first"),
-            weekly_spots.drop_duplicates("week_ending_date", keep="last"),
+        price_cols = [col for col in weekly_spots.columns if col != "week_ending_date"]
+        weekly_spots_first = weekly_spots.unique(
+            subset=["week_ending_date"],
+            keep="first",
+        ).rename({col: f"{col}_short_ton" for col in price_cols})
+        weekly_spots_last = weekly_spots.unique(
+            subset=["week_ending_date"],
+            keep="last",
+        ).rename({col: f"{col}_mmbtu" for col in price_cols})
+        weekly_spots = weekly_spots_first.join(
+            weekly_spots_last,
             on="week_ending_date",
-            suffixes=("_short_ton", "_mmbtu"),
+            how="inner",
         )
 
-        coal_exports = pd.DataFrame(coal_exports)
-        coal_exports["delivery_month"] = coal_exports["delivery_month"].map(
-            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),
+        coal_exports = pl.DataFrame(coal_exports)
+        coal_exports = coal_exports.with_columns(
+            pl.col("delivery_month")
+            .cast(pl.Utf8)
+            .str.strptime(pl.Datetime, "%Y%m")
+            .alias("delivery_month"),
         )
-        coke_exports = pd.DataFrame(coke_exports)
-        coke_exports["delivery_month"] = coke_exports["delivery_month"].map(
-            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),
+        coke_exports = pl.DataFrame(coke_exports)
+        coke_exports = coke_exports.with_columns(
+            pl.col("delivery_month")
+            .cast(pl.Utf8)
+            .str.strptime(pl.Datetime, "%Y%m")
+            .alias("delivery_month"),
         )
 
         return {
@@ -642,7 +668,7 @@ class EIA:
         date: str | datetime.datetime,
         end: str | datetime.datetime = None,
         verbose: bool = False,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> Dict[str, pl.DataFrame]:
         date = utils._handle_date(date, "UTC")
         month_name = date.strftime("%B").lower()
         year = date.year
@@ -676,18 +702,27 @@ class EIA:
         # column to determine the rows to skip. For the footer, we drop NAs while
         # processing the data
         skiprows = 1
-        shared_args = {"skiprows": skiprows, "skipfooter": 1}
-        operating_data = file.parse("Operating", **shared_args)
+        operating_data = _parse_generator_sheet(file, "Operating", skiprows)
 
         if operating_data.columns[0] == "Unnamed: 0":
-            operating_data.columns = operating_data.iloc[0].values
-            operating_data = operating_data.iloc[1:]
+            operating_pdf = operating_data.to_pandas()
+            operating_pdf.columns = operating_pdf.iloc[0].values
+            operating_pdf = operating_pdf.iloc[1:]
+            for col in operating_pdf.columns:
+                if operating_pdf[col].dtype == object:
+                    operating_pdf[col] = operating_pdf[col].map(
+                        lambda value: None if pd.isna(value) else str(value),
+                    )
+            operating_data = pl.from_pandas(operating_pdf)
             skiprows = 2
-            shared_args.update({"skiprows": skiprows})
 
-        planned_data = file.parse("Planned", **shared_args)
-        retired_data = file.parse("Retired", **shared_args)
-        canceled_or_postponed_data = file.parse("Canceled or Postponed", **shared_args)
+        planned_data = _parse_generator_sheet(file, "Planned", skiprows)
+        retired_data = _parse_generator_sheet(file, "Retired", skiprows)
+        canceled_or_postponed_data = _parse_generator_sheet(
+            file,
+            "Canceled or Postponed",
+            skiprows,
+        )
 
         return {
             key: self._handle_generator_data(
@@ -717,38 +752,45 @@ class EIA:
 
     def _handle_generator_data(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         period: datetime.date,
         updated_at: datetime.datetime,
         columns: list[str],
         generator_status: str,
         verbose: bool = False,
-    ) -> pd.DataFrame:
-        df.insert(0, "Period", period)
-        df.insert(1, "Updated At", updated_at)
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            pl.lit(period).alias("Period"),
+            pl.lit(updated_at).alias("Updated At"),
+        )
+        other_cols = [col for col in df.columns if col not in ["Period", "Updated At"]]
+        df = df.select(["Period", "Updated At"] + other_cols)
 
-        df.columns = df.columns.str.strip()
+        rename_strip = {col: col.strip() for col in df.columns}
+        df = df.rename(rename_strip)
 
         cols_to_drop = [col for col in ["Google Map", "Bing Map"] if col in df.columns]
+        if cols_to_drop:
+            df = df.drop(cols_to_drop)
 
-        df = (
-            df.rename(
-                columns={
-                    "Nameplate Capacity (MW)": "Nameplate Capacity",
-                    "Net Summer Capacity (MW)": "Net Summer Capacity",
-                    "Net Winter Capacity (MW)": "Net Winter Capacity",
-                    "Nameplate Energy Capacity (MWh)": "Nameplate Energy Capacity",
-                    "DC Net Capacity (MW)": "DC Net Capacity",
-                    "Planned Derate of Summer Capacity (MW)": "Planned Derate of Summer Capacity",
-                    "Planned Uprate of Summer Capacity (MW)": "Planned Uprate of Summer Capacity",
-                },
-            )
-            .drop(
-                columns=cols_to_drop,
-            )
-            # Dropna values to remove extra footer rows
-            .dropna(subset=["Plant ID"])
-        )
+        rename_map = {
+            "Nameplate Capacity (MW)": "Nameplate Capacity",
+            "Net Summer Capacity (MW)": "Net Summer Capacity",
+            "Net Winter Capacity (MW)": "Net Winter Capacity",
+            "Nameplate Energy Capacity (MWh)": "Nameplate Energy Capacity",
+            "DC Net Capacity (MW)": "DC Net Capacity",
+            "Planned Derate of Summer Capacity (MW)": "Planned Derate of Summer Capacity",
+            "Planned Uprate of Summer Capacity (MW)": "Planned Uprate of Summer Capacity",
+        }
+        existing_rename = {
+            old_name: new_name
+            for old_name, new_name in rename_map.items()
+            if old_name in df.columns
+        }
+        if existing_rename:
+            df = df.rename(existing_rename)
+
+        df = df.drop_nulls(subset=["Plant ID"])
 
         # Older files may not have all the columns. These are the columns we want to
         # fill with np.nan if they don't exist.
@@ -768,48 +810,97 @@ class EIA:
                     logger.warning(
                         f"Column {col} not found in data for {generator_status} generators. Adding and filling with np.nan values.",  # noqa
                     )
-                df[col] = np.nan
+                df = df.with_columns(pl.lit(None).cast(pl.Float64).alias(col))
 
         for col in GENERATOR_FLOAT_COLUMNS:
-            if col in df.columns and df[col].dtype == "object":
-                df[col] = (
-                    df[col].astype(str).str.strip().replace({"": np.nan}).astype(float)
+            if col in df.columns and df.schema[col] == pl.Utf8:
+                df = df.with_columns(
+                    pl.col(col)
+                    .cast(pl.Utf8)
+                    .str.strip_chars()
+                    .replace("", None)
+                    .replace("nan", None)
+                    .replace("None", None)
+                    .cast(pl.Float64, strict=False)
+                    .alias(col),
                 )
 
         for col in GENERATOR_INT_COLUMNS:
-            if col in df.columns and (
-                df[col].dtype == "object" or df[col].dtype == "float"
-            ):
-                df[col] = (
-                    df[col]
-                    .astype(str)
-                    .str.strip()
-                    .str.replace(".0", "")
-                    .replace({"": None, "nan": None})
-                    .astype("Int64")
+            if col not in df.columns:
+                continue
+            if df.schema[col] == pl.Utf8:
+                df = df.with_columns(
+                    pl.col(col)
+                    .cast(pl.Utf8)
+                    .str.strip_chars()
+                    .str.replace(".0", "", literal=True)
+                    .replace("", None)
+                    .replace("nan", None)
+                    .cast(pl.Int64, strict=False)
+                    .alias(col),
+                )
+            elif df.schema[col] in (pl.Float64, pl.Float32):
+                df = df.with_columns(
+                    pl.col(col).cast(pl.Int64, strict=False).alias(col),
                 )
 
-        null_generator_id_rows = df.loc[df["Generator ID"].isnull()]
+        null_generator_id_rows = df.filter(pl.col("Generator ID").is_null())
 
-        # There are some rows with null Generator IDs. We drop these rows
-        if not null_generator_id_rows.empty:
+        if null_generator_id_rows.height > 0:
             logger.warning(
                 f"Found rows with null Generator Ids for {generator_status} "
                 + f"power plants. {null_generator_id_rows}",
             )
-            df = df.dropna(subset=["Generator ID"])
+            df = df.drop_nulls(subset=["Generator ID"])
 
-        return df[columns]
-
-
-def _handle_time(df, frequency="1h"):
-    df.insert(0, "Interval End", pd.to_datetime(df["period"], utc=True))
-    df.insert(0, "Interval Start", df["Interval End"] - pd.Timedelta(frequency))
-    df = df.drop("period", axis=1)
-    return df
+        return df.select(columns)
 
 
-def _handle_region_data(df):
+def _parse_generator_sheet(
+    file: pd.ExcelFile,
+    sheet_name: str,
+    skiprows: int,
+) -> pl.DataFrame:
+    def process(pdf: pd.DataFrame) -> pd.DataFrame:
+        for col in pdf.columns:
+            if pdf[col].dtype == object:
+                pdf[col] = pdf[col].map(
+                    lambda value: None if pd.isna(value) else str(value),
+                )
+        return pdf
+
+    return utils.read_excel_via_pandas(
+        file,
+        sheet_name=sheet_name,
+        skiprows=skiprows,
+        skipfooter=1,
+        engine="openpyxl",
+        process=process,
+    )
+
+
+def _handle_time(df: pl.DataFrame, frequency: str = "1h") -> pl.DataFrame:
+    duration = pl.duration(hours=1)
+    if frequency != "1h":
+        raise NotImplementedError(f"Unsupported frequency: {frequency}")
+
+    value_cols = [col for col in df.columns if col != "period"]
+    # EIA hourly periods are hour-terminated strings ("2026-07-08T05"), which
+    # polars cannot parse without a minute component, so pad before parsing.
+    df = df.with_columns(
+        pl.when(pl.col("period").str.len_chars() == 13)
+        .then(pl.col("period") + ":00")
+        .otherwise(pl.col("period"))
+        .str.to_datetime(time_zone="UTC")
+        .alias("Interval End"),
+    )
+    df = df.with_columns(
+        (pl.col("Interval End") - duration).alias("Interval Start"),
+    )
+    return df.select(["Interval Start", "Interval End"] + value_cols)
+
+
+def _handle_region_data(df: pl.DataFrame) -> pl.DataFrame:
     df = _handle_time(df, frequency="1h")
 
     df = df.rename(
@@ -819,41 +910,40 @@ def _handle_region_data(df):
             "respondent-name": "Respondent Name",
             "type": "Type",
         },
-        axis=1,
     )
 
-    # ['TI', 'NG', 'DF', 'D']
-    df["Type"] = df["Type"].map(
-        {
-            "D": "Load",
-            "TI": "Total Interchange",
-            "NG": "Net Generation",
-            "DF": "Load Forecast",
-        },
+    df = df.with_columns(
+        pl.col("Type")
+        .replace(
+            {
+                "D": "Load",
+                "TI": "Total Interchange",
+                "NG": "Net Generation",
+                "DF": "Load Forecast",
+            },
+        )
+        .alias("Type"),
+        pl.col("MW").cast(pl.Float64),
     )
 
-    df["MW"] = df["MW"].astype(float)
+    df = df.filter(pl.col("Type").is_not_null())
 
-    df = df[df["Type"].notna()]
-
-    # pivot on Type
     df = df.pivot(
+        on="Type",
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
-        columns="Type",
         values="MW",
-    ).reset_index()
+        aggregate_function="first",
+    )
 
-    df.columns.name = None
-
-    # fix after pivot
-    for col in ["Load", "Net Generation", "Load Forecast", "Total Interchange"]:
+    float_cols = ["Load", "Net Generation", "Load Forecast", "Total Interchange"]
+    for col in float_cols:
         if col in df.columns:
-            df[col] = df[col].astype(float)
+            df = df.with_columns(pl.col(col).cast(pl.Float64))
 
     return df
 
 
-def _handle_region_sub_ba_data(df):
+def _handle_region_sub_ba_data(df: pl.DataFrame) -> pl.DataFrame:
     """electricity/rto/region-sub-ba-data"""
     df = _handle_time(df, frequency="1h")
 
@@ -865,10 +955,9 @@ def _handle_region_sub_ba_data(df):
             "parent": "BA",
             "parent-name": "BA Name",
         },
-        axis=1,
     )
 
-    df = df[
+    return df.select(
         [
             "Interval Start",
             "Interval End",
@@ -877,15 +966,11 @@ def _handle_region_sub_ba_data(df):
             "Subregion",
             "Subregion Name",
             "MW",
-        ]
-    ]
-
-    df = df.sort_values(["Interval Start", "Subregion"])
-
-    return df
+        ],
+    ).sort(["Interval Start", "Subregion"])
 
 
-def _handle_rto_interchange(df):
+def _handle_rto_interchange(df: pl.DataFrame) -> pl.DataFrame:
     """electricity/rto/interchange-data"""
     df = _handle_time(df, frequency="1h")
     df = df.rename(
@@ -896,9 +981,8 @@ def _handle_rto_interchange(df):
             "fromba-name": "From BA Name",
             "toba-name": "To BA Name",
         },
-        axis=1,
     )
-    df = df[
+    return df.select(
         [
             "Interval Start",
             "Interval End",
@@ -907,15 +991,11 @@ def _handle_rto_interchange(df):
             "To BA",
             "To BA Name",
             "MW",
-        ]
-    ]
-
-    df = df.sort_values(["Interval Start", "From BA"])
-
-    return df
+        ],
+    ).sort(["Interval Start", "From BA"])
 
 
-def _handle_fuel_type_data(df):
+def _handle_fuel_type_data(df: pl.DataFrame) -> pl.DataFrame:
     """electricity/rto/fuel-type-data"""
     df = _handle_time(df, frequency="1h")
 
@@ -925,77 +1005,73 @@ def _handle_fuel_type_data(df):
             "respondent": "Respondent",
             "respondent-name": "Respondent Name",
         },
-        axis=1,
     )
 
-    df["MW"] = df["MW"].astype(float)
-
-    # The raw data will sometimes have case-sensitive duplicates
-    # (e.g. "Pumped Storage","Pumped storage"). We can handle that through the pivot
-    # table by summing the duplicates across case-insensitive names.
-    df["type-name"] = df["type-name"].str.lower()
-
-    # These columns are grouped together by EIA as confirmed by inspection of the EIA
-    # fuel mix graphs. https://www.eia.gov/electricity/gridmonitor/expanded-view/electric_overview/US48/US48/GenerationByEnergySource-4/edit # noqa
-    df["type-name"] = df["type-name"].replace(
-        {
-            "battery": "battery storage",
-            "solar battery": "solar with integrated battery storage",
-            "unknown energy": "unknown energy storage",
-            "unknown": "other",
-        },
+    df = df.with_columns(
+        pl.col("MW").cast(pl.Float64),
+        pl.col("type-name").str.to_lowercase().alias("type-name"),
     )
 
-    # Pivot on fuel type
-    df = df.pivot_table(
+    df = df.with_columns(
+        pl.col("type-name")
+        .replace(
+            {
+                "battery": "battery storage",
+                "solar battery": "solar with integrated battery storage",
+                "unknown energy": "unknown energy storage",
+                "unknown": "other",
+            },
+        )
+        .alias("type-name"),
+    )
+
+    df = df.pivot(
+        on="type-name",
         index=["Interval Start", "Interval End", "Respondent", "Respondent Name"],
-        columns="type-name",
         values="MW",
-        aggfunc="sum",
-    ).reset_index()
+        aggregate_function="sum",
+    )
 
-    df.columns.name = None
-
-    df.columns = df.columns.str.title()
+    fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
+    rename_map = {col: col.title() for col in df.columns if col not in fixed_cols}
+    df = df.rename(rename_map)
 
     for col in EIA_FUEL_TYPES:
         if col not in df.columns:
-            # This has to be np.nan not pd.NA because we are converting to float
-            df[col] = np.nan
+            df = df.with_columns(pl.lit(None).cast(pl.Float64).alias(col))
 
-    fixed_cols = ["Interval Start", "Interval End", "Respondent", "Respondent Name"]
     fuel_mix_cols = [col for col in df.columns if col not in fixed_cols]
+    df = df.with_columns([pl.col(col).cast(pl.Float64) for col in fuel_mix_cols])
 
-    df[fuel_mix_cols] = df[fuel_mix_cols].astype(float)
+    df = df.select(fixed_cols + sorted(fuel_mix_cols))
 
-    # Set final column order with title case
-    df = df[fixed_cols + sorted(fuel_mix_cols)]
-
-    # Find any unknown columns and log them
     unknown_columns = set(df.columns) - set(EIA_FUEL_MIX_COLUMNS)
 
     if unknown_columns:
         logger.warning(f"Unknown columns found in fuel type data: {unknown_columns}")
 
-    df = df.sort_values(["Interval Start", "Respondent"])
-
-    return df
+    return df.sort(["Interval Start", "Respondent"])
 
 
-def _handle_henry_hub_natural_gas_spot_prices(df):
+def _handle_henry_hub_natural_gas_spot_prices(df: pl.DataFrame) -> pl.DataFrame:
     # The other EIA datasets use "period" as the "Interval End" but that is not correct
     # for this dataset because that would put the data one day ahead of how the EIA
     # shows it here: https://www.eia.gov/dnav/ng/hist/rngwhhdD.htm
     # We use the HENRY_HUB_TIMEZONE because the spot prices are based on delivery
     # at Henry Hub in Louisiana. However, this dataset also includes futures prices,
     # where are based on the NYMEX, so US/Central might not be correct for these prices.
-    df["Interval Start"] = pd.to_datetime(df["period"]).dt.tz_localize(
-        HENRY_HUB_TIMEZONE,
+    df = df.with_columns(
+        pl.col("period")
+        .str.to_datetime()
+        .dt.replace_time_zone(HENRY_HUB_TIMEZONE)
+        .alias("Interval Start"),
     )
-    df["Interval End"] = df["Interval Start"] + pd.Timedelta("1d")
+    df = df.with_columns(
+        (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+    )
 
     df = df.rename(
-        columns={
+        {
             "area-name": "area_name",
             "product-name": "fuel_type",
             "process-name": "price_type",
@@ -1004,12 +1080,13 @@ def _handle_henry_hub_natural_gas_spot_prices(df):
         },
     )
 
-    df = df.replace({"NA": pd.NA})
-    df["price"] = df["price"].astype(float)
+    df = df.with_columns(
+        pl.col("price").replace("NA", None).cast(pl.Float64, strict=False),
+    )
 
     df = utils.move_cols_to_front(df, ["Interval Start", "Interval End"])
 
-    return df.sort_values(["Interval Start", "area_name", "series"])
+    return df.sort(["Interval Start", "area_name", "series"])
 
 
 DATASET_CONFIG = {

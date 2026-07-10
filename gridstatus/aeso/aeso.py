@@ -4,6 +4,7 @@ import re
 from typing import Any, Literal
 
 import pandas as pd
+import polars as pl
 import requests
 from bs4 import BeautifulSoup
 from requests.exceptions import HTTPError, RequestException
@@ -104,7 +105,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get current load data.
 
@@ -125,20 +126,20 @@ class AESO:
 
         data = self._make_request(endpoint)
 
-        df = pd.json_normalize(data["return"]["Actual Forecast Report"])
-        df["Interval Start"] = pd.to_datetime(
-            df["begin_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-        df = df.rename(
-            columns={
-                "alberta_internal_load": "Load",
-            },
+        df = pl.DataFrame(data["return"]["Actual Forecast Report"])
+        df = df.with_columns(
+            pl.col("begin_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df = df.dropna(subset=["Load"])
-        return df[["Interval Start", "Interval End", "Load"]]
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
+        df = df.rename({"alberta_internal_load": "Load"})
+        df = df.with_columns(pl.col("Load").cast(pl.Float64, strict=False))
+        df = df.drop_nulls(subset=["Load"])
+        return df.select(["Interval Start", "Interval End", "Load"])
 
     @support_date_range(frequency=None)
     def get_load_forecast(
@@ -146,7 +147,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get load forecast data.
 
         The AESO publishes load forecasts daily at 7am Mountain Time. The forecast covers
@@ -169,7 +170,7 @@ class AESO:
             )
             end = publish_time + pd.Timedelta(days=13)
             df = self.get_load_forecast(date=publish_time, end=end)
-            df = df[df["Publish Time"] == publish_time]
+            df = df.filter(pl.col("Publish Time") == pl.lit(publish_time))
             return df
 
         start_date = pd.Timestamp(date).strftime("%Y-%m-%d")
@@ -182,14 +183,18 @@ class AESO:
             endpoint += f"&endDate={end_date}"
 
         data = self._make_request(endpoint)
-        df = pd.json_normalize(data["return"]["Actual Forecast Report"])
-        df["Interval Start"] = pd.to_datetime(
-            df["begin_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = pl.DataFrame(data["return"]["Actual Forecast Report"])
+        df = df.with_columns(
+            pl.col("begin_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
         df = df.rename(
-            columns={
+            {
                 "alberta_internal_load": "Load",
                 "forecast_alberta_internal_load": "Load Forecast",
             },
@@ -197,33 +202,29 @@ class AESO:
 
         current_time = pd.Timestamp.now(tz=self.default_timezone)
         today_7am = current_time.floor("D") + pd.Timedelta(hours=7)
+        future_publish_time = (
+            today_7am if current_time >= today_7am else today_7am - pd.Timedelta(days=1)
+        )
+        interval_day_7am = pl.col("Interval Start").dt.truncate("1d") + pl.duration(
+            hours=7,
+        )
+        df = df.with_columns(
+            pl.when(pl.col("Interval Start") > pl.lit(current_time))
+            .then(pl.lit(future_publish_time))
+            .when(pl.col("Interval Start") >= interval_day_7am)
+            .then(interval_day_7am)
+            .otherwise(interval_day_7am - pl.duration(days=1))
+            .alias("Publish Time"),
+        )
+        df = df.with_columns(
+            pl.col("Load").cast(pl.Float64, strict=False),
+            pl.col("Load Forecast").cast(pl.Float64, strict=False),
+        )
+        return df.select(
+            ["Interval Start", "Interval End", "Publish Time", "Load", "Load Forecast"],
+        )
 
-        def get_publish_time(row: pd.Series) -> pd.Timestamp:
-            interval_day_7am = row["Interval Start"].floor("D") + pd.Timedelta(hours=7)
-            if row["Interval Start"] > current_time:
-                # NB: For future intervals, use today's 7am if after 7am, otherwise yesterday's 7am
-                return (
-                    today_7am
-                    if current_time >= today_7am
-                    else today_7am - pd.Timedelta(days=1)
-                )
-            else:
-                # NB: For historical data, use 7am on the day of the interval if after 7am,
-                # otherwise use 7am the previous day
-                return (
-                    interval_day_7am
-                    if row["Interval Start"] >= interval_day_7am
-                    else interval_day_7am - pd.Timedelta(days=1)
-                )
-
-        df["Publish Time"] = df.apply(get_publish_time, axis=1)
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["Load Forecast"] = pd.to_numeric(df["Load Forecast"], errors="coerce")
-        return df[
-            ["Interval Start", "Interval End", "Publish Time", "Load", "Load Forecast"]
-        ]
-
-    def get_supply_and_demand(self) -> pd.DataFrame:
+    def get_supply_and_demand(self) -> pl.DataFrame:
         """
         Get current supply and demand summary data.
 
@@ -233,39 +234,49 @@ class AESO:
         endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df = pd.json_normalize(data["return"])
-        df["Time"] = pd.to_datetime(
-            df["effective_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
-        df = df.rename(
-            columns={
-                k: v for k, v in SUPPLY_DEMAND_COLUMN_MAPPING.items() if k in df.columns
-            },
+        return_data = data["return"]
+        exclude_keys = {"generation_data_list", "interchange_list"}
+        flat = {k: v for k, v in return_data.items() if k not in exclude_keys}
+        df = pl.DataFrame([flat])
+        df = df.with_columns(
+            pl.col("effective_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Time"),
         )
 
-        if "generation_data_list" in data["return"]:
-            gen_df = pd.DataFrame(data["return"]["generation_data_list"])
-            for _, row in gen_df.iterrows():
+        rename = {
+            k: v for k, v in SUPPLY_DEMAND_COLUMN_MAPPING.items() if k in df.columns
+        }
+        df = df.rename(rename)
+
+        if "generation_data_list" in return_data:
+            gen_df = pl.DataFrame(return_data["generation_data_list"])
+            for row in gen_df.iter_rows(named=True):
                 fuel_type = row["fuel_type"].title().replace(" ", " ")
-                df[f"{fuel_type} Maximum Capability"] = row[
-                    "aggregated_maximum_capability"
-                ]
-                df[f"{fuel_type} Net Generation"] = row["aggregated_net_generation"]
-                df[f"{fuel_type} Dispatched Contingency Reserve"] = row[
-                    "aggregated_dispatched_contingency_reserve"
-                ]
+                df = df.with_columns(
+                    pl.lit(row["aggregated_maximum_capability"]).alias(
+                        f"{fuel_type} Maximum Capability",
+                    ),
+                    pl.lit(row["aggregated_net_generation"]).alias(
+                        f"{fuel_type} Net Generation",
+                    ),
+                    pl.lit(row["aggregated_dispatched_contingency_reserve"]).alias(
+                        f"{fuel_type} Dispatched Contingency Reserve",
+                    ),
+                )
 
-        if "interchange_list" in data["return"]:
-            for interchange in data["return"]["interchange_list"]:
+        if "interchange_list" in return_data:
+            for interchange in return_data["interchange_list"]:
                 path = interchange["path"].title().replace(" ", " ")
-                df[f"{path} Flow"] = interchange["actual_flow"]
+                df = df.with_columns(
+                    pl.lit(interchange["actual_flow"]).alias(f"{path} Flow"),
+                )
 
-        df = df[list(SUPPLY_DEMAND_COLUMN_MAPPING.values())]
+        df = df.select(list(SUPPLY_DEMAND_COLUMN_MAPPING.values()))
         return utils.move_cols_to_front(df, ["Time"])
 
-    def get_fuel_mix(self) -> pd.DataFrame:
+    def get_fuel_mix(self) -> pl.DataFrame:
         """
         Get current generation by fuel type.
 
@@ -276,26 +287,30 @@ class AESO:
         endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df = pd.json_normalize(
-            data["return"],
-            record_path="generation_data_list",
-            meta=["effective_datetime_utc"],
+        effective_datetime_utc = data["return"]["effective_datetime_utc"]
+        records = [
+            {**item, "effective_datetime_utc": effective_datetime_utc}
+            for item in data["return"]["generation_data_list"]
+        ]
+        df = pl.DataFrame(records)
+        df = df.with_columns(
+            pl.col("effective_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Time"),
+            pl.col("fuel_type").str.to_titlecase().alias("fuel_type"),
         )
-        df["Time"] = pd.to_datetime(
-            df["effective_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["fuel_type"] = df["fuel_type"].str.title()
 
         result_df = df.pivot(
+            "fuel_type",
             index="Time",
-            columns="fuel_type",
             values="aggregated_net_generation",
-        ).reset_index()
+            aggregate_function="first",
+        )
 
         return result_df
 
-    def get_interchange(self) -> pd.DataFrame:
+    def get_interchange(self) -> pl.DataFrame:
         """
         Get current interchange flows with neighboring regions.
 
@@ -306,24 +321,28 @@ class AESO:
         endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df = pd.json_normalize(
-            data["return"],
-            record_path="interchange_list",
-            meta=["effective_datetime_utc"],
+        effective_datetime_utc = data["return"]["effective_datetime_utc"]
+        records = [
+            {**item, "effective_datetime_utc": effective_datetime_utc}
+            for item in data["return"]["interchange_list"]
+        ]
+        df = pl.DataFrame(records)
+        df = df.with_columns(
+            pl.col("effective_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Time"),
         )
-        df["Time"] = pd.to_datetime(
-            df["effective_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
 
         df = df.pivot(
+            "path",
             index="Time",
-            columns="path",
             values="actual_flow",
-        ).reset_index()
+            aggregate_function="first",
+        )
 
         df = df.rename(
-            columns={
+            {
                 "British Columbia": "British Columbia Flow",
                 "Montana": "Montana Flow",
                 "Saskatchewan": "Saskatchewan Flow",
@@ -331,14 +350,16 @@ class AESO:
         )
 
         flow_columns = [col for col in df.columns if col != "Time"]
-        df["Net Interchange Flow"] = df[flow_columns].sum(axis=1)
+        df = df.with_columns(
+            pl.sum_horizontal([pl.col(col) for col in flow_columns]).alias(
+                "Net Interchange Flow",
+            ),
+        )
 
         cols = ["Time", "Net Interchange Flow"] + flow_columns
-        df = df[cols]
+        return df.select(cols)
 
-        return df
-
-    def get_reserves(self) -> pd.DataFrame:
+    def get_reserves(self) -> pl.DataFrame:
         """
         Get current reserve data.
 
@@ -348,14 +369,17 @@ class AESO:
         endpoint = "currentsupplydemand-api/v2/csd/summary/current"
         data = self._make_request(endpoint)
 
-        df = pd.json_normalize(data["return"])
-        df["Time"] = pd.to_datetime(
-            df["effective_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
+        df = pl.DataFrame([data["return"]])
+        df = df.with_columns(
+            pl.col("effective_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Time"),
+        )
 
-        df = df.rename(columns=RESERVES_COLUMN_MAPPING)
-        df = df[list(RESERVES_COLUMN_MAPPING.values())]
+        rename = {k: v for k, v in RESERVES_COLUMN_MAPPING.items() if k in df.columns}
+        df = df.rename(rename)
+        df = df.select(list(RESERVES_COLUMN_MAPPING.values()))
 
         return utils.move_cols_to_front(df, ["Time"])
 
@@ -366,7 +390,7 @@ class AESO:
         pool_participant_id: str | None = None,
         operating_status: str | None = None,
         asset_type: str | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get list of assets in the AESO system.
 
@@ -395,15 +419,15 @@ class AESO:
             endpoint += "?" + "&".join(params)
 
         data = self._make_request(endpoint)
-        df = pd.json_normalize(data["return"])
+        df = pl.DataFrame(data["return"])
 
-        if df.empty:
-            return pd.DataFrame(columns=list(ASSET_LIST_COLUMN_MAPPING.values()))
+        if df.is_empty():
+            return pl.DataFrame(
+                schema=dict.fromkeys(ASSET_LIST_COLUMN_MAPPING.values(), pl.String),
+            )
 
-        df = df.rename(columns=ASSET_LIST_COLUMN_MAPPING)
-        df = df[list(ASSET_LIST_COLUMN_MAPPING.values())]
-
-        return df
+        df = df.rename(ASSET_LIST_COLUMN_MAPPING)
+        return df.select(list(ASSET_LIST_COLUMN_MAPPING.values()))
 
     @support_date_range(frequency=None)
     def get_pool_price(
@@ -411,7 +435,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get pool price data.
 
@@ -428,7 +452,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get pool price data.
 
@@ -444,7 +468,7 @@ class AESO:
         start_date: str,
         end_date: str | None = None,
         actual_or_forecast: Literal["actual", "forecast"] = "actual",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get pool price data.
 
@@ -458,14 +482,18 @@ class AESO:
         if end_date:
             endpoint += f"&endDate={end_date}"
         data = self._make_request(endpoint)
-        df = pd.json_normalize(data["return"]["Pool Price Report"])
-        df["Interval Start"] = pd.to_datetime(
-            df["begin_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = pl.DataFrame(data["return"]["Pool Price Report"])
+        df = df.with_columns(
+            pl.col("begin_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
         df = df.rename(
-            columns={
+            {
                 "pool_price": "Pool Price",
                 "forecast_pool_price": "Forecast Pool Price",
                 "rolling_30day_avg": "Rolling 30 Day Average Pool Price",
@@ -473,42 +501,39 @@ class AESO:
         )
 
         if actual_or_forecast == "actual":
-            df["Pool Price"] = pd.to_numeric(df["Pool Price"], errors="coerce")
-            df = df[df["Pool Price"].notna()]
-            return df[
+            df = df.with_columns(pl.col("Pool Price").cast(pl.Float64, strict=False))
+            df = df.filter(pl.col("Pool Price").is_not_null())
+            return df.select(
                 [
                     "Interval Start",
                     "Interval End",
                     "Pool Price",
                     "Rolling 30 Day Average Pool Price",
-                ]
-            ]
+                ],
+            )
         else:
-            df["Forecast Pool Price"] = pd.to_numeric(
-                df["Forecast Pool Price"],
-                errors="coerce",
+            df = df.with_columns(
+                pl.col("Forecast Pool Price").cast(pl.Float64, strict=False),
             )
             # NB: Publish times are a bit opaque from AESO, so we calculate a best estimate here.
             # Forecast pool price is provided for current and next two hours, updated every 5 minutes.
             # For future intervals: use request time floored to 5 minutes
             # For past/current intervals: use 5 minutes before interval start
             request_time = pd.Timestamp.now(tz=self.default_timezone)
-            df["Publish Time"] = df.apply(
-                lambda row: (
-                    request_time.floor("5min")
-                    if row["Interval Start"] > request_time
-                    else row["Interval Start"] - pd.Timedelta(minutes=5)
-                ),
-                axis=1,
+            df = df.with_columns(
+                pl.when(pl.col("Interval Start") > pl.lit(request_time))
+                .then(pl.lit(request_time.floor("5min")))
+                .otherwise(pl.col("Interval Start") - pl.duration(minutes=5))
+                .alias("Publish Time"),
             )
-            return df[
+            return df.select(
                 [
                     "Interval Start",
                     "Interval End",
                     "Publish Time",
                     "Forecast Pool Price",
-                ]
-            ]
+                ],
+            )
 
     @support_date_range(frequency=None)
     def get_daily_average_pool_price(
@@ -516,7 +541,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get daily average pool price data with on-peak and off-peak breakdowns.
 
@@ -530,88 +555,57 @@ class AESO:
             return self.get_daily_average_pool_price(date="today")
 
         hourly_df = self._get_pool_price_data(date, end, actual_or_forecast="actual")
-        hourly_df["Is On Peak"] = hourly_df["Interval End"].dt.hour.isin(range(8, 24))
-        hourly_df["Pool Price"] = pd.to_numeric(
-            hourly_df["Pool Price"],
-            errors="coerce",
-        )
-        hourly_df["Rolling 30 Day Average Pool Price"] = pd.to_numeric(
-            hourly_df["Rolling 30 Day Average Pool Price"],
-            errors="coerce",
-        )
-
-        agg_dict = {
-            "Pool Price": "mean",
-            "Is On Peak": lambda x: x.sum(),
-        }
-
-        daily_df = (
-            hourly_df.groupby(hourly_df["Interval Start"].dt.date)
-            .agg(agg_dict)
-            .reset_index()
+        hourly_df = hourly_df.with_columns(
+            pl.col("Interval End")
+            .dt.hour()
+            .is_in(list(range(8, 24)))
+            .alias(
+                "Is On Peak",
+            ),
+            pl.col("Pool Price").cast(pl.Float64, strict=False),
+            pl.col("Rolling 30 Day Average Pool Price").cast(pl.Float64, strict=False),
         )
 
-        # NB: 30 rolling average is already an average, so this just passes
-        # through the 23:00:00 value for each day, which is what the ETS system shows
+        daily_df = hourly_df.group_by(
+            pl.col("Interval Start").dt.date().alias("date"),
+        ).agg(
+            pl.col("Pool Price").mean().alias("Daily Average"),
+        )
+
         daily_30day_avg = (
-            hourly_df[hourly_df["Interval Start"].dt.hour == 23]
-            .groupby(hourly_df["Interval Start"].dt.date)
-            .agg({"Rolling 30 Day Average Pool Price": "first"})
-            .reset_index()
-        )
-        daily_30day_avg = daily_30day_avg.rename(
-            columns={"Rolling 30 Day Average Pool Price": "30 Day Average"},
-        )
-
-        daily_averages = []
-        for _, day_row in daily_df.iterrows():
-            day_date = day_row["Interval Start"]
-            day_hourly = hourly_df[hourly_df["Interval Start"].dt.date == day_date]
-
-            on_peak_prices = day_hourly[day_hourly["Is On Peak"]]["Pool Price"]
-            daily_on_peak_avg = (
-                on_peak_prices.mean() if not on_peak_prices.empty else None
+            hourly_df.filter(pl.col("Interval Start").dt.hour() == 23)
+            .group_by(pl.col("Interval Start").dt.date().alias("date"))
+            .agg(
+                pl.col("Rolling 30 Day Average Pool Price")
+                .first()
+                .alias("30 Day Average"),
             )
-
-            off_peak_prices = day_hourly[~day_hourly["Is On Peak"]]["Pool Price"]
-            daily_off_peak_avg = (
-                off_peak_prices.mean() if not off_peak_prices.empty else None
-            )
-
-            daily_averages.append(
-                {
-                    "date": day_date,
-                    "Daily On Peak Average": daily_on_peak_avg,
-                    "Daily Off Peak Average": daily_off_peak_avg,
-                },
-            )
-
-        daily_avg_df = pd.DataFrame(daily_averages)
-
-        result_df = daily_df.merge(
-            daily_avg_df,
-            left_on="Interval Start",
-            right_on="date",
-            how="left",
         )
 
-        result_df = result_df.merge(
-            daily_30day_avg,
-            left_on="Interval Start",
-            right_on="Interval Start",
-            how="left",
+        daily_on_peak = (
+            hourly_df.filter(pl.col("Is On Peak"))
+            .group_by(pl.col("Interval Start").dt.date().alias("date"))
+            .agg(pl.col("Pool Price").mean().alias("Daily On Peak Average"))
         )
 
-        result_df["Interval Start"] = pd.to_datetime(
-            result_df["Interval Start"],
-        ).dt.tz_localize(self.default_timezone)
-        result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(days=1)
+        daily_off_peak = (
+            hourly_df.filter(~pl.col("Is On Peak"))
+            .group_by(pl.col("Interval Start").dt.date().alias("date"))
+            .agg(pl.col("Pool Price").mean().alias("Daily Off Peak Average"))
+        )
 
-        result_df = result_df.rename(
-            columns={
-                "Pool Price": "Daily Average",
-                "Rolling 30 Day Average Pool Price": "30 Day Average",
-            },
+        result_df = daily_df.join(daily_on_peak, on="date", how="left")
+        result_df = result_df.join(daily_off_peak, on="date", how="left")
+        result_df = result_df.join(daily_30day_avg, on="date", how="left")
+
+        result_df = result_df.with_columns(
+            pl.col("date")
+            .cast(pl.Datetime)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        )
+        result_df = result_df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
         )
 
         price_columns = [
@@ -620,24 +614,21 @@ class AESO:
             "Daily Off Peak Average",
             "30 Day Average",
         ]
-        for col in price_columns:
-            if col in result_df.columns:
-                result_df[col] = result_df[col].round(2)
+        round_exprs = [
+            pl.col(col).round(2) for col in price_columns if col in result_df.columns
+        ]
+        result_df = result_df.with_columns(round_exprs)
 
-        return (
-            result_df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Daily Average",
-                    "Daily On Peak Average",
-                    "Daily Off Peak Average",
-                    "30 Day Average",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return result_df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Daily Average",
+                "Daily On Peak Average",
+                "Daily Off Peak Average",
+                "30 Day Average",
+            ],
+        ).sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_system_marginal_price(
@@ -645,7 +636,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get system marginal price data.
 
@@ -662,84 +653,95 @@ class AESO:
         if end_date:
             endpoint += f"&endDate={end_date}"
         data = self._make_request(endpoint)
-        df = pd.json_normalize(data["return"]["System Marginal Price Report"])
+        df = pl.DataFrame(data["return"]["System Marginal Price Report"])
 
-        df["Interval Start"] = pd.to_datetime(
-            df["begin_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = pd.to_datetime(
-            df["end_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("begin_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+            pl.col("end_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval End"),
+        )
 
         # NB: The latest value that the AESO API returns always has an interval that ends at 23:59 of the current day.
         # We want to set the interval end to 1 minute after the interval start to make it consistent with the other intervals
         # and make the forward filling easier.
         # Example: If the latest interval start is 2025-06-12 23:00:00,
         # the interval end will be changed from 2025-06-12 23:59:00 to 2025-06-12 23:01:00.
-        mask = df["Interval End"].dt.strftime("%H:%M") == "23:59"
-        df.loc[mask, "Interval End"] = df.loc[mask, "Interval Start"] + pd.Timedelta(
-            minutes=1,
+        df = df.with_columns(
+            pl.when(pl.col("Interval End").dt.strftime("%H:%M") == "23:59")
+            .then(pl.col("Interval Start") + pl.duration(minutes=1))
+            .otherwise(pl.col("Interval End"))
+            .alias("Interval End"),
         )
 
         df = df.rename(
-            columns={
+            {
                 "system_marginal_price": "System Marginal Price",
                 "volume": "Volume",
             },
         )
-        df["System Marginal Price"] = pd.to_numeric(
-            df["System Marginal Price"],
-            errors="coerce",
+        df = df.with_columns(
+            pl.col("System Marginal Price").cast(pl.Float64, strict=False),
+            pl.col("Volume").cast(pl.Float64, strict=False),
         )
-        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce")
-        df = df.sort_values(by="Interval Start")
+        df = df.sort("Interval Start")
 
         # NB: Add current time as final interval if needed, but only for today's data
         current_time = pd.Timestamp.now(tz=self.default_timezone)
         today_start = current_time.floor("D")
-        if (
-            df["Interval Start"].min().floor("D") == today_start
-            and df["Interval End"].max() < current_time
-        ):
-            last_row = df.iloc[-1].copy()
-            last_row["Interval Start"] = df["Interval End"].max()
-            last_row["Interval End"] = current_time.floor("min")
-            df = pd.concat([df, pd.DataFrame([last_row])], ignore_index=True)
+        min_start = pd.Timestamp(df.select(pl.col("Interval Start").min()).item())
+        max_end = pd.Timestamp(df.select(pl.col("Interval End").max()).item())
+        if min_start.floor("D") == today_start and max_end < current_time:
+            last_row = df.tail(1).with_columns(
+                pl.lit(max_end).alias("Interval Start"),
+                pl.lit(current_time.floor("min")).alias("Interval End"),
+            )
+            df = pl.concat([df, last_row])
 
-        start_time = df["Interval Start"].min()
-        end_time = pd.Timestamp(end) if end else df["Interval End"].max()
+        start_time = pd.Timestamp(df.select(pl.col("Interval Start").min()).item())
+        end_time = (
+            pd.Timestamp(end)
+            if end
+            else pd.Timestamp(
+                df.select(pl.col("Interval End").max()).item(),
+            )
+        )
 
-        all_minutes = pd.date_range(
+        all_minutes = pl.datetime_range(
             start=start_time,
             end=end_time,
-            freq="1min",
-            tz=self.default_timezone,
-            inclusive="left",
+            interval="1m",
+            time_zone=self.default_timezone,
+            closed="left",
+            eager=True,
         )
 
-        result_df = pd.DataFrame({"Interval Start": all_minutes})
-        result_df["Interval End"] = result_df["Interval Start"] + pd.Timedelta(
-            minutes=1,
+        result_df = pl.DataFrame({"Interval Start": all_minutes})
+        result_df = result_df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=1)).alias("Interval End"),
         )
 
-        result_df = pd.merge_asof(
-            result_df,
-            df[["Interval Start", "System Marginal Price", "Volume"]],
+        result_df = result_df.sort("Interval Start").join_asof(
+            df.select(["Interval Start", "System Marginal Price", "Volume"]).sort(
+                "Interval Start",
+            ),
             on="Interval Start",
-            direction="backward",
+            strategy="backward",
         )
 
-        return result_df[
-            ["Interval Start", "Interval End", "System Marginal Price", "Volume"]
-        ]
+        return result_df.select(
+            ["Interval Start", "Interval End", "System Marginal Price", "Volume"],
+        )
 
     def get_unit_status(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get current unit status data for all assets in the AESO system.
 
         Returns:
@@ -759,19 +761,22 @@ class AESO:
         endpoint = "currentsupplydemand-api/v1/csd/generation/assets/current"
         data = self._make_request(endpoint)
 
-        df = pd.json_normalize(
-            data["return"],
-            record_path="asset_list",
-            meta=["last_updated_datetime_utc"],
+        last_updated = data["return"]["last_updated_datetime_utc"]
+        records = [
+            {**item, "last_updated_datetime_utc": last_updated}
+            for item in data["return"]["asset_list"]
+        ]
+        df = pl.DataFrame(records)
+
+        df = df.with_columns(
+            pl.col("last_updated_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Time"),
         )
 
-        df["Time"] = pd.to_datetime(
-            df["last_updated_datetime_utc"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-
         df = df.rename(
-            columns={
+            {
                 "asset": "Asset",
                 "fuel_type": "Fuel Type",
                 "sub_fuel_type": "Sub Fuel Type",
@@ -786,10 +791,11 @@ class AESO:
             "Net Generation",
             "Dispatched Contingency Reserve",
         ]
-        for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.with_columns(
+            [pl.col(col).cast(pl.Float64, strict=False) for col in numeric_columns],
+        )
 
-        return df[
+        return df.select(
             [
                 "Time",
                 "Asset",
@@ -798,8 +804,8 @@ class AESO:
                 "Maximum Capability",
                 "Net Generation",
                 "Dispatched Contingency Reserve",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="31D")
     def get_generator_outages_hourly(
@@ -807,7 +813,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get hourly generator outage data.
 
@@ -896,57 +902,55 @@ class AESO:
                 }
                 rows.append(row)
 
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
 
         current_time = pd.Timestamp.now(tz=self.default_timezone).floor("h")
-        df["Publish Time"] = df.apply(
-            lambda row: (
-                current_time
-                if row["Interval Start"] > current_time
-                else row["Interval Start"] - pd.Timedelta(hours=1)
-            ),
-            axis=1,
+        df = df.with_columns(
+            pl.when(pl.col("Interval Start") > pl.lit(current_time))
+            .then(pl.lit(current_time))
+            .otherwise(pl.col("Interval Start") - pl.duration(hours=1))
+            .alias("Publish Time"),
         )
 
         # NB: Pivot the data to get the by-fuel type outage.
-        df_pivot = df.pivot_table(
+        df_pivot = df.pivot(
+            "Sub Fuel Type",
             index=["Interval Start", "Interval End", "Publish Time"],
-            columns=["Sub Fuel Type"],
             values="Operating Outage",
-            aggfunc="sum",
-        ).reset_index()
+            aggregate_function="sum",
+        )
 
         # NB: Sum the operational outage by fuel type to get the total outage.
-        df_pivot["Total Outage"] = df_pivot[
-            [
-                col
-                for col in df_pivot.columns
-                if col
-                not in [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Mothball Outage",
-                    "Total Outage",
-                ]
+        pivot_value_cols = [
+            col
+            for col in df_pivot.columns
+            if col
+            not in [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Mothball Outage",
+                "Total Outage",
             ]
-        ].sum(axis=1)
+        ]
+        df_pivot = df_pivot.with_columns(
+            pl.sum_horizontal([pl.col(col) for col in pivot_value_cols]).alias(
+                "Total Outage",
+            ),
+        )
 
         # NB: Create the summed mothball outage and merge it back in.
-        mbo_df = (
-            df.groupby(["Interval Start", "Interval End", "Publish Time"])[
-                "Mothball Outage"
-            ]
-            .sum()
-            .reset_index()
+        mbo_df = df.group_by(["Interval Start", "Interval End", "Publish Time"]).agg(
+            pl.col("Mothball Outage").sum().alias("Mothball Outage"),
         )
-        df_pivot = pd.merge(
-            df_pivot,
+        df_pivot = df_pivot.join(
             mbo_df,
             on=["Interval Start", "Interval End", "Publish Time"],
             how="left",
         )
-        df_pivot["Mothball Outage"] = df_pivot["Mothball Outage"].fillna(0)
+        df_pivot = df_pivot.with_columns(
+            pl.col("Mothball Outage").fill_null(0),
+        )
 
         df_pivot = utils.move_cols_to_front(
             df_pivot,
@@ -974,15 +978,51 @@ class AESO:
 
         for col in expected_columns:
             if col not in df_pivot.columns:
-                df_pivot[col] = 0
+                df_pivot = df_pivot.with_columns(pl.lit(0).alias(col))
 
-        return df_pivot[expected_columns]
+        return df_pivot.select(expected_columns)
+
+    def _format_transmission_outages(
+        self,
+        df: pl.DataFrame,
+        publish_datetime: pd.Timestamp,
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            pl.col("From")
+            .str.to_datetime(format="%d-%b-%y %H:%M", strict=False)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+            pl.col("To")
+            .str.to_datetime(format="%d-%b-%y %H:%M", strict=False)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval End"),
+            pl.lit(publish_datetime).alias("Publish Time"),
+        )
+        df = df.rename(
+            {
+                "Owner": "Transmission Owner",
+                "Date/Time Comments": "Date Time Comments",
+            },
+        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Transmission Owner",
+                "Type",
+                "Element",
+                "Scheduled Activity",
+                "Date Time Comments",
+                "Interconnection",
+            ],
+        )
 
     def get_transmission_outages(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get transmission outages data.
 
@@ -1015,40 +1055,8 @@ class AESO:
                 publish_datetime = pd.to_datetime(f"{publish_date} {publish_time}")
                 publish_datetime = publish_datetime.tz_localize(self.default_timezone)
 
-            df = pd.read_csv(csv_url)
-
-            df["Interval Start"] = pd.to_datetime(
-                df["From"],
-                format="%d-%b-%y %H:%M",
-            ).dt.tz_localize(self.default_timezone)
-            df["Interval End"] = pd.to_datetime(
-                df["To"],
-                format="%d-%b-%y %H:%M",
-            ).dt.tz_localize(self.default_timezone)
-            df["Publish Time"] = publish_datetime
-
-            df = df.rename(
-                columns={
-                    "Owner": "Transmission Owner",
-                    "Date/Time Comments": "Date Time Comments",
-                },
-            )
-
-            df = df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Transmission Owner",
-                    "Type",
-                    "Element",
-                    "Scheduled Activity",
-                    "Date Time Comments",
-                    "Interconnection",
-                ]
-            ]
-
-            return df
+            df = pl.read_csv(csv_url)
+            return self._format_transmission_outages(df, publish_datetime)
 
         else:
             # NB: For historical data, we need to navigate backwards through Previous Version links
@@ -1188,49 +1196,22 @@ class AESO:
             all_dfs = []
             for csv_url, publish_datetime in historical_files:
                 try:
-                    df_hist = pd.read_csv(csv_url, on_bad_lines="skip")
-                    df_hist["Interval Start"] = pd.to_datetime(
-                        df_hist["From"],
-                        format="%d-%b-%y %H:%M",
-                    ).dt.tz_localize(self.default_timezone)
-                    df_hist["Interval End"] = pd.to_datetime(
-                        df_hist["To"],
-                        format="%d-%b-%y %H:%M",
-                    ).dt.tz_localize(self.default_timezone)
-                    df_hist["Publish Time"] = publish_datetime
-
-                    df_hist = df_hist.rename(
-                        columns={
-                            "Owner": "Transmission Owner",
-                            "Date/Time Comments": "Date Time Comments",
-                        },
+                    df_hist = utils.read_csv_exotic_via_pandas(
+                        csv_url,
+                        on_bad_lines="skip",
                     )
-
-                    df_hist = df_hist[
-                        [
-                            "Interval Start",
-                            "Interval End",
-                            "Publish Time",
-                            "Transmission Owner",
-                            "Type",
-                            "Element",
-                            "Scheduled Activity",
-                            "Date Time Comments",
-                            "Interconnection",
-                        ]
-                    ]
-
-                    all_dfs.append(df_hist)
+                    all_dfs.append(
+                        self._format_transmission_outages(df_hist, publish_datetime),
+                    )
                 except Exception as e:
                     logger.error(f"Error accessing {csv_url}: {e}")
                     continue
 
             if all_dfs:
-                df = pd.concat(all_dfs, ignore_index=True)
-                df = df.sort_values("Publish Time", ascending=False).reset_index(
-                    drop=True,
+                return utils.concat_dataframes(all_dfs).sort(
+                    "Publish Time",
+                    descending=True,
                 )
-                return df
 
     def _generate_csv_url(self, csv_href: str) -> str:
         csv_href = csv_href.replace("\\", "/")
@@ -1251,7 +1232,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get 12-hour wind forecast data.
 
@@ -1276,7 +1257,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get 7-day wind forecast data.
 
@@ -1312,7 +1293,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get 12-hour solar forecast data.
 
@@ -1337,7 +1318,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get 7-day solar forecast data.
 
@@ -1373,7 +1354,7 @@ class AESO:
         term: Literal["shortterm", "longterm"],
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get wind or solar forecast data from AESO CSV reports.
 
@@ -1389,45 +1370,53 @@ class AESO:
         url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{forecast_type}_rpt_{term}.csv"
 
         try:
-            df = pd.read_csv(url)
+            df = pl.read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch {forecast_type} forecast data: {str(e)}",
             )
 
-        df["Interval Start"] = pd.to_datetime(
-            df["Forecast Transaction Date"],
-            format="%Y-%m-%d %H:%M",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
-
-        interval_length = (
-            pd.Timedelta(minutes=10) if term == "shortterm" else pd.Timedelta(hours=1)
+        df = df.with_columns(
+            pl.col("Forecast Transaction Date")
+            .str.to_datetime(format="%Y-%m-%d %H:%M", strict=False)
+            .alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + interval_length
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
+
+        interval_duration = (
+            pl.duration(minutes=10) if term == "shortterm" else pl.duration(hours=1)
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + interval_duration).alias("Interval End"),
+        )
 
         # NB: Since the forecasts are published every 10 minutes for shortterm and every 1 hour for longterm,
         # we can calculate the publish time based on the presence of actuals values.
         # For past forecasted intervals (intervals with an actual value), we know the most recent forecast was published just before each interval.
         # For future forecasted values, the publish time for all of them is set to the first interval that has no actual value, since
         # that's when the forecast was last published.
-        first_interval_without_actual = df[df["Actual"].isna()]
-        if not first_interval_without_actual.empty:
-            forecast_publish_time = first_interval_without_actual[
-                "Interval Start"
-            ].min()
-            df["Publish Time"] = df.apply(
-                lambda row: (
-                    forecast_publish_time
-                    if pd.isna(row["Actual"])
-                    else row["Interval Start"] - interval_length
-                ),
-                axis=1,
+        first_interval_without_actual = df.filter(pl.col("Actual").is_null())
+        if first_interval_without_actual.height > 0:
+            forecast_publish_time = first_interval_without_actual.select(
+                pl.col("Interval Start").min(),
+            ).item()
+            df = df.with_columns(
+                pl.when(pl.col("Actual").is_null())
+                .then(pl.lit(forecast_publish_time))
+                .otherwise(pl.col("Interval Start") - interval_duration)
+                .alias("Publish Time"),
             )
         else:
-            df["Publish Time"] = df["Interval Start"] - interval_length
+            df = df.with_columns(
+                (pl.col("Interval Start") - interval_duration).alias("Publish Time"),
+            )
 
         df = df.rename(
-            columns={
+            {
                 "Min": "Minimum Generation Forecast",
                 "Most Likely": "Most Likely Generation Forecast",
                 "Max": "Maximum Generation Forecast",
@@ -1448,11 +1437,13 @@ class AESO:
             "Maximum Generation Percentage",
         ]
 
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-        df.sort_values("Interval Start").reset_index(drop=True)
-        return df[
+        cast_exprs = [
+            pl.col(col).cast(pl.Float64, strict=False)
+            for col in numeric_columns
+            if col in df.columns
+        ]
+        df = df.with_columns(cast_exprs)
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1464,15 +1455,15 @@ class AESO:
                 "Minimum Generation Percentage",
                 "Most Likely Generation Percentage",
                 "Maximum Generation Percentage",
-            ]
-        ]
+            ],
+        ).sort("Interval Start")
 
     def _get_wind_solar_forecast_historical_data(
         self,
         forecast_type: Literal["wind", "solar"],
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get historical wind or solar forecast data from AESO CSV archives.
 
@@ -1487,28 +1478,39 @@ class AESO:
         url = f"https://www.aeso.ca/assets/{forecast_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
 
         try:
-            df = pd.read_csv(url)
+            pdf = pd.read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch historical {forecast_type} forecast data: {str(e)}",
             )
 
-        forecast_prefix = forecast_type.upper()
-        df["Interval Start"] = pd.to_datetime(
-            df["FORECAST_DATE_MPT"],
+        pdf["Interval Start"] = pd.to_datetime(
+            pdf["FORECAST_DATE_MPT"],
             format="mixed",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        )
+        df = pl.from_pandas(pdf)
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
 
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-        df["Publish Time"] = df["Interval Start"] - pd.Timedelta(hours=24)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+            (pl.col("Interval Start") - pl.duration(hours=24)).alias("Publish Time"),
+        )
 
         if end:
-            df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
+            df = df.filter(
+                (pl.col("Interval Start") >= pl.lit(date))
+                & (pl.col("Interval Start") <= pl.lit(end)),
+            )
         else:
-            df = df[df["Interval Start"] >= date]
+            df = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
+        forecast_prefix = forecast_type.upper()
         df = df.rename(
-            columns={
+            {
                 f"{forecast_prefix}_MIN": "Minimum Generation Forecast",
                 f"{forecast_prefix}_OPT": "Most Likely Generation Forecast",
                 f"{forecast_prefix}_MAX": "Maximum Generation Forecast",
@@ -1523,39 +1525,40 @@ class AESO:
             f"Total {forecast_type.capitalize()} Capacity",
         ]
 
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        cast_exprs = [
+            pl.col(col).cast(pl.Float64, strict=False)
+            for col in numeric_columns
+            if col in df.columns
+        ]
+        df = df.with_columns(cast_exprs)
 
         capacity_col = f"Total {forecast_type.capitalize()} Capacity"
-        df["Minimum Generation Percentage"] = (
-            df["Minimum Generation Forecast"] / df[capacity_col]
-        ) * 100
-        df["Most Likely Generation Percentage"] = (
-            df["Most Likely Generation Forecast"] / df[capacity_col]
-        ) * 100
-        df["Maximum Generation Percentage"] = (
-            df["Maximum Generation Forecast"] / df[capacity_col]
-        ) * 100
-
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Minimum Generation Forecast",
-                    "Most Likely Generation Forecast",
-                    "Maximum Generation Forecast",
-                    f"Total {forecast_type.capitalize()} Capacity",
-                    "Minimum Generation Percentage",
-                    "Most Likely Generation Percentage",
-                    "Maximum Generation Percentage",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
+        df = df.with_columns(
+            (pl.col("Minimum Generation Forecast") / pl.col(capacity_col) * 100).alias(
+                "Minimum Generation Percentage",
+            ),
+            (
+                pl.col("Most Likely Generation Forecast") / pl.col(capacity_col) * 100
+            ).alias("Most Likely Generation Percentage"),
+            (pl.col("Maximum Generation Forecast") / pl.col(capacity_col) * 100).alias(
+                "Maximum Generation Percentage",
+            ),
         )
+
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Minimum Generation Forecast",
+                "Most Likely Generation Forecast",
+                "Maximum Generation Forecast",
+                f"Total {forecast_type.capitalize()} Capacity",
+                "Minimum Generation Percentage",
+                "Most Likely Generation Percentage",
+                "Maximum Generation Percentage",
+            ],
+        ).sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_wind_hourly(
@@ -1563,7 +1566,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get actual wind generation data with hourly intervals.
 
@@ -1597,7 +1600,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get actual solar generation data with hourly intervals.
 
@@ -1631,7 +1634,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get actual wind generation data with 10-minute intervals.
 
@@ -1654,7 +1657,7 @@ class AESO:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get actual solar generation data with 10-minute intervals.
 
@@ -1675,7 +1678,7 @@ class AESO:
         self,
         generation_type: Literal["wind", "solar"],
         forecast_type: Literal["shortterm", "longterm"] = "shortterm",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get actual wind or solar generation data from AESO CSV reports with 10-minute or hourly intervals.
 
@@ -1689,27 +1692,37 @@ class AESO:
         url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{generation_type}_rpt_{forecast_type}.csv"
 
         try:
-            df = pd.read_csv(url)
+            df = pl.read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch {generation_type} generation data: {str(e)}",
             )
 
-        df["Interval Start"] = pd.to_datetime(
-            df["Forecast Transaction Date"],
-            format="%Y-%m-%d %H:%M",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        df = df.with_columns(
+            pl.col("Forecast Transaction Date")
+            .str.to_datetime(format="%Y-%m-%d %H:%M", strict=False)
+            .alias("Interval Start"),
+        )
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
 
-        if forecast_type == "shortterm":
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=10)
-        else:
-            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        interval_duration = (
+            pl.duration(minutes=10)
+            if forecast_type == "shortterm"
+            else pl.duration(hours=1)
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + interval_duration).alias("Interval End"),
+        )
 
         # NB: Only include rows with actual generation data
-        df = df[df["Actual"].notna()].copy()
+        df = df.filter(pl.col("Actual").is_not_null())
 
         df = df.rename(
-            columns={
+            {
                 "Actual": "Actual Generation",
                 "MCR": f"Total {generation_type.capitalize()} Capacity",
             },
@@ -1720,29 +1733,28 @@ class AESO:
             f"Total {generation_type.capitalize()} Capacity",
         ]
 
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        cast_exprs = [
+            pl.col(col).cast(pl.Float64, strict=False)
+            for col in numeric_columns
+            if col in df.columns
+        ]
+        df = df.with_columns(cast_exprs)
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Actual Generation",
-                    f"Total {generation_type.capitalize()} Capacity",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Actual Generation",
+                f"Total {generation_type.capitalize()} Capacity",
+            ],
+        ).sort("Interval Start")
 
     def _get_wind_solar_actual_historical_data(
         self,
         generation_type: Literal["wind", "solar"],
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get historical wind or solar generation data from AESO CSV archives with hourly intervals.
 
@@ -1757,27 +1769,38 @@ class AESO:
         url = f"https://www.aeso.ca/assets/{generation_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
 
         try:
-            df = pd.read_csv(url)
+            pdf = pd.read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch historical {generation_type} generation data: {str(e)}",
             )
 
-        generation_prefix = generation_type.upper()
-        df["Interval Start"] = pd.to_datetime(
-            df["FORECAST_DATE_MPT"],
+        pdf["Interval Start"] = pd.to_datetime(
+            pdf["FORECAST_DATE_MPT"],
             format="mixed",
-        ).dt.tz_localize(self.default_timezone, ambiguous="infer")
+        )
+        df = pl.from_pandas(pdf)
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
 
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
         if end:
-            df = df[(df["Interval Start"] >= date) & (df["Interval Start"] <= end)]
+            df = df.filter(
+                (pl.col("Interval Start") >= pl.lit(date))
+                & (pl.col("Interval Start") <= pl.lit(end)),
+            )
         else:
-            df = df[df["Interval Start"] >= date]
+            df = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
+        generation_prefix = generation_type.upper()
         df = df.rename(
-            columns={
+            {
                 f"{generation_prefix}_ACTUAL": "Actual Generation",
                 f"{generation_prefix}_MCR": f"Total {generation_type.capitalize()} Capacity",
             },
@@ -1788,19 +1811,18 @@ class AESO:
             f"Total {generation_type.capitalize()} Capacity",
         ]
 
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        cast_exprs = [
+            pl.col(col).cast(pl.Float64, strict=False)
+            for col in numeric_columns
+            if col in df.columns
+        ]
+        df = df.with_columns(cast_exprs)
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Actual Generation",
-                    f"Total {generation_type.capitalize()} Capacity",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Actual Generation",
+                f"Total {generation_type.capitalize()} Capacity",
+            ],
+        ).sort("Interval Start")

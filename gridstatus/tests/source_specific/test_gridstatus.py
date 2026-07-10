@@ -32,7 +32,7 @@ def test_list_isos():
 
 
 def test_get_iso():
-    for iso in gridstatus.list_isos()["Id"].values:
+    for iso in gridstatus.list_isos()["Id"].to_list():
         assert issubclass(gridstatus.get_iso(iso), ISOBase)
 
 

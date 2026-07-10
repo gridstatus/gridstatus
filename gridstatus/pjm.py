@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from typing import BinaryIO
 
 import pandas as pd
+import polars as pl
 import requests
 import tqdm
 from bs4 import BeautifulSoup
@@ -98,7 +99,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get fuel mix for a date or date range  in hourly intervals"""
         # earliest date available appears to be 1/1/2016
         data = {
@@ -115,16 +116,18 @@ class PJM(ISOBase):
             interval_duration_min=60,
         )
 
-        mix_df = mix_df.pivot_table(
+        mix_df = mix_df.pivot(
             index=["Time", "Interval Start", "Interval End"],
-            columns="fuel_type",
+            on="fuel_type",
             values="mw",
-            aggfunc="first",
-        ).reset_index()
-
-        mix_df.columns.name = None
-
-        return mix_df
+            aggregate_function="first",
+        )
+        fuel_cols = sorted(
+            c
+            for c in mix_df.columns
+            if c not in ["Time", "Interval Start", "Interval End"]
+        )
+        return mix_df.select(["Time", "Interval Start", "Interval End", *fuel_cols])
 
     @support_date_range(frequency="30D")
     def get_load(
@@ -132,7 +135,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns load at a previous date at 5 minute intervals.
 
         Args:
@@ -165,30 +168,25 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        # round to nearest minute before the pivot
-        # need to round in utc time
-        load["Interval Start"] = (
-            load["Interval Start"]
-            .dt.tz_convert("UTC")
-            .dt.round("1min")
-            .dt.tz_convert(self.default_timezone)
+        load = load.with_columns(
+            pl.col("Interval Start")
+            .dt.convert_time_zone("UTC")
+            .dt.round("1m")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        load["Time"] = load["Interval Start"]
+        load = load.with_columns(pl.col("Interval Start").alias("Time"))
 
-        # pivot on area
-        load = load.pivot_table(
+        load = load.pivot(
             index=["Time", "Interval Start"],
-            columns="area",
+            on="area",
             values="instantaneous_load",
-            aggfunc="first",
-        ).reset_index()
-
-        load["Interval End"] = load["Interval Start"] + pd.Timedelta(minutes=5)
-
-        load.columns.name = None
-
-        # set Load column name to match return column of other ISOs
-        load["Load"] = load["PJM RTO"]
+            aggregate_function="first",
+        )
+        load = load.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=5)).alias("Interval End"),
+            pl.col("PJM RTO").alias("Load"),
+        )
 
         load = utils.move_cols_to_front(
             load,
@@ -203,7 +201,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Load forecast made today extending for six days in hourly intervals.
 
@@ -241,7 +239,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Historical load forecast in hourly intervals. Historical forecasts include all
         vintages of the forecast but has fewer regions than the current forecast.
@@ -279,7 +277,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Load forecast made today extending for 2 hours in 5 minute intervals.
         """
@@ -303,9 +301,9 @@ class PJM(ISOBase):
 
         return self._handle_load_forecast(data)
 
-    def _handle_load_forecast(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _handle_load_forecast(self, data: pl.DataFrame) -> pl.DataFrame:
         data = data.rename(
-            columns={
+            {
                 "evaluated_at_utc": "Publish Time",
                 "evaluated_at_datetime_utc": "Publish Time",
                 "forecast_load_mw": "Load Forecast",
@@ -317,54 +315,49 @@ class PJM(ISOBase):
         )
 
         data = data.pivot(
-            columns="Forecast Area",
-            values="Load Forecast",
             index=["Publish Time", "Interval Start"],
-        ).reset_index()
+            on="Forecast Area",
+            values="Load Forecast",
+            aggregate_function="first",
+        )
+        rename_cols = {c: c.replace("&", "").replace("/", "_") for c in data.columns}
+        data = data.rename(rename_cols)
 
-        # Replace & with "" and / with _ in column names
-        data.columns = data.columns.str.replace("&", "").str.replace("/", "_")
-
-        data["Publish Time"] = pd.to_datetime(
-            data["Publish Time"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
+        data = data.with_columns(
+            pl.col("Publish Time")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone),
+            pl.col("Interval Start")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone),
         )
 
-        data["Interval Start"] = pd.to_datetime(
-            data["Interval Start"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
-        )
-
-        # Only real-time data has Interval End
         if "Interval End" in data.columns:
-            data["Interval End"] = pd.to_datetime(
-                data["Interval End"],
-                utc=True,
-            ).dt.tz_convert(
-                self.default_timezone,
+            data = data.with_columns(
+                pl.col("Interval End")
+                .str.to_datetime(time_zone="UTC")
+                .dt.convert_time_zone(self.default_timezone),
             )
         else:
-            data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
+            data = data.with_columns(
+                (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+            )
 
         if "RTO" in data.columns:
-            data["Load Forecast"] = data["RTO"]
+            data = data.with_columns(pl.col("RTO").alias("Load Forecast"))
         elif "RTO_COMBINED" in data.columns:
-            data["Load Forecast"] = data["RTO_COMBINED"]
+            data = data.with_columns(pl.col("RTO_COMBINED").alias("Load Forecast"))
 
         data = utils.move_cols_to_front(
             data,
             ["Interval Start", "Interval End", "Publish Time", "Load Forecast"],
         )
 
-        return data.sort_values(["Interval Start", "Publish Time"]).reset_index(
+        return data.sort(["Interval Start", "Publish Time"]).reset_index(
             drop=True,
         )
 
-    def get_pnode_ids(self) -> pd.DataFrame:
+    def get_pnode_ids(self) -> pl.DataFrame:
         data = {
             "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type\
                 ,termination_date,voltage_level,zone",
@@ -375,32 +368,27 @@ class PJM(ISOBase):
         # only keep most recent effective date for each id
         # return sorted by pnode_id
         nodes = (
-            nodes.sort_values("effective_date", ascending=False)
-            .drop_duplicates(
-                "pnode_id",
-            )
-            .sort_values("pnode_id")
-            .reset_index(drop=True)
+            nodes.sort("effective_date", descending=True)
+            .unique(subset=["pnode_id"], keep="first")
+            .sort("pnode_id")
         )
 
-        # NB: this is needed because rt_unverified_fivemin_lmps
-        # doesn't have short name
-        # so we need to extract it from full name
-        # other LMP datasets have but do it this way
-        # for consistent logic
-        def extract_short_name(row: pd.Series) -> str:
-            if row["voltage_level"] is None or pd.isna(row["voltage_level"]):
-                return row["pnode_name"]
-            else:
-                # Find the index where voltage_level starts
-                # and extract everything before it
-                index = row["pnode_name"].find(row["voltage_level"])
-                # if not found, return full name
-                if index == -1:
-                    return row["pnode_name"]
-                return row["pnode_name"][:index].strip()
+        def extract_short_name(voltage_level: str | None, pnode_name: str) -> str:
+            if voltage_level is None:
+                return pnode_name
+            index = pnode_name.find(voltage_level)
+            if index == -1:
+                return pnode_name
+            return pnode_name[:index].strip()
 
-        nodes["pnode_short_name"] = nodes.apply(extract_short_name, axis=1)
+        nodes = nodes.with_columns(
+            pl.struct(["voltage_level", "pnode_name"])
+            .map_elements(
+                lambda row: extract_short_name(row["voltage_level"], row["pnode_name"]),
+                return_dtype=pl.Utf8,
+            )
+            .alias("pnode_short_name"),
+        )
 
         return nodes
 
@@ -420,7 +408,7 @@ class PJM(ISOBase):
         locations: str = "hubs",
         location_type: str | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Returns LMP at a previous date.
 
         Note:
@@ -550,20 +538,22 @@ class PJM(ISOBase):
                 interval_duration_min=interval_duration_min,
             )
 
-            data["system_energy_price_rt"] = (
-                data["total_lmp_rt"]
-                - data["congestion_price_rt"]
-                - data["marginal_loss_price_rt"]
+            data = data.with_columns(
+                (
+                    pl.col("total_lmp_rt")
+                    - pl.col("congestion_price_rt")
+                    - pl.col("marginal_loss_price_rt")
+                ).alias("system_energy_price_rt"),
             )
 
         # API cannot filter location type for rt 5 min
-        data = data.rename(columns={"type": "Location Type"})
+        data = data.rename({"type": "Location Type"})
         if location_type and market == Markets.REAL_TIME_5_MIN:
-            data = data[data["Location Type"] == location_type]
+            data = data.filter(pl.col("Location Type") == location_type)
 
         if locations is not None and locations != "ALL":
             # make sure Location is defined
-            data["Location"] = data["pnode_id"]
+            data = data.with_columns(pl.col("pnode_id").alias("Location"))
             data = utils.filter_lmp_locations(
                 data,
                 map(int, locations),
@@ -572,7 +562,7 @@ class PJM(ISOBase):
         data = self._add_pnode_info_to_lmp_data(data)
 
         data = data.rename(
-            columns={
+            {
                 "pnode_id": "Location Id",
                 "pnode_name": "Location Name",
                 "pnode_short_name": "Location Short Name",
@@ -582,9 +572,9 @@ class PJM(ISOBase):
                 f"marginal_loss_price_{market_type}": "Loss",
             },
         )
-        data["Market"] = market.value
+        data = data.with_columns(pl.lit(market.value).alias("Market"))
 
-        data = data[
+        data = data.select(
             [
                 "Time",
                 "Interval Start",
@@ -598,10 +588,10 @@ class PJM(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
+            ],
+        )
 
-        data = data.sort_values("Interval Start")
+        data = data.sort("Interval Start")
 
         return data
 
@@ -620,7 +610,7 @@ class PJM(ISOBase):
         locations: str = "hubs",
         location_type: str | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Deprecated. Use the per-dataset methods instead:
         :meth:`get_lmp_real_time_5_min`, :meth:`get_lmp_real_time_hourly`,
         :meth:`get_lmp_day_ahead_hourly`.
@@ -646,7 +636,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time 5-minute LMPs for all nodes."""
         return self._get_lmp(
             date,
@@ -661,7 +651,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time hourly LMPs for all nodes."""
         return self._get_lmp(
             date,
@@ -676,7 +666,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead hourly LMPs for all nodes."""
         return self._get_lmp(
             date,
@@ -686,17 +676,17 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-    def _add_pnode_info_to_lmp_data(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _add_pnode_info_to_lmp_data(self, data: pl.DataFrame) -> pl.DataFrame:
         # the pnode_name in the lmp data isn't always full name
         # so, let drop it for now
         # will get full name by merge with pnode data later
-        data = data.drop(columns=["pnode_name"])
+        data = data.drop("pnode_name")
 
-        p_nodes = self.get_pnode_ids()[
-            ["pnode_id", "pnode_name", "voltage_level", "pnode_short_name"]
-        ]
+        p_nodes = self.get_pnode_ids().select(
+            ["pnode_id", "pnode_name", "voltage_level", "pnode_short_name"],
+        )
 
-        data = data.merge(p_nodes, on="pnode_id")
+        data = data.join(p_nodes, on="pnode_id")
 
         return data
 
@@ -708,7 +698,7 @@ class PJM(ISOBase):
         locations: str | list | None = "hubs",
         location_type: str | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time unverified 5-minute LMPs for a date range.
 
         Mirrors the output shape of ``get_lmp(market=REAL_TIME_5_MIN)`` but
@@ -753,24 +743,26 @@ class PJM(ISOBase):
             interval_duration_min=5,
         )
 
-        data["system_energy_price_rt"] = (
-            data["total_lmp_rt"]
-            - data["congestion_price_rt"]
-            - data["marginal_loss_price_rt"]
+        data = data.with_columns(
+            (
+                pl.col("total_lmp_rt")
+                - pl.col("congestion_price_rt")
+                - pl.col("marginal_loss_price_rt")
+            ).alias("system_energy_price_rt"),
         )
 
-        data = data.rename(columns={"type": "Location Type"})
+        data = data.rename({"type": "Location Type"})
         if location_type:
-            data = data[data["Location Type"] == location_type]
+            data = data.filter(pl.col("Location Type") == location_type)
 
         if locations is not None and locations != "ALL":
-            data["Location"] = data["pnode_id"]
+            data = data.with_columns(pl.col("pnode_id").alias("Location"))
             data = utils.filter_lmp_locations(data, map(int, locations))
 
         data = self._add_pnode_info_to_lmp_data(data)
 
         data = data.rename(
-            columns={
+            {
                 "pnode_id": "Location Id",
                 "pnode_name": "Location Name",
                 "pnode_short_name": "Location Short Name",
@@ -780,9 +772,9 @@ class PJM(ISOBase):
                 "marginal_loss_price_rt": "Loss",
             },
         )
-        data["Market"] = Markets.REAL_TIME_5_MIN.value
+        data = data.with_columns(pl.lit(Markets.REAL_TIME_5_MIN.value).alias("Market"))
 
-        return data[
+        return data.select(
             [
                 "Time",
                 "Interval Start",
@@ -796,8 +788,8 @@ class PJM(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ].sort_values("Interval Start")
+            ],
+        ).sort("Interval Start")
 
     @support_date_range(frequency="365D")
     def get_lmp_real_time_unverified_hourly(
@@ -807,7 +799,7 @@ class PJM(ISOBase):
         locations: str | None = None,
         location_type: str | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time unverified hourly LMPs"""
 
         params = {
@@ -834,20 +826,22 @@ class PJM(ISOBase):
         elif locations == "zones":
             locations = self.zone_node_ids
         if locations is not None and locations != "ALL":
-            data["Location"] = data["pnode_name"]
+            data = data.with_columns(pl.col("pnode_name").alias("Location"))
             data = utils.filter_lmp_locations(
                 data,
                 map(int, locations),
             )
 
-        data["system_energy_price_rt"] = (
-            data["total_lmp_rt"]
-            - data["congestion_price_rt"]
-            - data["marginal_loss_price_rt"]
+        data = data.with_columns(
+            (
+                pl.col("total_lmp_rt")
+                - pl.col("congestion_price_rt")
+                - pl.col("marginal_loss_price_rt")
+            ).alias("system_energy_price_rt"),
         )
 
         df = data.rename(
-            columns={
+            {
                 "pnode_name": "Location",
                 "type": "Location Type",
                 "total_lmp_rt": "LMP",
@@ -856,9 +850,9 @@ class PJM(ISOBase):
                 "marginal_loss_price_rt": "Loss",
             },
         )
-        df = df.sort_values("Interval Start").reset_index(drop=True)
+        df = df.sort("Interval Start")
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -868,8 +862,8 @@ class PJM(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_it_sced_lmp_5_min(
@@ -877,7 +871,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get 5 minute LMPs from the Integrated Forward Market (IFM)"""
 
         params = {
@@ -897,10 +891,10 @@ class PJM(ISOBase):
 
         df = self._add_pnode_info_to_lmp_data(df)
 
-        df.columns = df.columns.map(lambda x: x.replace("_", " ").title())
+        df = df.rename({c: c.replace("_", " ").title() for c in df.columns})
 
         df = df.rename(
-            columns={
+            {
                 "Case Approval Datetime Utc": "Case Approval Time",
                 "Itsced Lmp": "LMP",
                 "Pnode Id": "Location Id",
@@ -912,9 +906,11 @@ class PJM(ISOBase):
         )
 
         # LMP = Energy + Congestion + Loss so Energy = LMP - Congestion - Loss
-        df["Energy"] = df["LMP"] - df["Congestion"] - df["Loss"]
+        df = df.with_columns(
+            (pl.col("LMP") - pl.col("Congestion") - pl.col("Loss")).alias("Energy"),
+        )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -926,13 +922,14 @@ class PJM(ISOBase):
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
+            ],
+        )
 
-        df["Case Approval Time"] = pd.to_datetime(
-            df["Case Approval Time"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("Case Approval Time")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone),
+        )
 
         return df
 
@@ -942,7 +939,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._get_pjm_json(
             "rt_fivemin_mnt_lmps",
             start=date,
@@ -959,8 +956,8 @@ class PJM(ISOBase):
 
     def _handle_settlements_verified_lmp_5_min(
         self,
-        data: pd.DataFrame,
-    ) -> pd.DataFrame:
+        data: pl.DataFrame,
+    ) -> pl.DataFrame:
         rename = {
             "Interval Start": "Interval Start",
             "Interval End": "Interval End",
@@ -976,12 +973,12 @@ class PJM(ISOBase):
             "marginal_loss_price_rt": "Loss",
         }
 
-        data = data.rename(columns=rename)[rename.values()]
+        data = data.rename(rename).select(list(rename.values()))
 
         for col in ["Location Type", "Zone"]:
-            data[col] = data[col].astype("category")
+            data = data.with_columns(pl.col(col).cast(pl.Categorical))
 
-        return data.sort_values(["Interval Start", "Location Name"])
+        return data.sort(["Interval Start", "Location Name"])
 
     @support_date_range(frequency=None)
     def get_settlements_verified_lmp_hourly(
@@ -989,7 +986,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._get_pjm_json(
             "rt_da_monthly_lmps",
             start=date,
@@ -1006,8 +1003,8 @@ class PJM(ISOBase):
 
     def _handle_settlements_verified_lmp_hourly(
         self,
-        data: pd.DataFrame,
-    ) -> pd.DataFrame:
+        data: pl.DataFrame,
+    ) -> pl.DataFrame:
         rename = {
             "Interval Start": "Interval Start",
             "Interval End": "Interval End",
@@ -1027,12 +1024,12 @@ class PJM(ISOBase):
             "marginal_loss_price_da": "Loss DA",
         }
 
-        data = data.rename(columns=rename)[rename.values()]
+        data = data.rename(rename).select(list(rename.values()))
 
         for col in ["Location Type", "Zone"]:
-            data[col] = data[col].astype("category")
+            data = data.with_columns(pl.col(col).cast(pl.Categorical))
 
-        return data.sort_values(["Interval Start", "Location Name"])
+        return data.sort(["Interval Start", "Location Name"])
 
     def _make_api_call(
         self,
@@ -1138,7 +1135,7 @@ class PJM(ISOBase):
         if r["totalRows"] == 0:
             raise NoDataFoundException(f"No data found for {endpoint}")
 
-        df = pd.DataFrame(r["items"])
+        df = pl.from_dicts(r["items"])
 
         num_pages = math.ceil(r["totalRows"] / row_count)
         if num_pages > 1:
@@ -1151,52 +1148,47 @@ class PJM(ISOBase):
                         "Ocp-Apim-Subscription-Key": self.api_key,
                     },
                 )
-                to_add.append(pd.DataFrame(r["items"]))
+                to_add.append(pl.from_dicts(r["items"]))
 
-            df = pd.concat(to_add)
+            df = pl.concat(to_add, how="diagonal")
 
         if "datetime_beginning_utc" in df.columns:
-            df["Interval Start"] = (
-                # Some datetimes from the source have milliseconds. Parsing these
-                # requires specifying the format.
-                pd.to_datetime(df["datetime_beginning_utc"], format="ISO8601")
-                .dt.tz_localize(
-                    "UTC",
-                )
-                .dt.tz_convert(self.default_timezone)
+            df = df.with_columns(
+                pl.col("datetime_beginning_utc")
+                .str.to_datetime(time_zone="UTC")
+                .dt.convert_time_zone(self.default_timezone)
+                .alias("Interval Start"),
             )
 
-            # drop datetime_beginning_utc
-            df = df.drop(columns=["datetime_beginning_utc"])
+            df = df.drop("datetime_beginning_utc")
 
-            # PJM API is inclusive of end,
-            # so we need to drop where end timestamp is included
             if end is not None:
-                df = df[
-                    df["Interval Start"].dt.strftime(
-                        "%Y-%m-%d %H:%M",
-                    )
-                    != end.strftime("%Y-%m-%d %H:%M")
-                ]
-
-            if "datetime_ending_utc" in df.columns:
-                df["Interval End"] = (
-                    pd.to_datetime(df["datetime_ending_utc"], format="ISO8601")
-                    .dt.tz_localize(
-                        "UTC",
-                    )
-                    .dt.tz_convert(self.default_timezone)
+                end_str = end.strftime("%Y-%m-%d %H:%M")
+                df = df.filter(
+                    pl.col("Interval Start").dt.strftime("%Y-%m-%d %H:%M") != end_str,
                 )
 
-                # drop datetime_ending_utc
-                df = df.drop(columns=["datetime_ending_utc"])
+            if "datetime_ending_utc" in df.columns:
+                df = df.with_columns(
+                    pl.col("datetime_ending_utc")
+                    .str.to_datetime(time_zone="UTC")
+                    .dt.convert_time_zone(self.default_timezone)
+                    .alias("Interval End"),
+                )
+                df = df.drop("datetime_ending_utc")
             elif interval_duration_min:
-                df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-                    minutes=interval_duration_min,
+                if interval_duration_min < 1:
+                    duration_expr = pl.duration(
+                        seconds=int(interval_duration_min * 60),
+                    )
+                else:
+                    duration_expr = pl.duration(minutes=int(interval_duration_min))
+                df = df.with_columns(
+                    (pl.col("Interval Start") + duration_expr).alias("Interval End"),
                 )
 
         if "Interval Start" in df.columns:
-            df["Time"] = df["Interval Start"]
+            df = df.with_columns(pl.col("Interval Start").alias("Time"))
 
         return df
 
@@ -1215,11 +1207,13 @@ class PJM(ISOBase):
         )
         return utils.get_response_blob(response)
 
-    def get_interconnection_queue(self, verbose: bool = False) -> pd.DataFrame:
+    def get_interconnection_queue(self, verbose: bool = False) -> pl.DataFrame:
         raw_data = self.get_raw_interconnection_queue(verbose)
-        queue = pd.read_excel(raw_data)
+        queue = utils.read_excel_via_pandas(raw_data)
 
-        queue["Capacity (MW)"] = queue[["MFO", "MW In Service"]].min(axis=1)
+        queue = queue.with_columns(
+            pl.min_horizontal("MFO", "MW In Service").alias("Capacity (MW)"),
+        )
 
         rename = {
             "Project ID": "Queue ID",
@@ -1278,7 +1272,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the hourly solar forecast including behind the meter solar forecast.
         From: https://dataminer2.pjm.com/feed/hourly_solar_power_forecast/definition
@@ -1290,7 +1284,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: A DataFrame with the solar forecast data.
+            pl.DataFrame: A DataFrame with the solar forecast data.
         """
 
         df = self._get_pjm_json(
@@ -1315,7 +1309,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the 5-min solar forecast including behind the meter solar forecast.
         From: https://dataminer2.pjm.com/feed/five_min_solar_power_forecast/definition
@@ -1327,7 +1321,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: A DataFrame with the solar forecast data.
+            pl.DataFrame: A DataFrame with the solar forecast data.
         """
 
         df = self._get_pjm_json(
@@ -1346,31 +1340,32 @@ class PJM(ISOBase):
 
         return self._parse_solar_forecast(df)
 
-    def _parse_solar_forecast(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_solar_forecast(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "evaluated_at_utc": "Publish Time",
                 "solar_forecast_btm_mwh": "Solar Forecast BTM",
                 "solar_forecast_mwh": "Solar Forecast",
             },
         )
 
-        df["Publish Time"] = pd.to_datetime(
-            df["Publish Time"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("Publish Time")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone),
+        )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
                 "Solar Forecast BTM",
                 "Solar Forecast",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_wind_forecast_hourly(
@@ -1378,7 +1373,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the hourly wind forecast
         From: https://dataminer2.pjm.com/feed/hourly_wind_power_forecast/definition
@@ -1390,7 +1385,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: A DataFrame with the wind forecast data.
+            pl.DataFrame: A DataFrame with the wind forecast data.
         """
 
         df = self._get_pjm_json(
@@ -1415,7 +1410,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the 5-min wind forecast
         From: https://dataminer2.pjm.com/feed/five_min_wind_power_forecast/definition
@@ -1427,7 +1422,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: A DataFrame with the wind forecast data.
+            pl.DataFrame: A DataFrame with the wind forecast data.
         """
 
         df = self._get_pjm_json(
@@ -1446,29 +1441,30 @@ class PJM(ISOBase):
 
         return self._parse_wind_forecast(df)
 
-    def _parse_wind_forecast(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_wind_forecast(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "evaluated_at_utc": "Publish Time",
                 "wind_forecast_mwh": "Wind Forecast",
             },
         )
 
-        df["Publish Time"] = pd.to_datetime(
-            df["Publish Time"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("Publish Time")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone),
+        )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
                 "Wind Forecast",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_gen_outages_by_type(
@@ -1476,7 +1472,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the generation outage data
         From: https://dataminer2.pjm.com/feed/gen_outages_by_type/definition
@@ -1497,9 +1493,9 @@ class PJM(ISOBase):
 
         return self._parse_gen_outages_by_type(df)
 
-    def _parse_gen_outages_by_type(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_gen_outages_by_type(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "forecast_execution_date_ept": "Publish Time",
                 "forecast_date": "Interval Start",
                 "region": "Region",
@@ -1510,11 +1506,17 @@ class PJM(ISOBase):
             },
         )
 
-        df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
-        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
-        df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
+        df = df.with_columns(
+            self.to_local_datetime(df, "Interval Start").alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+        )
+        df = df.with_columns(
+            self.to_local_datetime(df, "Publish Time").alias("Publish Time"),
+        )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1524,10 +1526,10 @@ class PJM(ISOBase):
                 "Maintenance Outages MW",
                 "Forced Outages MW",
                 "Total Outages MW",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     # Can retrieve a max of 365 days at a time.
     @support_date_range(frequency="365D")
@@ -1536,7 +1538,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """RTO-wide projected data for the peak of the day
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_rto/definition
@@ -1561,17 +1563,21 @@ class PJM(ISOBase):
 
     def _handle_projected_rto_statistics_at_peak(
         self,
-        df: pd.DataFrame,
-    ) -> pd.DataFrame:
-        df["projected_peak_datetime_ept"] = pd.to_datetime(
-            df["projected_peak_datetime_ept"],
-        ).dt.tz_localize(self.default_timezone)
-        df["generated_at_ept"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
-            self.default_timezone,
+        df: pl.DataFrame,
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            pl.col("projected_peak_datetime_ept")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("projected_peak_datetime_ept"),
+            pl.col("generated_at_ept")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("generated_at_ept"),
         )
 
         df = df.rename(
-            columns={
+            {
                 "projected_peak_datetime_ept": "Projected Peak Time",
                 "generated_at_ept": "Publish Time",
                 "area": "Area",
@@ -1583,17 +1589,21 @@ class PJM(ISOBase):
                 "operating_reserve": "Operating Reserve",
                 "unscheduled_steam_capacity": "Unscheduled Steam Capacity",
             },
-        ).drop(columns=["projected_peak_datetime_utc"])
+        ).drop(["projected_peak_datetime_utc"])
 
-        df["Interval Start"] = df["Projected Peak Time"].dt.floor("D")
-        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+        df = df.with_columns(
+            pl.col("Projected Peak Time").dt.truncate("1d").alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+        )
 
         df = utils.move_cols_to_front(
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         )
 
-        return df.sort_values("Publish Time").reset_index(drop=True)
+        return df.sort("Publish Time")
 
     @support_date_range(frequency="365D")
     def get_projected_area_statistics_at_peak(
@@ -1601,7 +1611,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Area projected data for the peak of the day
 
         https://dataminer2.pjm.com/feed/ops_sum_frcst_peak_area/definition
@@ -1624,18 +1634,21 @@ class PJM(ISOBase):
 
     def _handle_projected_area_statistics_at_peak(
         self,
-        df: pd.DataFrame,
-    ) -> pd.DataFrame:
-        df["projected_peak_datetime_ept"] = pd.to_datetime(
-            df["projected_peak_datetime_ept"],
-        ).dt.tz_localize(self.default_timezone)
-
-        df["generated_at_ept"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
-            self.default_timezone,
+        df: pl.DataFrame,
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            pl.col("projected_peak_datetime_ept")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("projected_peak_datetime_ept"),
+            pl.col("generated_at_ept")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("generated_at_ept"),
         )
 
         df = df.rename(
-            columns={
+            {
                 "projected_peak_datetime_ept": "Projected Peak Time",
                 "generated_at_ept": "Publish Time",
                 "area": "Area",
@@ -1643,21 +1656,29 @@ class PJM(ISOBase):
                 "pjm_load_forecast": "PJM Load Forecast",
                 "unscheduled_steam_capacity": "Unscheduled Steam Capacity",
             },
-        ).drop(columns=["projected_peak_datetime_utc"])
+        ).drop(["projected_peak_datetime_utc"])
 
-        df["Interval Start"] = df["Projected Peak Time"].dt.floor("D")
-        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+        df = df.with_columns(
+            pl.col("Projected Peak Time").dt.truncate("1d").alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+        )
 
         df = utils.move_cols_to_front(
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         )
 
-        return df.sort_values("Publish Time").reset_index(drop=True)
+        return df.sort("Publish Time")
 
-    def to_local_datetime(self, df: pd.DataFrame, column_name: str) -> pd.Series:
-        return pd.to_datetime(df[column_name]).dt.tz_localize(
-            self.default_timezone,
+    def to_local_datetime(self, df: pl.DataFrame, column_name: str) -> pl.Expr:
+        return (
+            pl.col(column_name)
+            .str.to_datetime()
+            .dt.replace_time_zone(
+                self.default_timezone,
+            )
         )
 
     @support_date_range(frequency=None)
@@ -1666,7 +1687,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the 5 min solar generation data from:
         https://dataminer2.pjm.com/feed/five_min_solar_generation/definition
@@ -1679,7 +1700,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with 5 minute solar generation data.
+            polars.DataFrame: A DataFrame with 5 minute solar generation data.
         """
 
         df = self._get_pjm_json(
@@ -1697,22 +1718,22 @@ class PJM(ISOBase):
 
         return self._parse_solar_generation_5_min(df)
 
-    def _parse_solar_generation_5_min(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_solar_generation_5_min(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "solar_generation_mw": "Solar Generation",
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Solar Generation",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_wind_generation_instantaneous(
@@ -1720,7 +1741,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the instantaneous wind generation data from:
         https://dataminer2.pjm.com/feed/instantaneous_wind_gen/definition
@@ -1733,7 +1754,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with instantaneous wind generation data
+            polars.DataFrame: A DataFrame with instantaneous wind generation data
                 in 15 second intervals.
         """
 
@@ -1752,22 +1773,22 @@ class PJM(ISOBase):
 
         return self._parse_wind_generation_instantaneous(df)
 
-    def _parse_wind_generation_instantaneous(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_wind_generation_instantaneous(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "wind_generation_mw": "Wind Generation",
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Wind Generation",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_operational_reserves(
@@ -1775,7 +1796,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the reserve market quantities in Megawatts from:
         https://dataminer2.pjm.com/feed/operational_reserves/definition
@@ -1788,7 +1809,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with reserve market quantities
+            polars.DataFrame: A DataFrame with reserve market quantities
                 in 15 second intervals.
         """
 
@@ -1807,24 +1828,24 @@ class PJM(ISOBase):
 
         return self._parse_operational_reserves(df)
 
-    def _parse_operational_reserves(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_operational_reserves(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "reserve_name": "Reserve Name",
                 "reserve_mw": "Reserve",
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Reserve Name",
                 "Reserve",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_transfer_interface_information_5_min(
@@ -1832,7 +1853,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the transfer interface information from:
         https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
@@ -1845,7 +1866,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with transfer interface information
+            polars.DataFrame: A DataFrame with transfer interface information
             in 5 minute intervals.
         """
 
@@ -1866,10 +1887,10 @@ class PJM(ISOBase):
 
     def _parse_transfer_interface_information_5_min(
         self,
-        df: pd.DataFrame,
-    ) -> pd.DataFrame:
+        df: pl.DataFrame,
+    ) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "name": "Interface Name",
                 "actual_flow": "Actual Flow",
                 "warning_level": "Warning Level",
@@ -1877,7 +1898,7 @@ class PJM(ISOBase):
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1885,10 +1906,10 @@ class PJM(ISOBase):
                 "Actual Flow",
                 "Warning Level",
                 "Transfer Limit",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_transmission_limits(
@@ -1896,7 +1917,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the current transmission limit information from:
         https://dataminer2.pjm.com/feed/transfer_interface_infor/definition
@@ -1910,7 +1931,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with transmission limit information
+            polars.DataFrame: A DataFrame with transmission limit information
             in 5 minute intervals, when data is available.
         """
 
@@ -1931,12 +1952,12 @@ class PJM(ISOBase):
 
     def _parse_transmission_limits(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "constraint_name": "Constraint Name",
                 "constraint_type": "Constraint Type",
                 "contingency": "Contingency",
@@ -1944,7 +1965,7 @@ class PJM(ISOBase):
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1952,19 +1973,19 @@ class PJM(ISOBase):
                 "Constraint Type",
                 "Contingency",
                 "Shadow Price",
-            ]
-        ]
+            ],
+        )
 
         # When there are no binding constraints, PJM publishes rows with "Constraint
         # Name" == "none". We do not want to return these rows.
-        df = df[df["Constraint Name"] != "none"]
+        df = df.filter(pl.col("Constraint Name") != "none")
 
-        if df.empty:
+        if df.height == 0:
             raise NoDataFoundException(
                 f"No transmission limits found for {date} to {end}",
             )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_solar_generation_by_area(
@@ -1972,7 +1993,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the current solar generation information from:
         https://dataminer2.pjm.com/feed/solar_gen/definition
@@ -1985,7 +2006,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with solar generation information.
+            polars.DataFrame: A DataFrame with solar generation information.
         """
 
         df = self._get_pjm_json(
@@ -2003,15 +2024,15 @@ class PJM(ISOBase):
 
         return self._parse_solar_generation_by_area(df)
 
-    def _parse_solar_generation_by_area(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.pivot_table(
+    def _parse_solar_generation_by_area(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = df.pivot(
             index=["Time", "Interval Start", "Interval End"],
-            columns="area",
+            on="area",
             values="solar_generation_mw",
-            aggfunc="first",
-        ).reset_index()
+            aggregate_function="first",
+        )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2021,10 +2042,10 @@ class PJM(ISOBase):
                 "RTO",
                 "SOUTH",
                 "WEST",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_wind_generation_by_area(
@@ -2045,7 +2066,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with wind generation information.
+            polars.DataFrame: A DataFrame with wind generation information.
         """
 
         df = self._get_pjm_json(
@@ -2063,22 +2084,21 @@ class PJM(ISOBase):
 
         return self._parse_wind_generation_by_area(df)
 
-    def _parse_wind_generation_by_area(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.pivot_table(
+    def _parse_wind_generation_by_area(self, df: pl.DataFrame) -> pl.DataFrame:
+        df = df.pivot(
             index=["Time", "Interval Start", "Interval End"],
-            columns="area",
+            on="area",
             values="wind_generation_mw",
-            aggfunc="first",
-        ).reset_index()
+            aggregate_function="first",
+        )
 
         # SOUTH and OTHER columns did not exist at the start of the
         # data, but we want them to be present, so make sure they exist.
-        cols = ["SOUTH", "OTHER"]
-        for col in cols:
+        for col in ["SOUTH", "OTHER"]:
             if col not in df.columns:
-                df[col] = pd.NA
+                df = df.with_columns(pl.lit(None).cast(pl.Float64).alias(col))
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2088,10 +2108,10 @@ class PJM(ISOBase):
                 "RTO",
                 "SOUTH",
                 "WEST",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_dam_as_market_results(
@@ -2112,7 +2132,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with day-ahead ancillary service
+            polars.DataFrame: A DataFrame with day-ahead ancillary service
             market results.
         """
 
@@ -2132,9 +2152,9 @@ class PJM(ISOBase):
 
         return self._parse_dam_as_market_results(df)
 
-    def _parse_dam_as_market_results(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_dam_as_market_results(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "locale": "Locale",
                 "service": "Service Type",
                 "mcp": "Market Clearing Price",
@@ -2153,13 +2173,15 @@ class PJM(ISOBase):
         locale_full_name_to_abbreviation = {
             v: k for k, v in self.locale_abbreviated_to_full.items()
         }
-        df["Ancillary Service"] = (
-            df["Locale"].replace(locale_full_name_to_abbreviation)
-            + "-"
-            + df["Service Type"]
+        df = df.with_columns(
+            (
+                pl.col("Locale").replace(locale_full_name_to_abbreviation)
+                + "-"
+                + pl.col("Service Type")
+            ).alias("Ancillary Service"),
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2175,10 +2197,10 @@ class PJM(ISOBase):
                 "Interface Reserve Capability MW",
                 "Demand Response MW Assigned",
                 "Non-Synchronized Reserve MW Assigned",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_real_time_as_market_results(
@@ -2203,7 +2225,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with real-time ancillary service
+            polars.DataFrame: A DataFrame with real-time ancillary service
             market results.
         """
 
@@ -2237,9 +2259,9 @@ class PJM(ISOBase):
 
         return self._parse_real_time_as_market_results(df)
 
-    def _parse_real_time_as_market_results(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_real_time_as_market_results(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "locale": "Locale",
                 "service": "Service Type",
                 "mcp": "Market Clearing Price",
@@ -2258,22 +2280,26 @@ class PJM(ISOBase):
             },
         )
         # Replace abbreviated locale values will full values
-        df = df.replace({"Locale": self.locale_abbreviated_to_full})
+        df = df.with_columns(pl.col("Locale").replace(self.locale_abbreviated_to_full))
 
         # Replace abbreviated service type values with full values
-        df = df.replace({"Service Type": self.service_type_abbreviated_to_full})
+        df = df.with_columns(
+            pl.col("Service Type").replace(self.service_type_abbreviated_to_full),
+        )
 
         # Add new Ancillary Service column
         locale_full_name_to_abbreviation = {
             v: k for k, v in self.locale_abbreviated_to_full.items()
         }
-        df["Ancillary Service"] = (
-            df["Locale"].replace(locale_full_name_to_abbreviation)
-            + "-"
-            + df["Service Type"]
+        df = df.with_columns(
+            (
+                pl.col("Locale").replace(locale_full_name_to_abbreviation)
+                + "-"
+                + pl.col("Service Type")
+            ).alias("Ancillary Service"),
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2293,10 +2319,10 @@ class PJM(ISOBase):
                 "Demand Response MW Assigned",
                 "Non-Synchronized Reserve MW Assigned",
                 "REGD MW",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_as_market_results_real_time_hourly(
@@ -2380,9 +2406,9 @@ class PJM(ISOBase):
 
         return self._parse_load_metered_hourly(df)
 
-    def _parse_load_metered_hourly(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_load_metered_hourly(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "load_area": "Load Area",
                 "mkt_region": "Mkt Region",
                 "mw": "MW",
@@ -2392,7 +2418,7 @@ class PJM(ISOBase):
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2402,10 +2428,10 @@ class PJM(ISOBase):
                 "Load Area",
                 "MW",
                 "Is Verified",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_forecasted_generation_outages(
@@ -2434,9 +2460,9 @@ class PJM(ISOBase):
 
         return self._parse_forecasted_generation_outages(df)
 
-    def _parse_forecasted_generation_outages(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _parse_forecasted_generation_outages(self, df: pl.DataFrame) -> pl.DataFrame:
         df = df.rename(
-            columns={
+            {
                 "forecast_execution_date_ept": "Publish Time",
                 "forecast_date": "Interval Start",
                 "forecast_gen_outage_mw_rto": "RTO MW",
@@ -2445,11 +2471,17 @@ class PJM(ISOBase):
             },
         )
 
-        df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
-        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
-        df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
+        df = df.with_columns(
+            self.to_local_datetime(df, "Interval Start").alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+        )
+        df = df.with_columns(
+            self.to_local_datetime(df, "Publish Time").alias("Publish Time"),
+        )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2457,10 +2489,10 @@ class PJM(ISOBase):
                 "RTO MW",
                 "West MW",
                 "Other MW",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_marginal_value_real_time_5_min(
@@ -2468,7 +2500,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the marginal value data from:
         https://dataminer2.pjm.com/feed/rt_marginal_value/definition
@@ -2486,7 +2518,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "monitored_facility": "Monitored Facility",
                 "contingency_facility": "Contingency Facility",
                 "transmission_constraint_penalty_factor": "Transmission Constraint Penalty Factor",
@@ -2495,7 +2527,7 @@ class PJM(ISOBase):
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2504,8 +2536,8 @@ class PJM(ISOBase):
                 "Transmission Constraint Penalty Factor",
                 "Limit Control Percentage",
                 "Shadow Price",
-            ]
-        ]
+            ],
+        )
         return df
 
     @support_date_range(frequency=None)
@@ -2514,7 +2546,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the marginal value data from:
         https://dataminer2.pjm.com/feed/da_marginal_value/definition
@@ -2531,21 +2563,21 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "monitored_facility": "Monitored Facility",
                 "contingency_facility": "Contingency Facility",
                 "shadow_price": "Shadow Price",
             },
         )
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Monitored Facility",
                 "Contingency Facility",
                 "Shadow Price",
-            ]
-        ]
+            ],
+        )
         return df
 
     @support_date_range(frequency=None)
@@ -2554,7 +2586,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the transmission constraints data from:
         https://dataminer2.pjm.com/feed/da_transconstraints/definition
@@ -2571,14 +2603,14 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "duration": "Duration",
                 "day_ahead_congestion_event": "Day Ahead Congestion Event",
                 "monitored_facility": "Monitored Facility",
                 "contingency_facility": "Contingency Facility",
             },
         )
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2586,8 +2618,8 @@ class PJM(ISOBase):
                 "Day Ahead Congestion Event",
                 "Monitored Facility",
                 "Contingency Facility",
-            ]
-        ]
+            ],
+        )
         return df
 
     @support_date_range(frequency=None)
@@ -2596,7 +2628,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the day ahead demand bids data from:
         https://dataminer2.pjm.com/feed/hrl_dmd_bids/definition
@@ -2613,13 +2645,13 @@ class PJM(ISOBase):
             interval_duration_min=60,
             verbose=verbose,
         ).rename(
-            columns={
+            {
                 "hrly_da_demand_bid": "Demand Bid",
                 "area": "Area",
             },
         )
 
-        df = df[["Interval Start", "Interval End", "Area", "Demand Bid"]].sort_values(
+        df = df.select(["Interval Start", "Interval End", "Area", "Demand Bid"]).sort(
             ["Interval Start", "Area"],
         )
 
@@ -2631,7 +2663,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the area control error data from:
         https://dataminer2.pjm.com/feed/area_control_error/definition
@@ -2647,11 +2679,11 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "ace_mw": "Area Control Error",
             },
         )
-        return df[["Time", "Area Control Error"]]
+        return df.select(["Time", "Area Control Error"])
 
     @support_date_range(frequency=None)
     def get_dispatched_reserves_prelim(
@@ -2659,7 +2691,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the dispatched reserves preliminary data from:
         https://dataminer2.pjm.com/feed/dispatched_reserves/definition
@@ -2677,7 +2709,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "area": "Area",
                 "reserve_type": "Reserve Type",
                 "reserve_quantity": "Reserve Quantity",
@@ -2690,12 +2722,18 @@ class PJM(ISOBase):
             },
         )
 
-        df["Area"] = df["Area"].str.replace("Mid-Atlantic/Dominion", "MAD")
-        df["Ancillary Service"] = df["Area"] + "-" + df["Reserve Type"]
+        df = df.with_columns(
+            pl.col("Area").str.replace("Mid-Atlantic/Dominion", "MAD"),
+            (
+                pl.col("Area").str.replace("Mid-Atlantic/Dominion", "MAD")
+                + "-"
+                + pl.col("Reserve Type")
+            ).alias("Ancillary Service"),
+        )
 
-        df = df.replace({"Area": self.locale_abbreviated_to_full})
+        df = df.with_columns(pl.col("Area").replace(self.locale_abbreviated_to_full))
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2709,8 +2747,8 @@ class PJM(ISOBase):
                 "MW Adjustment",
                 "Market Clearing Price",
                 "Shortage Indicator",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_dispatched_reserves_verified(
@@ -2718,7 +2756,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the dispatched reserves verified data from:
         https://dataminer2.pjm.com/feed/rt_dispatch_reserves/definition
@@ -2736,7 +2774,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "area": "Area",
                 "reserve_type": "Reserve Type",
                 "total_reserve_mw": "Total Reserve",
@@ -2750,11 +2788,15 @@ class PJM(ISOBase):
         full_name_to_abbreviation = {
             v: k for k, v in self.locale_abbreviated_to_full.items()
         }
-        df["Ancillary Service"] = (
-            df["Area"].replace(full_name_to_abbreviation) + "-" + df["Reserve Type"]
+        df = df.with_columns(
+            (
+                pl.col("Area").replace(full_name_to_abbreviation)
+                + "-"
+                + pl.col("Reserve Type")
+            ).alias("Ancillary Service"),
         )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2767,8 +2809,8 @@ class PJM(ISOBase):
                 "Extended Requirement",
                 "Additional Extended Requirement",
                 "Deficit",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_regulation_market_monthly(
@@ -2776,7 +2818,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the PJM Regulation Market Monthly data from:
         https://dataminer2.pjm.com/feed/reg_market_results/definition
@@ -2792,9 +2834,11 @@ class PJM(ISOBase):
             interval_duration_min=60,
             verbose=verbose,
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=60)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=60)).alias("Interval End"),
+        )
         df = df.rename(
-            columns={
+            {
                 "datetime_beginning_utc": "Interval Start",
                 "rega_procure": "RegA Procure",
                 "regd_procure": "RegD Procure",
@@ -2813,29 +2857,26 @@ class PJM(ISOBase):
             },
         )
 
-        df = df.astype(
-            {
-                "RegD SSMW": float,
-                "RegA SSMW": float,
-                "RegD Procure": float,
-                "RegA Procure": float,
-                "Total MW": float,
-                "Deficiency": float,
-                "RTO Perfscore": float,
-                "RegA Mileage": float,
-                "RegD Mileage": float,
-                "RegA Hourly": float,
-                "RegD Hourly": float,
-                "Is Approved": int,
-            },
+        df = df.with_columns(
+            pl.col("RegD SSMW").cast(pl.Float64),
+            pl.col("RegA SSMW").cast(pl.Float64),
+            pl.col("RegD Procure").cast(pl.Float64),
+            pl.col("RegA Procure").cast(pl.Float64),
+            pl.col("Total MW").cast(pl.Float64),
+            pl.col("Deficiency").cast(pl.Float64),
+            pl.col("RTO Perfscore").cast(pl.Float64),
+            pl.col("RegA Mileage").cast(pl.Float64),
+            pl.col("RegD Mileage").cast(pl.Float64),
+            pl.col("RegA Hourly").cast(pl.Float64),
+            pl.col("RegD Hourly").cast(pl.Float64),
+            pl.col("Is Approved").cast(pl.Int64),
         )
 
-        df["Modified Datetime UTC"] = pd.to_datetime(
-            df["Modified Datetime UTC"],
-            utc=True,
+        df = df.with_columns(
+            pl.col("Modified Datetime UTC").str.to_datetime(time_zone="UTC"),
         )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2853,8 +2894,8 @@ class PJM(ISOBase):
                 "RegD Hourly",
                 "Is Approved",
                 "Modified Datetime UTC",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_regulation_prices_5_min(
@@ -2862,7 +2903,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves 5-minute regulation pricing data from:
         https://api.pjm.com/api/v1/reg_prices
@@ -2884,7 +2925,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "area": "Area",
                 "reserve_quantity": "Regulation Quantity",
                 "reserve_requirement": "Regulation Requirement",
@@ -2895,7 +2936,7 @@ class PJM(ISOBase):
             },
         )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -2906,8 +2947,8 @@ class PJM(ISOBase):
                 "Market Capped Clearing Price",
                 "Capability Clearing Price",
                 "Performance Clearing Price",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_tie_flows_5_min(
@@ -2915,7 +2956,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the PJM Tie Flows 5 Minute data from:
         https://dataminer2.pjm.com/feed/tie_flows/definition
@@ -2932,7 +2973,7 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "tie_flow_name": "Tie Flow Name",
                 "actual_mw": "Actual",
                 "scheduled_mw": "Scheduled",
@@ -2942,20 +2983,20 @@ class PJM(ISOBase):
         # NB: The data has an extra second on each timestamp like 2025-05-20 12:00:01,
         # so we need to floor to the minute. The flooring needs to be done on UTC
         # timestamps to avoid DST transition issues
-        df["Interval Start"] = (
-            pd.to_datetime(df["Interval Start"], utc=True)
-            .dt.floor("min")
-            .dt.tz_convert(self.default_timezone)
-        )
-        df["Interval End"] = (
-            pd.to_datetime(df["Interval End"], utc=True)
-            .dt.floor("min")
-            .dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("Interval Start")
+            .dt.convert_time_zone("UTC")
+            .dt.truncate("1m")
+            .dt.convert_time_zone(self.default_timezone),
+            pl.col("Interval End")
+            .dt.convert_time_zone("UTC")
+            .dt.truncate("1m")
+            .dt.convert_time_zone(self.default_timezone),
         )
 
-        return df[
-            ["Interval Start", "Interval End", "Tie Flow Name", "Actual", "Scheduled"]
-        ]
+        return df.select(
+            ["Interval Start", "Interval End", "Tie Flow Name", "Actual", "Scheduled"],
+        )
 
     @support_date_range(frequency=None)
     def get_instantaneous_dispatch_rates(
@@ -2963,7 +3004,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the instantaneous dispatch rate data from:
         https://dataminer2.pjm.com/feed/inst_dispatch_rate/definition
@@ -2981,22 +3022,18 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={"zone": "Zone", "dispatch_rate": "Instantaneous Dispatch Rate"},
+            {"zone": "Zone", "dispatch_rate": "Instantaneous Dispatch Rate"},
         )
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Zone",
-                    "Instantaneous Dispatch Rate",
-                ]
-            ]
-            .sort_values(
+        return df.select(
+            [
                 "Interval Start",
-            )
-            .reset_index(drop=True)
+                "Interval End",
+                "Zone",
+                "Instantaneous Dispatch Rate",
+            ],
+        ).sort(
+            "Interval Start",
         )
 
     @support_date_range(frequency=None)
@@ -3005,7 +3042,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the hourly net exports by state data from:
         https://dataminer2.pjm.com/feed/state_net_interchange/definition
@@ -3022,12 +3059,12 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "state": "State",
                 "net_interchange": "Net Interchange",
             },
         )
-        return df[["Interval Start", "Interval End", "State", "Net Interchange"]]
+        return df.select(["Interval Start", "Interval End", "State", "Net Interchange"])
 
     @support_date_range(frequency=None)
     def get_hourly_transfer_limits_and_flows(
@@ -3035,7 +3072,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the hourly transfer limits and flows data from:
         https://dataminer2.pjm.com/feed/transfer_limits_and_flows/definition
@@ -3052,21 +3089,21 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "transfer_limit_area": "Transfer Limit Area",
                 "transfers": "Average Transfers",
                 "transfer_limit": "Average Transfer Limit",
             },
         )
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Transfer Limit Area",
                 "Average Transfers",
                 "Average Transfer Limit",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_actual_and_scheduled_interchange_summary(
@@ -3074,7 +3111,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the actual and scheduled interchange summary data from:
         https://dataminer2.pjm.com/feed/actual_and_scheduled_interchange_summary/definition
@@ -3091,14 +3128,14 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "tie_line": "Tie Line",
                 "actual_flow": "Actual Flow",
                 "sched_flow": "Scheduled Flow",
                 "inadv_flow": "Inadvertent Flow",
             },
         )
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -3106,8 +3143,8 @@ class PJM(ISOBase):
                 "Actual Flow",
                 "Scheduled Flow",
                 "Inadvertent Flow",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_scheduled_interchange_real_time(
@@ -3115,7 +3152,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the scheduled interchange real time data from:
         https://dataminer2.pjm.com/feed/rt_scheduled_interchange/definition
@@ -3132,14 +3169,14 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "tie_line": "Tie Line",
                 "hrly_net_tie_sched": "Hourly Net Tie Schedule",
             },
-        ).sort_values("Interval Start")
-        return df[
-            ["Interval Start", "Interval End", "Tie Line", "Hourly Net Tie Schedule"]
-        ]
+        ).sort("Interval Start")
+        return df.select(
+            ["Interval Start", "Interval End", "Tie Line", "Hourly Net Tie Schedule"],
+        )
 
     @support_date_range(frequency=None)
     def get_interface_flows_and_limits_day_ahead(
@@ -3147,7 +3184,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the interface flows and limit day ahead data from:
         https://dataminer2.pjm.com/feed/da_interface_flows_and_limits/definition
@@ -3164,15 +3201,15 @@ class PJM(ISOBase):
             verbose=verbose,
         )
         df = df.rename(
-            columns={
+            {
                 "interface_limit_name": "Interface Limit Name",
                 "flow_mw": "Flow",
                 "limit_mw": "Limit",
             },
         )
-        return df[
-            ["Interval Start", "Interval End", "Interface Limit Name", "Flow", "Limit"]
-        ]
+        return df.select(
+            ["Interval Start", "Interval End", "Interface Limit Name", "Flow", "Limit"],
+        )
 
     @support_date_range(frequency=None)
     def get_projected_peak_tie_flow(
@@ -3180,7 +3217,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the projected peak tie flow data from:
         https://dataminer2.pjm.com/feed/ops_sum_prjctd_tie_flow/definition
@@ -3198,28 +3235,30 @@ class PJM(ISOBase):
             filter_timestamp_name="generated_at",
         )
 
-        df["Publish Time"] = pd.to_datetime(df["generated_at_ept"]).dt.tz_localize(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("generated_at_ept")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Publish Time"),
+            pl.col("projected_peak_datetime_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Projected Peak Time"),
         )
 
-        df["Projected Peak Time"] = (
-            pd.to_datetime(
-                df["projected_peak_datetime_utc"],
-                format="ISO8601",
-            )
-            .dt.tz_localize("UTC")
-            .dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("Projected Peak Time").dt.truncate("1d").alias("Interval Start"),
         )
-
-        df["Interval Start"] = df["Projected Peak Time"].dt.floor("D")
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+        )
         df = df.rename(
-            columns={
+            {
                 "interface": "Interface",
                 "scheduled_tie_flow": "Scheduled Tie Flow",
             },
         )
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -3227,8 +3266,8 @@ class PJM(ISOBase):
                 "Projected Peak Time",
                 "Interface",
                 "Scheduled Tie Flow",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency=None)
     def get_actual_operational_statistics(
@@ -3236,7 +3275,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the actual operational statistics data from:
         https://dataminer2.pjm.com/feed/ops_sum_prev_period/definition
@@ -3254,7 +3293,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "generated_at_ept": "Publish Time",
                 "area": "Area",
                 "area_load_forecast": "Area Load Forecast",
@@ -3262,60 +3301,59 @@ class PJM(ISOBase):
                 "dispatch_rate": "Dispatch Rate",
             },
         )
-        df["Publish Time"] = pd.to_datetime(df["Publish Time"]).dt.tz_localize(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("Publish Time")
+            .str.to_datetime()
+            .dt.replace_time_zone(self.default_timezone),
         )
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Area",
-                    "Area Load Forecast",
-                    "Actual Load",
-                    "Dispatch Rate",
-                ]
-            ]
-            .sort_values(["Interval Start", "Area"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Area",
+                "Area Load Forecast",
+                "Actual Load",
+                "Dispatch Rate",
+            ],
+        ).sort(["Interval Start", "Area"])
 
     def _filter_active_records(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         as_of: pd.Timestamp | None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Filter out records that are terminated before the given date"""
-        df["Effective Date"] = pd.to_datetime(
-            df["Effective Date"],
-            errors="coerce",
-        ).dt.tz_localize(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("Effective Date")
+            .str.to_datetime(strict=False)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Effective Date"),
+            pl.when(pl.col("Termination Date") == "9999-12-31T00:00:00")
+            .then(None)
+            .otherwise(pl.col("Termination Date"))
+            .alias("Termination Date"),
         )
-
-        df["Termination Date"] = df["Termination Date"].replace(
-            "9999-12-31T00:00:00",
-            None,
-        )
-        df["Termination Date"] = pd.to_datetime(
-            df["Termination Date"],
-            errors="coerce",
-        ).dt.tz_localize(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("Termination Date")
+            .str.to_datetime(strict=False)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Termination Date"),
         )
 
         if as_of is None:
             return df
 
-        return df[(df["Termination Date"].isna()) | (df["Termination Date"] > as_of)]
+        return df.filter(
+            pl.col("Termination Date").is_null() | (pl.col("Termination Date") > as_of),
+        )
 
     def get_pricing_nodes(
         self,
         as_of: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the pricing nodes data from:
         https://dataminer2.pjm.com/feed/pnode/definition
@@ -3337,7 +3375,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "pnode_id": "Pricing Node ID",
                 "pnode_name": "Pricing Node Name",
                 "pnode_type": "Pricing Node Type",
@@ -3351,28 +3389,24 @@ class PJM(ISOBase):
 
         df = self._filter_active_records(df, as_of)
 
-        return (
-            df[
-                [
-                    "Pricing Node ID",
-                    "Pricing Node Name",
-                    "Pricing Node Type",
-                    "Pricing Node SubType",
-                    "Zone",
-                    "Voltage Level",
-                    "Effective Date",
-                    "Termination Date",
-                ]
-            ]
-            .sort_values(["Effective Date", "Pricing Node Name"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Pricing Node ID",
+                "Pricing Node Name",
+                "Pricing Node Type",
+                "Pricing Node SubType",
+                "Zone",
+                "Voltage Level",
+                "Effective Date",
+                "Termination Date",
+            ],
+        ).sort(["Effective Date", "Pricing Node Name"])
 
     def get_reserve_subzone_resources(
         self,
         as_of: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the reserve subzone resources data from:
         https://dataminer2.pjm.com/feed/sync_pri_reserves_resources_list/definition
@@ -3394,7 +3428,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "effective_date": "Effective Date",
                 "terminate_date": "Termination Date",
                 "subzone": "Subzone",
@@ -3407,27 +3441,23 @@ class PJM(ISOBase):
 
         df = self._filter_active_records(df, as_of)
 
-        return (
-            df[
-                [
-                    "Resource ID",
-                    "Resource Name",
-                    "Resource Type",
-                    "Zone",
-                    "Subzone",
-                    "Effective Date",
-                    "Termination Date",
-                ]
-            ]
-            .sort_values("Effective Date")
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Resource ID",
+                "Resource Name",
+                "Resource Type",
+                "Zone",
+                "Subzone",
+                "Effective Date",
+                "Termination Date",
+            ],
+        ).sort("Effective Date")
 
     def get_reserve_subzone_buses(
         self,
         as_of: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the reserve subzone buses data from:
         https://dataminer2.pjm.com/feed/sync_pri_reserves_buses_list/definition
@@ -3449,7 +3479,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "effective_date": "Effective Date",
                 "terminate_date": "Termination Date",
                 "subzone": "Subzone",
@@ -3460,26 +3490,22 @@ class PJM(ISOBase):
         )
 
         df = self._filter_active_records(df, as_of)
-        return (
-            df[
-                [
-                    "Pricing Node ID",
-                    "Pricing Node Name",
-                    "Pricing Node Type",
-                    "Subzone",
-                    "Effective Date",
-                    "Termination Date",
-                ]
-            ]
-            .sort_values(["Effective Date", "Pricing Node Name"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Pricing Node ID",
+                "Pricing Node Name",
+                "Pricing Node Type",
+                "Subzone",
+                "Effective Date",
+                "Termination Date",
+            ],
+        ).sort(["Effective Date", "Pricing Node Name"])
 
     def get_weight_average_aggregation_definition(
         self,
         as_of: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the weight average aggregation definition data from:
         https://dataminer2.pjm.com/feed/agg_definitions/definition
@@ -3502,7 +3528,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "effective_date_ept": "Effective Date",
                 "terminate_date_ept": "Termination Date",
                 "agg_pnode_id": "Aggregate Node ID",
@@ -3515,21 +3541,17 @@ class PJM(ISOBase):
 
         df = self._filter_active_records(df, as_of)
 
-        return (
-            df[
-                [
-                    "Aggregate Node ID",
-                    "Aggregate Node Name",
-                    "Bus Node ID",
-                    "Bus Node Name",
-                    "Bus Node Factor",
-                    "Effective Date",
-                    "Termination Date",
-                ]
-            ]
-            .sort_values(["Effective Date", "Aggregate Node Name"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Aggregate Node ID",
+                "Aggregate Node Name",
+                "Bus Node ID",
+                "Bus Node Name",
+                "Bus Node Factor",
+                "Effective Date",
+                "Termination Date",
+            ],
+        ).sort(["Effective Date", "Aggregate Node Name"])
 
     @support_date_range(frequency=None)
     def get_generation_capacity_daily(
@@ -3537,7 +3559,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the daily generation capacity data from:
         https://dataminer2.pjm.com/feed/day_gen_capacity/definition
@@ -3554,34 +3576,33 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = (
-            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
-            .dt.tz_localize("UTC")
-            .dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("bid_datetime_beginning_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "eco_max": "Economic Max MW",
                 "emerg_max": "Emergency Max MW",
                 "total_committed": "Total Committed MW",
             },
         )
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Economic Max MW",
-                    "Emergency Max MW",
-                    "Total Committed MW",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Economic Max MW",
+                "Emergency Max MW",
+                "Total Committed MW",
+            ],
+        ).sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_cleared_virtuals_daily(
@@ -3589,7 +3610,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the daily cleared virtual transactions data from:
         https://dataminer2.pjm.com/feed/day_inc_dec_utc/definition
@@ -3624,38 +3645,42 @@ class PJM(ISOBase):
         if r["totalRows"] == 0:
             raise NoDataFoundException("No data found for day_inc_dec_utc")
 
-        df = pd.DataFrame(r["items"])
+        df = pl.from_dicts(r["items"])
 
-        df["Interval Start"] = pd.to_datetime(
-            df["day_ahead_market_date"],
-        ).dt.tz_localize(
-            self.default_timezone,
-            ambiguous="infer",
-            nonexistent="shift_forward",
+        df = df.with_columns(
+            pl.col("day_ahead_market_date").str.to_datetime().alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
+        df = utils.localize_shift_forward_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "dec_mw": "Dec MW",
                 "inc_mw": "Inc MW",
                 "utc_mw": "UTC MW",
             },
         )
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Dec MW",
-                    "Inc MW",
-                    "UTC MW",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Dec MW",
+                "Inc MW",
+                "UTC MW",
+            ],
+        ).sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_inc_and_dec_bids_day_ahead_hourly(
@@ -3663,7 +3688,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the hourly day-ahead increment and decrement bids data from:
         https://dataminer2.pjm.com/feed/hrl_da_incs_decs/definition
@@ -3682,15 +3707,18 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = (
-            pd.to_datetime(df["bid_datetime_beginning_utc"], format="ISO8601")
-            .dt.tz_localize("UTC")
-            .dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("bid_datetime_beginning_utc")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "modified_datetime_utc": "Publish Time",
                 "price_point": "Price Point",
                 "inc_mw": "Inc MW",
@@ -3698,31 +3726,27 @@ class PJM(ISOBase):
             },
         )
 
-        df["Publish Time"] = (
-            pd.to_datetime(df["Publish Time"], format="ISO8601")
-            .dt.tz_localize("UTC")
-            .dt.tz_convert(self.default_timezone)
+        df = df.with_columns(
+            pl.col("Publish Time")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone),
         )
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Price Point",
-                    "Inc MW",
-                    "Dec MW",
-                ]
-            ]
-            .sort_values(["Interval Start", "Publish Time", "Price Point"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Price Point",
+                "Inc MW",
+                "Dec MW",
+            ],
+        ).sort(["Interval Start", "Publish Time", "Price Point"])
 
     def get_sync_reserve_events(
         self,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the synchronized reserve events data from:
         https://dataminer2.pjm.com/feed/sync_reserve_events/definition
@@ -3737,47 +3761,63 @@ class PJM(ISOBase):
             verbose=verbose,
         )
 
-        df["Interval Start"] = pd.to_datetime(df["event_start_ept"]).dt.tz_localize(
-            self.default_timezone,
-            ambiguous="infer",
-            nonexistent="shift_forward",
+        df = df.with_columns(
+            pl.col("event_start_ept").str.to_datetime().alias("Interval Start"),
+            pl.col("event_end_ept").str.to_datetime().alias("Interval End"),
         )
-        df["Interval End"] = pd.to_datetime(df["event_end_ept"]).dt.tz_localize(
+        df = utils.localize_shift_forward_polars(
+            df,
+            "Interval Start",
             self.default_timezone,
-            ambiguous="infer",
-            nonexistent="shift_forward",
+        )
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval Start",
+            self.default_timezone,
+        )
+        df = utils.localize_shift_forward_polars(
+            df,
+            "Interval End",
+            self.default_timezone,
+        )
+        df = utils.localize_ambiguous_infer_polars(
+            df,
+            "Interval End",
+            self.default_timezone,
         )
 
         df = df.rename(
-            columns={
+            {
                 "duration": "Duration",
                 "synchronized_reserve_zone": "Synchronized Reserve Zone",
                 "synchronized_sub_zone": "Synchronized Subzone",
                 "percent_deployed": "Percent Deployed",
             },
         )
-        df["Duration"] = df["Duration"].astype(str)
-        df["Duration Minutes"] = (
-            pd.to_timedelta(df["Duration"]).dt.total_seconds().astype(int) // 60
+        df = df.with_columns(pl.col("Duration").cast(pl.Utf8))
+
+        def _duration_minutes(duration: str) -> int:
+            return int(pd.to_timedelta(duration).total_seconds()) // 60
+
+        df = df.with_columns(
+            pl.col("Duration")
+            .map_elements(_duration_minutes, return_dtype=pl.Int64)
+            .alias("Duration Minutes"),
         )
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Duration",
-                    "Duration Minutes",
-                    "Synchronized Reserve Zone",
-                    "Synchronized Subzone",
-                    "Percent Deployed",
-                ]
-            ]
-            .sort_values("Interval Start")
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Duration",
+                "Duration Minutes",
+                "Synchronized Reserve Zone",
+                "Synchronized Subzone",
+                "Percent Deployed",
+            ],
+        ).sort("Interval Start")
 
-    def get_emergency_postings(self, url: str | None = None) -> pd.DataFrame:
+    def get_emergency_postings(self, url: str | None = None) -> pl.DataFrame:
         """
         Retrieves PJM emergency procedure postings by triggering the public
         "Export To XML" button on the guest dashboard.
@@ -3835,7 +3875,7 @@ class PJM(ISOBase):
 
         return xml_resp.content
 
-    def _parse_emergency_xml(self, xml_bytes: bytes) -> pd.DataFrame:
+    def _parse_emergency_xml(self, xml_bytes: bytes) -> pl.DataFrame:
         root = ET.fromstring(xml_bytes)
         rows: list[dict] = []
         for msg in root.iter("EmergencyMessage"):
@@ -3868,7 +3908,7 @@ class PJM(ISOBase):
         if not rows:
             raise NoDataFoundException("No emergency procedure messages found in XML")
 
-        df = pd.DataFrame(rows)
+        df = pl.from_dicts(rows)
         for col in (
             "Effective Start",
             "Effective End",
@@ -3877,29 +3917,27 @@ class PJM(ISOBase):
             "Publish Time",
             "Canceled Time",
         ):
-            df[col] = pd.to_datetime(df[col], utc=True).dt.tz_convert(
-                self.default_timezone,
+            df = df.with_columns(
+                pl.col(col)
+                .str.to_datetime(time_zone="UTC")
+                .dt.convert_time_zone(self.default_timezone),
             )
 
-        return (
-            df[
-                [
-                    "Message ID",
-                    "Applicable Start",
-                    "Applicable End",
-                    "Publish Time",
-                    "Message Type",
-                    "Priority",
-                    "Region",
-                    "Effective Start",
-                    "Effective End",
-                    "Canceled Time",
-                    "Emergency Message",
-                ]
-            ]
-            .sort_values(["Effective Start", "Message ID", "Region"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Message ID",
+                "Applicable Start",
+                "Applicable End",
+                "Publish Time",
+                "Message Type",
+                "Priority",
+                "Region",
+                "Effective Start",
+                "Effective End",
+                "Canceled Time",
+                "Emergency Message",
+            ],
+        ).sort(["Effective Start", "Message ID", "Region"])
 
     @support_date_range(frequency=None)
     def get_pai_intervals_5_min(
@@ -3907,7 +3945,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the 5-minute Performance Assessment Intervals (PAI) data from PJM.
 
@@ -3926,7 +3964,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with 5-minute PAI intervals data.
+            polars.DataFrame: A DataFrame with 5-minute PAI intervals data.
         """
 
         df = self._get_pjm_json(
@@ -3942,20 +3980,20 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "pai_description": "Performance Assessment Interval",
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Performance Assessment Interval",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values("Interval Start").reset_index(drop=True)
+        return df.sort("Interval Start")
 
     @support_date_range(frequency=None)
     def get_marginal_emission_rates_5_min(
@@ -3963,7 +4001,7 @@ class PJM(ISOBase):
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Retrieves the 5-minute marginal emission rates data from PJM.
 
@@ -3982,7 +4020,7 @@ class PJM(ISOBase):
             verbose (bool, optional): print verbose output. Defaults to False.
 
         Returns:
-            pandas.DataFrame: A DataFrame with 5-minute marginal emission rates data.
+            polars.DataFrame: A DataFrame with 5-minute marginal emission rates data.
         """
 
         date_ts = utils._handle_date(date)
@@ -4006,7 +4044,7 @@ class PJM(ISOBase):
         )
 
         df = df.rename(
-            columns={
+            {
                 "pnode_name": "Pnode Name",
                 "pnode_id": "Pnode ID",
                 "marginal_co2_rate": "Marginal CO2 Rate",
@@ -4015,7 +4053,7 @@ class PJM(ISOBase):
             },
         )
 
-        df = df[
+        df = df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -4024,17 +4062,17 @@ class PJM(ISOBase):
                 "Marginal CO2 Rate",
                 "Marginal SO2 Rate",
                 "Marginal NOx Rate",
-            ]
-        ]
+            ],
+        )
 
-        return df.sort_values(["Interval Start", "Pnode Name"]).reset_index(drop=True)
+        return df.sort(["Interval Start", "Pnode Name"])
 
     # NOTE: This file can only be accessed once per 30 minutes from the same IP address.
     # Otherwise the CSV will return a rate limit message inside the file.
     def get_voltage_limits(
         self,
         verbose: bool = False,
-    ) -> str:
+    ) -> pl.DataFrame:
         """
         Downloads the raw voltage limits CSV file from EDART.
 
@@ -4074,7 +4112,7 @@ class PJM(ISOBase):
     def _parse_voltage_limits(
         self,
         csv_content: str,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         lines = csv_content.split("\n")
 
         timestamp_str = lines[0].strip().replace("TIMESTAMP:", "").strip()
@@ -4090,12 +4128,12 @@ class PJM(ISOBase):
             raise ValueError("Could not find header row starting with 'Company'")
 
         csv_clean = "\n".join(lines[header_row_idx:])
-        df = pd.read_csv(io.StringIO(csv_clean))
+        df = utils.read_csv_exotic_via_pandas(io.StringIO(csv_clean))
 
-        df.columns = df.columns.str.strip()
+        df = df.rename({c: c.strip() for c in df.columns})
 
         df = df.rename(
-            columns={
+            {
                 "Emergency Low(KV)": "Emergency Low",
                 "Normal Low(KV)": "Normal Low",
                 "Normal High(KV)": "Normal High",
@@ -4105,9 +4143,9 @@ class PJM(ISOBase):
             },
         )
 
-        df["Publish Time"] = publish_time
+        df = df.with_columns(pl.lit(publish_time).alias("Publish Time"))
 
-        df = df[
+        df = df.select(
             [
                 "Publish Time",
                 "Company",
@@ -4121,7 +4159,7 @@ class PJM(ISOBase):
                 "Emergency High",
                 "Voltage Drop Warning Percent",
                 "Voltage Drop Limit Percent",
-            ]
-        ]
+            ],
+        )
 
         return df

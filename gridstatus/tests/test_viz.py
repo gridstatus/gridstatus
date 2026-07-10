@@ -1,4 +1,5 @@
 import plotly
+import polars as pl
 import pytest
 
 import gridstatus
@@ -23,7 +24,7 @@ def test_dam_heat_map():
     # check if works with hour too
     # not the best test since we dont know if
     # the viz is actually using it instead of time
-    df["Hour"] = df["Time"].dt.hour
+    df = df.with_columns(pl.col("Time").dt.hour().alias("Hour"))
     fig = gridstatus.viz.dam_heat_map(df)
     assert isinstance(fig, plotly.graph_objs._figure.Figure)
 

@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Literal
 
 import pandas as pd
+import polars as pl
 import pytz
 import requests
 
@@ -34,6 +35,8 @@ from gridstatus.isone_api.isone_api_constants import (
 
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
+
+ISO_OFFSET_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S%.f%z"
 
 
 # See more info here: https://www.iso-ne.com/participate/support/web-services-data#loadzone
@@ -143,6 +146,49 @@ class ISONEAPI:
             return [records]
         return records
 
+    def _records_to_polars(self, records: dict | list[dict]) -> pl.DataFrame:
+        prepared = self._prepare_records(records)
+        if not prepared:
+            return pl.DataFrame()
+        return pl.DataFrame(prepared)
+
+    def _parse_offset_datetime_expr(self, col: str) -> pl.Expr:
+        return (
+            pl.col(col)
+            .str.to_datetime(format=ISO_OFFSET_DATETIME_FORMAT)
+            .dt.convert_time_zone(self.default_timezone)
+        )
+
+    def _parse_begin_date_interval_start(self, df: pl.DataFrame) -> pl.DataFrame:
+        try:
+            return df.with_columns(
+                self._parse_offset_datetime_expr("BeginDate").alias("Interval Start"),
+            )
+        except Exception:
+            log.warning("Standard datetime conversion failed. Using custom parsing.")
+            return df.with_columns(
+                pl.col("BeginDate")
+                .map_elements(
+                    self.parse_problematic_datetime,
+                    return_dtype=pl.Datetime("us", self.default_timezone),
+                )
+                .alias("Interval Start"),
+            )
+
+    def _extract_location_columns(self, df: pl.DataFrame) -> pl.DataFrame:
+        if isinstance(df.schema["Location"], pl.Struct):
+            return df.with_columns(
+                pl.col("Location").struct.field("$").alias("Location"),
+                pl.col("Location").struct.field("@LocId").alias("Location Id"),
+            )
+        location_df = pl.from_pandas(
+            pd.json_normalize(df.get_column("Location").to_list()),
+        )
+        return df.with_columns(
+            location_df["$"].alias("Location"),
+            location_df["@LocId"].alias("Location Id"),
+        )
+
     def make_api_call(
         self,
         url: str,
@@ -193,12 +239,12 @@ class ISONEAPI:
         else:
             return response.content
 
-    def get_locations(self) -> pd.DataFrame:
+    def get_locations(self) -> pl.DataFrame:
         """
         Get a list of core hub and zone locations.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing location information.
+            polars.DataFrame: A DataFrame containing location information.
         """
         url = f"{self.base_url}/locations"
         response = self.make_api_call(url)
@@ -206,11 +252,9 @@ class ISONEAPI:
             raise NoDataFoundException("No location data found.")
 
         locations = response["Locations"]["Location"]
-        df = pd.DataFrame(locations)
+        return pl.DataFrame(locations)
 
-        return df
-
-    def get_location_by_id(self, location_id: int) -> pd.DataFrame:
+    def get_location_by_id(self, location_id: int) -> pl.DataFrame:
         """
         Get information for a specific location by its ID.
 
@@ -218,7 +262,7 @@ class ISONEAPI:
             location_id (int): The ID of the location to retrieve.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the location information.
+            polars.DataFrame: A DataFrame containing the location information.
         """
         url = f"{self.base_url}/locations/{location_id}"
         response = self.make_api_call(url)
@@ -227,15 +271,14 @@ class ISONEAPI:
             raise NoDataFoundException(f"No data found for location ID: {location_id}")
 
         location = response["Location"]
-        df = pd.DataFrame([location])
-        return df
+        return pl.DataFrame([location])
 
-    def get_locations_all(self) -> pd.DataFrame:
+    def get_locations_all(self) -> pl.DataFrame:
         """
         Get detailed information for all locations.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing detailed information for all locations.
+            polars.DataFrame: A DataFrame containing detailed information for all locations.
         """
         url = f"{self.base_url}/locations/all"
         response = self.make_api_call(url)
@@ -244,8 +287,7 @@ class ISONEAPI:
             raise NoDataFoundException("No location data found.")
 
         locations = response["Locations"]["Location"]
-        df = pd.DataFrame(locations)
-        return df
+        return pl.DataFrame(locations)
 
     @support_date_range("DAY_START")
     def get_fuel_mix(
@@ -253,7 +295,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Return fuel mix data for the specified date range
 
         Args:
@@ -262,7 +304,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: DataFrame containing fuel mix data with timestamps and generation by fuel type
+            pl.DataFrame: DataFrame containing fuel mix data with timestamps and generation by fuel type
         """
         if date == "latest":
             url = f"{self.base_url}/genfuelmix/current"
@@ -270,22 +312,24 @@ class ISONEAPI:
             url = f"{self.base_url}/genfuelmix/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
-        df = pd.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
+        df = pl.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
 
-        mix_df = df.pivot_table(
+        mix_df = df.pivot(
+            on="FuelCategory",
             index="BeginDate",
-            columns="FuelCategory",
             values="GenMw",
-            aggfunc="first",
-        ).reset_index()
-        mix_df.columns.name = None
+            aggregate_function="first",
+        ).rename({"BeginDate": "Time"})
 
-        mix_df = mix_df.rename(columns={"BeginDate": "Time"})
-        mix_df["Time"] = mix_df["Time"].apply(self.parse_problematic_datetime)
-        mix_df = mix_df.fillna(0)
-        mix_df = utils.move_cols_to_front(mix_df, ["Time"])
+        mix_df = mix_df.with_columns(
+            self._parse_offset_datetime_expr("Time"),
+        )
+        fuel_cols = sorted(c for c in mix_df.columns if c != "Time")
+        mix_df = mix_df.with_columns(
+            [pl.col(col).fill_null(0).cast(pl.Float64) for col in fuel_cols],
+        )
 
-        return mix_df
+        return utils.move_cols_to_front(mix_df, ["Time"])
 
     @support_date_range("DAY_START")
     def get_marginal_fuel_type(
@@ -293,7 +337,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Return marginal-fuel flags per timestamp, one boolean column per fuel type.
 
         Args:
@@ -302,7 +346,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: One row per timestamp. Column "Time" plus one boolean
+            pl.DataFrame: One row per timestamp. Column "Time" plus one boolean
                 column per fuel category (e.g. "Natural Gas", "Solar"). True
                 means the fuel was marginal at that timestamp; missing
                 (timestamp, fuel) pairs and timestamps with no marginal fuel
@@ -314,22 +358,24 @@ class ISONEAPI:
             url = f"{self.base_url}/genfuelmix/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
-        df = pd.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
-        df["IsMarginal"] = (df["MarginalFlag"] == "Y").astype(int)
+        df = pl.DataFrame(response["GenFuelMixes"]["GenFuelMix"])
+        df = df.with_columns((pl.col("MarginalFlag") == "Y").alias("IsMarginal"))
 
-        pivoted = df.pivot_table(
+        pivoted = df.pivot(
+            on="FuelCategory",
             index="BeginDate",
-            columns="FuelCategory",
             values="IsMarginal",
-            aggfunc="first",
-        ).reset_index()
-        pivoted.columns.name = None
+            aggregate_function="first",
+        ).rename({"BeginDate": "Time"})
 
-        pivoted = pivoted.rename(columns={"BeginDate": "Time"})
-        pivoted["Time"] = pivoted["Time"].apply(self.parse_problematic_datetime)
+        pivoted = pivoted.with_columns(
+            self._parse_offset_datetime_expr("Time"),
+        )
 
         fuel_cols = sorted(c for c in pivoted.columns if c != "Time")
-        pivoted[fuel_cols] = pivoted[fuel_cols].fillna(0).astype(bool)
+        pivoted = pivoted.with_columns(
+            [pl.col(col).fill_null(False).cast(pl.Boolean) for col in fuel_cols],
+        )
 
         return utils.move_cols_to_front(pivoted, ["Time"] + fuel_cols)
 
@@ -339,7 +385,7 @@ class ISONEAPI:
         date: str | pd.Timestamp,
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get ISO-NE's daily morning report for the operating day."""
         url = f"{self.base_url}/morningreport/day/{date.strftime('%Y%m%d')}/all"
         response = self.make_api_call(url, verbose=verbose)
@@ -358,8 +404,8 @@ class ISONEAPI:
             ),
             reports[0],
         )
-        df = pd.DataFrame([self._parse_morning_report(report)])
-        return df[ISONE_MORNING_REPORT_COLUMNS]
+        df = pl.DataFrame([self._parse_morning_report(report)])
+        return df.select(ISONE_MORNING_REPORT_COLUMNS)
 
     def _parse_morning_report(self, report: dict) -> dict[str, object]:
         """Flatten one MorningReport JSON object into the daily wide-row output schema."""
@@ -403,18 +449,22 @@ class ISONEAPI:
             ),
         )
 
-        cities = pd.json_normalize(
-            self._prepare_records(report.get("CityForecastDetail") or []),
+        cities = pl.from_pandas(
+            pd.json_normalize(
+                self._prepare_records(report.get("CityForecastDetail") or []),
+            ),
         )
         for city_key, prefix in [("boston", "Boston"), ("hartford", "Hartford")]:
             for api_field, suffix in ISONE_MORNING_REPORT_CITY_FIELDS.items():
                 row[f"{prefix} {suffix}"] = None
-            if cities.empty or "CityName" not in cities.columns:
+            if cities.is_empty() or "CityName" not in cities.columns:
                 continue
-            match = cities.loc[cities["CityName"].str.casefold() == city_key]
-            if match.empty:
+            match = cities.filter(
+                pl.col("CityName").str.to_lowercase() == city_key,
+            )
+            if match.is_empty():
                 continue
-            city_row = match.iloc[0]
+            city_row = match.row(0, named=True)
             for api_field, suffix in ISONE_MORNING_REPORT_CITY_FIELDS.items():
                 row[f"{prefix} {suffix}"] = city_row.get(api_field)
 
@@ -434,21 +484,31 @@ class ISONEAPI:
         if not records:
             return columns
 
-        ties = pd.json_normalize(self._prepare_records(records))
-        ties["TieName"] = ties["TieName"].map(
-            lambda name: ISONE_MORNING_REPORT_TIE_ALIASES.get(
-                str(name).strip().casefold(),
-                str(name).strip(),
-            ),
+        ties = pl.from_pandas(
+            pd.json_normalize(self._prepare_records(records)),
+        )
+        ties = ties.with_columns(
+            pl.col("TieName")
+            .map_elements(
+                lambda name: ISONE_MORNING_REPORT_TIE_ALIASES.get(
+                    str(name).strip().casefold(),
+                    str(name).strip(),
+                ),
+                return_dtype=pl.Utf8,
+            )
+            .alias("TieName"),
         )
         for api_field, suffix in api_field_suffix_pairs.items():
             if api_field not in ties.columns:
                 continue
-            values = ties.set_index("TieName")[api_field]
+            tie_values = {
+                row["TieName"]: row[api_field]
+                for row in ties.select(["TieName", api_field]).iter_rows(named=True)
+            }
             for tie in ISONE_MORNING_REPORT_TIE_NAMES:
                 column = f"{tie} {suffix}"
-                if tie in values.index:
-                    columns[column] = values.loc[tie]
+                if tie in tie_values:
+                    columns[column] = tie_values[tie]
         return columns
 
     @support_date_range("DAY_START")
@@ -458,7 +518,7 @@ class ISONEAPI:
         end: str | pd.Timestamp | None = None,
         locations: list[str] = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the real-time hourly demand data for specified locations and date range.
 
@@ -469,7 +529,7 @@ class ISONEAPI:
                                              If None, data for all locations will be retrieved.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the real-time hourly demand data for all requested locations.
+            polars.DataFrame: A DataFrame containing the real-time hourly demand data for all requested locations.
         """
         all_data = []
 
@@ -477,9 +537,11 @@ class ISONEAPI:
             case ("latest", None):
                 url = f"{self.base_url}/realtimehourlydemand/current"
                 response = self.make_api_call(url)
-                df = pd.DataFrame(response["HourlyRtDemands"]["HourlyRtDemand"])
-                df["LocId"] = df["Location"].apply(lambda x: x["@LocId"])
-                df["Location"] = df["Location"].apply(lambda x: x["$"])
+                df = pl.DataFrame(response["HourlyRtDemands"]["HourlyRtDemand"])
+                df = df.with_columns(
+                    pl.col("Location").struct.field("@LocId").alias("LocId"),
+                    pl.col("Location").struct.field("$").alias("Location"),
+                )
                 return self._handle_demand(df, interval_minutes=60)
 
             case ("latest", _):
@@ -535,7 +597,7 @@ class ISONEAPI:
                 "No real-time hourly demand data found for the specified parameters.",
             )
 
-        df = pd.DataFrame(all_data)
+        df = pl.DataFrame(all_data)
         return self._handle_demand(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
@@ -544,7 +606,7 @@ class ISONEAPI:
         date: str | pd.Timestamp,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Return hourly load data for a given date or date range
 
         Args:
@@ -556,7 +618,7 @@ class ISONEAPI:
 
 
         Returns:
-            pd.DataFrame: DataFrame containing load data with timestamps and load
+            pl.DataFrame: DataFrame containing load data with timestamps and load
         """
 
         if date == "latest":
@@ -568,16 +630,21 @@ class ISONEAPI:
             response = self.make_api_call(url)
             raw_data = response["HourlySystemLoads"]["HourlySystemLoad"]
 
-        df = pd.json_normalize(
-            raw_data,
-            meta=["BeginDate", "Load", "NativeLoad", "ArdDemand"],
+        df = pl.from_pandas(
+            pd.json_normalize(
+                raw_data,
+                meta=["BeginDate", "Load", "NativeLoad", "ArdDemand"],
+            ),
         )
-        df["Location"] = df["Location.$"]
-        df["LocId"] = df["Location.@LocId"]
-        df = df.drop(columns=["Location.$", "Location.@LocId"])
-        df.rename(
-            columns={"NativeLoad": "Native Load", "ArdDemand": "ARD Demand"},
-            inplace=True,
+        df = df.with_columns(
+            pl.col("Location.$").alias("Location"),
+            pl.col("Location.@LocId").alias("LocId"),
+        ).drop(["Location.$", "Location.@LocId"])
+        df = df.rename(
+            {
+                "NativeLoad": "Native Load",
+                "ArdDemand": "ARD Demand",
+            },
         )
 
         return self._handle_demand(
@@ -601,7 +668,7 @@ class ISONEAPI:
         end: str | pd.Timestamp | None = None,
         locations: list[str] = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the day-ahead hourly demand data for specified locations and date range.
 
@@ -612,7 +679,7 @@ class ISONEAPI:
                                              If None, data for all locations will be retrieved.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the day-ahead hourly demand data for all requested locations.
+            polars.DataFrame: A DataFrame containing the day-ahead hourly demand data for all requested locations.
         """
         all_data = []
 
@@ -620,9 +687,11 @@ class ISONEAPI:
             case ("latest", None):
                 url = f"{self.base_url}/dayaheadhourlydemand/current"
                 response = self.make_api_call(url)
-                df = pd.DataFrame(response["HourlyDaDemands"]["HourlyDaDemand"])
-                df["LocId"] = df["Location"].apply(lambda x: x["@LocId"])
-                df["Location"] = df["Location"].apply(lambda x: x["$"])
+                df = pl.DataFrame(response["HourlyDaDemands"]["HourlyDaDemand"])
+                df = df.with_columns(
+                    pl.col("Location").struct.field("@LocId").alias("LocId"),
+                    pl.col("Location").struct.field("$").alias("Location"),
+                )
                 return self._handle_demand(df, interval_minutes=60)
 
             case ("latest", _):
@@ -667,28 +736,32 @@ class ISONEAPI:
                 "No day-ahead hourly demand data found for the specified parameters.",
             )
 
-        df = pd.DataFrame(all_data)
+        df = pl.DataFrame(all_data)
         # NOTE(kladar): 2017-07-01 to 2018-06-01 causes an issue
         # as there are duplicates of the .H.INTERNALHUB location. Deduping them here
-        df = df.drop_duplicates(subset=["BeginDate", "Location"], keep="first")
+        df = df.unique(
+            subset=["BeginDate", "Location"],
+            keep="first",
+            maintain_order=True,
+        )
 
         return self._handle_demand(df, interval_minutes=60)
 
     def _handle_demand(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         interval_minutes: int = 60,
         columns: list[str] | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Process demand DataFrame: convert types, rename columns, and add Interval End.
 
         Args:
-            df (pd.DataFrame): Input DataFrame with demand data.
+            df (pl.DataFrame): Input DataFrame with demand data.
             interval_minutes (int): Duration of each interval in minutes. Default is 60.
 
         Returns:
-            pd.DataFrame: Processed DataFrame.
+            pl.DataFrame: Processed DataFrame.
         """
         if columns is None:
             columns = [
@@ -699,33 +772,20 @@ class ISONEAPI:
                 "Load",
             ]
 
-        try:
-            # Try the standard pandas datetime conversion first
-            df["Interval Start"] = pd.to_datetime(df["BeginDate"])
-            df["Interval Start"] = df["Interval Start"].dt.tz_convert(
-                self.default_timezone,
-            )
-        except AttributeError:
-            # NOTE(kladar) consistently the above logic fails for DST conversion days.
-            # This catches those and fixes it.
-            # Data coming out looks good, no missed intervals and no duplicates.
-            log.warning("Standard datetime conversion failed. Using custom parsing.")
-            df["Interval Start"] = df["BeginDate"].apply(
-                self.parse_problematic_datetime,
-            )
-
-        df = df.sort_values(["Interval Start", "Location"])
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = self._parse_begin_date_interval_start(df)
+        df = df.sort(["Interval Start", "Location"])
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
+            pl.col("Load").cast(pl.Float64, strict=False),
+            pl.col("LocId").cast(pl.Float64, strict=False).alias("Location Id"),
         )
-
-        df["Load"] = pd.to_numeric(df["Load"], errors="coerce")
-        df["Location Id"] = pd.to_numeric(df["LocId"], errors="coerce")
 
         log.info(
-            f"Processed demand data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+            f"Processed demand data: {df.height} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
-        return df[columns]
+        return df.select(columns)
 
     @support_date_range("DAY_START")
     def get_load_forecast_hourly(
@@ -734,7 +794,7 @@ class ISONEAPI:
         end: str | pd.Timestamp | None = None,
         vintage: Literal["latest", "all"] = "all",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the hourly load forecast data for specified locations and date range.
 
@@ -755,13 +815,13 @@ class ISONEAPI:
             vintage (Literal["latest", "all"]): The vintage for the data request. Options are "latest" or "all", defaults to "all".
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the hourly load forecast data for the system.
+            polars.DataFrame: A DataFrame containing the hourly load forecast data for the system.
         """
 
         if date == "latest":
             url = f"{self.base_url}/hourlyloadforecast/current"
             response = self.make_api_call(url)
-            df = pd.DataFrame(response["HourlyLoadForecast"])
+            df = pl.DataFrame(response["HourlyLoadForecast"])
             return self._handle_load_forecast(df, interval_minutes=60)
 
         elif vintage == "all":
@@ -772,7 +832,7 @@ class ISONEAPI:
             url = f"{self.base_url}/hourlyloadforecast/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
-        df = pd.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
+        df = pl.DataFrame(response["HourlyLoadForecasts"]["HourlyLoadForecast"])
         return self._handle_load_forecast(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
@@ -782,7 +842,7 @@ class ISONEAPI:
         end: str | pd.Timestamp | None = None,
         vintage: Literal["latest", "all"] = "all",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the regional load forecast data for specified date range and vintages.
 
@@ -792,7 +852,7 @@ class ISONEAPI:
             vintages (Literal["latest", "all"]): The vintage for the data request. Options are "latest" or "all".
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the regional load forecast data for all requested locations.
+            polars.DataFrame: A DataFrame containing the regional load forecast data for all requested locations.
         """
 
         if date == "latest":
@@ -803,47 +863,55 @@ class ISONEAPI:
             url = f"{self.base_url}/reliabilityregionloadforecast/day/{date.strftime('%Y%m%d')}"
 
         response = self.make_api_call(url)
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             response["ReliabilityRegionLoadForecasts"]["ReliabilityRegionLoadForecast"],
         )
         return self._handle_load_forecast(df, interval_minutes=60)
 
     def _handle_load_forecast(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         interval_minutes: int = 60,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Process load forecast DataFrame: convert types, rename columns, and add Interval End.
 
         Args:
-            df (pd.DataFrame): Input DataFrame with load forecast data.
+            df (pl.DataFrame): Input DataFrame with load forecast data.
             interval_minutes (int): Duration of each interval in minutes. Default is 60.
 
         Returns:
-            pd.DataFrame: Processed DataFrame.
+            pl.DataFrame: Processed DataFrame.
         """
         try:
-            # Try the standard pandas datetime conversion first
-
-            date_columns = ["BeginDate", "CreationDate"]
-            df[date_columns] = df[date_columns].apply(pd.to_datetime)
-            df[date_columns] = df[date_columns].apply(
-                lambda x: x.dt.tz_convert(self.default_timezone),
+            df = df.with_columns(
+                self._parse_offset_datetime_expr("BeginDate"),
+                self._parse_offset_datetime_expr("CreationDate"),
             )
-
-        except AttributeError:
+        except Exception:
             # NOTE(kladar) consistently the above logic fails for DST conversion days.
             # This catches those and fixes it.
             # Data coming out looks good, no missed intervals and no duplicates.
             log.warning("Standard datetime conversion failed. Using custom parsing.")
-            df["BeginDate"] = df["BeginDate"].apply(self.parse_problematic_datetime)
-            df["CreationDate"] = df["CreationDate"].apply(
-                self.parse_problematic_datetime,
+            df = df.with_columns(
+                pl.col("BeginDate")
+                .map_elements(
+                    self.parse_problematic_datetime,
+                    return_dtype=pl.Datetime("us", self.default_timezone),
+                )
+                .alias("BeginDate"),
+                pl.col("CreationDate")
+                .map_elements(
+                    self.parse_problematic_datetime,
+                    return_dtype=pl.Datetime("us", self.default_timezone),
+                )
+                .alias("CreationDate"),
             )
 
-        df["Interval End"] = df["BeginDate"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = df.with_columns(
+            (pl.col("BeginDate") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
         )
         regional_cols = {
             "BeginDate": "Interval Start",
@@ -861,33 +929,25 @@ class ISONEAPI:
             "NetLoadMw": "Net Load Forecast",
         }
         if "ReliabilityRegion" in df.columns:
-            df = df.rename(columns=regional_cols)
-            df["Regional Percentage"] = pd.to_numeric(
-                df["Regional Percentage"],
-                errors="coerce",
+            df = df.rename(regional_cols)
+            df = df.with_columns(
+                pl.col("Regional Percentage").cast(pl.Float64, strict=False),
             )
+            output_cols = list(regional_cols.values())
         else:
-            df = df.rename(columns=system_cols)
-            df["Net Load Forecast"] = pd.to_numeric(
-                df["Net Load Forecast"],
-                errors="coerce",
+            df = df.rename(system_cols)
+            df = df.with_columns(
+                pl.col("Net Load Forecast").cast(pl.Float64, strict=False),
             )
+            output_cols = list(system_cols.values())
 
-        df = df.sort_values(["Interval Start", "Publish Time"])
-        df["Load Forecast"] = pd.to_numeric(df["Load Forecast"], errors="coerce")
+        df = df.sort(["Interval Start", "Publish Time"])
+        df = df.with_columns(pl.col("Load Forecast").cast(pl.Float64, strict=False))
 
         log.info(
-            f"Processed load forecast data: {len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+            f"Processed load forecast data: {df.height} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
-        return df[
-            list(
-                (
-                    regional_cols.values()
-                    if "Location" in df.columns
-                    else system_cols.values()
-                ),
-            )
-        ]
+        return df.select(output_cols)
 
     @support_date_range("DAY_START")
     def get_interchange_hourly(
@@ -895,7 +955,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the hourly interchange data for specified date range. Hourly data includes
         multiple locations.
@@ -907,7 +967,7 @@ class ISONEAPI:
             is not "latest".
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the interchange fifteen minute
+            polars.DataFrame: A DataFrame containing the interchange fifteen minute
             data for all requested locations.
         """
         if date == "latest":
@@ -920,7 +980,7 @@ class ISONEAPI:
         response = self.make_api_call(url)
 
         if data := response.get("ActualInterchanges"):
-            df = pd.DataFrame(
+            df = pl.DataFrame(
                 data["ActualInterchange"],
             )
         else:
@@ -934,7 +994,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the fifteen minute interchange data for specified date range.
 
@@ -945,7 +1005,7 @@ class ISONEAPI:
             is not "latest".
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the interchange fifteen minute
+            polars.DataFrame: A DataFrame containing the interchange fifteen minute
             data for all requested locations.
         """
         if date == "latest":
@@ -958,7 +1018,7 @@ class ISONEAPI:
         response = self.make_api_call(url)
 
         if data := response.get("ActualFifteenMinInterchanges"):
-            df = pd.DataFrame(data["ActualFifteenMinInterchange"])
+            df = pl.DataFrame(data["ActualFifteenMinInterchange"])
         else:
             raise NoDataFoundException(
                 f"No fifteen minute interchange data found for {date}",
@@ -966,21 +1026,23 @@ class ISONEAPI:
 
         return self._handle_interchange_dataframe(df, interval_minutes=15)
 
-    def _handle_interchange_dataframe(self, df: pd.DataFrame, interval_minutes: int):
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
+    def _handle_interchange_dataframe(
+        self,
+        df: pl.DataFrame,
+        interval_minutes: int,
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            self._parse_offset_datetime_expr("BeginDate").alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
         )
+        df = self._extract_location_columns(df)
+        df = df.rename({"ActInterchange": "Actual Interchange"})
 
-        # Split location column from {'$': '.I.ROSETON 345 1', '@LocId': '4011'} to
-        # Location and Location Id
-        df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
-
-        df = df.rename(columns={"ActInterchange": "Actual Interchange"})
-
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -989,8 +1051,8 @@ class ISONEAPI:
                 "Actual Interchange",
                 "Purchase",
                 "Sale",
-            ]
-        ].sort_values(["Interval Start", "Location"])
+            ],
+        ).sort(["Interval Start", "Location"])
 
     @support_date_range("DAY_START")
     def get_external_flows_5_min(
@@ -998,7 +1060,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the five minute external flow data for specified date range.
 
@@ -1009,7 +1071,7 @@ class ISONEAPI:
             is not "latest".
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the external flow five minute
+            polars.DataFrame: A DataFrame containing the external flow five minute
             data for all requested locations.
         """
         if date == "latest":
@@ -1024,7 +1086,7 @@ class ISONEAPI:
         response = self.make_api_call(url)
 
         if data := response.get("ExternalFlows"):
-            df = pd.DataFrame(data["ExternalFlow"])
+            df = pl.DataFrame(data["ExternalFlow"])
         else:
             raise NoDataFoundException(
                 f"No five minute external flow data found for {date}",
@@ -1032,20 +1094,26 @@ class ISONEAPI:
 
         return self._handle_external_flows_dataframe(df, interval_minutes=5)
 
-    def _handle_external_flows_dataframe(self, df: pd.DataFrame, interval_minutes: int):
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
+    def _handle_external_flows_dataframe(
+        self,
+        df: pl.DataFrame,
+        interval_minutes: int,
+    ) -> pl.DataFrame:
+        df = df.with_columns(
+            self._parse_offset_datetime_expr("BeginDate").alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
         )
 
         # Split location column from {'$': '.I.ROSETON 345 1', '@LocId': '4011'} to
         # Location and Location Id
-        df[["Location", "Location Id"]] = pd.json_normalize(df["Location"])
+        df = self._extract_location_columns(df)
 
         df = df.rename(
-            columns={
+            {
                 "ActualFlow": "Actual Flow",
                 "ImportLimit": "Import Limit",
                 "ExportLimit": "Export Limit",
@@ -1055,7 +1123,7 @@ class ISONEAPI:
             },
         )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1069,8 +1137,8 @@ class ISONEAPI:
                 "Sale",
                 "Total Exports",
                 "Total Imports",
-            ]
-        ].sort_values(["Interval Start", "Location"])
+            ],
+        ).sort(["Interval Start", "Location"])
 
     @support_date_range("DAY_START")
     def get_zonal_load_estimated_5_min(
@@ -1078,7 +1146,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get five-minute estimated zonal load data for all load zones.
 
@@ -1090,7 +1158,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing five-minute estimated zonal load data.
+            pl.DataFrame: A DataFrame containing five-minute estimated zonal load data.
         """
         url = self._build_url("fiveminuteestimatedzonalload", date)
         response = self.make_api_call(url, verbose=verbose)
@@ -1109,16 +1177,20 @@ class ISONEAPI:
                 f"No five-minute estimated zonal load data found for {date}",
             )
 
-        df = pd.DataFrame(records)
+        df = pl.DataFrame(records)
 
-        df["Interval Start"] = pd.to_datetime(
-            df["interval_begin_date"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        df = df.with_columns(
+            pl.col("interval_begin_date")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=5)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "load_zone_id": "Load Zone ID",
                 "load_zone_name": "Load Zone Name",
                 "estimated_load_mw": "Estimated Load",
@@ -1126,17 +1198,13 @@ class ISONEAPI:
             },
         )
 
-        df["Load Zone ID"] = pd.to_numeric(df["Load Zone ID"], errors="coerce")
-        df["Estimated Load"] = pd.to_numeric(
-            df["Estimated Load"],
-            errors="coerce",
-        )
-        df["Estimated BTM Solar"] = pd.to_numeric(
-            df["Estimated BTM Solar"],
-            errors="coerce",
+        df = df.with_columns(
+            pl.col("Load Zone ID").cast(pl.Float64, strict=False),
+            pl.col("Estimated Load").cast(pl.Float64, strict=False),
+            pl.col("Estimated BTM Solar").cast(pl.Float64, strict=False),
         )
 
-        return df[ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS].sort_values(
+        return df.select(ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS).sort(
             ["Interval Start", "Load Zone ID"],
         )
 
@@ -1145,7 +1213,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"] = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get five-minute zonal load forecast data for all load zones.
 
@@ -1156,7 +1224,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing five-minute zonal load forecast data.
+            pl.DataFrame: A DataFrame containing five-minute zonal load forecast data.
                 Publish Time comes from the /info endpoint CreationDate field.
         """
         if end is not None:
@@ -1190,16 +1258,20 @@ class ISONEAPI:
                 "No five-minute zonal load forecast data found",
             )
 
-        df = pd.DataFrame(records)
+        df = pl.DataFrame(records)
 
-        df["Interval Start"] = pd.to_datetime(
-            df["interval_begin_date"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        df = df.with_columns(
+            pl.col("interval_begin_date")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=5)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "load_zone_id": "Load Zone ID",
                 "load_zone_name": "Load Zone Name",
                 "load_mw": "Load Forecast",
@@ -1207,19 +1279,15 @@ class ISONEAPI:
             },
         )
 
-        df["Publish Time"] = publish_time
-
-        df["Load Zone ID"] = pd.to_numeric(df["Load Zone ID"], errors="coerce")
-        df["Load Forecast"] = pd.to_numeric(df["Load Forecast"], errors="coerce")
-        df["BTM Solar Forecast"] = pd.to_numeric(
-            df["BTM Solar Forecast"],
-            errors="coerce",
+        df = df.with_columns(
+            pl.lit(publish_time).alias("Publish Time"),
+            pl.col("Load Zone ID").cast(pl.Float64, strict=False),
+            pl.col("Load Forecast").cast(pl.Float64, strict=False),
+            pl.col("BTM Solar Forecast").cast(pl.Float64, strict=False),
         )
 
-        return (
-            df[ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS]
-            .sort_values(["Interval Start", "Load Zone Name"])
-            .reset_index(drop=True)
+        return df.select(ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS).sort(
+            ["Interval Start", "Load Zone Name"],
         )
 
     @support_date_range("DAY_START")
@@ -1228,7 +1296,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get five-minute system load ("total demand") data.
 
@@ -1244,7 +1312,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing five-minute total demand data.
+            pl.DataFrame: A DataFrame containing five-minute total demand data.
         """
         url = self._build_url("fiveminutesystemload", date)
         response = self.make_api_call(url, verbose=verbose)
@@ -1259,16 +1327,17 @@ class ISONEAPI:
                 f"No five-minute system load data found for {date}",
             )
 
-        df = pd.DataFrame(records)
+        df = pl.DataFrame(records)
 
-        df["Interval Start"] = pd.to_datetime(
-            df["BeginDate"],
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        df = df.with_columns(
+            self._parse_offset_datetime_expr("BeginDate").alias("Interval Start"),
+        )
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=5)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "LoadMw": "Total Load",
                 "NativeLoad": "Native Load",
                 "ArdDemand": "Storage Load",
@@ -1277,10 +1346,14 @@ class ISONEAPI:
             },
         )
 
-        for col in ISONE_TOTAL_DEMAND_COLUMNS[2:]:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.with_columns(
+            [
+                pl.col(col).cast(pl.Float64, strict=False)
+                for col in ISONE_TOTAL_DEMAND_COLUMNS[2:]
+            ],
+        )
 
-        return df[ISONE_TOTAL_DEMAND_COLUMNS].sort_values("Interval Start")
+        return df.select(ISONE_TOTAL_DEMAND_COLUMNS).sort("Interval Start")
 
     @support_date_range("HOUR_START")
     def get_lmp_real_time_5_min_prelim(
@@ -1288,7 +1361,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the real-time 5 minute LMP preliminary data for specified date range.
 
@@ -1298,7 +1371,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the real-time 5 minute LMP preliminary data.
+            pl.DataFrame: A DataFrame containing the real-time 5 minute LMP preliminary data.
         """
 
         if date == "latest":
@@ -1314,7 +1387,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the real-time 5 minute LMP final data for specified date range.
 
@@ -1324,7 +1397,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the real-time 5 minute LMP final data.
+            pl.DataFrame: A DataFrame containing the real-time 5 minute LMP final data.
         """
 
         if date == "latest":
@@ -1351,7 +1424,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the real-time hourly LMP data for specified date range.
 
@@ -1377,7 +1450,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the real-time hourly LMP data for specified date range.
 
@@ -1401,25 +1474,26 @@ class ISONEAPI:
         url: str,
         verbose: bool = False,
         interval_minutes: int = 60,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         response = self.make_api_call(url)
 
         if interval_minutes == 60:
-            df = pd.DataFrame(response["HourlyLmps"]["HourlyLmp"])
+            df = pl.DataFrame(response["HourlyLmps"]["HourlyLmp"])
         else:
-            df = pd.DataFrame(response["FiveMinLmps"]["FiveMinLmp"])
+            df = pl.DataFrame(response["FiveMinLmps"]["FiveMinLmp"])
 
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        df = df.with_columns(
+            self._parse_offset_datetime_expr("BeginDate").alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
+            pl.col("Location").struct.field("@LocType").alias("Location Type"),
+            pl.col("Location").struct.field("$").alias("Location"),
         )
-
-        df["Location Type"] = df["Location"].apply(lambda x: x["@LocType"])
-        df["Location"] = df["Location"].apply(lambda x: x["$"])
         df = df.rename(
-            columns={
+            {
                 "LmpTotal": "LMP",
                 "EnergyComponent": "Energy",
                 "CongestionComponent": "Congestion",
@@ -1427,7 +1501,7 @@ class ISONEAPI:
             },
         )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1437,8 +1511,8 @@ class ISONEAPI:
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ].sort_values(["Interval Start", "Location"])
+            ],
+        ).sort(["Interval Start", "Location"])
 
     @support_date_range("DAY_START")
     def get_capacity_forecast_7_day(
@@ -1446,7 +1520,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get the capacity forecast for the next 7 days.
         """
@@ -1461,24 +1535,32 @@ class ISONEAPI:
         self,
         url: str,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         response = self.make_api_call(url)
-        df = pd.json_normalize(
-            response["SevenDayForecasts"]["SevenDayForecast"],
-            record_path=["MarketDay"],
-            meta=["CreationDate"],
+        df = pl.from_pandas(
+            pd.json_normalize(
+                response["SevenDayForecasts"]["SevenDayForecast"],
+                record_path=["MarketDay"],
+                meta=["CreationDate"],
+            ),
         )
 
-        df["Publish Time"] = pd.to_datetime(df["CreationDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("CreationDate")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Publish Time"),
+            pl.col("MarketDate")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Interval Start"] = pd.to_datetime(df["MarketDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(days=1)).alias("Interval End"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(days=1)
 
         df = df.rename(
-            columns={
+            {
                 "TotAvailGenMw": "Total Generation Available",
                 "CsoMw": "Total Capacity Supply Obligation",
                 "ColdWeatherOutagesMw": "Anticipated Cold Weather Outages",
@@ -1507,34 +1589,48 @@ class ISONEAPI:
             "Load Relief Actions Anticipated",
             "Generating Capacity Position",
         ]:
-            df[col] = None
+            df = df.with_columns(pl.lit(None).alias(col))
 
-        df["High Temperature Boston"] = df["Weather.CityWeather"].apply(
-            lambda x: next(
-                (city["HighTempF"] for city in x if city["CityName"] == "Boston"),
-                None,
-            ),
-        )
-        df["High Temperature Hartford"] = df["Weather.CityWeather"].apply(
-            lambda x: next(
-                (city["HighTempF"] for city in x if city["CityName"] == "Hartford"),
-                None,
-            ),
-        )
-        df["Dew Point Boston"] = df["Weather.CityWeather"].apply(
-            lambda x: next(
-                (city["DewPointF"] for city in x if city["CityName"] == "Boston"),
-                None,
-            ),
-        )
-        df["Dew Point Hartford"] = df["Weather.CityWeather"].apply(
-            lambda x: next(
-                (city["DewPointF"] for city in x if city["CityName"] == "Hartford"),
-                None,
-            ),
+        def _city_weather_value(
+            cities: list[dict] | None,
+            city_name: str,
+            field: str,
+        ) -> object:
+            if not cities:
+                return None
+            for city in cities:
+                if city.get("CityName") == city_name:
+                    return city.get(field)
+            return None
+
+        df = df.with_columns(
+            pl.col("Weather.CityWeather")
+            .map_elements(
+                lambda cities: _city_weather_value(cities, "Boston", "HighTempF"),
+                return_dtype=pl.Float64,
+            )
+            .alias("High Temperature Boston"),
+            pl.col("Weather.CityWeather")
+            .map_elements(
+                lambda cities: _city_weather_value(cities, "Hartford", "HighTempF"),
+                return_dtype=pl.Float64,
+            )
+            .alias("High Temperature Hartford"),
+            pl.col("Weather.CityWeather")
+            .map_elements(
+                lambda cities: _city_weather_value(cities, "Boston", "DewPointF"),
+                return_dtype=pl.Float64,
+            )
+            .alias("Dew Point Boston"),
+            pl.col("Weather.CityWeather")
+            .map_elements(
+                lambda cities: _city_weather_value(cities, "Hartford", "DewPointF"),
+                return_dtype=pl.Float64,
+            )
+            .alias("Dew Point Hartford"),
         )
 
-        return df[ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS]
+        return df.select(ISONE_CAPACITY_FORECAST_7_DAY_COLUMNS)
 
     @support_date_range("DAY_START")
     def get_regulation_clearing_prices_real_time_5_min(
@@ -1542,7 +1638,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get five-minute clearing prices for both regulation capacity and service in real-time.
 
@@ -1552,52 +1648,50 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing five-minute regulation clearing prices.
+            pl.DataFrame: A DataFrame containing five-minute regulation clearing prices.
         """
         url = self._build_url("fiveminutercp", date)
         response = self.make_api_call(url, verbose=verbose)
-        df = pd.DataFrame(self._safe_get(response, "FiveMinRcps", "FiveMinRcp"))
+        df = pl.DataFrame(self._safe_get(response, "FiveMinRcps", "FiveMinRcp"))
 
-        if df.empty:
+        if df.is_empty():
             raise NoDataFoundException(
                 f"No five-minute regulation clearing price data found for {date}",
             )
 
         # Timestamps already have an offset, so we parse as UTC then convert to local
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True)
         # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00). Round in UTC to avoid DST issues
-        df["Interval Start"] = (
-            df["Interval Start"]
-            .dt.floor("5min")
-            .dt.tz_convert(
-                self.default_timezone,
-            )
+        df = df.with_columns(
+            pl.col("BeginDate")
+            .str.to_datetime(time_zone="UTC")
+            .dt.truncate("5m")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=5)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "RegServiceClearingPrice": "Reg Service Clearing Price",
                 "RegCapacityClearingPrice": "Reg Capacity Clearing Price",
             },
         )
 
-        df["Reg Service Clearing Price"] = df["Reg Service Clearing Price"].astype(
-            float,
+        df = df.with_columns(
+            pl.col("Reg Service Clearing Price").cast(pl.Float64),
+            pl.col("Reg Capacity Clearing Price").cast(pl.Float64),
         )
 
-        df["Reg Capacity Clearing Price"] = df["Reg Capacity Clearing Price"].astype(
-            float,
-        )
-
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Reg Service Clearing Price",
                 "Reg Capacity Clearing Price",
-            ]
-        ].sort_values("Interval Start")
+            ],
+        ).sort("Interval Start")
 
     @support_date_range("DAY_START")
     def get_reserve_requirements_prices_forecast_day_ahead(
@@ -1605,7 +1699,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get day-ahead reserve prices, requirements, and forecast for reserve zone 7000 (system-wide).
 
@@ -1615,34 +1709,38 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing day-ahead reserve requirements, prices, and forecast.
+            pl.DataFrame: A DataFrame containing day-ahead reserve requirements, prices, and forecast.
         """
         url = self._build_url("daasreservedata", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        df = pd.json_normalize(
-            self._safe_get(
-                response,
-                "isone_web_services",
-                "day_ahead_reserves",
-                "day_ahead_reserve",
+        df = pl.from_pandas(
+            pd.json_normalize(
+                self._safe_get(
+                    response,
+                    "isone_web_services",
+                    "day_ahead_reserves",
+                    "day_ahead_reserve",
+                ),
             ),
         )
 
-        if df.empty:
+        if df.is_empty():
             raise NoDataFoundException(f"No day-ahead reserve data found for {date}")
 
         # Parse market hour information - API returns timezone-aware datetimes
-        df["Interval Start"] = pd.to_datetime(
-            df["market_hour.local_day"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("market_hour.local_day")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
         df = df.rename(
-            columns={
+            {
                 "eir_designation_mw": "EIR Designation MW",
                 "fer_clearing_price": "FER Clearing Price",
                 "forecasted_energy_req_mw": "Forecasted Energy Req MW",
@@ -1673,10 +1771,11 @@ class ISONEAPI:
             "Total Thirty Min Req MW",
         ]
 
-        for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.with_columns(
+            [pl.col(col).cast(pl.Float64, strict=False) for col in numeric_columns],
+        )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1692,8 +1791,38 @@ class ISONEAPI:
                 "TMSR Designation MW",
                 "Total Ten Min Req MW",
                 "Total Thirty Min Req MW",
-            ]
-        ].sort_values("Interval Start")
+            ],
+        ).sort("Interval Start")
+
+    def _handle_reserve_zone_dataframe(
+        self,
+        df: pl.DataFrame,
+        interval_minutes: int,
+        floor_to_five_minutes: bool = False,
+    ) -> pl.DataFrame:
+        if floor_to_five_minutes:
+            interval_start = (
+                pl.col("BeginDate")
+                .str.to_datetime(time_zone="UTC")
+                .dt.truncate("5m")
+                .dt.convert_time_zone(self.default_timezone)
+            )
+        else:
+            interval_start = self._parse_offset_datetime_expr("BeginDate")
+
+        df = df.with_columns(interval_start.alias("Interval Start"))
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
+        )
+        df = df.rename(ISONE_RESERVE_ZONE_COLUMN_MAP)
+        df = df.with_columns(
+            [pl.col(col).cast(pl.Float64) for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS],
+        )
+        return df.select(ISONE_RESERVE_ZONE_ALL_COLUMNS).sort(
+            ["Interval Start", "Reserve Zone Id"],
+        )
 
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_5_min(
@@ -1701,7 +1830,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get five-minute real-time reserve prices, requirements, and designations by zone.
 
@@ -1711,38 +1840,25 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
+            pl.DataFrame: A DataFrame containing five-minute reserve zone prices and designations.
         """
         url = self._build_url("fiveminutereserveprice", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             self._safe_get(response, "FiveMinReservePrices", "FiveMinReservePrice"),
         )
 
-        if df.empty:
+        if df.is_empty():
             raise NoDataFoundException(
                 f"No five-minute reserve zone price data found for {date}",
             )
 
         # Floor to 5-minute intervals to handle API data inconsistencies (sometimes returns :01, :02, etc instead of :00). Do rounding in UTC.
-        df["Interval Start"] = (
-            pd.to_datetime(df["BeginDate"], utc=True)
-            .dt.floor("5min")
-            .dt.tz_convert(
-                self.default_timezone,
-            )
-        )
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
-
-        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
-
-        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
-            df[col] = df[col].astype(float)
-
-        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
-            ["Interval Start", "Reserve Zone Id"],
+        return self._handle_reserve_zone_dataframe(
+            df,
+            interval_minutes=5,
+            floor_to_five_minutes=True,
         )
 
     @support_date_range("DAY_START")
@@ -1751,7 +1867,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get preliminary hourly reserve prices, requirements, and designations by zone.
 
@@ -1761,12 +1877,12 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing preliminary hourly reserve zone prices and designations.
+            pl.DataFrame: A DataFrame containing preliminary hourly reserve zone prices and designations.
         """
         url = self._build_url("hourlyprelimreserveprice", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             self._safe_get(
                 response,
                 "PrelimHourlyReservePrices",
@@ -1774,24 +1890,12 @@ class ISONEAPI:
             ),
         )
 
-        if df.empty:
+        if df.is_empty():
             raise NoDataFoundException(
                 f"No preliminary hourly reserve zone price data found for {date}",
             )
 
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
-        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
-
-        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
-            df[col] = df[col].astype(float)
-
-        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
-            ["Interval Start", "Reserve Zone Id"],
-        )
+        return self._handle_reserve_zone_dataframe(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
     def get_reserve_zone_prices_designations_real_time_hourly_final(
@@ -1799,7 +1903,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get final hourly reserve prices, requirements, and designations by zone.
 
@@ -1809,12 +1913,12 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing final hourly reserve zone prices and designations.
+            pl.DataFrame: A DataFrame containing final hourly reserve zone prices and designations.
         """
         url = self._build_url("hourlyfinalreserveprice", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             self._safe_get(
                 response,
                 "FinalHourlyReservePrices",
@@ -1822,24 +1926,12 @@ class ISONEAPI:
             ),
         )
 
-        if df.empty:
+        if df.is_empty():
             raise NoDataFoundException(
                 f"No final hourly reserve zone price data found for {date}",
             )
 
-        df["Interval Start"] = pd.to_datetime(df["BeginDate"], utc=True).dt.tz_convert(
-            self.default_timezone,
-        )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
-        df = df.rename(columns=ISONE_RESERVE_ZONE_COLUMN_MAP)
-
-        for col in ISONE_RESERVE_ZONE_FLOAT_COLUMNS:
-            df[col] = df[col].astype(float)
-
-        return df[ISONE_RESERVE_ZONE_ALL_COLUMNS].sort_values(
-            ["Interval Start", "Reserve Zone Id"],
-        )
+        return self._handle_reserve_zone_dataframe(df, interval_minutes=60)
 
     @support_date_range("DAY_START")
     def get_ancillary_services_strike_prices_day_ahead(
@@ -1847,7 +1939,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | Literal["latest"],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get day-ahead strike prices and close-out components for ISO-NE.
 
@@ -1857,44 +1949,44 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing day-ahead strike prices and related data.
+            pl.DataFrame: A DataFrame containing day-ahead strike prices and related data.
         """
         url = self._build_url("daasstrikeprices", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        df = pd.json_normalize(
-            self._safe_get(
-                response,
-                "isone_web_services",
-                "day_ahead_strike_prices",
-                "day_ahead_strike_price",
+        df = pl.from_pandas(
+            pd.json_normalize(
+                self._safe_get(
+                    response,
+                    "isone_web_services",
+                    "day_ahead_strike_prices",
+                    "day_ahead_strike_price",
+                ),
             ),
         )
 
-        if df.empty:
+        if df.is_empty():
             raise NoDataFoundException(
                 f"No day-ahead strike price data found for {date}",
             )
 
         # Parse market hour information - API returns timezone-aware datetimes
-        df["Interval Start"] = pd.to_datetime(
-            df["market_hour.local_day"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
+        df = df.with_columns(
+            pl.col("market_hour.local_day")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+            pl.col("strike_price_timestamp")
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Publish Time"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-
-        # Parse publish time
-        df["Publish Time"] = pd.to_datetime(
-            df["strike_price_timestamp"],
-            utc=True,
-        ).dt.tz_convert(
-            self.default_timezone,
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
         )
 
         df = df.rename(
-            columns={
+            {
                 "expected_closeout_charge": "Expected Closeout Charge",
                 "expected_closeout_charge_override": "Expected Closeout Charge Override",
                 "expected_rt_hub_lmp": "Expected RT Hub LMP",
@@ -1919,10 +2011,11 @@ class ISONEAPI:
             "Strike Price",
         ]
 
-        for col in numeric_columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.with_columns(
+            [pl.col(col).cast(pl.Float64, strict=False) for col in numeric_columns],
+        )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1936,8 +2029,8 @@ class ISONEAPI:
                 "Percentile 90 RT Hub LMP",
                 "SPC Load Forecast MW",
                 "Strike Price",
-            ]
-        ].sort_values(["Interval Start", "Publish Time"])
+            ],
+        ).sort(["Interval Start", "Publish Time"])
 
     @support_date_range("DAY_START")
     def get_binding_constraints_day_ahead_hourly(
@@ -1945,7 +2038,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         url = self._build_url("dayaheadconstraints", date)
         response = self.make_api_call(url, verbose=verbose)
         records = self._prepare_records(
@@ -1957,7 +2050,7 @@ class ISONEAPI:
                 f"No day-ahead constraint data found for {date}.",
             )
 
-        df = pd.DataFrame(records)
+        df = pl.DataFrame(records)
 
         return self._parse_constraint_dataframe(
             df,
@@ -1978,7 +2071,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_constraints_fifteen_min(
             date,
             constraint_type="prelim",
@@ -1991,7 +2084,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_constraints_fifteen_min(
             date,
             constraint_type="final",
@@ -2003,7 +2096,7 @@ class ISONEAPI:
         date: str | pd.Timestamp,
         constraint_type: Literal["prelim", "final"],
         verbose: bool,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         dataset = f"fifteenminuteconstraints/{constraint_type}"
         url = self._build_url(dataset, date)
         response = self.make_api_call(url, verbose=verbose)
@@ -2016,7 +2109,7 @@ class ISONEAPI:
                 f"No fifteen-minute {constraint_type} constraint data found for {date}.",
             )
 
-        df = pd.DataFrame(records)
+        df = pl.DataFrame(records)
 
         return self._parse_constraint_dataframe(
             df,
@@ -2036,7 +2129,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_constraints_five_min(
             date,
             constraint_type="prelim",
@@ -2049,7 +2142,7 @@ class ISONEAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_constraints_five_min(
             date,
             constraint_type="final",
@@ -2061,7 +2154,7 @@ class ISONEAPI:
         date: str | pd.Timestamp,
         constraint_type: Literal["prelim", "final"],
         verbose: bool,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         dataset = f"fiveminuteconstraints/{constraint_type}"
         url = self._build_url(dataset, date)
         response = self.make_api_call(url, verbose=verbose)
@@ -2074,7 +2167,7 @@ class ISONEAPI:
                 f"No five-minute {constraint_type} constraint data found for {date}.",
             )
 
-        df = pd.DataFrame(records)
+        df = pl.DataFrame(records)
 
         rename_map = {
             "ConstraintName": "Constraint Name",
@@ -2093,42 +2186,58 @@ class ISONEAPI:
 
     def _parse_constraint_dataframe(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         interval_field: str,
         interval_minutes: int,
         rename_map: dict[str, str],
         columns: list[str],
-    ) -> pd.DataFrame:
-        if df.empty:
+    ) -> pl.DataFrame:
+        if df.is_empty():
             raise NoDataFoundException(
                 "No constraint data found for the requested parameters.",
             )
 
-        df = df.copy()
-
-        df["Interval Start"] = pd.to_datetime(
-            df[interval_field],
-            errors="coerce",
-            utc=True,
-        ).dt.tz_convert(self.default_timezone)
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = df.with_columns(
+            pl.col(interval_field)
+            .str.to_datetime(time_zone="UTC")
+            .dt.convert_time_zone(self.default_timezone)
+            .alias("Interval Start"),
         )
-        df = df.rename(columns=rename_map)
-        df["Marginal Value"] = pd.to_numeric(df["Marginal Value"], errors="coerce")
+        df = df.with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
+        )
+        df = df.rename(rename_map)
+        df = df.with_columns(
+            pl.col("Marginal Value").cast(pl.Float64, strict=False),
+        )
 
         if "Contingency Name" in df.columns:
-            df["Contingency Name"] = (
-                df["Contingency Name"]
-                .astype("string")
-                .str.strip()
-                .mask(lambda s: s.isna() | (s == "") | (s.str.upper() == "NULL"))
-                .map(lambda value: None if pd.isna(value) else value)
+            df = df.with_columns(
+                pl.when(
+                    pl.col("Contingency Name").is_null()
+                    | (pl.col("Contingency Name").cast(pl.Utf8).str.strip_chars() == "")
+                    | (
+                        pl.col("Contingency Name")
+                        .cast(pl.Utf8)
+                        .str.strip_chars()
+                        .str.to_uppercase()
+                        == "NULL"
+                    ),
+                )
+                .then(None)
+                .otherwise(
+                    pl.col("Contingency Name").cast(pl.Utf8).str.strip_chars(),
+                )
+                .alias("Contingency Name"),
             )
 
-        df = df.reindex(columns=columns)
-        df = df.sort_values("Interval Start").reset_index(drop=True)
-        return df
+        for col in columns:
+            if col not in df.columns:
+                df = df.with_columns(pl.lit(None).alias(col))
+
+        return df.select(columns).sort("Interval Start")
 
     @support_date_range(frequency="MONTH_START")
     def get_fcm_reconfiguration_monthly(
@@ -2136,7 +2245,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get FCM Monthly Reconfiguration Auction data.
 
@@ -2146,7 +2255,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing monthly reconfiguration auction data.
+            pl.DataFrame: A DataFrame containing monthly reconfiguration auction data.
         """
         if date == "latest":
             endpoint = f"{self.base_url}/fcmmra/current"
@@ -2187,7 +2296,7 @@ class ISONEAPI:
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get FCM Annual Reconfiguration Auction data for all three auctions (ARA1, ARA2, ARA3).
 
@@ -2200,7 +2309,7 @@ class ISONEAPI:
             verbose (bool): Whether to print verbose logging information.
 
         Returns:
-            pd.DataFrame: A DataFrame containing annual reconfiguration auction data with an "ARA"
+            pl.DataFrame: A DataFrame containing annual reconfiguration auction data with an "ARA"
                           column with values 1, 2, or 3 distinguishing between ARA1, ARA2, and ARA3.
                           Note that not all three auctions may exist for all commitment periods
                           (e.g., ARA3 may not exist yet for recent periods).
@@ -2326,8 +2435,8 @@ class ISONEAPI:
         self,
         auction_records: list[tuple[dict, pd.Timestamp, pd.Timestamp]],
         auction_type: str = "monthly",
-    ) -> pd.DataFrame:
-        frames: list[pd.DataFrame] = []
+    ) -> pl.DataFrame:
+        frames: list[pl.DataFrame] = []
 
         zone_column_map = {
             "CapacityZoneID": "Location ID",
@@ -2353,18 +2462,20 @@ class ISONEAPI:
         }
 
         for auction, interval_start, interval_end in auction_records:
-            zone_frame = pd.json_normalize(
-                auction,
-                record_path=["ClearedCapacityZones", "ClearedCapacityZone"],
-                errors="ignore",
+            zone_frame = pl.from_pandas(
+                pd.json_normalize(
+                    auction,
+                    record_path=["ClearedCapacityZones", "ClearedCapacityZone"],
+                    errors="ignore",
+                ),
             )
 
-            zone_frame = zone_frame.rename(columns=zone_column_map)
-            zone_assign_dict = {
-                "Interval Start": interval_start,
-                "Interval End": interval_end,
-                "Location Type": "Capacity Zone",
-            }
+            zone_frame = zone_frame.rename(zone_column_map)
+            zone_frame = zone_frame.with_columns(
+                pl.lit(interval_start).alias("Interval Start"),
+                pl.lit(interval_end).alias("Interval End"),
+                pl.lit("Capacity Zone").alias("Location Type"),
+            )
             if auction_type == "annual":
                 auction_type_str = auction.get("Type", "")
                 ara_value = None
@@ -2373,28 +2484,29 @@ class ISONEAPI:
                         ara_value = int(auction_type_str.replace("ARA", ""))
                     except ValueError:
                         pass
-                zone_assign_dict["ARA"] = ara_value
-            zone_frame = zone_frame.assign(**zone_assign_dict)
+                zone_frame = zone_frame.with_columns(pl.lit(ara_value).alias("ARA"))
             frames.append(zone_frame)
 
-            interface_frame = pd.json_normalize(
-                auction,
-                record_path=[
-                    "ClearedCapacityZones",
-                    "ClearedCapacityZone",
-                    "ClearedExternalInterfaces",
-                    "ClearedExternalInterface",
-                ],
-                errors="ignore",
+            interface_frame = pl.from_pandas(
+                pd.json_normalize(
+                    auction,
+                    record_path=[
+                        "ClearedCapacityZones",
+                        "ClearedCapacityZone",
+                        "ClearedExternalInterfaces",
+                        "ClearedExternalInterface",
+                    ],
+                    errors="ignore",
+                ),
             )
 
-            interface_frame = interface_frame.rename(columns=interface_column_map)
-            interface_assign_dict = {
-                "Interval Start": interval_start,
-                "Interval End": interval_end,
-                "Location Type": "External Interface",
-                "Capacity Zone Type": None,
-            }
+            interface_frame = interface_frame.rename(interface_column_map)
+            interface_frame = interface_frame.with_columns(
+                pl.lit(interval_start).alias("Interval Start"),
+                pl.lit(interval_end).alias("Interval End"),
+                pl.lit("External Interface").alias("Location Type"),
+                pl.lit(None).alias("Capacity Zone Type"),
+            )
             if auction_type == "annual":
                 auction_type_str = auction.get("Type", "")
                 ara_value = None
@@ -2403,11 +2515,12 @@ class ISONEAPI:
                         ara_value = int(auction_type_str.replace("ARA", ""))
                     except ValueError:
                         pass
-                interface_assign_dict["ARA"] = ara_value
-            interface_frame = interface_frame.assign(**interface_assign_dict)
+                interface_frame = interface_frame.with_columns(
+                    pl.lit(ara_value).alias("ARA"),
+                )
             frames.append(interface_frame)
 
-        df = pd.concat(frames, ignore_index=True)
+        df = pl.concat(frames, how="diagonal")
 
         numeric_columns = [
             "Total Supply Offers Submitted",
@@ -2418,28 +2531,35 @@ class ISONEAPI:
             "Clearing Price",
         ]
 
-        for column in numeric_columns:
-            if column in df.columns:
-                df[column] = pd.to_numeric(df[column], errors="coerce")
+        cast_exprs = [
+            pl.col(column).cast(pl.Float64, strict=False)
+            for column in numeric_columns
+            if column in df.columns
+        ]
+        if cast_exprs:
+            df = df.with_columns(cast_exprs)
 
         if auction_type == "annual":
-            df["ARA"] = df["ARA"].astype("Int64")
+            df = df.with_columns(pl.col("ARA").cast(pl.Int64))
 
         columns_to_use = (
             ISONE_FCM_RECONFIGURATION_COLUMNS
             if auction_type == "annual"
             else [col for col in ISONE_FCM_RECONFIGURATION_COLUMNS if col != "ARA"]
         )
-        df = df.reindex(columns=columns_to_use)
+        for col in columns_to_use:
+            if col not in df.columns:
+                df = df.with_columns(pl.lit(None).alias(col))
+        df = df.select(columns_to_use)
 
         sort_columns = ["Interval Start", "Location ID"]
         if auction_type == "annual":
             sort_columns.insert(1, "ARA")
-        df = df.sort_values(sort_columns).reset_index(drop=True)
+        df = df.sort(sort_columns)
 
         log.debug(
             f"Processed FCM reconfiguration auction data. "
-            f"{len(df)} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
+            f"{df.height} entries from {df['Interval Start'].min()} to {df['Interval Start'].max()}",
         )
 
         return df

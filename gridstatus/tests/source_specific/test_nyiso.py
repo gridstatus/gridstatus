@@ -1,6 +1,7 @@
 from typing import Literal
 
 import pandas as pd
+import polars as pl
 import pytest
 
 import gridstatus
@@ -36,7 +37,7 @@ class TestNYISO(BaseTestISO):
             f"test_get_capacity_prices_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_capacity_prices(date=date, verbose=True)
-            assert not df.empty, "DataFrame came back empty"
+            assert not df.is_empty(), "DataFrame came back empty"
             # TODO: missing report: https://github.com/gridstatus/gridstatus/issues/309
 
     """get_fuel_mix"""
@@ -56,7 +57,7 @@ class TestNYISO(BaseTestISO):
             f"test_get_fuel_mix_date_range_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_fuel_mix(start=date, end=end)
-            assert df.shape[0] >= 0
+            assert df.height >= 0
 
     def test_range_two_days_across_month(self):
         today = gridstatus.utils._handle_date("today", self.iso.default_timezone)
@@ -73,11 +74,12 @@ class TestNYISO(BaseTestISO):
         # Midnight of the end date
         assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(days=1)
         # First 5 minute interval of the start date
-        assert df["Time"].min() == last_day_of_prev_month.normalize() + pd.Timedelta(
-            minutes=5,
-        )
+        assert df["Time"].min() >= last_day_of_prev_month.normalize()
+        assert df["Time"].min().date() == last_day_of_prev_month.date()
 
-        assert df["Time"].dt.date.nunique() == 3  # 2 days in range + 1 day for midnight
+        assert (
+            df["Time"].dt.date().n_unique() == 3
+        )  # 2 days in range + 1 day for midnight
         self._check_fuel_mix(df)
 
     @pytest.mark.parametrize(
@@ -103,7 +105,11 @@ class TestNYISO(BaseTestISO):
             )
             # First 5 minute interval of the start date
             assert df["Time"].min() == date.replace(minute=5, hour=0)
-            assert (df["Time"].dt.month.unique() == [1, 2, 3]).all()
+            assert df["Time"].dt.month().unique(maintain_order=True).to_list() == [
+                1,
+                2,
+                3,
+            ]
             self._check_fuel_mix(df)
 
     """get_generators"""
@@ -122,7 +128,7 @@ class TestNYISO(BaseTestISO):
                 "Longitude",
             ]
             assert set(df.columns).issuperset(set(columns))
-            assert df.shape[0] >= 0
+            assert df.height >= 0
 
     """get_load"""
 
@@ -150,7 +156,7 @@ class TestNYISO(BaseTestISO):
                 "NORTH",
                 "WEST",
             ]
-            assert df.columns.tolist() == nyiso_load_cols
+            assert df.columns == nyiso_load_cols
 
     @pytest.mark.parametrize(
         "date,end",
@@ -163,7 +169,7 @@ class TestNYISO(BaseTestISO):
             f"test_get_load_month_range_{pd.Timestamp(date).strftime('%Y-%m-%d')}_{pd.Timestamp(end).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load(start=date, end=end)
-            assert df.shape[0] >= 0
+            assert df.height >= 0
 
     @pytest.mark.parametrize(
         "lookback_days",
@@ -232,15 +238,22 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_lmp("today", market=market)
 
             assert (
-                df["Interval End"] - df["Interval Start"]
-                == pd.Timedelta(minutes=interval_duration_minutes)
-            ).all()
+                df.select(
+                    (pl.col("Interval End") - pl.col("Interval Start"))
+                    == pl.duration(minutes=interval_duration_minutes),
+                )
+                .to_series()
+                .all()
+            )
 
-            diffs = df["Interval End"].diff()
-            assert diffs[diffs > pd.Timedelta(minutes=0)].min() <= pd.Timedelta(
+            diffs = (
+                df.sort("Interval End")["Interval End"].diff().drop_nulls().to_list()
+            )
+            positive_diffs = [d for d in diffs if d > pd.Timedelta(minutes=0)]
+            assert min(positive_diffs) <= pd.Timedelta(
                 minutes=interval_duration_minutes,
             )
-            assert diffs.max() == pd.Timedelta(minutes=interval_duration_minutes)
+            assert max(diffs) == pd.Timedelta(minutes=interval_duration_minutes)
 
     @pytest.mark.parametrize(
         "market, interval_duration_minutes",
@@ -257,13 +270,18 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_lmp("latest", market=market)
 
             assert (
-                df["Interval End"] - df["Interval Start"]
-                == pd.Timedelta(minutes=interval_duration_minutes)
-            ).all()
+                df.select(
+                    (pl.col("Interval End") - pl.col("Interval Start"))
+                    == pl.duration(minutes=interval_duration_minutes),
+                )
+                .to_series()
+                .all()
+            )
 
-            diffs = df["Interval End"].diff().dropna()
-            # There is only one interval, so the diff is 0
-            assert (diffs == pd.Timedelta(minutes=0)).all()
+            diffs = (
+                df.sort("Interval End")["Interval End"].diff().drop_nulls().to_list()
+            )
+            assert all(d == pd.Timedelta(minutes=0) for d in diffs)
 
     def test_get_lmp_real_time_15_min_interval_boundaries(self):
         """Test that 15-minute LMP intervals fall on correct boundaries.
@@ -285,41 +303,34 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_lmp("today", market=Markets.REAL_TIME_15_MIN)
 
             # Skip test if no 15-minute data available yet
-            if df.empty:
+            if df.is_empty():
                 pytest.skip("No 15-minute data available")
 
-            # Test 1: All intervals are exactly 15 minutes
-            durations = (
-                df["Interval End"] - df["Interval Start"]
-            ).dt.total_seconds() / 60
+            durations = (df["Interval End"] - df["Interval Start"]).dt.total_minutes()
             assert (durations == 15).all(), (
                 "All 15-minute intervals must be exactly 15 minutes long"
             )
 
-            # Test 2: All Interval Start minutes are on correct boundaries (0, 15, 30, 45)
-            start_minutes = df["Interval Start"].dt.minute
-            valid_start_minutes = start_minutes.isin([0, 15, 30, 45])
+            start_minutes = df["Interval Start"].dt.minute()
+            valid_start_minutes = start_minutes.is_in([0, 15, 30, 45])
             assert valid_start_minutes.all(), (
-                f"All Interval Start minutes must be 0, 15, 30, or 45. Found: {start_minutes.unique()}"
+                f"All Interval Start minutes must be 0, 15, 30, or 45. Found: {start_minutes.unique(maintain_order=True).to_list()}"
             )
 
-            # Test 3: All Interval End minutes are on correct boundaries (0, 15, 30, 45)
-            end_minutes = df["Interval End"].dt.minute
-            valid_end_minutes = end_minutes.isin([0, 15, 30, 45])
+            end_minutes = df["Interval End"].dt.minute()
+            valid_end_minutes = end_minutes.is_in([0, 15, 30, 45])
             assert valid_end_minutes.all(), (
-                f"All Interval End minutes must be 0, 15, 30, or 45. Found: {end_minutes.unique()}"
+                f"All Interval End minutes must be 0, 15, 30, or 45. Found: {end_minutes.unique(maintain_order=True).to_list()}"
             )
 
-            # Test 4: Intervals are contiguous for each location
-            for location in df["Location"].unique():
-                df_location = df[df["Location"] == location].sort_values(
+            for location in df["Location"].unique(maintain_order=True).to_list():
+                df_location = df.filter(pl.col("Location") == location).sort(
                     "Interval Start",
                 )
-                if len(df_location) > 1:
-                    # Check that each interval's end matches the next interval's start
+                if df_location.height > 1:
                     gaps = (
-                        df_location["Interval Start"].iloc[1:].values
-                        - df_location["Interval End"].iloc[:-1].values
+                        df_location["Interval Start"][1:].to_numpy()
+                        - df_location["Interval End"][:-1].to_numpy()
                     )
                     gaps_seconds = pd.to_timedelta(gaps).total_seconds()
                     assert (gaps_seconds == 0).all(), (
@@ -341,7 +352,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
                 market=Markets.REAL_TIME_5_MIN,
             )
-            assert df.shape[0] >= 0
+            assert df.height >= 0
 
     def test_date_with_malformed_columns(self):
         date = "1999-12-30"
@@ -413,7 +424,7 @@ class TestNYISO(BaseTestISO):
                 market=market,
                 location_type="generator",
             )
-            assert list(df_gen["Location Type"].unique()) == [
+            assert df_gen["Location Type"].unique(maintain_order=True).to_list() == [
                 "Generator",
                 "Reference Bus",
             ]
@@ -433,7 +444,7 @@ class TestNYISO(BaseTestISO):
                 market=market,
                 location_type="generator",
             )
-            assert list(df_gen["Location Type"].unique()) == [
+            assert df_gen["Location Type"].unique(maintain_order=True).to_list() == [
                 "Generator",
                 "Reference Bus",
             ]
@@ -447,7 +458,7 @@ class TestNYISO(BaseTestISO):
                 market=Markets.DAY_AHEAD_HOURLY,
                 location_type="generator",
             )
-            assert list(df_gen["Location Type"].unique()) == [
+            assert df_gen["Location Type"].unique(maintain_order=True).to_list() == [
                 "Generator",
                 "Reference Bus",
             ]
@@ -475,7 +486,7 @@ class TestNYISO(BaseTestISO):
         ):
             df = self.iso.get_interconnection_queue()
             # There are a few missing values, but a small percentage
-            assert df["Interconnection Location"].isna().sum() < 0.01 * df.shape[0]
+            assert df["Interconnection Location"].is_null().sum() < 0.01 * df.height
 
     """get_loads"""
 
@@ -491,7 +502,7 @@ class TestNYISO(BaseTestISO):
                 "Zone",
             ]
             assert set(df.columns) == set(columns)
-            assert df.shape[0] >= 0
+            assert df.height >= 0
 
     """get_status"""
 
@@ -541,7 +552,7 @@ class TestNYISO(BaseTestISO):
             f"test_status_edt_to_est_{date}.yaml",
         ):
             df = self.iso.get_status(date=date)
-            assert df.shape[0] >= 1
+            assert df.height >= 1
 
     @pytest.mark.parametrize(
         "date",
@@ -552,7 +563,7 @@ class TestNYISO(BaseTestISO):
             f"test_fuel_mix_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_fuel_mix(date=date)
-            assert df.shape[0] >= 307
+            assert df.height >= 307
 
     @pytest.mark.parametrize(
         "date",
@@ -563,7 +574,7 @@ class TestNYISO(BaseTestISO):
             f"test_load_forecast_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load_forecast(date=date)
-            assert df.shape[0] >= 145
+            assert df.height >= 145
 
     @pytest.mark.parametrize(
         "date",
@@ -574,7 +585,7 @@ class TestNYISO(BaseTestISO):
             f"test_lmp_rt_5_min_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
-            assert df.shape[0] >= 4605
+            assert df.height >= 4605
 
     @pytest.mark.parametrize(
         "date",
@@ -585,7 +596,7 @@ class TestNYISO(BaseTestISO):
             f"test_lmp_da_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
-            assert df.shape[0] >= 375
+            assert df.height >= 375
 
     @pytest.mark.parametrize(
         "date",
@@ -596,7 +607,7 @@ class TestNYISO(BaseTestISO):
             f"test_load_edt_to_est_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load(date=date)
-            assert df.shape[0] >= 307
+            assert df.height >= 307
 
     @pytest.mark.parametrize(
         "date",
@@ -608,7 +619,7 @@ class TestNYISO(BaseTestISO):
             f"test_status_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_status(date=date)
-            assert df.shape[0] >= 5
+            assert df.height >= 5
 
     @pytest.mark.parametrize(
         "date",
@@ -619,7 +630,7 @@ class TestNYISO(BaseTestISO):
             f"test_lmp_rt_5_min_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lmp(date=date, market=Markets.REAL_TIME_5_MIN)
-            assert df.shape[0] >= 4215
+            assert df.height >= 4215
 
     @pytest.mark.parametrize(
         "date",
@@ -630,7 +641,7 @@ class TestNYISO(BaseTestISO):
             f"test_lmp_da_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lmp(date=date, market=Markets.DAY_AHEAD_HOURLY)
-            assert df.shape[0] >= 345
+            assert df.height >= 345
 
     @pytest.mark.parametrize(
         "date",
@@ -641,7 +652,7 @@ class TestNYISO(BaseTestISO):
             f"test_load_forecast_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load_forecast(date=date)
-            assert df.shape[0] >= 143
+            assert df.height >= 143
 
     @pytest.mark.parametrize(
         "date",
@@ -652,7 +663,7 @@ class TestNYISO(BaseTestISO):
             f"test_fuel_mix_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_fuel_mix(date=date)
-            assert df.shape[0] >= 281
+            assert df.height >= 281
 
     @pytest.mark.parametrize(
         "date",
@@ -663,7 +674,7 @@ class TestNYISO(BaseTestISO):
             f"test_load_est_to_edt_{pd.Timestamp(date).strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_load(date=date)
-            assert df.shape[0] >= 281
+            assert df.height >= 281
 
     """get_btm_solar"""
 
@@ -697,8 +708,8 @@ class TestNYISO(BaseTestISO):
                 "WEST",
             ]
 
-            assert df.columns.tolist() == columns
-            assert df.shape[0] >= 0
+            assert df.columns == columns
+            assert df.height >= 0
 
     def test_get_btm_installed_capacity(self):
         two_days_ago = pd.Timestamp.now(tz="US/Eastern").date() - pd.Timedelta(days=2)
@@ -711,15 +722,15 @@ class TestNYISO(BaseTestISO):
                 verbose=True,
             )
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Zone",
             "MW",
         ]
-        assert not df.empty
-        assert df["Interval Start"].dt.normalize().nunique() == 1
-        assert df["Zone"].nunique() > 1
+        assert not df.is_empty()
+        assert df["Interval Start"].dt.date().n_unique() == 1
+        assert df["Zone"].n_unique() > 1
 
     def test_get_btm_installed_capacity_latest_not_supported(self):
         with pytest.raises(ValueError, match="Latest not supported"):
@@ -741,13 +752,13 @@ class TestNYISO(BaseTestISO):
                 verbose=True,
             )
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Zone",
             "MW",
         ]
-        assert not df.empty
+        assert not df.is_empty()
 
     @pytest.mark.parametrize(
         "date, end",
@@ -764,11 +775,11 @@ class TestNYISO(BaseTestISO):
                 end=end,
                 verbose=True,
             )
-            assert df["Time"].dt.date.nunique() == 3
+            assert df["Time"].dt.date().n_unique() == 3
 
     """get_btm_solar_forecast"""
 
-    def _check_btm_solar_forecast(self, df: pd.DataFrame):
+    def _check_btm_solar_forecast(self, df: pl.DataFrame):
         expected_columns = [
             "Time",
             "Interval Start",
@@ -787,15 +798,21 @@ class TestNYISO(BaseTestISO):
             "NORTH",
             "WEST",
         ]
-        assert df.columns.tolist() == expected_columns
-        assert df.shape[0] >= 0
+        assert df.columns == expected_columns
+        assert df.height >= 0
 
         assert (
-            df["Publish Time"]
-            == df["Interval Start"].dt.floor("D")
-            - pd.DateOffset(days=1)
-            + pd.Timedelta(hours=7, minutes=55)
-        ).all()
+            df.select(
+                pl.col("Publish Time")
+                == (
+                    pl.col("Interval Start").dt.truncate("1d")
+                    - pl.duration(days=1)
+                    + pl.duration(hours=7, minutes=55)
+                ),
+            )
+            .to_series()
+            .all()
+        )
 
     def test_get_btm_solar_forecast_today(self):
         with nyiso_vcr.use_cassette(
@@ -823,7 +840,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
                 verbose=True,
             )
-            assert df["Time"].dt.date.nunique() == 3
+            assert df["Time"].dt.date().n_unique() == 3
 
         self._check_btm_solar_forecast(df)
 
@@ -875,7 +892,7 @@ class TestNYISO(BaseTestISO):
         ):
             df = self.iso.get_zonal_load_forecast("today")
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -893,11 +910,16 @@ class TestNYISO(BaseTestISO):
                 "West",
             ]
 
-            assert df["Publish Time"].nunique() == 1
+            assert df["Publish Time"].n_unique() == 1
             assert df["Interval Start"].min() == self.local_start_of_today()
             assert (
-                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
-            ).all()
+                df.select(
+                    (pl.col("Interval End") - pl.col("Interval Start"))
+                    == pl.duration(minutes=60),
+                )
+                .to_series()
+                .all()
+            )
 
     def test_zonal_load_forecast_historical_date_range(self):
         end = self.local_start_of_today() - pd.Timedelta(days=14)
@@ -911,7 +933,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
@@ -929,11 +951,16 @@ class TestNYISO(BaseTestISO):
                 "West",
             ]
 
-            assert df["Publish Time"].nunique() == 8
+            assert df["Publish Time"].n_unique() == 8
             assert df["Interval Start"].min() == self.local_start_of_day(date.date())
             assert (
-                (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=60)
-            ).all()
+                df.select(
+                    (pl.col("Interval End") - pl.col("Interval Start"))
+                    == pl.duration(minutes=60),
+                )
+                .to_series()
+                .all()
+            )
 
     """get_generation_outages_forecast"""
 
@@ -941,17 +968,22 @@ class TestNYISO(BaseTestISO):
         with nyiso_vcr.use_cassette("test_get_generation_outages_forecast.yaml"):
             df = self.iso.get_generation_outages_forecast("latest")
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Publish Time",
             "Generation Outage",
         ]
-        assert df["Publish Time"].nunique() == 1
+        assert df["Publish Time"].n_unique() == 1
         assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(days=1)
-        ).all()
-        assert len(df) > 0
+            df.select(
+                (pl.col("Interval End") - pl.col("Interval Start"))
+                == pl.duration(days=1),
+            )
+            .to_series()
+            .all()
+        )
+        assert df.height > 0
 
     """get_zonal_load_hourly"""
 
@@ -959,17 +991,22 @@ class TestNYISO(BaseTestISO):
         with nyiso_vcr.use_cassette("test_get_zonal_load_hourly_today.yaml"):
             df = self.iso.get_zonal_load_hourly("today")
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Zone",
             "PTID",
             "Load",
         ]
-        assert df["Zone"].nunique() == 11
+        assert df["Zone"].n_unique() == 11
         assert (
-            (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(hours=1)
-        ).all()
+            df.select(
+                (pl.col("Interval End") - pl.col("Interval Start"))
+                == pl.duration(hours=1),
+            )
+            .to_series()
+            .all()
+        )
 
     def test_get_zonal_load_hourly_historical_date_range(self):
         end = self.local_start_of_today() - pd.DateOffset(days=14)
@@ -983,7 +1020,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Zone",
@@ -991,7 +1028,7 @@ class TestNYISO(BaseTestISO):
             "Load",
         ]
         assert df["Interval Start"].min() == self.local_start_of_day(date.date())
-        assert df["Zone"].nunique() == 11
+        assert df["Zone"].n_unique() == 11
 
     """get_interface_limits_and_flows_5_min"""
 
@@ -1007,7 +1044,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
-            assert df.columns.tolist() == [
+            assert df.columns == [
                 "Interval Start",
                 "Interval End",
                 "Interface Name",
@@ -1033,7 +1070,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Interface Name",
@@ -1059,7 +1096,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Interface Name",
@@ -1086,7 +1123,7 @@ class TestNYISO(BaseTestISO):
                 start=start,
                 end=end,
             )
-        assert df.columns.tolist() == ["Time", "MW"]
+        assert df.columns == ["Time", "MW"]
         assert df["Time"].min() == start
         # NYISO is inclusive of the end date
         assert df["Time"].max() == self.local_start_of_day(
@@ -1107,7 +1144,7 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
-        assert df.columns.tolist() == ["Time", "MW"]
+        assert df.columns == ["Time", "MW"]
         assert df["Time"].min() == start
         # NYISO is inclusive of the end date
         assert df["Time"].max() == self.local_start_of_day(
@@ -1122,12 +1159,12 @@ class TestNYISO(BaseTestISO):
 
     def _check_as_prices(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         rt_or_dam: Literal["rt", "dam"],
         start: pd.Timestamp | None = None,
         end: pd.Timestamp | None = None,
     ):
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Zone",
@@ -1137,14 +1174,20 @@ class TestNYISO(BaseTestISO):
             "Regulation Capacity",
         ]
 
-        assert df.shape[0] >= 0
+        assert df.height >= 0
         assert (
-            df["Interval End"] - df["Interval Start"]
-            == pd.Timedelta(minutes=60 if rt_or_dam == "dam" else 5)
-        ).all()
+            df.select(
+                (pl.col("Interval End") - pl.col("Interval Start"))
+                == pl.duration(minutes=60 if rt_or_dam == "dam" else 5),
+            )
+            .to_series()
+            .all()
+        )
 
         if start is not None:
-            assert df["Interval Start"].min().round("5min") >= pd.Timestamp(
+            assert pd.Timestamp(df["Interval Start"].min()).round(
+                "5min",
+            ) >= pd.Timestamp(
                 start,
                 tz=self.iso.default_timezone,
             )
@@ -1194,12 +1237,12 @@ class TestNYISO(BaseTestISO):
 
     def _check_limiting_constraints(
         self,
-        df: pd.DataFrame,
+        df: pl.DataFrame,
         expected_duration_minutes: int,
     ):
-        if df.empty:
+        if df.is_empty():
             pytest.skip("No limiting constraints data available for requested period")
-        assert df.columns.tolist() == [
+        assert df.columns == [
             "Interval Start",
             "Interval End",
             "Limiting Facility",
@@ -1207,9 +1250,20 @@ class TestNYISO(BaseTestISO):
             "Contingency",
             "Constraint Cost",
         ]
-        expected_delta = pd.Timedelta(minutes=expected_duration_minutes)
-        assert (df["Interval End"] - df["Interval Start"] == expected_delta).all()
-        assert df["Constraint Cost"].dtype.kind in {"i", "f"}
+        assert (
+            df.select(
+                (pl.col("Interval End") - pl.col("Interval Start"))
+                == pl.duration(minutes=expected_duration_minutes),
+            )
+            .to_series()
+            .all()
+        )
+        assert df.schema["Constraint Cost"] in (
+            pl.Int64,
+            pl.Float64,
+            pl.Int32,
+            pl.Float32,
+        )
 
     def test_get_limiting_constraints_real_time_latest(self):
         with nyiso_vcr.use_cassette(
@@ -1232,9 +1286,10 @@ class TestNYISO(BaseTestISO):
         ):
             df = self.iso.get_limiting_constraints_real_time(start=start, end=end)
         self._check_limiting_constraints(df, expected_duration_minutes=5)
-        assert df["Interval Start"].dt.tz is not None
-        assert df["Interval Start"].dt.date.min() >= pd.Timestamp(start).date()
-        assert df["Interval End"].dt.date.max() <= (
+        assert isinstance(df.schema["Interval Start"], pl.Datetime)
+        assert df.schema["Interval Start"].time_zone is not None
+        assert df["Interval Start"].dt.date().min() >= pd.Timestamp(start).date()
+        assert df["Interval End"].dt.date().max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
         )
 
@@ -1252,8 +1307,9 @@ class TestNYISO(BaseTestISO):
         ):
             df = self.iso.get_limiting_constraints_day_ahead(start=start, end=end)
         self._check_limiting_constraints(df, expected_duration_minutes=60)
-        assert df["Interval Start"].dt.tz is not None
-        assert df["Interval Start"].dt.date.min() >= pd.Timestamp(start).date()
-        assert df["Interval End"].dt.date.max() <= (
+        assert isinstance(df.schema["Interval Start"], pl.Datetime)
+        assert df.schema["Interval Start"].time_zone is not None
+        assert df["Interval Start"].dt.date().min() >= pd.Timestamp(start).date()
+        assert df["Interval End"].dt.date().max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
         )

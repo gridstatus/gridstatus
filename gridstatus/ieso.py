@@ -8,13 +8,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from io import StringIO
-from typing import Literal, Optional
+from typing import Literal
 from urllib.error import HTTPError
 from warnings import warn
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
 import pandas as pd
+import polars as pl
 import requests
 import tqdm
 import xmltodict
@@ -74,11 +75,11 @@ class SurplusState(str, Enum):
 
 
 def _safe_find_text(
-    element: Optional[Element],
+    element: Element | None,
     tag: str,
-    namespaces: Optional[dict[str, str]] = None,
-    default: Optional[str] = None,
-) -> Optional[str]:
+    namespaces: dict[str, str] | None = None,
+    default: str | None = None,
+) -> str | None:
     """Safely find and extract text from an XML element.
 
     Args:
@@ -101,11 +102,11 @@ def _safe_find_text(
 
 
 def _safe_find_int(
-    element: Optional[Element],
+    element: Element | None,
     tag: str,
-    namespaces: Optional[dict[str, str]] = None,
-    default: Optional[int] = None,
-) -> Optional[int]:
+    namespaces: dict[str, str] | None = None,
+    default: int | None = None,
+) -> int | None:
     """Safely find and extract integer from an XML element.
 
     Args:
@@ -128,11 +129,11 @@ def _safe_find_int(
 
 
 def _safe_find_float(
-    element: Optional[Element],
+    element: Element | None,
     tag: str,
-    namespaces: Optional[dict[str, str]] = None,
-    default: Optional[float] = None,
-) -> Optional[float]:
+    namespaces: dict[str, str] | None = None,
+    default: float | None = None,
+) -> float | None:
     """Safely find and extract float from an XML element.
 
     Args:
@@ -190,7 +191,7 @@ class IESO(ISOBase):
             frequency (str, optional): Frequency of data. Defaults to "5min".
 
         Returns:
-            pd.DataFrame: zonal load as a wide table with columns for each zone
+            pl.DataFrame: zonal load as a wide table with columns for each zone
         """
         raise NotSupported(
             f"With the IESO Market Renewal on {RETIRED_DATE}, this method is no longer supported. To get load data, use the `get_real_time_totals` method instead.",
@@ -206,7 +207,7 @@ class IESO(ISOBase):
             verbose (bool, optional): Print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: Ontario load forecast
+            pl.DataFrame: Ontario load forecast
         """
         raise NotSupported(
             f"With the IESO Market Renewal on {RETIRED_DATE}, this method is no longer supported. To get load forecast data, use the `get_resource_adequacy_report` method instead.",
@@ -237,7 +238,7 @@ class IESO(ISOBase):
 
 
         Returns:
-            pd.DataFrame: forecasted load as a wide table with columns for each zone
+            pl.DataFrame: forecasted load as a wide table with columns for each zone
         """
         raise NotSupported(
             f"With the IESO Market Renewal on {RETIRED_DATE}, this method is no longer supported. To get zonal load forecast data, use the `get_resource_adequacy_report` method instead.",
@@ -265,7 +266,7 @@ class IESO(ISOBase):
             verbose (bool, optional): Print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: fuel mix
+            pl.DataFrame: fuel mix
         """
         # Required because this method is not decorated with support_date_range
         if isinstance(date, tuple):
@@ -290,25 +291,26 @@ class IESO(ISOBase):
         else:
             data = (
                 self._retrieve_fuel_mix(date, end, verbose)
-                .groupby(["Fuel Type", "Interval Start", "Interval End"])
-                .sum(numeric_only=True)
-                .reset_index()
+                .group_by(["Fuel Type", "Interval Start", "Interval End"])
+                .agg(pl.col("Output MW").sum())
             )
 
-            pivoted = data.pivot_table(
+            pivoted = data.pivot(
                 index=["Interval Start", "Interval End"],
-                columns="Fuel Type",
+                on="Fuel Type",
                 values="Output MW",
-            ).reset_index()
+                aggregate_function="sum",
+            )
 
-            pivoted.columns = [c.title() for c in pivoted.columns]
-            pivoted.index.name = None
+            rename_map = {
+                c: c.title()
+                for c in pivoted.columns
+                if c not in ["Interval Start", "Interval End"]
+            }
+            data = pivoted.rename(rename_map)
 
-            data = pivoted.copy()
-
-        # Older data does not have the other fuel type
         if "Other" not in data.columns:
-            data["Other"] = pd.NA
+            data = data.with_columns(pl.lit(None).cast(pl.Float64).alias("Other"))
 
         data = utils.move_cols_to_front(
             data,
@@ -327,14 +329,14 @@ class IESO(ISOBase):
         if end:
             end = utils._handle_date(end, tz=self.default_timezone)
 
-            return data[
-                (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
-            ].reset_index(drop=True)
+            return data.filter(
+                (pl.col("Interval Start") >= date) & (pl.col("Interval Start") <= end),
+            ).sort("Interval Start")
 
         elif date == "latest":
-            return data
+            return data.sort("Interval Start")
 
-        return data[data["Interval Start"] >= date].reset_index(drop=True)
+        return data.filter(pl.col("Interval Start") >= date).sort("Interval Start")
 
     def get_generator_report_hourly(
         self,
@@ -358,7 +360,7 @@ class IESO(ISOBase):
             verbose (bool, optional): Print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: generator output and capability/available capacity
+            pl.DataFrame: generator output and capability/available capacity
         """
         # Required because this method is not decorated with support_date_range
         if isinstance(date, tuple):
@@ -396,19 +398,19 @@ class IESO(ISOBase):
                 "Available Capacity MW",
                 "Forecast MW",
             ],
-        ).sort_values(["Interval Start", "Fuel Type", "Generator Name"])
+        ).sort(["Interval Start", "Fuel Type", "Generator Name"])
 
         if end:
             end = utils._handle_date(end, tz=self.default_timezone)
 
-            return data[
-                (data["Interval Start"] >= date) & (data["Interval Start"] <= end)
-            ].reset_index(drop=True)
+            return data.filter(
+                (pl.col("Interval Start") >= date) & (pl.col("Interval Start") <= end),
+            )
 
         if date == "latest":
-            return data.reset_index(drop=True)
+            return data
 
-        return data[data["Interval Start"] >= date].reset_index(drop=True)
+        return data.filter(pl.col("Interval Start") >= date)
 
     @support_date_range(frequency="DAY_START")
     def _retrieve_fuel_mix(
@@ -431,7 +433,7 @@ class IESO(ISOBase):
             verbose (bool, optional): Whether to print verbose output. Defaults to False.
 
         Returns:
-            pd.DataFrame: Fuel mix data
+            pl.DataFrame: Fuel mix data
         """
         url = FUEL_MIX_TEMPLATE_URL.replace(
             "_YYYYMMDD",
@@ -528,17 +530,16 @@ class IESO(ISOBase):
         ]
 
         # Creating the DataFrame with the correct date
-        df = pd.DataFrame(data, columns=columns)
-        df["Interval Start"] = (
-            pd.to_datetime(df["Date"])
+        pdf = pd.DataFrame(data, columns=columns)
+        pdf["Interval Start"] = (
+            pd.to_datetime(pdf["Date"])
             + pd.to_timedelta(
-                # Subtract 1 from the hour because hour 1 is from 00:00 - 01:00
-                df["Hour"].astype(int) - 1,
+                pdf["Hour"].astype(int) - 1,
                 unit="h",
             )
         ).dt.tz_localize(self.default_timezone)
 
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        pdf["Interval End"] = pdf["Interval Start"] + pd.Timedelta(hours=1)
 
         float_cols = [
             "Output MW",
@@ -547,9 +548,9 @@ class IESO(ISOBase):
             "Forecast MW",
         ]
 
-        df[float_cols] = df[float_cols].astype(float)
+        pdf[float_cols] = pdf[float_cols].astype(float)
 
-        return df.drop(columns=["Date", "Hour"])
+        return pl.from_pandas(pdf.drop(columns=["Date", "Hour"]), include_index=False)
 
     @support_date_range(frequency="YEAR_START")
     def _retrieve_historical_fuel_mix(
@@ -626,17 +627,17 @@ class IESO(ISOBase):
         columns = [c.title() for c in columns]
 
         # Creating the DataFrame with the adjusted parsing logic
-        df = pd.DataFrame(data, columns=columns)
-        df["Interval Start"] = (
-            pd.to_datetime(df["Date"])
-            + pd.to_timedelta(
-                # Subtract 1 from the hour because hour 1 is from 00:00 - 01:00
-                df["Hour"].astype(int) - 1,
-                unit="h",
+        df = pl.DataFrame(data, schema=columns, orient="row")
+        df = df.with_columns(
+            (
+                pl.col("Date").str.to_datetime()
+                + pl.duration(hours=pl.col("Hour").cast(pl.Int64) - 1)
             )
-        ).dt.tz_localize(self.default_timezone)
-
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            .dt.replace_time_zone(self.default_timezone)
+            .alias("Interval Start"),
+        ).with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+        )
 
         return utils.move_cols_to_front(
             df,
@@ -650,7 +651,7 @@ class IESO(ISOBase):
                 "Solar",
                 "Biofuel",
             ],
-        ).drop(columns=["Date", "Hour"])
+        ).drop(["Date", "Hour"])
 
     # Function to extract data for a specific Market Quantity considering namespace
     def _extract_load_in_market_quantity(
@@ -728,17 +729,15 @@ class IESO(ISOBase):
 
         return self._handle_mcp_data(data)
 
-    def _handle_mcp_data(self, data: pd.DataFrame) -> pd.DataFrame:
+    def _handle_mcp_data(self, data: pd.DataFrame) -> pl.DataFrame:
         data["Interval End"] = (
             pd.to_datetime(data["Delivery Date"])
             + pd.to_timedelta(data["Hour Ending"] - 1, unit="h")
-            # Each interval is 5 minutes
             + (5 * pd.to_timedelta(data["Interval"], unit="m"))
         ).dt.tz_localize(self.default_timezone)
 
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
 
-        # Pivot so each component is a column
         data = data.pivot_table(
             index=["Interval Start", "Interval End", "Location"],
             columns="Component",
@@ -766,7 +765,10 @@ class IESO(ISOBase):
             ]
         ]
 
-        return data.sort_values(["Interval Start", "Location"])
+        return pl.from_pandas(
+            data.sort_values(["Interval Start", "Location"]),
+            include_index=False,
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_hoep_real_time_hourly(
@@ -774,7 +776,7 @@ class IESO(ISOBase):
         date: str | datetime.date | datetime.datetime,
         end: datetime.date | datetime.datetime | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         retired_data_warning()
 
         if date == "latest":
@@ -811,7 +813,7 @@ class IESO(ISOBase):
 
         data = data[["Interval Start", "Interval End", "HOEP"]]
 
-        return data.sort_values("Interval Start")
+        return pl.from_pandas(data.sort_values("Interval Start"), include_index=False)
 
     @support_date_range(frequency="YEAR_START")
     def get_hoep_historical_hourly(
@@ -846,7 +848,7 @@ class IESO(ISOBase):
             ]
         ]
 
-        return data.sort_values("Interval Start")
+        return pl.from_pandas(data.sort_values("Interval Start"), include_index=False)
 
     def _request(self, url: str, verbose: bool = False):
         logger.info(f"Fetching URL: {url}")
@@ -896,7 +898,7 @@ class IESO(ISOBase):
         end: datetime.date | datetime.datetime | None = None,
         vintage: Literal["all", "latest"] = "latest",
         last_modified: str | datetime.date | datetime.datetime | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Retrieve and parse the Resource Adequacy Report for a given date.
 
         Args:
@@ -906,7 +908,7 @@ class IESO(ISOBase):
             last_modified (str | datetime.date | datetime.datetime | None): The last modified time after which to get report(s)
 
         Returns:
-            pd.DataFrame: The Resource Adequacy Report df for the given date
+            pl.DataFrame: The Resource Adequacy Report df for the given date
         """
         if last_modified:
             last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
@@ -917,7 +919,7 @@ class IESO(ISOBase):
                 last_modified,
             )
             df = self._parse_resource_adequacy_report(json_data)
-            df["Last Modified"] = file_last_modified
+            df = df.with_columns(pl.lit(file_last_modified).alias("Last Modified"))
 
         elif vintage == "all":
             json_data_with_times = self._get_all_resource_adequacy_jsons(
@@ -926,10 +928,12 @@ class IESO(ISOBase):
             )
             dfs = []
             for json_data, file_last_modified in json_data_with_times:
-                df = self._parse_resource_adequacy_report(json_data)
-                df["Last Modified"] = file_last_modified
-                dfs.append(df)
-            df = pd.concat(dfs)
+                report_df = self._parse_resource_adequacy_report(json_data)
+                report_df = report_df.with_columns(
+                    pl.lit(file_last_modified).alias("Last Modified"),
+                )
+                dfs.append(report_df)
+            df = pl.concat(dfs, how="diagonal_relaxed")
 
         df = utils.move_cols_to_front(
             df,
@@ -941,12 +945,12 @@ class IESO(ISOBase):
             ],
         )
         logger.debug(f"DataFrame Shape: {df.shape}")
-        return df.sort_values(["Interval Start", "Publish Time", "Last Modified"])
+        return df.sort(["Interval Start", "Publish Time", "Last Modified"])
 
     def get_resource_adequacy_report_by_last_modified(
         self,
         last_modified: str | datetime.date | datetime.datetime,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Retrieve and parse Resource Adequacy Reports modified after last_modified time.
         This method bypasses date iteration and gets all files across all dates.
         This is useful for ETL systems that want to get all new files at once.
@@ -956,7 +960,7 @@ class IESO(ISOBase):
             vintage: The version of the report to get
 
         Returns:
-            pd.DataFrame: The Resource Adequacy Report df with all files modified after last_modified
+            pl.DataFrame: The Resource Adequacy Report df with all files modified after last_modified
         """
         if last_modified:
             last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
@@ -967,9 +971,11 @@ class IESO(ISOBase):
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
             try:
-                df = self._parse_resource_adequacy_report(json_data)
-                df["Last Modified"] = file_last_modified
-                dfs.append(df)
+                report_df = self._parse_resource_adequacy_report(json_data)
+                report_df = report_df.with_columns(
+                    pl.lit(file_last_modified).alias("Last Modified"),
+                )
+                dfs.append(report_df)
             except Exception as e:
                 logger.warning(
                     f"Failed to parse resource adequacy report: {str(e)}",
@@ -977,9 +983,9 @@ class IESO(ISOBase):
                 continue
 
         if not dfs:
-            return pd.DataFrame()
+            return pl.DataFrame()
 
-        df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
+        df = pl.concat(dfs, how="diagonal_relaxed") if len(dfs) > 1 else dfs[0]
         df = utils.move_cols_to_front(
             df,
             [
@@ -990,7 +996,7 @@ class IESO(ISOBase):
             ],
         )
         logger.debug(f"DataFrame Shape: {df.shape}")
-        return df.sort_values(["Interval Start", "Publish Time", "Last Modified"])
+        return df.sort(["Interval Start", "Publish Time", "Last Modified"])
 
     # Note(Kladar): This might be fairly generalizable to other XML reports from IESO
     def _get_latest_resource_adequacy_json(
@@ -1275,7 +1281,7 @@ class IESO(ISOBase):
 
         return json_data_with_times
 
-    def _parse_resource_adequacy_report(self, json_data: dict) -> pd.DataFrame:
+    def _parse_resource_adequacy_report(self, json_data: dict) -> pl.DataFrame:
         """Parse the Resource Adequacy Report JSON into DataFrames."""
         document_body = json_data["Document"]["DocBody"]
         report_data = []
@@ -1438,7 +1444,7 @@ class IESO(ISOBase):
 
         # NOTE(kladar): This is the first place where pandas is truly invoked, leaving it open for more modern
         # dataframe libraries to be swapped in in the future
-        df = pd.DataFrame(report_data)
+        df = pl.DataFrame(report_data, infer_schema_length=None)
 
         publish_time = pd.Timestamp(
             json_data["Document"]["DocHeader"]["CreatedAt"],
@@ -1450,15 +1456,17 @@ class IESO(ISOBase):
         )
         logger.debug(f"Publish Time: {publish_time}")
         logger.debug(f"Delivery Date: {delivery_date}")
-        df["Interval Start"] = delivery_date + pd.to_timedelta(
-            df["DeliveryHour"] - 1,
-            unit="h",
+        df = df.with_columns(
+            (
+                pl.lit(delivery_date)
+                + pl.duration(hours=pl.col("DeliveryHour").cast(pl.Int64) - 1)
+            ).alias("Interval Start"),
+        ).with_columns(
+            (pl.col("Interval Start") + pl.duration(hours=1)).alias("Interval End"),
+            pl.lit(publish_time).alias("Publish Time"),
         )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-        df["Publish Time"] = publish_time
 
-        df = df.drop(columns=["DeliveryHour"])
-        return df
+        return df.drop("DeliveryHour")
 
     def _extract_hourly_values(
         self,
@@ -1531,7 +1539,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get forecast surplus baseload generation.
 
         Args:
@@ -1617,11 +1625,13 @@ class IESO(ISOBase):
                     },
                 )
 
-        df = pd.DataFrame(data)
-        df.sort_values("Interval Start", inplace=True)
-        df.reset_index(drop=True, inplace=True)
+        df = (
+            pl.DataFrame(data, infer_schema_length=None)
+            .with_columns(pl.col("Action").cast(pl.Utf8))
+            .sort("Interval Start")
+        )
 
-        return df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1631,8 +1641,8 @@ class IESO(ISOBase):
                 "Action",
                 "Export Forecast MW",
                 "Minimum Generation Status",
-            ]
-        ]
+            ],
+        )
 
     @support_date_range(frequency="YEAR_START")
     def get_yearly_intertie_actual_schedule_flow_hourly(
@@ -1642,7 +1652,7 @@ class IESO(ISOBase):
         verbose: bool = False,
         vintage: Literal["all", "latest"] = "latest",
         last_modified: str | datetime.date | datetime.datetime | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get yearly intertie actual schedule flow hourly. Since this is a yearly file
         it is updated less frequency than the daily files. These can be retrieved via
         the get_intertie_schedule_flow_hourly method.
@@ -1690,16 +1700,16 @@ class IESO(ISOBase):
                 all_data.append(df)
 
             if not all_data:
-                return pd.DataFrame()
+                return pl.DataFrame()
 
-            result_df = pd.concat(all_data)
+            result_df = pl.concat(all_data, how="diagonal_relaxed")
 
-            result_df = result_df[
-                (result_df["Interval Start"] >= pd.Timestamp(start_date))
-                & (result_df["Interval Start"] <= pd.Timestamp(end_date))
-            ]
+            result_df = result_df.filter(
+                (pl.col("Interval Start") >= pd.Timestamp(start_date))
+                & (pl.col("Interval Start") <= pd.Timestamp(end_date)),
+            )
 
-            return result_df.sort_values(["Interval Start", "Publish Time"])
+            return result_df.sort(["Interval Start", "Publish Time"])
 
         year = pd.Timestamp(date).year
         df = self._get_intertie_schedule_flow_data(
@@ -1711,15 +1721,15 @@ class IESO(ISOBase):
 
         if end:
             end_date = utils._handle_date(end, tz=self.default_timezone)
-            df = df[
-                (df["Interval Start"] >= pd.Timestamp(date))
-                & (df["Interval Start"] <= end_date)
-            ]
+            df = df.filter(
+                (pl.col("Interval Start") >= pd.Timestamp(date))
+                & (pl.col("Interval Start") <= end_date),
+            )
         else:
             target_date = pd.Timestamp(date).date()
-            df = df[df["Interval Start"].dt.date == target_date]
+            df = df.filter(pl.col("Interval Start").dt.date() == target_date)
 
-        return df[INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS].reset_index(drop=True)
+        return df.select(INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS)
 
     def _get_intertie_schedule_flow_data(
         self,
@@ -1727,7 +1737,7 @@ class IESO(ISOBase):
         vintage: Literal["all", "latest"] = "latest",
         last_modified: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Fetch and parse intertie schedule flow data for a specific year.
         Args:
             year: The year to fetch data for
@@ -1774,7 +1784,7 @@ class IESO(ISOBase):
 
             if last_modified and last_modified_time < last_modified:
                 logger.info(f"No files for year {year} modified after {last_modified}")
-                return pd.DataFrame()
+                return pl.DataFrame()
 
             logger.info(f"Fetching intertie schedule flow data from {url}")
             return self._parse_intertie_schedule_flow_file(
@@ -1812,21 +1822,20 @@ class IESO(ISOBase):
                     verbose,
                 )
                 all_data.append(df)
-            df_final = pd.concat(all_data)
+            df_final = pl.concat(all_data, how="diagonal_relaxed")
             logger.info(
                 f"Dropping duplicates from vintage {vintage} concatenation of files",
             )
-            df_final.drop_duplicates(inplace=True)
-            return df_final.sort_values(["Interval Start", "Publish Time"]).reset_index(
-                drop=True,
-            )
+            return df_final.unique(
+                maintain_order=True,
+            ).sort(["Interval Start", "Publish Time"])
 
     def _parse_intertie_schedule_flow_file(
         self,
         url: str,
         last_modified_time: pd.Timestamp,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Parse a single intertie schedule flow CSV file.
         Args:
             url: URL of the CSV file to parse
@@ -1887,8 +1896,8 @@ class IESO(ISOBase):
         total_columns = sorted([column for column in df.columns if "Total" in column])
         df = utils.move_cols_to_front(df, key_columns + total_columns)
 
-        df.drop(columns=["Date", "Hour"], inplace=True)
-        return df
+        df = df.drop(columns=["Date", "Hour"])
+        return pl.from_pandas(df, include_index=False)
 
     @support_date_range(frequency="DAY_START")
     def get_intertie_actual_schedule_flow_hourly(
@@ -1896,7 +1905,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_and_parse_intertie_schedule_flow(
             date,
             return_five_minute_data=False,
@@ -1909,7 +1918,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_and_parse_intertie_schedule_flow(
             date,
             return_five_minute_data=True,
@@ -1921,7 +1930,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         return_five_minute_data: bool = False,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         directory_path = "IntertieScheduleFlow"
         file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
 
@@ -1990,9 +1999,9 @@ class IESO(ISOBase):
                 )
 
         zone_five_minute_data = pd.DataFrame(zone_interval_records)
-        zone_five_minute_data = zone_five_minute_data.pivot(
-            columns="Zone",
+        zone_five_minute_data = zone_five_minute_data.pivot_table(
             index=["Hour", "Interval"],
+            columns="Zone",
             values=["Import", "Export", "Flow"],
         )
 
@@ -2020,7 +2029,6 @@ class IESO(ISOBase):
             imports = _safe_find_float(schedule, ".//Import", ns)
             exports = _safe_find_float(schedule, ".//Export", ns)
 
-            # Skip if any required values are missing
             if any(val is None for val in [hour, imports, exports]):
                 continue
             total_hourly_schedule_records.append(
@@ -2041,7 +2049,6 @@ class IESO(ISOBase):
             interval = _safe_find_int(actual, ".//Interval", ns)
             flow = _safe_find_float(actual, ".//Flow", ns)
 
-            # Skip if any required values are missing
             if any(val is None for val in [hour, interval, flow]):
                 continue
             total_five_minute_actuals_records.append(
@@ -2082,18 +2089,19 @@ class IESO(ISOBase):
 
             five_minute_data["Publish Time"] = created_at
 
-            five_minute_data = (
-                five_minute_data[INTERTIE_FLOW_5_MIN_COLUMNS]
-                .sort_values(["Interval Start"])
-                .reset_index(drop=True)
+            result = pl.from_pandas(
+                five_minute_data[INTERTIE_FLOW_5_MIN_COLUMNS].sort_values(
+                    ["Interval Start"],
+                ),
+                include_index=False,
             )
 
-            return five_minute_data
+            return result
 
         hourly_data = (
             five_minute_data.drop(columns=["Interval"])
             .groupby(["Hour"])
-            .mean()
+            .mean(numeric_only=True)
             .reset_index()
         )
         hourly_data["Interval Start"] = base_datetime + pd.to_timedelta(
@@ -2106,13 +2114,12 @@ class IESO(ISOBase):
 
         hourly_data["Publish Time"] = created_at
 
-        hourly_data = (
-            hourly_data[INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS]
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
+        return pl.from_pandas(
+            hourly_data[INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS].sort_values(
+                ["Interval Start"],
+            ),
+            include_index=False,
         )
-
-        return hourly_data
 
     def _parse_intertie_limits(
         self,
@@ -2120,7 +2127,7 @@ class IESO(ISOBase):
         interval_element_name: str,
         interval_minutes: int,
         include_publish_time: bool = False,
-    ) -> tuple[pd.DataFrame, pd.Timestamp | None]:
+    ) -> tuple[pl.DataFrame, pd.Timestamp | None]:
         """Shared parser for intertie limit XML data.
 
         Args:
@@ -2223,21 +2230,27 @@ class IESO(ISOBase):
                 zone_data[interval_num][column_name] = energy
 
         # Convert to DataFrame with interval numbers as index
-        df = pd.DataFrame.from_dict(zone_data, orient="index").sort_index()
+        rows = [
+            {"_interval": interval_num, **values}
+            for interval_num, values in zone_data.items()
+        ]
+        df = pl.DataFrame(rows).sort("_interval")
 
-        # Add time columns based on interval numbers
-        df["Interval Start"] = base_datetime + pd.to_timedelta(
-            (df.index - 1) * interval_minutes,
-            unit="m",
-        )
-        df["Interval End"] = df["Interval Start"] + pd.Timedelta(
-            minutes=interval_minutes,
+        df = df.with_columns(
+            (
+                pl.lit(base_datetime)
+                + pl.duration(minutes=(pl.col("_interval") - 1) * interval_minutes)
+            ).alias("Interval Start"),
+        ).with_columns(
+            (pl.col("Interval Start") + pl.duration(minutes=interval_minutes)).alias(
+                "Interval End",
+            ),
         )
 
         if include_publish_time:
-            df["Publish Time"] = publish_time
+            df = df.with_columns(pl.lit(publish_time).alias("Publish Time"))
 
-        return df, publish_time
+        return df.drop("_interval"), publish_time
 
     @support_date_range(frequency="HOUR_START")
     def get_intertie_limits_real_time_5_min(
@@ -2245,7 +2258,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get real-time intertie scheduling limits.
 
         This returns 5-minute interval data showing import and export limits
@@ -2280,7 +2293,7 @@ class IESO(ISOBase):
             include_publish_time=False,
         )
 
-        return df[INTERTIE_LIMITS_COLUMNS].reset_index(drop=True)
+        return df.select(INTERTIE_LIMITS_COLUMNS)
 
     @support_date_range(frequency="DAY_START")
     def get_intertie_limits_day_ahead_hourly(
@@ -2288,7 +2301,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead intertie scheduling limits.
 
         This returns hourly data showing import and export limits for each
@@ -2320,7 +2333,7 @@ class IESO(ISOBase):
             include_publish_time=False,
         )
 
-        return df[INTERTIE_LIMITS_COLUMNS].reset_index(drop=True)
+        return df.select(INTERTIE_LIMITS_COLUMNS)
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min(
@@ -2354,7 +2367,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead LMP data.
         Args:
             date: The date to get the data for.
@@ -2384,7 +2397,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         directory_path = "PredispHourlyEnergyLMP"
         file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
 
@@ -2410,7 +2423,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pl.DataFrame:
             # We need to get the file created date from the first line of the csv
             # Example: CREATED AT 2025/05/01 23:14:53 FOR 2025/05/02
             text = self._request(url, verbose=False).text
@@ -2439,8 +2452,7 @@ class IESO(ISOBase):
                 verbose=verbose,
             )
 
-            file_data["Publish Time"] = publish_time
-            return file_data
+            return file_data.with_columns(pl.lit(publish_time).alias("Publish Time"))
 
         data = self._process_urls_with_threadpool(
             urls,
@@ -2449,9 +2461,9 @@ class IESO(ISOBase):
             verbose=verbose,
         )
 
-        data["Location"] = data["Location"].str.replace(":LMP", "")
-
-        return data
+        return data.with_columns(
+            pl.col("Location").str.replace(":LMP", ""),
+        )
 
     def _get_lmp_csv_data(
         self,
@@ -2521,15 +2533,14 @@ class IESO(ISOBase):
             "Loss",
         ]
 
-        data = (
-            data[columns]
-            .sort_values(["Interval Start", "Location"])
-            .reset_index(drop=True)
+        data = pl.from_pandas(
+            data[columns].sort_values(["Interval Start", "Location"]),
+            include_index=False,
         )
 
-        data["Location"] = data["Location"].str.replace(":LMP", "")
-
-        return data
+        return data.with_columns(
+            pl.col("Location").str.replace(":LMP", ""),
+        )
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min_virtual_zonal(
@@ -2606,16 +2617,12 @@ class IESO(ISOBase):
                     },
                 )
 
-        df = (
-            pd.DataFrame(data_rows)
-            .sort_values(["Interval Start", "Location"])
-            .reset_index(drop=True)
+        df = pl.DataFrame(data_rows, infer_schema_length=None).sort(
+            ["Interval Start", "Location"],
         )
 
         # Strip out the :HUB from the location
-        df["Location"] = df["Location"].str.replace(":HUB", "")
-
-        return df
+        return df.with_columns(pl.col("Location").str.replace(":HUB", ""))
 
     @support_date_range(frequency="DAY_START")
     def get_lmp_day_ahead_hourly_virtual_zonal(
@@ -2623,7 +2630,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead zonal virtual LMP data.
         Args:
             date: The date to get the data for.
@@ -2676,7 +2683,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Virtual Zonal LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pl.DataFrame:
             return self._parse_lmp_hourly_virtual_zonal(
                 url,
                 verbose=verbose,
@@ -2695,7 +2702,7 @@ class IESO(ISOBase):
         url: str,
         verbose: bool = False,
         predispatch: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         xml_content = self._request(url, verbose).text
         soup = BeautifulSoup(xml_content, "xml")
 
@@ -2765,14 +2772,12 @@ class IESO(ISOBase):
                         },
                     )
 
-        df = (
-            pd.DataFrame(data_rows)
-            .sort_values(["Interval Start", "Location"])
-            .reset_index(drop=True)
+        df = pl.DataFrame(data_rows, infer_schema_length=None).sort(
+            ["Interval Start", "Location"],
         )
 
         if predispatch:
-            df["Publish Time"] = created_at
+            df = df.with_columns(pl.lit(created_at).alias("Publish Time"))
 
             df = utils.move_cols_to_front(
                 df,
@@ -2785,9 +2790,7 @@ class IESO(ISOBase):
             )
 
         # Strip out the :HUB from the location
-        df["Location"] = df["Location"].str.replace(":HUB", "")
-
-        return df
+        return df.with_columns(pl.col("Location").str.replace(":HUB", ""))
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min_intertie(
@@ -2903,16 +2906,12 @@ class IESO(ISOBase):
 
                     data_rows.append(row)
 
-        df = (
-            pd.DataFrame(data_rows)
-            .sort_values(["Interval Start", "Location"])
-            .reset_index(drop=True)
+        df = pl.DataFrame(data_rows, infer_schema_length=None).sort(
+            ["Interval Start", "Location"],
         )
 
         # Strip out the :LMP from the location
-        df["Location"] = df["Location"].str.replace(":LMP", "")
-
-        return df
+        return df.with_columns(pl.col("Location").str.replace(":LMP", ""))
 
     @support_date_range(frequency="DAY_START")
     def get_lmp_day_ahead_hourly_intertie(
@@ -2920,7 +2919,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         directory_path = "DAHourlyIntertieLMP"
         file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
 
@@ -2937,7 +2936,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         directory_path = "PredispHourlyIntertieLMP"
         file_directory = f"{PUBLIC_REPORTS_URL_PREFIX}/{directory_path}"
 
@@ -2963,7 +2962,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Intertie LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pl.DataFrame:
             return self._parse_lmp_hourly_intertie(
                 url,
                 verbose=verbose,
@@ -2982,7 +2981,7 @@ class IESO(ISOBase):
         url: str,
         verbose: bool = False,
         predispatch: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         xml_content = self._request(url, verbose).text
         root = ElementTree.fromstring(xml_content)
 
@@ -3071,24 +3070,19 @@ class IESO(ISOBase):
                         },
                     )
 
-        df = (
-            pd.DataFrame(data_rows)
-            .sort_values(["Interval Start", "Location"])
-            .reset_index(drop=True)
+        df = pl.DataFrame(data_rows, infer_schema_length=None).sort(
+            ["Interval Start", "Location"],
         )
 
         if predispatch:
-            # For pre-dispatch, we need to add the publish time
-            df["Publish Time"] = created_at
+            df = df.with_columns(pl.lit(created_at).alias("Publish Time"))
             df = utils.move_cols_to_front(
                 df,
                 ["Interval Start", "Interval End", "Publish Time", "Location"],
             )
 
         # Strip out the :LMP from the location
-        df["Location"] = df["Location"].str.replace(":LMP", "")
-
-        return df
+        return df.with_columns(pl.col("Location").str.replace(":LMP", ""))
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_5_min_ontario_zonal(
@@ -3223,11 +3217,7 @@ class IESO(ISOBase):
                         },
                     )
 
-        df = (
-            pd.DataFrame(data_rows)
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
-        )
+        df = pl.DataFrame(data_rows, infer_schema_length=None).sort(["Interval Start"])
 
         return df
 
@@ -3280,7 +3270,7 @@ class IESO(ISOBase):
                 f"No Predispatch Hourly Ontario Zonal LMP data found for {date} to {end}",
             )
 
-        def process_url(url: str, verbose: bool = False) -> pd.DataFrame:
+        def process_url(url: str, verbose: bool = False) -> pl.DataFrame:
             return self._process_lmp_hourly_ontario_zonal(
                 url,
                 verbose,
@@ -3299,7 +3289,7 @@ class IESO(ISOBase):
         url: str,
         verbose: bool = False,
         predispatch: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         xml_content = self._request(url, verbose).text
 
         root = ElementTree.fromstring(xml_content)
@@ -3347,14 +3337,10 @@ class IESO(ISOBase):
                 },
             )
 
-        df = (
-            pd.DataFrame(data_rows)
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
-        )
+        df = pl.DataFrame(data_rows, infer_schema_length=None).sort(["Interval Start"])
 
         if predispatch:
-            df["Publish Time"] = created_at
+            df = df.with_columns(pl.lit(created_at).alias("Publish Time"))
             df = utils.move_cols_to_front(
                 df,
                 ["Interval Start", "Interval End", "Publish Time", "Location"],
@@ -3368,7 +3354,7 @@ class IESO(ISOBase):
         process_func: callable,
         error_message: str,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Generic helper to process multiple URLs using ThreadPoolExecutor.
 
         Args:
@@ -3401,31 +3387,24 @@ class IESO(ISOBase):
         if not data_list:
             raise NoDataFoundException(error_message)
 
-        data = pd.concat(data_list)
+        data = pl.concat(data_list, how="diagonal_relaxed")
 
         # It's possible we may have duplicates since some of the files are the same.
         # We remove these by dropping duplicate rows based on a subset
-        data = data.drop_duplicates(
+        data = data.unique(
             subset=["Interval Start", "Location", "Publish Time"],
+            maintain_order=True,
         )
 
-        data = (
-            utils.move_cols_to_front(
-                data,
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Location",
-                ],
-            )
-            .sort_values(
-                ["Interval Start", "Location", "Publish Time"],
-            )
-            .reset_index(drop=True)
-        )
-
-        return data
+        return utils.move_cols_to_front(
+            data,
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Location",
+            ],
+        ).sort(["Interval Start", "Location", "Publish Time"])
 
     def _get_directory_files_and_timestamps(
         self,
@@ -3543,18 +3522,13 @@ class IESO(ISOBase):
                         },
                     )
 
-        data = pd.DataFrame(outage_data)
+        data = pl.DataFrame(outage_data)
 
-        # There will be overlap between the reports so we need to drop duplicates,
-        # keeping the latest publish time
-        data = data.sort_values(["Interval Start", "Outage ID", "Publish Time"])
-
-        data = data.drop_duplicates(
+        return data.sort(["Interval Start", "Outage ID", "Publish Time"]).unique(
             subset=[c for c in data.columns if c != "Publish Time"],
             keep="last",
-        ).reset_index(drop=True)
-
-        return data
+            maintain_order=True,
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_in_service_transmission_limits(
@@ -3598,17 +3572,15 @@ class IESO(ISOBase):
             xml_content = self._request(url, verbose).text
             data_list.append(self._process_transmission_limits(xml_content))
 
-        data = pd.concat(data_list)
+        data = pl.concat(data_list, how="diagonal_relaxed")
 
-        # Drop rows duplicated on every column except Publish Time
-        data = data.drop_duplicates(
+        return data.unique(
             subset=[c for c in data.columns if c != "Publish Time"],
             keep="last",
-        ).reset_index(drop=True)
+            maintain_order=True,
+        )
 
-        return data
-
-    def _process_transmission_limits(self, xml_content: str) -> pd.DataFrame:
+    def _process_transmission_limits(self, xml_content: str) -> pl.DataFrame:
         parser = lxml_etree.XMLParser(remove_blank_text=True)
         tree = lxml_etree.fromstring(xml_content.encode(), parser)
 
@@ -3679,10 +3651,8 @@ class IESO(ISOBase):
                         },
                     )
 
-        df = (
-            pd.DataFrame(data)
-            .sort_values(["Interval Start", "Publish Time", "Facility"])
-            .reset_index(drop=True)
+        df = pl.DataFrame(data, infer_schema_length=None).sort(
+            ["Interval Start", "Publish Time", "Facility"],
         )
 
         return df
@@ -3693,7 +3663,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeDemandZonal/PUB_RealtimeDemandZonal.csv"
         else:
@@ -3707,7 +3677,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/DemandZonal/PUB_DemandZonal.csv"
         else:
@@ -3720,7 +3690,7 @@ class IESO(ISOBase):
         url: str,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
 
         if "Interval" in df.columns:
@@ -3761,10 +3731,9 @@ class IESO(ISOBase):
             else:
                 mask = (df["Interval Start"] >= date) & (df["Interval Start"] < end)
                 df = df[mask]
-        return (
-            df[ZONAL_LOAD_COLUMNS]
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
+        return pl.from_pandas(
+            df[ZONAL_LOAD_COLUMNS].sort_values(["Interval Start"]),
+            include_index=False,
         )
 
     @support_date_range(frequency="HOUR_START")
@@ -3773,7 +3742,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/RealtimeTotals/PUB_RealtimeTotals.xml"
         else:
@@ -3850,9 +3819,9 @@ class IESO(ISOBase):
 
         # Create DataFrame
         data = (
-            pd.DataFrame(data)[columns]
-            .sort_values(["Interval Start"])
-            .reset_index(drop=True)
+            pl.DataFrame(data, infer_schema_length=None)
+            .select(columns)
+            .sort(["Interval Start"])
         )
 
         return data
@@ -3864,7 +3833,7 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         vintage: Literal["latest", "all"] = "latest",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         json_data_with_times = self._get_variable_generation_forecast_json(
             date,
             end,
@@ -3875,12 +3844,15 @@ class IESO(ISOBase):
             self._parse_variable_generation_forecast(json_data, last_modified_time)
             for json_data, last_modified_time in json_data_with_times
         ]
-        df = pd.concat(dfs).reset_index(drop=True)
-        df.drop_duplicates(inplace=True)
-        df = df[
-            (df["Organization Type"] == "Embedded") & (df["Type"] == "Solar")
-        ].reset_index(drop=True)
-        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        df = (
+            pl.concat(dfs, how="diagonal_relaxed")
+            .unique(maintain_order=True)
+            .filter(
+                (pl.col("Organization Type") == "Embedded")
+                & (pl.col("Type") == "Solar"),
+            )
+            .drop(["Organization Type", "Type"])
+        )
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3890,7 +3862,7 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         vintage: Literal["latest", "all"] = "latest",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         json_data_with_times = self._get_variable_generation_forecast_json(
             date,
             end,
@@ -3901,12 +3873,15 @@ class IESO(ISOBase):
             self._parse_variable_generation_forecast(json_data, last_modified_time)
             for json_data, last_modified_time in json_data_with_times
         ]
-        df = pd.concat(dfs).reset_index(drop=True)
-        df.drop_duplicates(inplace=True)
-        df = df[
-            (df["Organization Type"] == "Embedded") & (df["Type"] == "Wind")
-        ].reset_index(drop=True)
-        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        df = (
+            pl.concat(dfs, how="diagonal_relaxed")
+            .unique(maintain_order=True)
+            .filter(
+                (pl.col("Organization Type") == "Embedded")
+                & (pl.col("Type") == "Wind"),
+            )
+            .drop(["Organization Type", "Type"])
+        )
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3916,7 +3891,7 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         vintage: Literal["latest", "all"] = "latest",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         json_data_with_times = self._get_variable_generation_forecast_json(
             date,
             end,
@@ -3927,12 +3902,15 @@ class IESO(ISOBase):
             self._parse_variable_generation_forecast(json_data, last_modified_time)
             for json_data, last_modified_time in json_data_with_times
         ]
-        df = pd.concat(dfs).reset_index(drop=True)
-        df.drop_duplicates(inplace=True)
-        df = df[
-            (df["Organization Type"] == "Market Participant") & (df["Type"] == "Solar")
-        ].reset_index(drop=True)
-        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        df = (
+            pl.concat(dfs, how="diagonal_relaxed")
+            .unique(maintain_order=True)
+            .filter(
+                (pl.col("Organization Type") == "Market Participant")
+                & (pl.col("Type") == "Solar"),
+            )
+            .drop(["Organization Type", "Type"])
+        )
         return df
 
     @support_date_range(frequency="DAY_START")
@@ -3942,7 +3920,7 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         vintage: Literal["latest", "all"] = "latest",
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         json_data_with_times = self._get_variable_generation_forecast_json(
             date,
             end,
@@ -3953,11 +3931,14 @@ class IESO(ISOBase):
             self._parse_variable_generation_forecast(json_data, last_modified_time)
             for json_data, last_modified_time in json_data_with_times
         ]
-        df = pd.concat(dfs).reset_index(drop=True)
-        df = df[
-            (df["Organization Type"] == "Market Participant") & (df["Type"] == "Wind")
-        ].reset_index(drop=True)
-        df.drop(columns=["Organization Type", "Type"], inplace=True)
+        df = (
+            pl.concat(dfs, how="diagonal_relaxed")
+            .filter(
+                (pl.col("Organization Type") == "Market Participant")
+                & (pl.col("Type") == "Wind"),
+            )
+            .drop(["Organization Type", "Type"])
+        )
         return df
 
     def _get_variable_generation_forecast_json(
@@ -4055,7 +4036,7 @@ class IESO(ISOBase):
         self,
         json_data: dict,
         last_modified_time: pd.Timestamp,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         document_body = json_data["Document"]["DocBody"]
         publish_time = pd.Timestamp(document_body["ForecastTimeStamp"]).tz_localize(
             self.default_timezone,
@@ -4120,10 +4101,10 @@ class IESO(ISOBase):
                                 },
                             )
 
-        df = pd.DataFrame(data)
-        return df.sort_values(
+        df = pl.DataFrame(data, infer_schema_length=None)
+        return df.sort(
             ["Interval Start", "Publish Time", "Last Modified", "Zone"],
-        ).reset_index(drop=True)
+        )
 
     @support_date_range(frequency="HOUR_START")
     def get_lmp_real_time_operating_reserves(
@@ -4174,18 +4155,15 @@ class IESO(ISOBase):
             ],
         )
 
-        data = (
-            utils.move_cols_to_front(
-                data,
-                ["Interval Start", "Interval End", "Location"],
-            )
-            .sort_values(
-                ["Interval Start", "Location"],
-            )
-            .reset_index(drop=True)
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Location"],
         )
 
-        return data
+        return pl.from_pandas(
+            data.sort_values(["Interval Start", "Location"]),
+            include_index=False,
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_lmp_day_ahead_operating_reserves(
@@ -4193,7 +4171,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead operating reserves LMP data.
 
         Args:
@@ -4252,18 +4230,15 @@ class IESO(ISOBase):
             ],
         )
 
-        data = (
-            utils.move_cols_to_front(
-                data,
-                ["Interval Start", "Interval End", "Location"],
-            )
-            .sort_values(
-                ["Interval Start", "Location"],
-            )
-            .reset_index(drop=True)
+        data = utils.move_cols_to_front(
+            data,
+            ["Interval Start", "Interval End", "Location"],
         )
 
-        return data
+        return pl.from_pandas(
+            data.sort_values(["Interval Start", "Location"]),
+            include_index=False,
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_shadow_prices_real_time_5_min(
@@ -4272,7 +4247,7 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
         last_modified: str | pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if last_modified:
             last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
         if date == "latest":
@@ -4284,20 +4259,19 @@ class IESO(ISOBase):
             )
             json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
             df = self._parse_real_time_shadow_prices_report(json_data)
-            df["Publish Time"] = file_last_modified
-            df.sort_values(
-                ["Interval Start", "Publish Time", "Constraint"],
-                inplace=True,
+            return (
+                df.with_columns(pl.lit(file_last_modified).alias("Publish Time"))
+                .sort(["Interval Start", "Publish Time", "Constraint"])
+                .select(
+                    [
+                        "Interval Start",
+                        "Interval End",
+                        "Publish Time",
+                        "Constraint",
+                        "Shadow Price",
+                    ],
+                )
             )
-            return df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Constraint",
-                    "Shadow Price",
-                ]
-            ].reset_index(drop=True)
 
         json_data_with_times = self._get_all_shadow_prices_jsons(
             date,
@@ -4306,32 +4280,34 @@ class IESO(ISOBase):
         )
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
-            df = self._parse_real_time_shadow_prices_report(json_data)
-            df["Publish Time"] = file_last_modified
-            dfs.append(df)
-        df = pd.concat(dfs)
+            report_df = self._parse_real_time_shadow_prices_report(json_data)
+            dfs.append(
+                report_df.with_columns(
+                    pl.lit(file_last_modified).alias("Publish Time"),
+                ),
+            )
+        df = pl.concat(dfs, how="diagonal_relaxed")
         df = utils.move_cols_to_front(
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         )
-        df.sort_values(
-            ["Interval Start", "Publish Time", "Constraint"],
-            inplace=True,
+        return (
+            df.sort(["Interval Start", "Publish Time", "Constraint"])
+            .unique(
+                subset=["Interval Start", "Publish Time", "Constraint"],
+                keep="last",
+                maintain_order=True,
+            )
+            .select(
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Constraint",
+                    "Shadow Price",
+                ],
+            )
         )
-        df.drop_duplicates(
-            subset=["Interval Start", "Publish Time", "Constraint"],
-            inplace=True,
-            keep="last",
-        )
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Constraint",
-                "Shadow Price",
-            ]
-        ].reset_index(drop=True)
 
     @support_date_range(frequency="DAY_START")
     def get_shadow_prices_day_ahead_hourly(
@@ -4340,7 +4316,7 @@ class IESO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
         last_modified: str | pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if last_modified:
             last_modified = utils._handle_date(last_modified, tz=self.default_timezone)
         if date == "latest":
@@ -4352,20 +4328,19 @@ class IESO(ISOBase):
             )
             json_data = self._fetch_and_parse_shadow_prices_file(base_url, file)
             df = self._parse_day_ahead_shadow_prices_report(json_data)
-            df["Publish Time"] = file_last_modified
-            df.sort_values(
-                ["Interval Start", "Publish Time", "Constraint"],
-                inplace=True,
+            return (
+                df.with_columns(pl.lit(file_last_modified).alias("Publish Time"))
+                .sort(["Interval Start", "Publish Time", "Constraint"])
+                .select(
+                    [
+                        "Interval Start",
+                        "Interval End",
+                        "Publish Time",
+                        "Constraint",
+                        "Shadow Price",
+                    ],
+                )
             )
-            return df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Constraint",
-                    "Shadow Price",
-                ]
-            ].reset_index(drop=True)
 
         json_data_with_times = self._get_all_shadow_prices_jsons(
             date,
@@ -4374,32 +4349,34 @@ class IESO(ISOBase):
         )
         dfs = []
         for json_data, file_last_modified in json_data_with_times:
-            df = self._parse_day_ahead_shadow_prices_report(json_data)
-            df["Publish Time"] = file_last_modified
-            dfs.append(df)
-        df = pd.concat(dfs)
+            report_df = self._parse_day_ahead_shadow_prices_report(json_data)
+            dfs.append(
+                report_df.with_columns(
+                    pl.lit(file_last_modified).alias("Publish Time"),
+                ),
+            )
+        df = pl.concat(dfs, how="diagonal_relaxed")
         df = utils.move_cols_to_front(
             df,
             ["Interval Start", "Interval End", "Publish Time"],
         )
-        df.sort_values(
-            ["Interval Start", "Publish Time", "Constraint"],
-            inplace=True,
+        return (
+            df.sort(["Interval Start", "Publish Time", "Constraint"])
+            .unique(
+                subset=["Interval Start", "Publish Time", "Constraint"],
+                keep="last",
+                maintain_order=True,
+            )
+            .select(
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Constraint",
+                    "Shadow Price",
+                ],
+            )
         )
-        df.drop_duplicates(
-            subset=["Interval Start", "Publish Time", "Constraint"],
-            inplace=True,
-            keep="last",
-        )
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Constraint",
-                "Shadow Price",
-            ]
-        ].reset_index(drop=True)
 
     def _fetch_and_parse_shadow_prices_file(self, base_url: str, file: str) -> dict:
         url = f"{base_url}/{file}"
@@ -4528,7 +4505,7 @@ class IESO(ISOBase):
 
         return json_data_with_times
 
-    def _parse_day_ahead_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
+    def _parse_day_ahead_shadow_prices_report(self, json_data: dict) -> pl.DataFrame:
         doc_header = json_data["Document"]["DocHeader"]
         doc_body = json_data["Document"]["DocBody"]
         shadow_prices = doc_body["HourlyPrice"]
@@ -4556,9 +4533,9 @@ class IESO(ISOBase):
                         "Shadow Price": float(price),
                     },
                 )
-        return pd.DataFrame(rows)
+        return pl.DataFrame(rows)
 
-    def _parse_real_time_shadow_prices_report(self, json_data: dict) -> pd.DataFrame:
+    def _parse_real_time_shadow_prices_report(self, json_data: dict) -> pl.DataFrame:
         doc_header = json_data["Document"]["DocHeader"]
         doc_body = json_data["Document"]["DocBody"]
         publish_time = pd.Timestamp(doc_header["CreatedAt"], tz=self.default_timezone)
@@ -4568,13 +4545,13 @@ class IESO(ISOBase):
         # NB: Handle the case where there is no hourly price data in the report
         if "HourlyPrice" not in doc_body or not doc_body["HourlyPrice"]:
             logger.debug(f"No hourly price data in report for {delivery_date}")
-            return pd.DataFrame(
-                {
-                    "Interval Start": pd.Series(dtype="datetime64[ns, EST]"),
-                    "Interval End": pd.Series(dtype="datetime64[ns, EST]"),
-                    "Publish Time": pd.Series(dtype="datetime64[ns, EST]"),
-                    "Constraint": pd.Series(dtype="string"),
-                    "Shadow Price": pd.Series(dtype="float64"),
+            return pl.DataFrame(
+                schema={
+                    "Interval Start": pl.Datetime(time_zone=self.default_timezone),
+                    "Interval End": pl.Datetime(time_zone=self.default_timezone),
+                    "Publish Time": pl.Datetime(time_zone=self.default_timezone),
+                    "Constraint": pl.Utf8,
+                    "Shadow Price": pl.Float64,
                 },
             )
 
@@ -4605,5 +4582,5 @@ class IESO(ISOBase):
                         "Shadow Price": float(price),
                     },
                 )
-        df = pd.DataFrame(rows)
+        df = pl.DataFrame(rows)
         return df

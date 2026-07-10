@@ -1,0 +1,114 @@
+{
+  "iso": "ISONE",
+  "fixed_date": "2026-06-15",
+  "methods": {
+    "get_fuel_mix": {
+      "columns": [
+        "Time",
+        "Batteries",
+        "Hydro",
+        "Landfill Gas",
+        "Natural Gas",
+        "Nuclear",
+        "Oil",
+        "Other",
+        "Refuse",
+        "Solar",
+        "Wind",
+        "Wood"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Batteries": "float",
+        "Hydro": "float",
+        "Landfill Gas": "float",
+        "Natural Gas": "float",
+        "Nuclear": "float",
+        "Oil": "float",
+        "Other": "float",
+        "Refuse": "float",
+        "Solar": "float",
+        "Wind": "float",
+        "Wood": "float"
+      },
+      "row_count": 194,
+      "frame_type": "polars"
+    },
+    "get_lmp": {
+      "columns": [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Market": "string",
+        "Location": "string",
+        "Location Type": "string",
+        "LMP": "float",
+        "Energy": "float",
+        "Congestion": "float",
+        "Loss": "float"
+      },
+      "row_count": 29016,
+      "frame_type": "polars"
+    },
+    "get_load": {
+      "columns": [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Load"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Load": "float"
+      },
+      "row_count": 288,
+      "frame_type": "polars"
+    },
+    "get_solar_forecast": {
+      "columns": [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Solar Forecast"
+      ],
+      "dtypes": {
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Publish Time": "datetime[US/Eastern]",
+        "Solar Forecast": "float"
+      },
+      "row_count": 168,
+      "frame_type": "polars"
+    },
+    "get_wind_forecast": {
+      "columns": [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Wind Forecast"
+      ],
+      "dtypes": {
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Publish Time": "datetime[US/Eastern]",
+        "Wind Forecast": "float"
+      },
+      "row_count": 120,
+      "frame_type": "polars"
+    }
+  }
+}

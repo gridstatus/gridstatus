@@ -13,6 +13,7 @@ import math
 from typing import Any
 
 import pandas as pd
+import polars as pl
 import requests
 
 from gridstatus import utils
@@ -171,12 +172,9 @@ def _interval_index(
     report_start: pd.Timestamp,
     n: int,
     minutes: int,
-) -> tuple[pd.Series, pd.Series]:
+) -> tuple[list[pd.Timestamp], list[pd.Timestamp]]:
     if n <= 0:
-        return (
-            pd.Series(dtype="datetime64[ns, US/Pacific]"),
-            pd.Series(dtype="datetime64[ns, US/Pacific]"),
-        )
+        return [], []
     starts = pd.date_range(
         start=report_start,
         periods=n,
@@ -184,7 +182,7 @@ def _interval_index(
         tz=report_start.tz,
     )
     ends = starts + pd.Timedelta(minutes=minutes)
-    return starts, ends
+    return list(starts), list(ends)
 
 
 def _long_energy_awards(
@@ -193,7 +191,7 @@ def _long_energy_awards(
     values_hybrid: list[Any],
     minutes: int,
     product: str | None = "Energy",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     n = min(len(values_standalone), len(values_hybrid))
     if n == 0:
         cols = ["Interval Start", "Interval End", "Type", "MW"]
@@ -205,45 +203,45 @@ def _long_energy_awards(
                 "Type",
                 "MW",
             ]
-        return pd.DataFrame(columns=cols)
+        return pl.DataFrame(schema={c: pl.Null for c in cols})
     starts, ends = _interval_index(report_start, n, minutes)
     if product is not None:
-        standalone_rows = pd.DataFrame(
+        standalone_rows = pl.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
-                "Product": product,
-                "Type": "Standalone",
+                "Product": [product] * n,
+                "Type": ["Standalone"] * n,
                 "MW": values_standalone[:n],
             },
         )
-        hybrid_rows = pd.DataFrame(
+        hybrid_rows = pl.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
-                "Product": product,
-                "Type": "Hybrid",
+                "Product": [product] * n,
+                "Type": ["Hybrid"] * n,
                 "MW": values_hybrid[:n],
             },
         )
     else:
-        standalone_rows = pd.DataFrame(
+        standalone_rows = pl.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
-                "Type": "Standalone",
+                "Type": ["Standalone"] * n,
                 "MW": values_standalone[:n],
             },
         )
-        hybrid_rows = pd.DataFrame(
+        hybrid_rows = pl.DataFrame(
             {
                 "Interval Start": starts,
                 "Interval End": ends,
-                "Type": "Hybrid",
+                "Type": ["Hybrid"] * n,
                 "MW": values_hybrid[:n],
             },
         )
-    return pd.concat([standalone_rows, hybrid_rows], ignore_index=True)
+    return pl.concat([standalone_rows, hybrid_rows])
 
 
 def _long_as_awards(
@@ -251,8 +249,8 @@ def _long_as_awards(
     series_map: dict[str, tuple[str, str]],
     minutes: int,
     html: str,
-) -> pd.DataFrame:
-    parts: list[pd.DataFrame] = []
+) -> pl.DataFrame:
+    parts: list[pl.DataFrame] = []
     for var_name, (product, type_label) in series_map.items():
         vals = _parse_js_array(html, var_name)
         n = len(vals)
@@ -260,27 +258,27 @@ def _long_as_awards(
             continue
         starts, ends = _interval_index(report_start, n, minutes)
         parts.append(
-            pd.DataFrame(
+            pl.DataFrame(
                 {
                     "Interval Start": starts,
                     "Interval End": ends,
-                    "Product": product,
-                    "Type": type_label,
+                    "Product": [product] * n,
+                    "Type": [type_label] * n,
                     "MW": vals,
                 },
             ),
         )
     if not parts:
-        return pd.DataFrame(
-            columns=[
-                "Interval Start",
-                "Interval End",
-                "Product",
-                "Type",
-                "MW",
-            ],
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Null,
+                "Interval End": pl.Null,
+                "Product": pl.Null,
+                "Type": pl.Null,
+                "MW": pl.Null,
+            },
         )
-    return pd.concat(parts, ignore_index=True)
+    return pl.concat(parts)
 
 
 def _hybrid_bid_var_names(order: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -363,51 +361,51 @@ def _bid_stack_to_df(
     minutes: int,
     operation: str,
     type_label: str,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     lengths: list[int] = []
     for var_name, _ in var_order:
         vals = _parse_js_array(html, var_name)
         lengths.append(len(vals))
     n = min(lengths) if lengths else 0
     if n == 0:
-        return pd.DataFrame(
-            columns=[
-                "Interval Start",
-                "Interval End",
-                "Bid Range",
-                "Operation",
-                "Type",
-                "MW",
-            ],
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Null,
+                "Interval End": pl.Null,
+                "Bid Range": pl.Null,
+                "Operation": pl.Null,
+                "Type": pl.Null,
+                "MW": pl.Null,
+            },
         )
     starts, ends = _interval_index(report_start, n, minutes)
-    rows = []
+    rows: list[pl.DataFrame] = []
     for var_name, bid_range in var_order:
         vals = _parse_js_array(html, var_name)
         rows.append(
-            pd.DataFrame(
+            pl.DataFrame(
                 {
                     "Interval Start": starts,
                     "Interval End": ends,
-                    "Bid Range": bid_range,
-                    "Operation": operation,
-                    "Type": type_label,
+                    "Bid Range": [bid_range] * n,
+                    "Operation": [operation] * n,
+                    "Type": [type_label] * n,
                     "MW": vals[:n],
                 },
             ),
         )
     if not rows:
-        return pd.DataFrame(
-            columns=[
-                "Interval Start",
-                "Interval End",
-                "Bid Range",
-                "Operation",
-                "Type",
-                "MW",
-            ],
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Null,
+                "Interval End": pl.Null,
+                "Bid Range": pl.Null,
+                "Operation": pl.Null,
+                "Type": pl.Null,
+                "MW": pl.Null,
+            },
         )
-    return pd.concat(rows, ignore_index=True)
+    return pl.concat(rows)
 
 
 def _downsample_5min_to_15min(values: list[float]) -> list[float]:
@@ -433,7 +431,7 @@ def _downsample_5min_to_60min(values: list[float]) -> list[float]:
 def build_storage_awards_fmm(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     energy_standalone = _downsample_5min_to_15min(
         _parse_js_array(html, "tot_energy_rtpd"),
     )
@@ -469,7 +467,7 @@ def build_storage_awards_fmm(
         15,
         html,
     )
-    return pd.concat([energy, as_standalone, as_hybrid], ignore_index=True).sort_values(
+    return pl.concat([energy, as_standalone, as_hybrid]).sort(
         ["Interval Start", "Product", "Type"],
     )
 
@@ -477,7 +475,7 @@ def build_storage_awards_fmm(
 def build_storage_awards_ifm(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     energy_standalone = _downsample_5min_to_60min(
         _parse_js_array(html, "tot_energy_ifm"),
     )
@@ -513,7 +511,7 @@ def build_storage_awards_ifm(
         60,
         html,
     )
-    return pd.concat([energy, as_standalone, as_hybrid], ignore_index=True).sort_values(
+    return pl.concat([energy, as_standalone, as_hybrid]).sort(
         ["Interval Start", "Product", "Type"],
     )
 
@@ -521,7 +519,7 @@ def build_storage_awards_ifm(
 def build_storage_awards_rtd(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     energy_standalone = _parse_js_array(html, "tot_energy_rtd")
     energy_hybrid = _parse_js_array(html, "tot_energy_hybrid_rtd")
     return _long_energy_awards(
@@ -530,13 +528,13 @@ def build_storage_awards_rtd(
         energy_hybrid,
         5,
         product=None,
-    ).sort_values(["Interval Start", "Type"])
+    ).sort(["Interval Start", "Type"])
 
 
 def build_storage_energy_awards_ruc(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     energy_standalone = _parse_js_array(html, "tot_energy_ruc")
     energy_hybrid = _parse_js_array(html, "tot_energy_hybrid_ruc")
     return _long_energy_awards(
@@ -545,13 +543,13 @@ def build_storage_energy_awards_ruc(
         energy_hybrid,
         5,
         product=None,
-    ).sort_values(["Interval Start", "Type"])
+    ).sort(["Interval Start", "Type"])
 
 
 def build_storage_soc_hourly(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Hourly IFM and RUC SOC from ``tot_charge_ifm`` and ``tot_charge_ruc``.
 
     The HTML arrays use a 5-minute index (typically 288 points) but IFM and
@@ -564,93 +562,91 @@ def build_storage_soc_hourly(
     n_pairs = min(len(ifm_soc_series), len(ruc_soc_series))
     n_hours = n_pairs // 12
     if n_hours == 0:
-        return pd.DataFrame(
-            columns=[
-                "Interval Start",
-                "Interval End",
-                "SOC",
-                "Schedule",
-            ],
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Null,
+                "Interval End": pl.Null,
+                "SOC": pl.Null,
+                "Schedule": pl.Null,
+            },
         )
     ifm_vals = [ifm_soc_series[i * 12] for i in range(n_hours)]
     ruc_vals = [ruc_soc_series[i * 12] for i in range(n_hours)]
     starts, ends = _interval_index(report_start, n_hours, 60)
-    df_ifm = pd.DataFrame(
+    df_ifm = pl.DataFrame(
         {
             "Interval Start": starts,
             "Interval End": ends,
             "SOC": ifm_vals,
-            "Schedule": "IFM",
+            "Schedule": ["IFM"] * n_hours,
         },
     )
-    df_ruc = pd.DataFrame(
+    df_ruc = pl.DataFrame(
         {
             "Interval Start": starts,
             "Interval End": ends,
             "SOC": ruc_vals,
-            "Schedule": "RUC",
+            "Schedule": ["RUC"] * n_hours,
         },
     )
-    return pd.concat([df_ifm, df_ruc], ignore_index=True).sort_values(
-        ["Interval Start", "Schedule"],
-    )
+    return pl.concat([df_ifm, df_ruc]).sort(["Interval Start", "Schedule"])
 
 
 def build_storage_soc_fmm(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     standalone_soc_series = _parse_js_array(html, "tot_charge_rtpd")
     n = len(standalone_soc_series)
     if n == 0:
-        return pd.DataFrame(
-            columns=[
-                "Interval Start",
-                "Interval End",
-                "SOC",
-            ],
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Null,
+                "Interval End": pl.Null,
+                "SOC": pl.Null,
+            },
         )
     starts, ends = _interval_index(report_start, n, 5)
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "Interval Start": starts,
             "Interval End": ends,
             "SOC": standalone_soc_series,
         },
-    ).sort_values(["Interval Start"])
+    ).sort(["Interval Start"])
 
 
 def build_storage_soc_rtd(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     standalone_soc_series = _parse_js_array(html, "tot_charge_rtd")
     n = len(standalone_soc_series)
     if n == 0:
-        return pd.DataFrame(
-            columns=[
-                "Interval Start",
-                "Interval End",
-                "SOC",
-            ],
+        return pl.DataFrame(
+            schema={
+                "Interval Start": pl.Null,
+                "Interval End": pl.Null,
+                "SOC": pl.Null,
+            },
         )
     starts, ends = _interval_index(report_start, n, 5)
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "Interval Start": starts,
             "Interval End": ends,
             "SOC": standalone_soc_series,
         },
-    ).sort_values(["Interval Start"])
+    ).sort(["Interval Start"])
 
 
 def build_storage_energy_bids_fmm(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     hybrid_pos = _hybrid_bid_var_names(BID_RTPD_RANGE_ORDER)
     hybrid_neg = _hybrid_bid_var_names(BID_RTPD_NEG_ORDER)
-    parts: list[pd.DataFrame] = [
+    parts: list[pl.DataFrame] = [
         _bid_stack_to_df(
             report_start,
             html,
@@ -684,7 +680,7 @@ def build_storage_energy_bids_fmm(
             "Hybrid",
         ),
     ]
-    return pd.concat(parts, ignore_index=True).sort_values(
+    return pl.concat(parts).sort(
         ["Interval Start", "Bid Range", "Operation", "Type"],
     )
 
@@ -692,10 +688,10 @@ def build_storage_energy_bids_fmm(
 def build_storage_energy_bids_ifm(
     html: str,
     report_start: pd.Timestamp,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     hybrid_pos = _hybrid_bid_var_names(BID_IFM_RANGE_ORDER)
     hybrid_neg = _hybrid_bid_var_names(BID_IFM_NEG_ORDER)
-    parts: list[pd.DataFrame] = [
+    parts: list[pl.DataFrame] = [
         _bid_stack_to_df(
             report_start,
             html,
@@ -729,6 +725,6 @@ def build_storage_energy_bids_ifm(
             "Hybrid",
         ),
     ]
-    return pd.concat(parts, ignore_index=True).sort_values(
+    return pl.concat(parts).sort(
         ["Interval Start", "Bid Range", "Operation", "Type"],
     )

@@ -5,6 +5,7 @@ from itertools import chain
 from typing import Any, Callable, Dict, List, Literal
 
 import pandas as pd
+import polars as pl
 import requests
 
 from gridstatus import utils
@@ -94,7 +95,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -111,7 +112,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -128,7 +129,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -145,7 +146,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -162,7 +163,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -178,7 +179,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -195,7 +196,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         **kwargs,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_pricing_data(
             date,
             end,
@@ -217,7 +218,7 @@ class MISOAPI:
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         data_lists = retrieval_func(date, end, verbose=verbose, **kwargs)
 
         data_list = self._flatten(data_lists)
@@ -306,33 +307,28 @@ class MISOAPI:
         self,
         start: pd.Timestamp,
         end: pd.Timestamp,
-    ) -> pd.DataFrame:
-        # use miso pricing api (Aggregated Pnode) to get location types
+    ) -> pl.DataFrame:
         df = self.get_pricing_nodes(start, end)
 
-        return df[["Node", "Location Type"]]
+        return df.select(["Node", "Location Type"])
 
     def _process_pricing_data(
         self,
         data_list: List[Dict[str, Any]],
         market: Markets,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._data_list_to_df(data_list)
 
         start = df["Interval Start"].min()
         end = df["Interval End"].max()
 
-        node_to_type_mapping = (
-            self._get_node_to_type_mapping(start, end)
-            .set_index("Node")["Location Type"]
-            .to_dict()
-        )
+        mapping_df = self._get_node_to_type_mapping(start, end).rename({"Node": "node"})
 
-        df["Location Type"] = df["node"].map(node_to_type_mapping)
-        df["Market"] = market.value
+        df = df.join(mapping_df, on="node", how="left")
+        df = df.with_columns(pl.lit(market.value).alias("Market"))
 
         df = df.rename(
-            columns={
+            {
                 "node": "Location",
                 "lmp": "LMP",
                 "mcc": "Congestion",
@@ -341,8 +337,7 @@ class MISOAPI:
             },
         )
 
-        # Column ordering
-        df = df[
+        return df.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -353,10 +348,8 @@ class MISOAPI:
                 "Energy",
                 "Congestion",
                 "Loss",
-            ]
-        ]
-
-        return df
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_interchange_hourly(
@@ -364,7 +357,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("h")
 
@@ -389,14 +382,17 @@ class MISOAPI:
         historical_scheduled_df = self._data_list_to_df(
             historical_scheduled_data_list,
         ).pivot(
-            columns="adjacentBa",
+            on="adjacentBa",
             index=["Interval Start", "Interval End"],
             values="nsi",
         )
 
-        historical_scheduled_df.columns = historical_scheduled_df.columns + " Scheduled"
-
-        historical_scheduled_df = historical_scheduled_df.reset_index()
+        scheduled_rename = {
+            col: f"{col} Scheduled"
+            for col in historical_scheduled_df.columns
+            if col not in ["Interval Start", "Interval End"]
+        }
+        historical_scheduled_df = historical_scheduled_df.rename(scheduled_rename)
 
         real_time_actual_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-actual"  # noqa
 
@@ -409,18 +405,24 @@ class MISOAPI:
         real_time_actual_df = self._data_list_to_df(real_time_actual_data_list)
 
         # Historical data has this as ONT, so convert for consistency
-        real_time_actual_df["adjacentBa"] = real_time_actual_df["adjacentBa"].replace(
-            "IESO",
-            "ONT",
+        real_time_actual_df = real_time_actual_df.with_columns(
+            pl.when(pl.col("adjacentBa") == "IESO")
+            .then(pl.lit("ONT"))
+            .otherwise(pl.col("adjacentBa"))
+            .alias("adjacentBa"),
         )
 
         real_time_actual_df = real_time_actual_df.pivot(
-            columns="adjacentBa",
+            on="adjacentBa",
             index=["Interval Start", "Interval End"],
             values="nai",
         )
-        real_time_actual_df.columns = real_time_actual_df.columns + " Actual"
-        real_time_actual_df = real_time_actual_df.reset_index()
+        actual_rename = {
+            col: f"{col} Actual"
+            for col in real_time_actual_df.columns
+            if col not in ["Interval Start", "Interval End"]
+        }
+        real_time_actual_df = real_time_actual_df.rename(actual_rename)
 
         real_time_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-scheduled"  # noqa
 
@@ -433,37 +435,38 @@ class MISOAPI:
         real_time_scheduled_df = self._data_list_to_df(real_time_scheduled_data_list)
 
         real_time_scheduled_df = real_time_scheduled_df.rename(
-            columns={
+            {
                 "nsiForward": "Net Scheduled Interchange Forward",
                 "nsiRealTime": "Net Scheduled Interchange Real Time",
                 "nsiDelta": "Net Scheduled Interchange Delta",
             },
         )
 
-        data = pd.merge(
-            historical_scheduled_df,
+        data = historical_scheduled_df.join(
             real_time_actual_df,
             on=["Interval Start", "Interval End"],
-            how="outer",
+            how="full",
+            coalesce=True,
         )
 
-        data = pd.merge(
-            data,
+        data = data.join(
             real_time_scheduled_df,
             on=["Interval Start", "Interval End"],
-            how="outer",
+            how="full",
+            coalesce=True,
         )
 
-        data = data[data["Interval Start"] >= date]
+        data = data.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col for col in data.columns if col not in ["Interval Start", "Interval End"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -488,8 +491,8 @@ class MISOAPI:
                 "PJM Actual",
                 "OTHER Scheduled",
                 "SPA Actual",
-            ]
-        ].reset_index(drop=True)
+            ],
+        )
 
     def _get_day_ahead_cleared_demand(
         self,
@@ -497,7 +500,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         time_resolution: str = DAILY_RESOLUTION,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/demand?timeResolution={time_resolution}"
@@ -513,7 +516,7 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "fixed": "Fixed Bids Cleared",
                 "priceSens": "Price Sensitive Bids Cleared",
@@ -521,18 +524,19 @@ class MISOAPI:
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -540,8 +544,8 @@ class MISOAPI:
                 "Fixed Bids Cleared",
                 "Price Sensitive Bids Cleared",
                 "Virtual Bids Cleared",
-            ]
-        ].reset_index(drop=True)
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_day_ahead_cleared_demand_daily(
@@ -549,7 +553,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -566,7 +570,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -583,7 +587,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         generation_type: str = "physical",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead cleared generation (physical or virtual) hourly.
 
         Args:
@@ -607,23 +611,24 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={"region": "Region", "supply": "Supply Cleared"},
+            {"region": "Region", "supply": "Supply Cleared"},
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        return data[
-            ["Interval Start", "Interval End", "Region", "Supply Cleared"]
-        ].reset_index(drop=True)
+        return data.select(
+            ["Interval Start", "Interval End", "Region", "Supply Cleared"],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_day_ahead_cleared_generation_physical_hourly(
@@ -631,7 +636,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -648,7 +653,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -665,7 +670,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -684,26 +689,27 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "nsi": "Net Scheduled Interchange",
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        return data[
-            ["Interval Start", "Interval End", "Region", "Net Scheduled Interchange"]
-        ].reset_index(drop=True)
+        return data.select(
+            ["Interval Start", "Interval End", "Region", "Net Scheduled Interchange"],
+        )
 
     def _get_day_ahead_offered_generation_hourly(
         self,
@@ -711,7 +717,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         ecotype: str = "ecomax",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get day-ahead offered generation ecomax/ecomin hourly.
 
         Args:
@@ -734,7 +740,7 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "mustRun": "Must Run",
                 "economic": "Economic",
@@ -742,18 +748,19 @@ class MISOAPI:
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -761,8 +768,8 @@ class MISOAPI:
                 "Must Run",
                 "Economic",
                 "Emergency",
-            ]
-        ].reset_index(drop=True)
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_day_ahead_offered_generation_ecomax_hourly(
@@ -770,7 +777,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -787,7 +794,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -804,7 +811,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/day-ahead/{date_str}/generation/fuel-type"
@@ -820,14 +827,13 @@ class MISOAPI:
         )
 
         if "interval" in df.columns:
-            df = df.drop(columns=["interval"])
+            df = df.drop("interval")
 
         # Expand the 'fuelTypes' dictionary column into separate columns
-        fuel_types_df = df["fuelTypes"].apply(pd.Series)
-        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+        df = df.unnest("fuelTypes")
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "totalMw": "Total",
                 "coal": "Coal",
@@ -841,19 +847,20 @@ class MISOAPI:
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
         data = self._append_miso_generation_fuel_type_aggregate(
-            data[
+            data.select(
                 [
                     "Interval Start",
                     "Interval End",
@@ -867,8 +874,8 @@ class MISOAPI:
                     "Solar",
                     "Other",
                     "Storage",
-                ]
-            ],
+                ],
+            ),
         )
 
         return data
@@ -879,7 +886,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/fuel-type"
@@ -895,13 +902,12 @@ class MISOAPI:
         )
 
         if "interval" in df.columns:
-            df = df.drop(columns=["interval"])
+            df = df.drop("interval")
 
-        fuel_types_df = df["fuelTypes"].apply(pd.Series)
-        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+        df = df.unnest("fuelTypes")
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "totalMw": "Total",
                 "coal": "Coal",
@@ -915,19 +921,20 @@ class MISOAPI:
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
         data = self._append_miso_generation_fuel_type_aggregate(
-            data[
+            data.select(
                 [
                     "Interval Start",
                     "Interval End",
@@ -941,8 +948,8 @@ class MISOAPI:
                     "Solar",
                     "Other",
                     "Storage",
-                ]
-            ],
+                ],
+            ),
         )
 
         return data
@@ -953,7 +960,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         time_resolution: str = DAILY_RESOLUTION,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/demand/forecast?timeResolution={time_resolution}"
@@ -968,28 +975,27 @@ class MISOAPI:
             data_list,
         )
 
-        df = df.rename(
-            columns={"demand": "Cleared Demand"},
-        )
+        df = df.rename({"demand": "Cleared Demand"})
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Cleared Demand",
-            ]
-        ].reset_index(drop=True)
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_real_time_cleared_demand_daily(
@@ -997,7 +1003,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -1014,7 +1020,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.today(tz=self.default_timezone).floor(
                 "d",
@@ -1033,7 +1039,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         time_resolution: str = HOURLY_RESOLUTION,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         date_str = date.strftime("%Y-%m-%d")
         url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/generation/cleared/supply?timeResolution={time_resolution}"
 
@@ -1047,26 +1053,21 @@ class MISOAPI:
             data_list,
         )
 
-        df = df.rename(
-            columns={"generation": "Generation Cleared"},
-        )
+        df = df.rename({"generation": "Generation Cleared"})
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col for col in data.columns if col not in ["Interval Start", "Interval End"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        data = data.sort_values(["Interval Start", "Interval End"])
-
-        return data[
-            ["Interval Start", "Interval End", "Generation Cleared"]
-        ].reset_index(drop=True)
+        return data.select(
+            ["Interval Start", "Interval End", "Generation Cleared"],
+        ).sort(["Interval Start", "Interval End"])
 
     @support_date_range(frequency="DAY_START")
     def get_real_time_cleared_generation_hourly(
@@ -1074,7 +1075,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         NOTE: This function is not ready for use yet. MISO Real-Time Cleared Generation API returns wrong timestamp.
         The timestamps are off by 5 hours, seems to be a timezone issue, UTC instead of EST.
@@ -1100,7 +1101,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -1119,35 +1120,32 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={
+            {
                 "offerForwardEcoMax": "Offered FRAC Economic Max",
                 "offerRealTimeEcoMax": "Offered Real Time Economic Max",
                 "offerEcoMaxDelta": "Offered Economic Max Delta",
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col for col in data.columns if col not in ["Interval Start", "Interval End"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        data = data.sort_values(["Interval Start", "Interval End"])
-
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Offered FRAC Economic Max",
                 "Offered Real Time Economic Max",
                 "Offered Economic Max Delta",
-            ]
-        ].reset_index(drop=True)
+            ],
+        ).sort(["Interval Start", "Interval End"])
 
     @support_date_range(frequency="DAY_START")
     def get_real_time_committed_generation_ecomax_hourly(
@@ -1155,7 +1153,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -1174,35 +1172,32 @@ class MISOAPI:
         )
 
         df = df.rename(
-            columns={
+            {
                 "committedForwardEcoMax": "Committed FRAC Economic Max",
                 "committedRealTimeEcoMax": "Committed Real Time Economic Max",
                 "committedEcoMaxDelta": "Committed Economic Max Delta",
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col for col in data.columns if col not in ["Interval Start", "Interval End"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        data = data.sort_values(["Interval Start", "Interval End"])
-
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
                 "Committed FRAC Economic Max",
                 "Committed Real Time Economic Max",
                 "Committed Economic Max Delta",
-            ]
-        ].reset_index(drop=True)
+            ],
+        ).sort(["Interval Start", "Interval End"])
 
     @support_date_range(frequency="DAY_START")
     def get_real_time_generation_fuel_type_hourly(
@@ -1210,7 +1205,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d")
 
@@ -1229,14 +1224,13 @@ class MISOAPI:
         )
 
         if "interval" in df.columns:
-            df = df.drop(columns=["interval"])
+            df = df.drop("interval")
 
         # Expand the 'fuelTypes' dictionary column into separate columns
-        fuel_types_df = df["fuelTypes"].apply(pd.Series)
-        df = pd.concat([df.drop(columns=["fuelTypes"]), fuel_types_df], axis=1)
+        df = df.unnest("fuelTypes")
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "totalMw": "Total",
                 "coal": "Coal",
@@ -1250,19 +1244,20 @@ class MISOAPI:
             },
         )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", "Region"]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", "Region"]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
         data = self._append_miso_generation_fuel_type_aggregate(
-            data[
+            data.select(
                 [
                     "Interval Start",
                     "Interval End",
@@ -1276,16 +1271,16 @@ class MISOAPI:
                     "Solar",
                     "Other",
                     "Storage",
-                ]
-            ],
+                ],
+            ),
         )
 
         return data
 
     def _append_miso_generation_fuel_type_aggregate(
         self,
-        data: pd.DataFrame,
-    ) -> pd.DataFrame:
+        data: pl.DataFrame,
+    ) -> pl.DataFrame:
         """Append a MISO system total region by summing the CENTRAL, NORTH, and SOUTH
         regions for each interval. The API only returns the three sub-regions, so the
         system-wide total is derived to match the retired Market Reports Generation
@@ -1302,16 +1297,14 @@ class MISOAPI:
             "Storage",
         ]
 
-        miso = data.groupby(["Interval Start", "Interval End"], as_index=False)[
-            value_columns
-        ].sum()
-        miso["Region"] = "MISO"
-
-        combined = pd.concat([data, miso], ignore_index=True)
-
-        return combined.sort_values(["Interval Start", "Region"]).reset_index(
-            drop=True,
+        miso = data.group_by(["Interval Start", "Interval End"]).agg(
+            [pl.col(col).sum() for col in value_columns],
         )
+        miso = miso.with_columns(pl.lit("MISO").alias("Region"))
+
+        combined = pl.concat([data, miso], how="vertical_relaxed")
+
+        return combined.sort(["Interval Start", "Region"])
 
     def _get_actual_load(
         self,
@@ -1320,7 +1313,7 @@ class MISOAPI:
         verbose: bool = False,
         time_resolution: str = HOURLY_RESOLUTION,
         geo_resolution: Literal["region", "localResourceZone"] = "region",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if date == "latest":
             date = pd.Timestamp.now(tz=self.default_timezone).floor("d") - pd.Timedelta(
                 days=1,
@@ -1341,33 +1334,34 @@ class MISOAPI:
         )
 
         if "interval" in df.columns:
-            df = df.drop(columns=["interval"])
+            df = df.drop("interval")
 
         if geo_resolution == "region":
-            df["region"] = df["region"].str.upper()
             subseries_index = "Region"
-            df = df.rename(columns={"region": subseries_index, "load": "Load"})
+            df = df.with_columns(pl.col("region").str.to_uppercase()).rename(
+                {"region": subseries_index, "load": "Load"},
+            )
         elif geo_resolution == "localResourceZone":
             subseries_index = "Local Resource Zone"
             df = df.rename(
-                columns={"localResourceZone": subseries_index, "load": "Load"},
+                {"localResourceZone": subseries_index, "load": "Load"},
             )
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in ["Interval Start", "Interval End", subseries_index]:
-                data[col] = data[col].astype(float)
+        float_cols = [
+            col
+            for col in data.columns
+            if col not in ["Interval Start", "Interval End", subseries_index]
+        ]
+        data = data.with_columns([pl.col(col).cast(pl.Float64) for col in float_cols])
 
-        data = data.sort_values(["Interval Start", subseries_index])
-        return data[
-            ["Interval Start", "Interval End", subseries_index, "Load"]
-        ].reset_index(drop=True)
+        return data.select(
+            ["Interval Start", "Interval End", subseries_index, "Load"],
+        ).sort(["Interval Start", subseries_index])
 
     @support_date_range(frequency="DAY_START")
     def get_actual_load_hourly(
@@ -1376,7 +1370,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         geo_resolution: Literal["region", "localResourceZone"] = "region",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_actual_load(
             date,
             end=end,
@@ -1391,7 +1385,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get actual load by local resource zone in hourly intervals,
         pivoted with zones as columns.
@@ -1407,21 +1401,40 @@ class MISOAPI:
         )
 
         # Replace underscores with spaces in zone names
-        df["Local Resource Zone"] = df["Local Resource Zone"].str.replace("_", " ")
-
-        # Pivot to get zones as columns
-        df = df.pivot_table(
-            index=["Interval Start", "Interval End"],
-            columns="Local Resource Zone",
-            values="Load",
-        ).reset_index()
-
-        # Add MISO total
-        df["MISO"] = df[["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"]].sum(
-            axis=1,
+        df = df.with_columns(
+            pl.col("Local Resource Zone").str.replace("_", " "),
         )
 
-        return df
+        # Pivot to get zones as columns
+        df = df.pivot(
+            on="Local Resource Zone",
+            index=["Interval Start", "Interval End"],
+            values="Load",
+        )
+
+        if "LRZ8 9_10" in df.columns:
+            df = df.rename({"LRZ8 9_10": "LRZ8 9 10"})
+
+        # Add MISO total
+        df = df.with_columns(
+            pl.sum_horizontal(
+                ["LRZ1", "LRZ2 7", "LRZ3 5", "LRZ4", "LRZ6", "LRZ8 9 10"],
+            ).alias("MISO"),
+        )
+
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "LRZ1",
+                "LRZ2 7",
+                "LRZ3 5",
+                "LRZ4",
+                "LRZ6",
+                "LRZ8 9 10",
+                "MISO",
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_actual_load_daily(
@@ -1430,7 +1443,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         geo_resolution: Literal["region", "localResourceZone"] = "region",
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_actual_load(
             date,
             end=end,
@@ -1446,7 +1459,7 @@ class MISOAPI:
         verbose: bool = False,
         publish_time: str | pd.Timestamp | None = None,
         time_resolution: str = HOURLY_RESOLUTION,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get load forecast data.
 
         Args:
@@ -1489,10 +1502,10 @@ class MISOAPI:
         )
 
         if "interval" in df.columns:
-            df = df.drop(columns=["interval"])
+            df = df.drop("interval")
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "localResourceZone": "Local Resource Zone",
                 "loadForecast": "Load Forecast",
@@ -1504,34 +1517,41 @@ class MISOAPI:
             pd.Timestamp.now(tz=self.default_timezone).normalize()
             - pd.DateOffset(days=1),
         )
-        df["Publish Time"] = (
+        publish_time_value = (
             publish_time.normalize() if publish_time is not None else miso_publish_time
         )
+        df = df.with_columns(pl.lit(publish_time_value).alias("Publish Time"))
 
-        data = df.reset_index()
-
-        data = data[data["Interval Start"] >= date]
+        data = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            data = data[data["Interval End"] <= end]
+            data = data.filter(pl.col("Interval End") <= pl.lit(end))
 
-        for col in data.columns:
-            if col not in [
+        int_cols = [
+            col
+            for col in data.columns
+            if col
+            not in [
                 "Interval Start",
                 "Interval End",
                 "Publish Time",
                 "Region",
                 "Local Resource Zone",
                 "init",
-            ]:
-                data[col] = (
-                    pd.to_numeric(data[col], errors="coerce").round().astype("Int64")
-                )
-
-        data = data.sort_values(
-            ["Interval Start", "Publish Time", "Region", "Local Resource Zone"],
+            ]
+        ]
+        data = data.with_columns(
+            [
+                pl.col(col)
+                .cast(pl.Float64, strict=False)
+                .round(0)
+                .cast(pl.Int64)
+                .alias(col)
+                for col in int_cols
+            ],
         )
-        return data[
+
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1539,8 +1559,8 @@ class MISOAPI:
                 "Region",
                 "Local Resource Zone",
                 "Load Forecast",
-            ]
-        ].reset_index(drop=True)
+            ],
+        ).sort(["Interval Start", "Publish Time", "Region", "Local Resource Zone"])
 
     @support_date_range(frequency="DAY_START")
     def get_load_forecast_mid_term_by_region(
@@ -1549,7 +1569,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         max_offset: int = 7,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get hourly mid-term load forecast by region and LRZ for a publish date.
 
         The ``date`` parameter is the forecast run publish date (``init`` date), not
@@ -1562,7 +1582,7 @@ class MISOAPI:
                 first forecast day.
         """
         publish_time = utils._handle_date(date, self.default_timezone).normalize()
-        all_dfs: list[pd.DataFrame] = []
+        all_dfs: list[pl.DataFrame] = []
 
         for offset in range(1, max_offset + 1):
             forecast_date = publish_time + pd.DateOffset(days=offset)
@@ -1572,25 +1592,25 @@ class MISOAPI:
                 publish_time=publish_time,
                 time_resolution=HOURLY_RESOLUTION,
             )
-            if not df.empty:
+            if not df.is_empty():
                 all_dfs.append(df)
 
         if not all_dfs:
-            return pd.DataFrame(
-                columns=[
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Region",
-                    "LRZ",
-                    "Load Forecast",
-                ],
+            return pl.DataFrame(
+                schema={
+                    "Interval Start": pl.Datetime(time_unit="ns", time_zone="EST"),
+                    "Interval End": pl.Datetime(time_unit="ns", time_zone="EST"),
+                    "Publish Time": pl.Datetime(time_unit="ns", time_zone="EST"),
+                    "Region": pl.Utf8,
+                    "LRZ": pl.Utf8,
+                    "Load Forecast": pl.Int64,
+                },
             )
 
-        data = pd.concat(all_dfs, ignore_index=True)
-        data = data.rename(columns={"Local Resource Zone": "LRZ"})
+        data = pl.concat(all_dfs)
+        data = data.rename({"Local Resource Zone": "LRZ"})
 
-        return data[
+        return data.select(
             [
                 "Interval Start",
                 "Interval End",
@@ -1598,8 +1618,8 @@ class MISOAPI:
                 "Region",
                 "LRZ",
                 "Load Forecast",
-            ]
-        ].reset_index(drop=True)
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_medium_term_load_forecast_hourly_aggregated(
@@ -1608,7 +1628,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         publish_time: str | pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get medium term load forecast aggregated from individual zones (Z1-Z10)
         to LRZ aggregates and pivoted with zones as columns.
@@ -1638,33 +1658,33 @@ class MISOAPI:
             "Z9": "LRZ8_9_10 MTLF",
             "Z10": "LRZ8_9_10 MTLF",
         }
-        df["LRZ"] = df["Local Resource Zone"].map(zone_map)
+        df = df.with_columns(
+            pl.col("Local Resource Zone").replace(zone_map).alias("LRZ"),
+        )
 
         # Aggregate and pivot to match expected format
-        df_agg = (
-            df.groupby(["Interval Start", "Interval End", "Publish Time", "LRZ"])[
-                "Load Forecast"
-            ]
-            .sum()
-            .reset_index()
-        )
-        df = df_agg.pivot_table(
+        df_agg = df.group_by(
+            ["Interval Start", "Interval End", "Publish Time", "LRZ"],
+        ).agg(pl.col("Load Forecast").sum())
+        df = df_agg.pivot(
+            on="LRZ",
             index=["Interval Start", "Interval End", "Publish Time"],
-            columns="LRZ",
             values="Load Forecast",
-        ).reset_index()
+        )
 
         # Add MISO total
-        df["MISO MTLF"] = df[
-            [
-                "LRZ1 MTLF",
-                "LRZ2_7 MTLF",
-                "LRZ3_5 MTLF",
-                "LRZ4 MTLF",
-                "LRZ6 MTLF",
-                "LRZ8_9_10 MTLF",
-            ]
-        ].sum(axis=1)
+        df = df.with_columns(
+            pl.sum_horizontal(
+                [
+                    "LRZ1 MTLF",
+                    "LRZ2_7 MTLF",
+                    "LRZ3_5 MTLF",
+                    "LRZ4 MTLF",
+                    "LRZ6 MTLF",
+                    "LRZ8_9_10 MTLF",
+                ],
+            ).alias("MISO MTLF"),
+        )
 
         mtlf_cols = [
             "LRZ1 MTLF",
@@ -1675,10 +1695,25 @@ class MISOAPI:
             "LRZ8_9_10 MTLF",
             "MISO MTLF",
         ]
-        for col in mtlf_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce").round().astype("Int64")
+        df = df.with_columns(
+            [
+                pl.col(col)
+                .cast(pl.Float64, strict=False)
+                .round(0)
+                .cast(pl.Int64)
+                .alias(col)
+                for col in mtlf_cols
+            ],
+        )
 
-        return df
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                *mtlf_cols,
+            ],
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_medium_term_load_forecast_daily(
@@ -1687,7 +1722,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         publish_time: str | pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_medium_term_load_forecast(
             date,
             end=end,
@@ -1702,7 +1737,7 @@ class MISOAPI:
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get hourly outage forecast. The API only returns hourly data for today and
         future days. Historical outage forecast data is not supported.
@@ -1734,31 +1769,27 @@ class MISOAPI:
         df = self._data_list_to_df(data_list)
 
         df = df.rename(
-            columns={
+            {
                 "region": "Region",
                 "onOutage": "Outage Forecast",
             },
         )
 
-        df = df[df["Interval Start"] >= date]
+        df = df.filter(pl.col("Interval Start") >= pl.lit(date))
 
         if end is not None:
-            df = df[df["Interval End"] <= end]
+            df = df.filter(pl.col("Interval End") <= pl.lit(end))
 
-        df["Outage Forecast"] = df["Outage Forecast"].astype(float)
+        df = df.with_columns(pl.col("Outage Forecast").cast(pl.Float64))
 
-        return (
-            df[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Region",
-                    "Outage Forecast",
-                ]
-            ]
-            .sort_values(by=["Interval Start", "Region"])
-            .reset_index(drop=True)
-        )
+        return df.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Outage Forecast",
+            ],
+        ).sort(["Interval Start", "Region"])
 
     @support_date_range(frequency="DAY_START")
     def get_look_ahead_hourly(
@@ -1767,7 +1798,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         publish_time: str | pd.Timestamp | None = None,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Get look-ahead hourly data combining medium-term load forecast and outage forecast.
         Look-ahead data is only available for future dates (today and beyond).
@@ -1806,45 +1837,37 @@ class MISOAPI:
         )
 
         # Aggregate load forecast by Region (sum across Local Resource Zones)
-        load_agg = (
-            load_forecast.groupby(
-                ["Interval Start", "Interval End", "Publish Time", "Region"],
-            )["Load Forecast"]
-            .sum()
-            .reset_index()
-        )
+        load_agg = load_forecast.group_by(
+            ["Interval Start", "Interval End", "Publish Time", "Region"],
+        ).agg(pl.col("Load Forecast").sum())
 
         # Merge the two datasets
-        merged = pd.merge(
-            load_agg,
+        merged = load_agg.join(
             outage_forecast,
             on=["Interval Start", "Interval End", "Region"],
-            how="outer",
+            how="full",
+            coalesce=True,
         )
 
         # Rename columns to match MISO().get_look_ahead_hourly() output
         merged = merged.rename(
-            columns={
+            {
                 "Load Forecast": "MTLF",
                 "Outage Forecast": "Outage",
             },
         )
 
         # Sort and return
-        return (
-            merged[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Publish Time",
-                    "Region",
-                    "MTLF",
-                    "Outage",
-                ]
-            ]
-            .sort_values(["Interval Start", "Region"])
-            .reset_index(drop=True)
-        )
+        return merged.select(
+            [
+                "Interval Start",
+                "Interval End",
+                "Publish Time",
+                "Region",
+                "MTLF",
+                "Outage",
+            ],
+        ).sort(["Interval Start", "Region"])
 
     def _get_url(
         self,
@@ -1961,30 +1984,30 @@ class MISOAPI:
         # If we've exhausted all retries, raise the last exception
         raise last_exception  # type: ignore[misc]
 
-    def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
-        df = pd.DataFrame(data_list)
+    def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pl.DataFrame:
+        df = pl.DataFrame(data_list)
 
         if "timeInterval" not in df.columns and "interval" in df.columns:
-            df["timeInterval"] = df["interval"]
-            df = df.drop(columns=["interval"])
+            df = df.with_columns(pl.col("interval").alias("timeInterval")).drop(
+                "interval",
+            )
 
         # Split timeInterval dict into separate columns for 'start' and 'end'
-        df = pd.concat(
-            [
-                df["timeInterval"].apply(pd.Series)[["start", "end"]],
-                df.drop(columns=["timeInterval"]),
-            ],
-            axis=1,
+        df = df.with_columns(
+            pl.col("timeInterval").struct.field("start").alias("start"),
+            pl.col("timeInterval").struct.field("end").alias("end"),
+        ).drop("timeInterval")
+
+        df = df.with_columns(
+            pl.col("start")
+            .str.to_datetime(time_zone=self.default_timezone)
+            .alias("Interval Start"),
+            pl.col("end")
+            .str.to_datetime(time_zone=self.default_timezone)
+            .alias("Interval End"),
         )
 
-        df["Interval Start"] = pd.to_datetime(df["start"]).dt.tz_localize(
-            self.default_timezone,
-        )
-        df["Interval End"] = pd.to_datetime(df["end"]).dt.tz_localize(
-            self.default_timezone,
-        )
-
-        return df.drop(columns=["start", "end"]).reset_index(drop=True)
+        return df.drop("start", "end")
 
     def _get_next_key(self, product: str) -> str:
         """Get the next API key in the rotation."""
@@ -2028,7 +2051,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2045,7 +2068,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2062,7 +2085,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2078,7 +2101,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2095,7 +2118,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2112,7 +2135,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2129,7 +2152,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
         use_daily_requests: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         return self._get_mcp_data(
             date,
             end,
@@ -2149,7 +2172,7 @@ class MISOAPI:
         use_daily_requests: bool = False,
         verbose: bool = False,
         **kwargs: Any,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         if use_daily_requests:
             if daily_retrieval_func is None:
                 raise ValueError(
@@ -2310,28 +2333,22 @@ class MISOAPI:
     def _process_as_mcp_data(
         self,
         data_list: List[Dict[str, Any]],
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         df = self._data_list_to_df(data_list)
 
         df = df.rename(
-            columns={
+            {
                 "zone": "Zone",
                 "product": "Product",
                 "mcp": "MCP",
             },
         )
 
-        df_pivot = (
-            df.pivot(
-                index=["Interval Start", "Interval End", "Zone"],
-                columns="Product",
-                values="MCP",
-            )
-            .reset_index()
-            .rename(columns={"Ramp-up": "Ramp Up", "Ramp-down": "Ramp Down"})
-        )
-
-        df_pivot.columns.name = None
+        df_pivot = df.pivot(
+            on="Product",
+            index=["Interval Start", "Interval End", "Zone"],
+            values="MCP",
+        ).rename({"Ramp-up": "Ramp Up", "Ramp-down": "Ramp Down"})
 
         return df_pivot
 
@@ -2368,7 +2385,7 @@ class MISOAPI:
         date: str | pd.Timestamp | None = "latest",
         end: pd.Timestamp | None = None,
         verbose: bool = False,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Retrieve MISO pricing nodes for a specific date or date range.
 
         MISO pricing nodes change quarterly on March 1st, June 1st, September 1st,
@@ -2401,9 +2418,9 @@ class MISOAPI:
                 verbose=verbose,
             )
 
-            df = pd.DataFrame(data_list)
+            df = pl.DataFrame(data_list)
 
-            df = df.rename(columns={"node": "Node", "nodeType": "Location Type"})
+            df = df.rename({"node": "Node", "nodeType": "Location Type"})
 
             return df
 
@@ -2427,16 +2444,10 @@ class MISOAPI:
                     verbose=verbose,
                 )
 
-                df = pd.DataFrame(data_list)
+                df = pl.DataFrame(data_list)
 
-                df = df.rename(columns={"node": "Node", "nodeType": "Location Type"})
+                df = df.rename({"node": "Node", "nodeType": "Location Type"})
 
                 dfs.append(df)
 
-            df = (
-                pd.concat(dfs, ignore_index=True)
-                .drop_duplicates()
-                .reset_index(drop=True)
-            )
-
-            return df
+            return pl.concat(dfs).unique()

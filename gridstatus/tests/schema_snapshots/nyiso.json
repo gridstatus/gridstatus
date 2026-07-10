@@ -1,0 +1,170 @@
+{
+  "iso": "NYISO",
+  "fixed_date": "2026-06-15",
+  "methods": {
+    "get_as_prices_day_ahead_hourly": {
+      "columns": [
+        "Interval Start",
+        "Interval End",
+        "Zone",
+        "10 Min Spin Reserves",
+        "10 Min Non-Spin Reserves",
+        "30 Min Reserves",
+        "Regulation Capacity"
+      ],
+      "dtypes": {
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Zone": "string",
+        "10 Min Spin Reserves": "float",
+        "10 Min Non-Spin Reserves": "float",
+        "30 Min Reserves": "float",
+        "Regulation Capacity": "float"
+      },
+      "row_count": 264,
+      "frame_type": "polars"
+    },
+    "get_btm_solar": {
+      "columns": [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "SYSTEM",
+        "CAPITL",
+        "CENTRL",
+        "DUNWOD",
+        "GENESE",
+        "HUD VL",
+        "LONGIL",
+        "MHK VL",
+        "MILLWD",
+        "N.Y.C.",
+        "NORTH",
+        "WEST"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "SYSTEM": "float",
+        "CAPITL": "float",
+        "CENTRL": "float",
+        "DUNWOD": "float",
+        "GENESE": "float",
+        "HUD VL": "float",
+        "LONGIL": "float",
+        "MHK VL": "float",
+        "MILLWD": "float",
+        "N.Y.C.": "float",
+        "NORTH": "float",
+        "WEST": "float"
+      },
+      "row_count": 24,
+      "frame_type": "polars"
+    },
+    "get_fuel_mix": {
+      "columns": [
+        "Time",
+        "Dual Fuel",
+        "Hydro",
+        "Natural Gas",
+        "Nuclear",
+        "Other Fossil Fuels",
+        "Other Renewables",
+        "Wind"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Dual Fuel": "float",
+        "Hydro": "float",
+        "Natural Gas": "float",
+        "Nuclear": "float",
+        "Other Fossil Fuels": "float",
+        "Other Renewables": "float",
+        "Wind": "float"
+      },
+      "row_count": 288,
+      "frame_type": "polars"
+    },
+    "get_lmp": {
+      "columns": [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Market",
+        "Location",
+        "Location Type",
+        "LMP",
+        "Energy",
+        "Congestion",
+        "Loss"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Market": "string",
+        "Location": "string",
+        "Location Type": "string",
+        "LMP": "float",
+        "Energy": "float",
+        "Congestion": "float",
+        "Loss": "float"
+      },
+      "row_count": 360,
+      "frame_type": "polars"
+    },
+    "get_load": {
+      "columns": [
+        "Time",
+        "Load",
+        "CAPITL",
+        "CENTRL",
+        "DUNWOD",
+        "GENESE",
+        "HUD VL",
+        "LONGIL",
+        "MHK VL",
+        "MILLWD",
+        "N.Y.C.",
+        "NORTH",
+        "WEST"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Load": "float",
+        "CAPITL": "float",
+        "CENTRL": "float",
+        "DUNWOD": "float",
+        "GENESE": "float",
+        "HUD VL": "float",
+        "LONGIL": "float",
+        "MHK VL": "float",
+        "MILLWD": "float",
+        "N.Y.C.": "float",
+        "NORTH": "float",
+        "WEST": "float"
+      },
+      "row_count": 288,
+      "frame_type": "polars"
+    },
+    "get_load_forecast": {
+      "columns": [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Forecast Time",
+        "Load Forecast"
+      ],
+      "dtypes": {
+        "Time": "datetime[US/Eastern]",
+        "Interval Start": "datetime[US/Eastern]",
+        "Interval End": "datetime[US/Eastern]",
+        "Forecast Time": "datetime[US/Eastern]",
+        "Load Forecast": "int"
+      },
+      "row_count": 144,
+      "frame_type": "polars"
+    }
+  }
+}
