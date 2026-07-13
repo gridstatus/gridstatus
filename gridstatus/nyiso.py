@@ -48,9 +48,6 @@ AS_PRICES_DAY_AHEAD_HOURLY_DATASET = "damasp"
 AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
 LIMITING_CONSTRAINTS_REAL_TIME_DATASET = "LimitingConstraints"
 LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET = "DAMLimitingConstraints"
-# ACE is published as monthly archives only. Unlike other NYISO datasets, the
-# zips live directly under /public (not /public/csv) and hold a single monthly
-# CSV named ace-<YYYYMM01>.csv. See https://mis.nyiso.com/public/P-38list.htm
 AREA_CONTROL_ERROR_DATASET = "ace_data"
 
 """
@@ -1755,9 +1752,8 @@ class NYISO(ISOBase):
         """Retrieves the NYISO-wide area control error (ACE) in ~6 second
         intervals.
 
-        Data is published as monthly archives only, added after each month
-        completes, so the most recent month is not available until the
-        following month. Source: https://mis.nyiso.com/public/P-38list.htm
+        Data is published as monthly archives, added after each month
+        completes. Source: https://mis.nyiso.com/public/P-38list.htm
 
         Arguments:
             date (str or pandas.Timestamp): Start datetime for data. If ``end``
@@ -1782,9 +1778,6 @@ class NYISO(ISOBase):
         end: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        # The @support_date_range(frequency="MONTH_START") decorator splits any
-        # request into per-month calls, so each invocation here covers a single
-        # monthly zip. The archive lives under /public (not /public/csv) and the
         # zip/csv are named ace-<YYYYMM01> rather than the usual <YYYYMMDD>.
         date = gridstatus.utils._handle_date(date, self.default_timezone)
         month = date.strftime("%Y%m01")
@@ -1807,8 +1800,6 @@ class NYISO(ISOBase):
     ) -> pd.DataFrame:
         df = df.rename(columns={"value": "Area Control Error"})
 
-        # The time column carries an EDT/EST suffix. Use it to resolve the
-        # fall-back DST ambiguity, then drop it before localizing.
         parsed = df["time"].str.rsplit(" ", n=1, expand=True)
         is_dst = parsed[1] == "EDT"
         df["Time"] = pd.to_datetime(parsed[0]).dt.tz_localize(
@@ -1818,8 +1809,7 @@ class NYISO(ISOBase):
 
         df = df[["Time", "Area Control Error"]].sort_values("Time")
 
-        # A monthly zip holds the whole month; trim to the requested window. The
-        # decorator passes end exclusive, matching other NYISO datasets.
+        # trim to the requested window
         if end is not None:
             df = df[(df["Time"] >= date) & (df["Time"] < end)]
         else:
