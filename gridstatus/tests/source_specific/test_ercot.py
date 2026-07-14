@@ -2231,6 +2231,40 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_float_dtype(df["MCPC Original"])
         assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
 
+    @pytest.mark.integration
+    def test_get_mcpc_sced_price_corrections(self):
+        """Test SCED AS Price Corrections (MCPC)."""
+        df = self.iso.get_mcpc_sced_price_corrections()
+
+        cols = [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC Original",
+            "MCPC Corrected",
+        ]
+
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["SCED Timestamp"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_object_dtype(df["AS Type"])
+        assert pd.api.types.is_float_dtype(df["MCPC Original"])
+        assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+
+        assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=5)
+        ).all()
+        assert not df.duplicated(
+            subset=["SCED Timestamp", "AS Type", "Price Correction Time"],
+        ).any()
+
     """get_system_wide_actuals"""
 
     @pytest.mark.integration

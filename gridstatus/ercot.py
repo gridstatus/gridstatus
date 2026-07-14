@@ -5630,6 +5630,37 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_mcpc_sced_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get Market Clearing Price for Capacity (MCPC) corrections for SCED.
+
+        MCPC (Market Clearing Price for Capacity) corrections contain
+        ancillary service prices at the system level for each SCED run.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - SCED Timestamp
+                - Interval Start
+                - Interval End
+                - AS Type
+                - MCPC Original
+                - MCPC Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_MCPC_SCED",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_mcpc_sced_price_corrections(docs, verbose=verbose)
+
+        return df
+
     def _handle_price_corrections(
         self,
         docs: list[Document],
@@ -5700,6 +5731,52 @@ class Ercot(ISOBase):
         df = df[
             [
                 "Price Correction Time",
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "MCPC Original",
+                "MCPC Corrected",
+            ]
+        ]
+
+        return df
+
+    def _handle_mcpc_sced_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle MCPC (Market Clearing Price for Capacity) SCED price corrections.
+
+        SCED MCPC corrections are keyed by the SCED run timestamp rather than
+        delivery intervals, so the files cannot go through parse_doc(). The
+        Interval Start/End columns are derived by flooring the SCED Timestamp
+        to five minutes and are approximations, not exact.
+        """
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
+        df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        # Rename columns to match gridstatus conventions
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "MCPCOriginal": "MCPC Original",
+                "MCPCCorrected": "MCPC Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        # Parse Price Correction Time
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        # Select and order final columns
+        df = df[
+            [
+                "Price Correction Time",
+                "SCED Timestamp",
                 "Interval Start",
                 "Interval End",
                 "AS Type",
