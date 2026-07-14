@@ -2170,9 +2170,12 @@ class TestErcot(BaseTestISO):
 
     """get_price_corrections"""
 
-    @pytest.mark.integration
     def test_get_rtm_price_corrections(self):
-        df = self.iso.get_rtm_price_corrections(rtm_type="RTM_SPP")
+        with api_vcr.use_cassette("test_get_rtm_price_corrections.yaml"):
+            try:
+                df = self.iso.get_rtm_price_corrections(rtm_type="RTM_SPP")
+            except NoDataFoundException:
+                pytest.skip("No RTM_SPP price correction files currently listed")
 
         cols = [
             "Price Correction Time",
@@ -2184,15 +2187,15 @@ class TestErcot(BaseTestISO):
             "SPP Corrected",
         ]
 
-        assert df.shape[0] >= 0
+        assert df.shape[0] > 0
         assert df.columns.tolist() == cols
 
-    # TODO: this url has no DocumentList
-    # https://www.ercot.com/misapp/servlets/IceDocListJsonWS?reportTypeId=13044
-    @pytest.mark.skip(reason="Failing")
-    @pytest.mark.integration
     def test_get_dam_price_corrections(self):
-        df = self.iso.get_dam_price_corrections(dam_type="DAM_SPP")
+        with api_vcr.use_cassette("test_get_dam_price_corrections.yaml"):
+            try:
+                df = self.iso.get_dam_price_corrections(dam_type="DAM_SPP")
+            except NoDataFoundException:
+                pytest.skip("No DAM_SPP price correction files currently listed")
 
         cols = [
             "Price Correction Time",
@@ -2204,13 +2207,16 @@ class TestErcot(BaseTestISO):
             "SPP Corrected",
         ]
 
-        assert df.shape[0] >= 0
+        assert df.shape[0] > 0
         assert df.columns.tolist() == cols
 
-    @pytest.mark.integration
     def test_get_mcpc_dam_price_corrections(self):
         """Test DAM AS Price Corrections (MCPC)."""
-        df = self.iso.get_mcpc_dam_price_corrections()
+        with api_vcr.use_cassette("test_get_mcpc_dam_price_corrections.yaml"):
+            try:
+                df = self.iso.get_mcpc_dam_price_corrections()
+            except NoDataFoundException:
+                pytest.skip("No DAM_MCPC price correction files currently listed")
 
         cols = [
             "Price Correction Time",
@@ -2221,7 +2227,7 @@ class TestErcot(BaseTestISO):
             "MCPC Corrected",
         ]
 
-        assert df.shape[0] >= 0
+        assert df.shape[0] > 0
         assert df.columns.tolist() == cols
 
         assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
@@ -2230,6 +2236,40 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_object_dtype(df["AS Type"])
         assert pd.api.types.is_float_dtype(df["MCPC Original"])
         assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+
+    def test_get_mcpc_sced_price_corrections(self):
+        """Test SCED AS Price Corrections (MCPC)."""
+        with api_vcr.use_cassette("test_get_mcpc_sced_price_corrections.yaml"):
+            df = self.iso.get_mcpc_sced_price_corrections()
+
+        cols = [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC Original",
+            "MCPC Corrected",
+        ]
+
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["SCED Timestamp"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_object_dtype(df["AS Type"])
+        assert pd.api.types.is_float_dtype(df["MCPC Original"])
+        assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+
+        assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=5)
+        ).all()
+        assert not df.duplicated(
+            subset=["SCED Timestamp", "AS Type", "Price Correction Time"],
+        ).any()
 
     """get_system_wide_actuals"""
 
