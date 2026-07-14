@@ -2231,10 +2231,10 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_float_dtype(df["MCPC Original"])
         assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
 
-    @pytest.mark.integration
     def test_get_mcpc_sced_price_corrections(self):
         """Test SCED AS Price Corrections (MCPC)."""
-        df = self.iso.get_mcpc_sced_price_corrections()
+        with api_vcr.use_cassette("test_get_mcpc_sced_price_corrections.yaml"):
+            df = self.iso.get_mcpc_sced_price_corrections()
 
         cols = [
             "Price Correction Time",
