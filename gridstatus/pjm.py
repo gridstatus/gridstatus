@@ -3881,7 +3881,6 @@ class PJM(ISOBase):
                     {
                         "Message ID": int(mid.strip()),
                         "Message Type": msg.findtext("messageType"),
-                        "Is Drill": is_drill,
                         "Priority": msg.findtext("priority"),
                         "Emergency Message": msg.findtext("message"),
                         "Region": rn,
@@ -3891,6 +3890,7 @@ class PJM(ISOBase):
                         "Applicable End": msg.findtext("applicableEndTime"),
                         "Publish Time": msg.findtext("postedTimestamp"),
                         "Canceled Time": msg.findtext("canceledTimestamp"),
+                        "Is Drill": is_drill,
                     },
                 )
 
@@ -3902,13 +3902,13 @@ class PJM(ISOBase):
                     "Applicable End",
                     "Publish Time",
                     "Message Type",
-                    "Is Drill",
                     "Priority",
                     "Region",
                     "Effective Start",
                     "Effective End",
                     "Canceled Time",
                     "Emergency Message",
+                    "Is Drill",
                 ],
             )
 
@@ -3933,13 +3933,13 @@ class PJM(ISOBase):
                     "Applicable End",
                     "Publish Time",
                     "Message Type",
-                    "Is Drill",
                     "Priority",
                     "Region",
                     "Effective Start",
                     "Effective End",
                     "Canceled Time",
                     "Emergency Message",
+                    "Is Drill",
                 ]
             ]
             .sort_values(["Effective Start", "Message ID", "Region"])

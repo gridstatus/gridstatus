@@ -3130,13 +3130,13 @@ class TestPJM(BaseTestISO):
         "Applicable End",
         "Publish Time",
         "Message Type",
-        "Is Drill",
         "Priority",
         "Region",
         "Effective Start",
         "Effective End",
         "Canceled Time",
         "Emergency Message",
+        "Is Drill",
     ]
 
     SAMPLE_DASHBOARD_HTML = (
