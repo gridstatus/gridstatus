@@ -12,6 +12,9 @@
 #### EIA
 * EIA Facility Fuel (EIA-923) dataset in [#912](https://github.com/gridstatus/gridstatus/pull/912)
 
+#### PJM
+* PJM Emergency Postings now includes `Is Drill` from the XML `pjmDrill` flag
+
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 * ERCOT SCED AS Price Corrections via `Ercot.get_mcpc_sced_price_corrections`
