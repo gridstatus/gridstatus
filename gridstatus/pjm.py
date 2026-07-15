@@ -3874,11 +3874,14 @@ class PJM(ISOBase):
                 [r.findtext("regionName") for r in regions] if regions else [None]
             )
 
+            is_drill = (msg.findtext("pjmDrill") or "false").strip().lower() == "true"
+
             for rn in region_names:
                 rows.append(
                     {
                         "Message ID": int(mid.strip()),
                         "Message Type": msg.findtext("messageType"),
+                        "Is Drill": is_drill,
                         "Priority": msg.findtext("priority"),
                         "Emergency Message": msg.findtext("message"),
                         "Region": rn,
@@ -3899,6 +3902,7 @@ class PJM(ISOBase):
                     "Applicable End",
                     "Publish Time",
                     "Message Type",
+                    "Is Drill",
                     "Priority",
                     "Region",
                     "Effective Start",
@@ -3929,6 +3933,7 @@ class PJM(ISOBase):
                     "Applicable End",
                     "Publish Time",
                     "Message Type",
+                    "Is Drill",
                     "Priority",
                     "Region",
                     "Effective Start",

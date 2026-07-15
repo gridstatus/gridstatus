@@ -3130,6 +3130,7 @@ class TestPJM(BaseTestISO):
         "Applicable End",
         "Publish Time",
         "Message Type",
+        "Is Drill",
         "Priority",
         "Region",
         "Effective Start",
@@ -3150,6 +3151,7 @@ class TestPJM(BaseTestISO):
 <messageId>1</messageId>
 <messageType>Test</messageType>
 <postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
+<pjmDrill>false</pjmDrill>
 <priority>Warning</priority>
 <message>Hello</message>
 <effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
@@ -3191,6 +3193,7 @@ class TestPJM(BaseTestISO):
         assert df["Message ID"].iloc[0] == 1
         assert df["Region"].iloc[0] == "AEP"
         assert df["Message Type"].iloc[0] == "Test"
+        assert not bool(df["Is Drill"].iloc[0])
         assert df["Priority"].iloc[0] == "Warning"
         assert isinstance(df["Effective Start"].dtype, pd.DatetimeTZDtype)
         assert str(df["Effective Start"].dt.tz) == str(self.iso.default_timezone)
@@ -3206,6 +3209,7 @@ class TestPJM(BaseTestISO):
 <messageId>99</messageId>
 <messageType>Hot Weather Alert</messageType>
 <postedTimestamp>2026-04-13T12:00Z</postedTimestamp>
+<pjmDrill>false</pjmDrill>
 <priority>Alert</priority>
 <message>Body</message>
 <effectiveStartTime>2026-04-13T12:00Z</effectiveStartTime>
@@ -3226,6 +3230,40 @@ class TestPJM(BaseTestISO):
         assert len(df) == 2
         assert set(df["Region"]) == {"SOUTHERN", "MIDATL"}
         assert df["Message ID"].iloc[0] == 99
+        assert not df["Is Drill"].any()
+
+    def test_get_emergency_postings_is_drill(self):
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns2:EmergencyProcedures xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<EmergencyMessage>
+<messageId>103331</messageId>
+<messageType>Manual Load Dump Action - Capacity Emergency - NERC EEA 3</messageType>
+<postedTimestamp>2021-11-03T17:45Z</postedTimestamp>
+<pjmDrill>true</pjmDrill>
+<pjmCP>true</pjmCP>
+<priority>Action</priority>
+<message>A Manual Load Dump Action of 2500 MW and an EEA3 have been requested.</message>
+<effectiveStartTime>2021-11-03T17:45Z</effectiveStartTime>
+<effectiveEndTime>2021-11-03T18:45Z</effectiveEndTime>
+<applicableStartTime>2021-11-03T17:45Z</applicableStartTime>
+<applicableEndTime>2021-11-03T18:45Z</applicableEndTime>
+<Region><regionName>PJM-RTO</regionName><regionType>RTO</regionType></Region>
+</EmergencyMessage>
+</ns2:EmergencyProcedures>"""
+        mock_session = self._mock_session_for_xml_export(
+            self.SAMPLE_DASHBOARD_HTML,
+            xml,
+        )
+        with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
+            df = self.iso.get_emergency_postings(date="latest")
+
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 103331
+        assert bool(df["Is Drill"].iloc[0]) is True
+        assert (
+            df["Message Type"].iloc[0]
+            == "Manual Load Dump Action - Capacity Emergency - NERC EEA 3"
+        )
 
     def test_get_emergency_postings_posts_viewstate(self):
         mock_session = self._mock_session_for_xml_export(
