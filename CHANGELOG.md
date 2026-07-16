@@ -18,6 +18,7 @@
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 * ERCOT SCED AS Price Corrections via `Ercot.get_mcpc_sced_price_corrections`
+* ERCOT 2-Day Aggregate Gen Summary, Load Summary, and Output Schedule datasets via `Ercot.get_aggregate_gen_summary_2_day`, `Ercot.get_aggregate_load_summary_2_day`, and `Ercot.get_aggregate_output_schedule_2_day`
 
 #### MISO
 * MISO Area Control Error dataset via `MISO.get_area_control_error`

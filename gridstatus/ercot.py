@@ -319,6 +319,71 @@ TWO_DAY_ANCILLARY_SERVICES_REPORTS_RTID = 13057
 # https://www.ercot.com/mp/data-products/data-product-details?id=np3-906-ex
 TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID = 25814
 
+# 2-Day Real Time Gen and Load Data Reports
+# https://www.ercot.com/mp/data-products/data-product-details?id=NP3-910-ER
+TWO_DAY_RT_GEN_LOAD_REPORTS_RTID = 13056
+
+AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS = [
+    "SCED Time Stamp",
+    "Area",
+    "Sum Base Point Non IRR",
+    "Sum Base Point WGR",
+    "Sum Base Point PVGR",
+    "Sum Base Point Remaining Res",
+    "Sum Gen Telem MW",
+    "Sum Base Point ESR",
+    "Sum Base Point ESR Charging",
+    "Sum Base Point ESR Discharging",
+]
+
+AGGREGATE_LOAD_SUMMARY_2_DAY_COLUMNS = [
+    "SCED Time Stamp",
+    "Area",
+    "Sum Telem Gen MW",
+    "Sum Telem DC Tie MW",
+    "Agg Load Summary",
+]
+
+AGGREGATE_OUTPUT_SCHEDULE_2_DAY_COLUMNS = [
+    "SCED Time Stamp",
+    "Area",
+    "Sum LSL Output Schedule",
+    "Sum HSL Output Schedule",
+    "Sum Output Schedule",
+]
+
+_AGGREGATE_2_DAY_GEN_COLUMN_MAP = {
+    "SCED TIME STAMP": "SCED Time Stamp",
+    "REPEATED HOUR FLAG": "Repeated Hour Flag",
+    "SUM BASE POINT NON IRR": "Sum Base Point Non IRR",
+    "SUM BASE POINT WGR": "Sum Base Point WGR",
+    "SUM BASE POINT PVGR": "Sum Base Point PVGR",
+    "SUM BASE POINT REMAINING RES": "Sum Base Point Remaining Res",
+    "SUM BASE POINT REMAINING RESOURCES": "Sum Base Point Remaining Res",
+    "SUM GEN TELEM MW": "Sum Gen Telem MW",
+    "SUM BASE POINT ESR": "Sum Base Point ESR",
+    "SUM BASE POINT ESR CHARGING": "Sum Base Point ESR Charging",
+    "SUM BASE POINT ESR DISCHARGING": "Sum Base Point ESR Discharging",
+}
+
+_AGGREGATE_2_DAY_LOAD_COLUMN_MAP = {
+    "SCED TIME STAMP": "SCED Time Stamp",
+    "REPEATED HOUR FLAG": "Repeated Hour Flag",
+    "SUM TELEM GEN MW": "Sum Telem Gen MW",
+    "SUM TELEM DCTIE MW": "Sum Telem DC Tie MW",
+    "AGG LOAD SUMMARY": "Agg Load Summary",
+}
+
+_AGGREGATE_2_DAY_OUTPUT_SCHEDULE_COLUMN_MAP = {
+    "SCED TIME STAMP": "SCED Time Stamp",
+    "REPEATED HOUR FLAG": "Repeated Hour Flag",
+    "SUM LSL OUTPUT SCHEDULE": "Sum LSL Output Schedule",
+    "SUM HSL OUTPUT SCHEDULE": "Sum HSL Output Schedule",
+    "SUM OUTPUTSCHEDULE": "Sum Output Schedule",
+}
+
+_AGGREGATE_2_DAY_AREAS = ("Houston", "North", "South", "West")
+
 # Ancillary Services products - used across multiple AS report methods
 AS_PRODUCTS = [
     "RRSPFR",
@@ -4944,6 +5009,211 @@ class Ercot(ISOBase):
 
         df = df[["SCED Timestamp", "AS Type", "Offer Curve"]]
         df = df.sort_values("SCED Timestamp").reset_index(drop=True)
+
+        return df
+
+    @support_date_range("DAY_START")
+    def get_aggregate_gen_summary_2_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get 2-Day Aggregate Generation Summary by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+
+        Arguments:
+            date: date to fetch reports for (delivery / content date)
+            end: end date for a range. Defaults to None.
+            verbose: print verbose output
+
+        Returns:
+            pandas.DataFrame: Aggregate generation summary by Area
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            product="gen",
+            verbose=verbose,
+        )
+
+    @support_date_range("DAY_START")
+    def get_aggregate_load_summary_2_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get 2-Day Aggregate Load Summary by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+
+        Arguments:
+            date: date to fetch reports for (delivery / content date)
+            end: end date for a range. Defaults to None.
+            verbose: print verbose output
+
+        Returns:
+            pandas.DataFrame: Aggregate load summary by Area
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            product="load",
+            verbose=verbose,
+        )
+
+    @support_date_range("DAY_START")
+    def get_aggregate_output_schedule_2_day(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get 2-Day Aggregate Output Schedules by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+
+        Arguments:
+            date: date to fetch reports for (delivery / content date)
+            end: end date for a range. Defaults to None.
+            verbose: print verbose output
+
+        Returns:
+            pandas.DataFrame: Aggregate output schedule by Area
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            product="output_schedule",
+            verbose=verbose,
+        )
+
+    def _get_2_day_rt_gen_load_reports(
+        self,
+        date: pd.Timestamp,
+        product: Literal["gen", "load", "output_schedule"],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        doc = self._get_as_report_document(
+            date=date,
+            report_type_id=TWO_DAY_RT_GEN_LOAD_REPORTS_RTID,
+            verbose=verbose,
+        )
+
+        return self._handle_2_day_rt_gen_load_reports_file(
+            doc.url,
+            product=product,
+            verbose=verbose,
+        )
+
+    @staticmethod
+    def _normalize_aggregate_2_day_header(col: str) -> str:
+        return " ".join(col.replace("-", " ").split()).upper()
+
+    @staticmethod
+    def _area_from_aggregate_2_day_filename(file_name: str) -> str:
+        for area in _AGGREGATE_2_DAY_AREAS:
+            if f"_{area}-" in file_name:
+                return area
+        return "System"
+
+    @staticmethod
+    def _product_from_aggregate_2_day_filename(
+        file_name: str,
+    ) -> Literal["gen", "load", "output_schedule"] | None:
+        if "Gen_Summary" in file_name:
+            return "gen"
+        if "Load_Summary" in file_name:
+            return "load"
+        if "Output_Sched" in file_name:
+            return "output_schedule"
+        return None
+
+    def _rename_aggregate_2_day_columns(
+        self,
+        df: pd.DataFrame,
+        column_map: dict[str, str],
+    ) -> pd.DataFrame:
+        rename_map: dict[str, str] = {}
+        for col in df.columns:
+            normalized = self._normalize_aggregate_2_day_header(col)
+            if normalized in column_map:
+                rename_map[col] = column_map[normalized]
+        return df.rename(columns=rename_map)
+
+    def _localize_aggregate_2_day_sced_time_stamp(
+        self,
+        df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        df["SCED Time Stamp"] = pd.to_datetime(
+            df["SCED Time Stamp"],
+            errors="coerce",
+        )
+        df = df.dropna(subset=["SCED Time Stamp"])
+
+        if df["SCED Time Stamp"].dt.tz is None:
+            df["SCED Time Stamp"] = df["SCED Time Stamp"].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=df["Repeated Hour Flag"] == "N",
+            )
+        else:
+            df["SCED Time Stamp"] = df["SCED Time Stamp"].dt.tz_convert(
+                self.default_timezone,
+            )
+
+        return df.drop(columns=["Repeated Hour Flag"])
+
+    def _handle_2_day_rt_gen_load_reports_file(
+        self,
+        file_path: str,
+        product: Literal["gen", "load", "output_schedule"],
+        verbose: bool = False,
+        **kwargs,
+    ) -> pd.DataFrame:
+        z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
+
+        if product == "gen":
+            column_map = _AGGREGATE_2_DAY_GEN_COLUMN_MAP
+            output_columns = AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS
+        elif product == "load":
+            column_map = _AGGREGATE_2_DAY_LOAD_COLUMN_MAP
+            output_columns = AGGREGATE_LOAD_SUMMARY_2_DAY_COLUMNS
+        else:
+            column_map = _AGGREGATE_2_DAY_OUTPUT_SCHEDULE_COLUMN_MAP
+            output_columns = AGGREGATE_OUTPUT_SCHEDULE_2_DAY_COLUMNS
+
+        all_dfs: list[pd.DataFrame] = []
+
+        for file_name in z.namelist():
+            if not file_name.endswith(".csv"):
+                continue
+
+            file_product = self._product_from_aggregate_2_day_filename(file_name)
+            if file_product != product:
+                continue
+
+            df = pd.read_csv(z.open(file_name))
+            if df.empty:
+                continue
+
+            df = self._rename_aggregate_2_day_columns(df, column_map)
+            if (
+                "SCED Time Stamp" not in df.columns
+                or "Repeated Hour Flag" not in df.columns
+            ):
+                continue
+
+            df["Area"] = self._area_from_aggregate_2_day_filename(file_name)
+            df = self._localize_aggregate_2_day_sced_time_stamp(df)
+            all_dfs.append(df)
+
+        if not all_dfs:
+            raise NoDataFoundException(
+                f"No {product} files found in NP3-910-ER zip",
+            )
+
+        df = pd.concat(all_dfs, ignore_index=True)
+        df = df.reindex(columns=output_columns)
+        df = df.sort_values(["SCED Time Stamp", "Area"]).reset_index(drop=True)
 
         return df
 

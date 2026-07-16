@@ -1779,6 +1779,86 @@ class TestErcot(BaseTestISO):
 
         assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
 
+    """get_aggregate_*_2_day"""
+
+    def _check_aggregate_gen_summary_2_day(self, df):
+        assert df.columns.tolist() == [
+            "SCED Time Stamp",
+            "Area",
+            "Sum Base Point Non IRR",
+            "Sum Base Point WGR",
+            "Sum Base Point PVGR",
+            "Sum Base Point Remaining Res",
+            "Sum Gen Telem MW",
+            "Sum Base Point ESR",
+            "Sum Base Point ESR Charging",
+            "Sum Base Point ESR Discharging",
+        ]
+        assert df.dtypes["SCED Time Stamp"] == "datetime64[ns, US/Central]"
+        assert set(df["Area"]) == {"Houston", "North", "South", "System", "West"}
+        assert not df.duplicated(subset=["SCED Time Stamp", "Area"]).any()
+        assert len(df) > 0
+
+    def _check_aggregate_load_summary_2_day(self, df):
+        assert df.columns.tolist() == [
+            "SCED Time Stamp",
+            "Area",
+            "Sum Telem Gen MW",
+            "Sum Telem DC Tie MW",
+            "Agg Load Summary",
+        ]
+        assert df.dtypes["SCED Time Stamp"] == "datetime64[ns, US/Central]"
+        assert set(df["Area"]) == {"Houston", "North", "South", "System", "West"}
+        assert not df.duplicated(subset=["SCED Time Stamp", "Area"]).any()
+        assert len(df) > 0
+
+    def _check_aggregate_output_schedule_2_day(self, df):
+        assert df.columns.tolist() == [
+            "SCED Time Stamp",
+            "Area",
+            "Sum LSL Output Schedule",
+            "Sum HSL Output Schedule",
+            "Sum Output Schedule",
+        ]
+        assert df.dtypes["SCED Time Stamp"] == "datetime64[ns, US/Central]"
+        assert set(df["Area"]) == {"Houston", "North", "South", "System", "West"}
+        assert not df.duplicated(subset=["SCED Time Stamp", "Area"]).any()
+        assert len(df) > 0
+
+    def test_get_aggregate_gen_summary_2_day(self):
+        date = pd.Timestamp("2026-07-13", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_aggregate_gen_summary_2_day_{date.date()}.yaml",
+        ):
+            df = self.iso.get_aggregate_gen_summary_2_day(date)
+
+        self._check_aggregate_gen_summary_2_day(df)
+        assert df["SCED Time Stamp"].dt.date.unique() == [date.date()]
+        assert df["Sum Base Point ESR"].notna().any()
+
+    def test_get_aggregate_load_summary_2_day(self):
+        date = pd.Timestamp("2026-07-13", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_aggregate_load_summary_2_day_{date.date()}.yaml",
+        ):
+            df = self.iso.get_aggregate_load_summary_2_day(date)
+
+        self._check_aggregate_load_summary_2_day(df)
+        assert df["SCED Time Stamp"].dt.date.unique() == [date.date()]
+
+    def test_get_aggregate_output_schedule_2_day(self):
+        date = pd.Timestamp("2026-07-13", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_aggregate_output_schedule_2_day_{date.date()}.yaml",
+        ):
+            df = self.iso.get_aggregate_output_schedule_2_day(date)
+
+        self._check_aggregate_output_schedule_2_day(df)
+        assert df["SCED Time Stamp"].dt.date.unique() == [date.date()]
+
     """get_reported_outages"""
 
     @pytest.mark.integration
