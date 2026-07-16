@@ -290,6 +290,7 @@ class IESO(ISOBase):
         else:
             data = (
                 self._retrieve_fuel_mix(date, end, verbose)
+                .query("`Fuel Type` != 'CONTROL ACTIONS'")
                 .groupby(["Fuel Type", "Interval Start", "Interval End"])
                 .sum(numeric_only=True)
                 .reset_index()
