@@ -5164,12 +5164,17 @@ class Ercot(ISOBase):
 
     def _handle_2_day_rt_gen_load_reports_file(
         self,
-        file_path: str,
+        file_path: str | bytes | BinaryIO,
         product: Literal["gen", "load", "output_schedule"],
         verbose: bool = False,
         **kwargs,
     ) -> pd.DataFrame:
-        z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
+        if isinstance(file_path, (bytes, bytearray)):
+            z = ZipFile(io.BytesIO(file_path))
+        elif hasattr(file_path, "read"):
+            z = ZipFile(file_path)
+        else:
+            z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         if product == "gen":
             column_map = _AGGREGATE_2_DAY_GEN_COLUMN_MAP

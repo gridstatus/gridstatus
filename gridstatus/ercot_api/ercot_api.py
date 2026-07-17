@@ -1211,15 +1211,22 @@ class ErcotAPI:
 
         urls = [tup[0] for tup in links_and_posted_datetimes]
 
-        dfs = [
-            self.ercot._handle_2_day_rt_gen_load_reports_file(
-                url,
-                product=product,
-                verbose=verbose,
-                headers=self.headers(),
+        dfs = []
+        for url in urls:
+            content = self.make_api_call(url, parse_json=False)
+            dfs.append(
+                self.ercot._handle_2_day_rt_gen_load_reports_file(
+                    content,
+                    product=product,
+                    verbose=verbose,
+                ),
             )
-            for url in urls
-        ]
+            time.sleep(self.sleep_seconds)
+
+        if not dfs:
+            raise NoDataFoundException(
+                f"No NP3-910-ER archives found for {report_date} to {end}",
+            )
 
         return (
             pd.concat(dfs)
