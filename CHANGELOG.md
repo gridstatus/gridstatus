@@ -4,7 +4,9 @@
 
 ### Documentation & Packaging
 
-* Clarified when to use the open-source `gridstatus` library versus the hosted Grid Status API and `gridstatusio` client, streamlined the installation and getting-started flow, and enriched PyPI metadata with a clearer description, expanded keywords, Trove classifiers, and Homepage/Documentation/Data Catalog/Hosted API project URLs in [#888](https://github.com/gridstatus/gridstatus/pull/888)
+* Clarified when to use the open source `gridstatus` library versus the hosted Grid Status API and `gridstatusio` client
+* Streamlined the installation and getting-started documentation
+* Improved PyPI metadata with a clearer description, expanded keywords and classifiers, and additional project URLs
 
 ### Breaking Changes
 
