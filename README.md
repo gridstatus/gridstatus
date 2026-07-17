@@ -46,10 +46,6 @@ Choose between the open source library and the hosted Grid Status API based on h
 | Historical availability depends on each source's retention policy | Historical data queryable immediately |
 | Filtering capabilities vary by source | Consistent server-side filtering by time, columns, and row values |
 
-Use `gridstatus` when you want data directly from the source in Python, need source-specific fields, or do not want a Grid Status account.
-
-Compared with integrating with each ISO yourself, `gridstatus` maintains the CSV, XML, Excel, PDF, and API parsers and handles source-specific timestamp conventions for you.
-
 ## Installation
 
 `gridstatus` supports Python 3.10+. Install with uv or pip:
