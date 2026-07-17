@@ -19,6 +19,10 @@
 
 Available data includes load, fuel mix, forecasts, locational marginal prices (LMPs), storage, ancillary services, interconnection queues, and more. Coverage and historical availability vary by source.
 
+> ⚡ **Have you considered our [Hosted API](https://www.gridstatus.io/api)?**
+>
+> It provides a consistent schema across markets, a maintained historical archive, and server-side filtering. Python users can query it with [`gridstatusio`](https://github.com/gridstatus/gridstatusio); other languages can use the REST API directly.
+
 ## Contents
 
 - [Why use `gridstatus`?](#why-use-gridstatus)
@@ -41,9 +45,6 @@ Choose between the open-source library and the hosted Grid Status API based on h
 | Filtering capabilities vary by source | Consistent server-side filtering by time, columns, and row values |
 
 Use `gridstatus` when you want data directly from the source in Python, need source-specific fields, or do not want a Grid Status account.
-
-> [!TIP]
-> **For normalized, hosted data, we recommend the [Grid Status Hosted API](https://www.gridstatus.io/api).** It provides a consistent schema across markets, a maintained historical archive, and server-side filtering. Python users can query it with [`gridstatusio`](https://github.com/gridstatus/gridstatusio); other languages can use the REST API directly.
 
 Compared with integrating with each ISO yourself, `gridstatus` maintains the CSV, XML, Excel, PDF, and API parsers and handles source-specific timestamp conventions for you.
 
