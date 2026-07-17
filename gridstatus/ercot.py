@@ -324,8 +324,8 @@ TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID = 25814
 TWO_DAY_RT_GEN_LOAD_REPORTS_RTID = 13056
 
 AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS = [
-    "SCED Time Stamp",
-    "Area",
+    "SCED Timestamp",
+    "Load Zone",
     "Sum Base Point Non IRR",
     "Sum Base Point WGR",
     "Sum Base Point PVGR",
@@ -337,7 +337,7 @@ AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS = [
 ]
 
 AGGREGATE_LOAD_SUMMARY_2_DAY_COLUMNS = [
-    "SCED Time Stamp",
+    "SCED Timestamp",
     "Area",
     "Sum Telem Gen MW",
     "Sum Telem DC Tie MW",
@@ -345,7 +345,7 @@ AGGREGATE_LOAD_SUMMARY_2_DAY_COLUMNS = [
 ]
 
 AGGREGATE_OUTPUT_SCHEDULE_2_DAY_COLUMNS = [
-    "SCED Time Stamp",
+    "SCED Timestamp",
     "Area",
     "Sum LSL Output Schedule",
     "Sum HSL Output Schedule",
@@ -353,7 +353,7 @@ AGGREGATE_OUTPUT_SCHEDULE_2_DAY_COLUMNS = [
 ]
 
 _AGGREGATE_2_DAY_GEN_COLUMN_MAP = {
-    "SCED TIME STAMP": "SCED Time Stamp",
+    "SCED TIME STAMP": "SCED Timestamp",
     "REPEATED HOUR FLAG": "Repeated Hour Flag",
     "SUM BASE POINT NON IRR": "Sum Base Point Non IRR",
     "SUM BASE POINT WGR": "Sum Base Point WGR",
@@ -367,7 +367,7 @@ _AGGREGATE_2_DAY_GEN_COLUMN_MAP = {
 }
 
 _AGGREGATE_2_DAY_LOAD_COLUMN_MAP = {
-    "SCED TIME STAMP": "SCED Time Stamp",
+    "SCED TIME STAMP": "SCED Timestamp",
     "REPEATED HOUR FLAG": "Repeated Hour Flag",
     "SUM TELEM GEN MW": "Sum Telem Gen MW",
     "SUM TELEM DCTIE MW": "Sum Telem DC Tie MW",
@@ -375,7 +375,7 @@ _AGGREGATE_2_DAY_LOAD_COLUMN_MAP = {
 }
 
 _AGGREGATE_2_DAY_OUTPUT_SCHEDULE_COLUMN_MAP = {
-    "SCED TIME STAMP": "SCED Time Stamp",
+    "SCED TIME STAMP": "SCED Timestamp",
     "REPEATED HOUR FLAG": "Repeated Hour Flag",
     "SUM LSL OUTPUT SCHEDULE": "Sum LSL Output Schedule",
     "SUM HSL OUTPUT SCHEDULE": "Sum HSL Output Schedule",
@@ -5140,23 +5140,23 @@ class Ercot(ISOBase):
                 rename_map[col] = column_map[normalized]
         return df.rename(columns=rename_map)
 
-    def _localize_aggregate_2_day_sced_time_stamp(
+    def _localize_aggregate_2_day_sced_timestamp(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        df["SCED Time Stamp"] = pd.to_datetime(
-            df["SCED Time Stamp"],
+        df["SCED Timestamp"] = pd.to_datetime(
+            df["SCED Timestamp"],
             errors="coerce",
         )
-        df = df.dropna(subset=["SCED Time Stamp"])
+        df = df.dropna(subset=["SCED Timestamp"])
 
-        if df["SCED Time Stamp"].dt.tz is None:
-            df["SCED Time Stamp"] = df["SCED Time Stamp"].dt.tz_localize(
+        if df["SCED Timestamp"].dt.tz is None:
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
                 self.default_timezone,
                 ambiguous=df["Repeated Hour Flag"] == "N",
             )
         else:
-            df["SCED Time Stamp"] = df["SCED Time Stamp"].dt.tz_convert(
+            df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_convert(
                 self.default_timezone,
             )
 
@@ -5174,12 +5174,15 @@ class Ercot(ISOBase):
         if product == "gen":
             column_map = _AGGREGATE_2_DAY_GEN_COLUMN_MAP
             output_columns = AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS
+            geo_column = "Load Zone"
         elif product == "load":
             column_map = _AGGREGATE_2_DAY_LOAD_COLUMN_MAP
             output_columns = AGGREGATE_LOAD_SUMMARY_2_DAY_COLUMNS
+            geo_column = "Area"
         else:
             column_map = _AGGREGATE_2_DAY_OUTPUT_SCHEDULE_COLUMN_MAP
             output_columns = AGGREGATE_OUTPUT_SCHEDULE_2_DAY_COLUMNS
+            geo_column = "Area"
 
         all_dfs: list[pd.DataFrame] = []
 
@@ -5197,13 +5200,13 @@ class Ercot(ISOBase):
 
             df = self._rename_aggregate_2_day_columns(df, column_map)
             if (
-                "SCED Time Stamp" not in df.columns
+                "SCED Timestamp" not in df.columns
                 or "Repeated Hour Flag" not in df.columns
             ):
                 continue
 
-            df["Area"] = self._area_from_aggregate_2_day_filename(file_name)
-            df = self._localize_aggregate_2_day_sced_time_stamp(df)
+            df[geo_column] = self._area_from_aggregate_2_day_filename(file_name)
+            df = self._localize_aggregate_2_day_sced_timestamp(df)
             all_dfs.append(df)
 
         if not all_dfs:
@@ -5213,7 +5216,7 @@ class Ercot(ISOBase):
 
         df = pd.concat(all_dfs, ignore_index=True)
         df = df.reindex(columns=output_columns)
-        df = df.sort_values(["SCED Time Stamp", "Area"]).reset_index(drop=True)
+        df = df.sort_values(["SCED Timestamp", geo_column]).reset_index(drop=True)
 
         return df
 

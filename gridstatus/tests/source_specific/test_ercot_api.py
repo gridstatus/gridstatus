@@ -738,7 +738,7 @@ class TestErcotAPI(TestHelperMixin):
             df = self.iso.get_aggregate_gen_summary_2_day(date, verbose=True)
 
         _ErcotChecks()._check_aggregate_gen_summary_2_day(df)
-        assert df["SCED Time Stamp"].dt.date.unique() == [date.date()]
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
         assert df["Sum Base Point ESR"].isna().all()
         assert df["Sum Base Point ESR Charging"].isna().all()
         assert df["Sum Base Point ESR Discharging"].isna().all()
@@ -753,7 +753,7 @@ class TestErcotAPI(TestHelperMixin):
             df = self.iso.get_aggregate_load_summary_2_day(date, verbose=True)
 
         _ErcotChecks()._check_aggregate_load_summary_2_day(df)
-        assert df["SCED Time Stamp"].dt.date.unique() == [date.date()]
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
 
     def test_get_aggregate_output_schedule_2_day(self):
         date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
@@ -764,7 +764,7 @@ class TestErcotAPI(TestHelperMixin):
             df = self.iso.get_aggregate_output_schedule_2_day(date, verbose=True)
 
         _ErcotChecks()._check_aggregate_output_schedule_2_day(df)
-        assert df["SCED Time Stamp"].dt.date.unique() == [date.date()]
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
 
     """get_as_plan"""
 
