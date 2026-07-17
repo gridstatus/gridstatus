@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## v.Next
 
-## v0.37.0 - June 11, 2026
+### Documentation & Packaging
+
+* Clarified when to use the open-source `gridstatus` library versus the hosted Grid Status API and `gridstatusio` client, streamlined the installation and getting-started flow, and enriched PyPI metadata with a clearer description, expanded keywords, Trove classifiers, and Homepage/Documentation/Data Catalog/Hosted API project URLs in [#888](https://github.com/gridstatus/gridstatus/pull/888)
 
 ### Breaking Changes
 
@@ -12,10 +14,6 @@
 
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
-
-### Documentation & Packaging
-
-* Rewrote the README as an LLM/agent-friendly "call contract" (canonical fixed-date examples, honest open-source-vs-hosted comparison, a "Notes for AI agents" section) and enriched PyPI metadata — clearer description, expanded keywords, Trove classifiers, and Homepage/Documentation/Data Catalog/Hosted API project URLs — for better discoverability by humans, agents, and package indexes in [#888](https://github.com/gridstatus/gridstatus/pull/888)
 
 ## v0.36.0 - April 20, 2026
 

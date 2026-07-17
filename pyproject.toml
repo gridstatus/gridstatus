@@ -1,6 +1,6 @@
 [project]
 name = "gridstatus"
-version = "0.37.0"
+version = "0.36.0"
 readme = "README.md"
 description = "Access electricity grid data (load, fuel mix, prices, forecasts) from North American ISOs through one consistent Python API"
 requires-python = ">=3.10,<3.15"
