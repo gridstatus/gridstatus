@@ -1221,12 +1221,10 @@ class ErcotAPI:
             for url in urls
         ]
 
-        geo_column = "Load Zone" if product == "gen" else "Area"
-
         return (
             pd.concat(dfs)
             .reset_index(drop=True)
-            .sort_values(["SCED Timestamp", geo_column])
+            .sort_values(["SCED Timestamp", "Area"])
         )
 
     @support_date_range(frequency=None)

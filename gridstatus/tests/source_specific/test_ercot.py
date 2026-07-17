@@ -1784,7 +1784,7 @@ class TestErcot(BaseTestISO):
     def _check_aggregate_gen_summary_2_day(self, df):
         assert df.columns.tolist() == [
             "SCED Timestamp",
-            "Load Zone",
+            "Area",
             "Sum Base Point Non IRR",
             "Sum Base Point WGR",
             "Sum Base Point PVGR",
@@ -1795,8 +1795,8 @@ class TestErcot(BaseTestISO):
             "Sum Base Point ESR Discharging",
         ]
         assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
-        assert set(df["Load Zone"]) == {"Houston", "North", "South", "System", "West"}
-        assert not df.duplicated(subset=["SCED Timestamp", "Load Zone"]).any()
+        assert set(df["Area"]) == {"Houston", "North", "South", "System", "West"}
+        assert not df.duplicated(subset=["SCED Timestamp", "Area"]).any()
         assert len(df) > 0
 
     def _check_aggregate_load_summary_2_day(self, df):

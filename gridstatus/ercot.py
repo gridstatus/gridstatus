@@ -325,7 +325,7 @@ TWO_DAY_RT_GEN_LOAD_REPORTS_RTID = 13056
 
 AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS = [
     "SCED Timestamp",
-    "Load Zone",
+    "Area",
     "Sum Base Point Non IRR",
     "Sum Base Point WGR",
     "Sum Base Point PVGR",
@@ -5174,15 +5174,12 @@ class Ercot(ISOBase):
         if product == "gen":
             column_map = _AGGREGATE_2_DAY_GEN_COLUMN_MAP
             output_columns = AGGREGATE_GEN_SUMMARY_2_DAY_COLUMNS
-            geo_column = "Load Zone"
         elif product == "load":
             column_map = _AGGREGATE_2_DAY_LOAD_COLUMN_MAP
             output_columns = AGGREGATE_LOAD_SUMMARY_2_DAY_COLUMNS
-            geo_column = "Area"
         else:
             column_map = _AGGREGATE_2_DAY_OUTPUT_SCHEDULE_COLUMN_MAP
             output_columns = AGGREGATE_OUTPUT_SCHEDULE_2_DAY_COLUMNS
-            geo_column = "Area"
 
         all_dfs: list[pd.DataFrame] = []
 
@@ -5205,7 +5202,7 @@ class Ercot(ISOBase):
             ):
                 continue
 
-            df[geo_column] = self._area_from_aggregate_2_day_filename(file_name)
+            df["Area"] = self._area_from_aggregate_2_day_filename(file_name)
             df = self._localize_aggregate_2_day_sced_timestamp(df)
             all_dfs.append(df)
 
@@ -5216,7 +5213,7 @@ class Ercot(ISOBase):
 
         df = pd.concat(all_dfs, ignore_index=True)
         df = df.reindex(columns=output_columns)
-        df = df.sort_values(["SCED Timestamp", geo_column]).reset_index(drop=True)
+        df = df.sort_values(["SCED Timestamp", "Area"]).reset_index(drop=True)
 
         return df
 
