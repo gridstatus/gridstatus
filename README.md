@@ -20,7 +20,7 @@
 <table>
   <tr>
     <td>
-      ⚡ <strong>Have you considered our <a href="https://www.gridstatus.io/api">Hosted API</a>?</strong><br><br>
+      ⚡ <strong>Have you considered our <a href="https://www.gridstatus.io/api">Hosted API</a>?</strong><br>
       It provides a consistent schema across markets, a maintained historical archive, and server-side filtering. Python users can query it with <a href="https://github.com/gridstatus/gridstatusio"><code>gridstatusio</code></a>; other languages can use the REST API directly.
     </td>
   </tr>
