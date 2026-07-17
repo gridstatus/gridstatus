@@ -4347,34 +4347,58 @@ class Ercot(ISOBase):
 
         return self._handle_planned_outage_capacity_df(df)
 
+    PLANNED_OUTAGE_CAPACITY_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "POL Non IRR Non PUN",
+        "Approved POL Non IRR Non PUN",
+        "Received POL Non IRR Non PUN",
+        "POL IRR",
+        "Approved POL IRR",
+        "Received POL IRR",
+        "POL ESR",
+        "Approved POL ESR",
+        "Received POL ESR",
+    ]
+
+    _PLANNED_OUTAGE_CAPACITY_POC_COLUMN_MAP = {
+        "MaxDailyResourcePOCnonIRRnonPUN": "POL Non IRR Non PUN",
+        "AggApprovedResourcePOCnonIRRnonPUN": "Approved POL Non IRR Non PUN",
+        "AggReceivedResourcePOCnonIRRnonPUN": "Received POL Non IRR Non PUN",
+        "MaxDailyResourcePOCIRR": "POL IRR",
+        "AggApprovedResourcePOCIRR": "Approved POL IRR",
+        "AggReceivedResourcePOCIRR": "Received POL IRR",
+    }
+
+    _PLANNED_OUTAGE_CAPACITY_POL_COLUMN_MAP = {
+        "ResourcePOLnonIRRnonPUN": "POL Non IRR Non PUN",
+        "AggApprovedResourcePOLnonIRRnonPUN": "Approved POL Non IRR Non PUN",
+        "AggReceivedResourcePOLnonIRRnonPUN": "Received POL Non IRR Non PUN",
+        "ResourcePOLIRR": "POL IRR",
+        "AggApprovedResourcePOLIRR": "Approved POL IRR",
+        "AggReceivedResourcePOLIRR": "Received POL IRR",
+        "ResourcePOLESR": "POL ESR",
+        "AggApprovedResourcePOLESR": "Approved POL ESR",
+        "AggReceivedResourcePOLESR": "Received POL ESR",
+    }
+
     def _handle_planned_outage_capacity_df(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
-        df = df.rename(
-            columns={
-                "MaxDailyResourcePOCnonIRRnonPUN": "Max POC Non IRR Non PUN",
-                "AggApprovedResourcePOCnonIRRnonPUN": "Approved POC Non IRR Non PUN",
-                "AggReceivedResourcePOCnonIRRnonPUN": "Received POC Non IRR Non PUN",
-                "MaxDailyResourcePOCIRR": "Max POC IRR",
-                "AggApprovedResourcePOCIRR": "Approved POC IRR",
-                "AggReceivedResourcePOCIRR": "Received POC IRR",
-            },
-        )
+        if "ResourcePOLnonIRRnonPUN" in df.columns:
+            column_map = self._PLANNED_OUTAGE_CAPACITY_POL_COLUMN_MAP
+        else:
+            column_map = self._PLANNED_OUTAGE_CAPACITY_POC_COLUMN_MAP
 
-        return df[
-            [
-                "Interval Start",
-                "Interval End",
-                "Publish Time",
-                "Max POC Non IRR Non PUN",
-                "Approved POC Non IRR Non PUN",
-                "Received POC Non IRR Non PUN",
-                "Max POC IRR",
-                "Approved POC IRR",
-                "Received POC IRR",
-            ]
-        ]
+        df = df.rename(columns=column_map)
+
+        for column in self.PLANNED_OUTAGE_CAPACITY_COLUMNS:
+            if column not in df.columns:
+                df[column] = pd.NA
+
+        return df[self.PLANNED_OUTAGE_CAPACITY_COLUMNS]
 
     @support_date_range(frequency=None)
     def get_unplanned_resource_outages(
@@ -5606,6 +5630,37 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_mcpc_sced_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get Market Clearing Price for Capacity (MCPC) corrections for SCED.
+
+        MCPC (Market Clearing Price for Capacity) corrections contain
+        ancillary service prices at the system level for each SCED run.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - SCED Timestamp
+                - Interval Start
+                - Interval End
+                - AS Type
+                - MCPC Original
+                - MCPC Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_MCPC_SCED",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_mcpc_sced_price_corrections(docs, verbose=verbose)
+
+        return df
+
     def _handle_price_corrections(
         self,
         docs: list[Document],
@@ -5676,6 +5731,52 @@ class Ercot(ISOBase):
         df = df[
             [
                 "Price Correction Time",
+                "Interval Start",
+                "Interval End",
+                "AS Type",
+                "MCPC Original",
+                "MCPC Corrected",
+            ]
+        ]
+
+        return df
+
+    def _handle_mcpc_sced_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle MCPC (Market Clearing Price for Capacity) SCED price corrections.
+
+        SCED MCPC corrections are keyed by the SCED run timestamp rather than
+        delivery intervals, so the files cannot go through parse_doc(). The
+        Interval Start/End columns are derived by flooring the SCED Timestamp
+        to five minutes and are approximations, not exact.
+        """
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
+        df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        # Rename columns to match gridstatus conventions
+        df = df.rename(
+            columns={
+                "ASType": "AS Type",
+                "MCPCOriginal": "MCPC Original",
+                "MCPCCorrected": "MCPC Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        # Parse Price Correction Time
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        # Select and order final columns
+        df = df[
+            [
+                "Price Correction Time",
+                "SCED Timestamp",
                 "Interval Start",
                 "Interval End",
                 "AS Type",

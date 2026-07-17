@@ -20,26 +20,22 @@ dependencies = [
     "tqdm ~=4.67",
     "openpyxl ~=3.1",
     "pdfplumber ~=0.11",
-    "lxml >=5.3,<7",
+    "lxml >=6.1.0,<7",
     "plotly ~=6.0",
     "termcolor ~=3.0",
     "xlrd ~=2.0",
     "xmltodict ~=0.14",
-    "zipp ~=3.21",
     "certifi ~=2025.1",
-    "setuptools >=78.1.1,<79",
-    "cryptography >=46.0.6,<47",
-    "urllib3 >=2.6.3,<3",
-    "virtualenv >=20.36.1,<21",
+    "cryptography >=48.0.1,<49",
+    "urllib3 >=2.7.0,<3",
+    "idna >=3.15,<4",
     "frozendict ~=2.4",
     "rpds-py >= 0.30.0; python_version >= '3.14'",
-    "h11 >=0.16.0,<1",
-    "filelock >=3.20.3,<4",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest ~=8.3",
+    "pytest >=9.0.3,<10",
     "pytest-xdist ~=3.8",
     "pytest-rerunfailures ~=15.0",
     "pytest-cov ~=6.1",
@@ -61,6 +57,7 @@ dev = [
     "sphinx-autoapi ~=3.8",
     "notebook ~=7.6",
     "jupyterlab >=4.6.0,<5",
+    "jupyter-server >=2.20.0,<3",
     "mypy ~=1.15",
     "types-requests ~=2.32",
     "time-machine ~=2.16",
@@ -68,10 +65,12 @@ dev = [
     "jinja2 ~=3.1",
     "pillow >=12.2.0,<13",
     "nbconvert >=7.17.1,<8",
+    "bleach >=6.4.0,<7",
+    "mistune >=3.2.1,<4",
     "wheel >=0.47.0,<1",
     "fonttools >=4.63.0,<5",
     "Pygments >=2.20.0,<3",
-    "vcrpy ~=8.2",
+    "vcrpy >=8.2.1,<9",
 ]
 
 

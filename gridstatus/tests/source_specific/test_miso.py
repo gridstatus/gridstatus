@@ -1152,6 +1152,41 @@ class TestMISO(BaseTestISO):
             with pytest.raises(NotSupported):
                 self.iso.get_interchange_5_min(date)
 
+    """get_area_control_error"""
+
+    def _check_get_area_control_error(self, df):
+        assert df.columns.tolist() == [
+            "Time",
+            "Area Control Error",
+        ]
+
+        assert not df.empty
+
+        assert isinstance(df["Time"].dtype, pd.DatetimeTZDtype)
+        assert str(df["Time"].dt.tz) == str(self.iso.default_timezone)
+
+        assert df["Area Control Error"].dtype in [np.float64, np.int64]
+
+        # The source publishes instantaneous observations, so no duplicate timestamps
+        assert not df["Time"].duplicated().any()
+
+    def test_get_area_control_error_latest(self):
+        with miso_vcr.use_cassette("test_get_area_control_error_latest.yaml"):
+            df = self.iso.get_area_control_error("latest")
+            self._check_get_area_control_error(df)
+
+            # Data should be near-real-time
+            assert df["Time"].max() >= self.local_now() - pd.DateOffset(hours=3)
+
+    @pytest.mark.parametrize("date", ["2025-01-01", "today"])
+    def test_get_area_control_error_raises_error_if_not_latest(self, date):
+        cassette_name = (
+            f"test_get_area_control_error_raises_error_if_not_latest_{date}.yaml"
+        )
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NotSupported):
+                self.iso.get_area_control_error(date)
+
     """get_binding_constraints_real_time_intraday"""
 
     def _check_binding_constraints_real_time_intraday(self, df):

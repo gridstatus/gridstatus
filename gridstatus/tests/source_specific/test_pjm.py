@@ -3136,6 +3136,7 @@ class TestPJM(BaseTestISO):
         "Effective End",
         "Canceled Time",
         "Emergency Message",
+        "Is Drill",
     ]
 
     SAMPLE_DASHBOARD_HTML = (
@@ -3150,6 +3151,7 @@ class TestPJM(BaseTestISO):
 <messageId>1</messageId>
 <messageType>Test</messageType>
 <postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
+<pjmDrill>false</pjmDrill>
 <priority>Warning</priority>
 <message>Hello</message>
 <effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
@@ -3184,15 +3186,14 @@ class TestPJM(BaseTestISO):
             self.SAMPLE_XML,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            df = self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-            )
+            df = self.iso.get_emergency_postings(date="latest")
 
         assert df.columns.tolist() == self.expected_emergency_postings_cols
         assert len(df) == 1
         assert df["Message ID"].iloc[0] == 1
         assert df["Region"].iloc[0] == "AEP"
         assert df["Message Type"].iloc[0] == "Test"
+        assert not bool(df["Is Drill"].iloc[0])
         assert df["Priority"].iloc[0] == "Warning"
         assert isinstance(df["Effective Start"].dtype, pd.DatetimeTZDtype)
         assert str(df["Effective Start"].dt.tz) == str(self.iso.default_timezone)
@@ -3208,6 +3209,7 @@ class TestPJM(BaseTestISO):
 <messageId>99</messageId>
 <messageType>Hot Weather Alert</messageType>
 <postedTimestamp>2026-04-13T12:00Z</postedTimestamp>
+<pjmDrill>false</pjmDrill>
 <priority>Alert</priority>
 <message>Body</message>
 <effectiveStartTime>2026-04-13T12:00Z</effectiveStartTime>
@@ -3223,13 +3225,45 @@ class TestPJM(BaseTestISO):
             xml,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            df = self.iso.get_emergency_postings(
-                url="https://example.test/dashboard.jsf",
-            )
+            df = self.iso.get_emergency_postings(date="latest")
 
         assert len(df) == 2
         assert set(df["Region"]) == {"SOUTHERN", "MIDATL"}
         assert df["Message ID"].iloc[0] == 99
+        assert not df["Is Drill"].any()
+
+    def test_get_emergency_postings_is_drill(self):
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns2:EmergencyProcedures xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<EmergencyMessage>
+<messageId>103331</messageId>
+<messageType>Manual Load Dump Action - Capacity Emergency - NERC EEA 3</messageType>
+<postedTimestamp>2021-11-03T17:45Z</postedTimestamp>
+<pjmDrill>true</pjmDrill>
+<pjmCP>true</pjmCP>
+<priority>Action</priority>
+<message>A Manual Load Dump Action of 2500 MW and an EEA3 have been requested.</message>
+<effectiveStartTime>2021-11-03T17:45Z</effectiveStartTime>
+<effectiveEndTime>2021-11-03T18:45Z</effectiveEndTime>
+<applicableStartTime>2021-11-03T17:45Z</applicableStartTime>
+<applicableEndTime>2021-11-03T18:45Z</applicableEndTime>
+<Region><regionName>PJM-RTO</regionName><regionType>RTO</regionType></Region>
+</EmergencyMessage>
+</ns2:EmergencyProcedures>"""
+        mock_session = self._mock_session_for_xml_export(
+            self.SAMPLE_DASHBOARD_HTML,
+            xml,
+        )
+        with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
+            df = self.iso.get_emergency_postings(date="latest")
+
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 103331
+        assert bool(df["Is Drill"].iloc[0]) is True
+        assert (
+            df["Message Type"].iloc[0]
+            == "Manual Load Dump Action - Capacity Emergency - NERC EEA 3"
+        )
 
     def test_get_emergency_postings_posts_viewstate(self):
         mock_session = self._mock_session_for_xml_export(
@@ -3237,7 +3271,7 @@ class TestPJM(BaseTestISO):
             self.SAMPLE_XML,
         )
         with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
-            self.iso.get_emergency_postings(url="https://example.test/dashboard.jsf")
+            self.iso.get_emergency_postings(date="latest")
 
         post_call = mock_session.post.call_args
         assert post_call.kwargs["data"]["javax.faces.ViewState"] == "123:456"
@@ -3245,6 +3279,51 @@ class TestPJM(BaseTestISO):
             post_call.kwargs["data"]["frmButtons:lnkDownload"]
             == "frmButtons:lnkDownload"
         )
+
+    def test_get_emergency_postings_rest_date_range(self):
+        mock_response = mock.Mock()
+        mock_response.content = self.SAMPLE_XML
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/xml"}
+        mock_response.raise_for_status = mock.Mock()
+
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_response,
+        ) as mock_get:
+            df = self.iso.get_emergency_postings(
+                date="2016-01-01",
+                end="2016-12-31",
+            )
+
+        mock_get.assert_called_once()
+        assert mock_get.call_args.kwargs["params"] == {
+            "start": "01-01-2016",
+            "stop": "12-31-2016",
+        }
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 1
+
+    def test_get_emergency_postings_rest_empty(self):
+        empty_xml = (
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            b"<ns2:EmergencyProcedures "
+            b'xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1"/>'
+        )
+        mock_response = mock.Mock()
+        mock_response.content = empty_xml
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "application/xml"}
+        mock_response.raise_for_status = mock.Mock()
+
+        with mock.patch(
+            "gridstatus.pjm.requests.get",
+            return_value=mock_response,
+        ):
+            df = self.iso.get_emergency_postings(date="2026-01-01")
+
+        assert df.empty
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
 
     """get_voltage_limits"""
 

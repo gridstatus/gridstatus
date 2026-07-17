@@ -29,9 +29,12 @@ class TestCAISO(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Publish Time",
-        "Fuel Category",
         "Trading Hub",
-        "MW",
+        "Aggregated",
+        "Hydro",
+        "Not Available",
+        "Renewable",
+        "Thermal",
     ]
 
     def _check_aggregated_generation_outages(self, df: pd.DataFrame) -> None:
@@ -44,15 +47,6 @@ class TestCAISO(BaseTestISO):
             "SP15",
             "ZP26",
         }
-        assert set(df["Fuel Category"].unique()).issubset(
-            {
-                "Aggregated",
-                "Hydro",
-                "Not Avail",
-                "Renewable",
-                "Thermal",
-            },
-        )
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
         ).dt.total_seconds() / 60
@@ -61,11 +55,26 @@ class TestCAISO(BaseTestISO):
             subset=[
                 "Interval Start",
                 "Publish Time",
-                "Fuel Category",
                 "Trading Hub",
             ],
         ).any()
-        assert pd.api.types.is_numeric_dtype(df["MW"])
+        assert df["Aggregated"].notna().all()
+        breakdown_hubs = {"NP15", "PACE", "PACW", "SP15"}
+        breakdown = df[df["Trading Hub"].isin(breakdown_hubs)]
+        component_sum = breakdown[
+            ["Hydro", "Not Available", "Renewable", "Thermal"]
+        ].sum(axis=1, min_count=1)
+        assert (breakdown["Aggregated"] == component_sum).all()
+        assert df.loc[df["Trading Hub"] == "ZP26", "Aggregated"].notna().all()
+        assert df.loc[df["Trading Hub"] == "ZP26", "Thermal"].isna().all()
+        for column in [
+            "Aggregated",
+            "Hydro",
+            "Not Available",
+            "Renewable",
+            "Thermal",
+        ]:
+            assert pd.api.types.is_numeric_dtype(df[column])
 
     @pytest.mark.caiso_oasis
     @pytest.mark.real_sleep
@@ -133,6 +142,61 @@ class TestCAISO(BaseTestISO):
             for market in ["DAM", "RTM"]:
                 df = self.iso.get_as_procurement(date, market=market)
                 self._check_as_data(df, market)
+
+    """get_price_corrections"""
+
+    PRICE_CORRECTIONS_COLUMNS = [
+        "Trade Date",
+        "Hour Ending",
+        "Interval",
+        "Market",
+        "Affected Area",
+        "Correction Method",
+        "Correction Count",
+        "Energy Type",
+        "Correction Reason",
+        "Report Generated",
+    ]
+
+    # PRC_CORR_GRP serves one trade date per request, so the range exercises the
+    # per-day fetch and concatenation.
+    @pytest.mark.real_sleep
+    @pytest.mark.parametrize("start, end", [("2026-06-01", "2026-06-13")])
+    def test_get_price_corrections(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_price_corrections_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_price_corrections(date=start, end=end)
+
+            assert df.columns.tolist() == self.PRICE_CORRECTIONS_COLUMNS
+            assert df.shape[0] > 0
+
+            # Market comes from the PRC_CORR_GRP MARKET column.
+            assert set(df["Market"].unique()) <= {"DAM", "RTD", "RTPD", "HASP", "RUC"}
+
+            # Trade Date and Report Generated are Pacific-localized timestamps.
+            assert str(df["Trade Date"].dt.tz) == "US/Pacific"
+            assert str(df["Report Generated"].dt.tz) == "US/Pacific"
+
+            # The report is keyed by trade date, so every correction falls in the
+            # requested range (end exclusive).
+            assert df["Trade Date"].min() >= pd.Timestamp(start, tz="US/Pacific")
+            assert df["Trade Date"].max() < pd.Timestamp(end, tz="US/Pacific")
+
+            # Placeholder "no corrections" rows are dropped, and a correction is
+            # never generated before its trade date.
+            assert "No records found for report." not in set(df["Correction Reason"])
+            assert (df["Report Generated"] >= df["Trade Date"]).all()
+
+    def test_get_price_corrections_raises_when_empty(self):
+        # Future trade dates have no issued corrections, so the method raises
+        # rather than returning an empty frame, letting callers distinguish
+        # "no corrections" explicitly.
+        with caiso_vcr.use_cassette(
+            "test_get_price_corrections_empty.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_price_corrections(date="2026-07-01", end="2026-07-04")
 
     """get_ir_rc_prices"""
 

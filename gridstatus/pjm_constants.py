@@ -5,6 +5,10 @@ EMERGENCY_POSTINGS_GUEST_DASHBOARD_URL: str = (
     "https://emergencyprocedures.pjm.com/ep/pages/dashboard.jsf"
 )
 
+EMERGENCY_POSTINGS_PUBLIC_REST_URL: str = (
+    "https://emergencyprocedures.pjm.com/ep/rest/public/posting"
+)
+
 # Timeout for API requests in seconds (connect, read)
 CONNECT_TIMEOUT_SECONDS = 10
 READ_TIMEOUT_SECONDS = 15

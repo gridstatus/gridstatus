@@ -19,6 +19,13 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS,
+    ISONE_MORNING_REPORT_CITY_FIELDS,
+    ISONE_MORNING_REPORT_COLUMNS,
+    ISONE_MORNING_REPORT_INTERCHANGE_FIELDS,
+    ISONE_MORNING_REPORT_SCALAR_MAP,
+    ISONE_MORNING_REPORT_TIE_ALIASES,
+    ISONE_MORNING_REPORT_TIE_DELIVERY_FIELD,
+    ISONE_MORNING_REPORT_TIE_NAMES,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_RESERVE_ZONE_COLUMN_MAP,
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
@@ -325,6 +332,124 @@ class ISONEAPI:
         pivoted[fuel_cols] = pivoted[fuel_cols].fillna(0).astype(bool)
 
         return utils.move_cols_to_front(pivoted, ["Time"] + fuel_cols)
+
+    @support_date_range("DAY_START")
+    def get_morning_report(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get ISO-NE's daily morning report for the operating day."""
+        url = f"{self.base_url}/morningreport/day/{date.strftime('%Y%m%d')}/all"
+        response = self.make_api_call(url, verbose=verbose)
+        reports = self._prepare_records(
+            self._safe_get(response, "MorningReports", "MorningReport"),
+        )
+        if not reports:
+            raise NoDataFoundException(f"No morning report data found for {date}")
+
+        report = next(
+            (
+                item
+                for item in reports
+                if str(item.get("ReportType", "")).upper()
+                in {"MR", "MORNING REPORT", "MORNINGREPORT"}
+            ),
+            reports[0],
+        )
+        df = pd.DataFrame([self._parse_morning_report(report)])
+        return df[ISONE_MORNING_REPORT_COLUMNS]
+
+    def _parse_morning_report(self, report: dict) -> dict[str, object]:
+        """Flatten one MorningReport JSON object into the daily wide-row output schema."""
+        tz = self.default_timezone
+
+        begin_date = pd.to_datetime(report["BeginDate"], utc=True).tz_convert(tz)
+        report_date = begin_date.normalize().date()
+
+        prior_peak_time = report.get("PeakLoadYesterdayHour")
+        if prior_peak_time is None or (
+            isinstance(prior_peak_time, float) and pd.isna(prior_peak_time)
+        ):
+            prior_day = None
+            prior_day_peak_hour = None
+        else:
+            prior_peak_time = pd.to_datetime(prior_peak_time, utc=True).tz_convert(tz)
+            prior_day = prior_peak_time.normalize().date()
+            prior_day_peak_hour = prior_peak_time.hour + 1
+
+        row: dict[str, object] = {
+            "Report Date": report_date,
+            "Prior Day": prior_day,
+            "Prior Day Peak Hour": prior_day_peak_hour,
+        }
+        row.update(
+            {
+                output: report.get(source)
+                for source, output in ISONE_MORNING_REPORT_SCALAR_MAP.items()
+            },
+        )
+        row.update(
+            self._morning_report_tie_columns(
+                report.get("TieDelivery"),
+                ISONE_MORNING_REPORT_TIE_DELIVERY_FIELD,
+            ),
+        )
+        row.update(
+            self._morning_report_tie_columns(
+                report.get("InterchangeDetail"),
+                ISONE_MORNING_REPORT_INTERCHANGE_FIELDS,
+            ),
+        )
+
+        cities = pd.json_normalize(
+            self._prepare_records(report.get("CityForecastDetail") or []),
+        )
+        for city_key, prefix in [("boston", "Boston"), ("hartford", "Hartford")]:
+            for api_field, suffix in ISONE_MORNING_REPORT_CITY_FIELDS.items():
+                row[f"{prefix} {suffix}"] = None
+            if cities.empty or "CityName" not in cities.columns:
+                continue
+            match = cities.loc[cities["CityName"].str.casefold() == city_key]
+            if match.empty:
+                continue
+            city_row = match.iloc[0]
+            for api_field, suffix in ISONE_MORNING_REPORT_CITY_FIELDS.items():
+                row[f"{prefix} {suffix}"] = city_row.get(api_field)
+
+        return row
+
+    def _morning_report_tie_columns(
+        self,
+        records: dict | list[dict] | None,
+        api_field_suffix_pairs: dict[str, str],
+    ) -> dict[str, object]:
+        """Pivot TieDelivery or InterchangeDetail arrays into wide tie columns."""
+        columns = {
+            f"{tie} {suffix}": None
+            for tie in ISONE_MORNING_REPORT_TIE_NAMES
+            for suffix in api_field_suffix_pairs.values()
+        }
+        if not records:
+            return columns
+
+        ties = pd.json_normalize(self._prepare_records(records))
+        ties["TieName"] = ties["TieName"].map(
+            lambda name: ISONE_MORNING_REPORT_TIE_ALIASES.get(
+                str(name).strip().casefold(),
+                str(name).strip(),
+            ),
+        )
+        for api_field, suffix in api_field_suffix_pairs.items():
+            if api_field not in ties.columns:
+                continue
+            values = ties.set_index("TieName")[api_field]
+            for tie in ISONE_MORNING_REPORT_TIE_NAMES:
+                column = f"{tie} {suffix}"
+                if tie in values.index:
+                    columns[column] = values.loc[tie]
+        return columns
 
     @support_date_range("DAY_START")
     def get_realtime_hourly_demand(

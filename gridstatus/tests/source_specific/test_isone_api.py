@@ -9,6 +9,7 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_FCM_RECONFIGURATION_COLUMNS,
     ISONE_FIVE_MIN_ESTIMATED_ZONAL_LOAD_COLUMNS,
     ISONE_FIVE_MIN_ZONAL_LOAD_FORECAST_COLUMNS,
+    ISONE_MORNING_REPORT_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_TOTAL_DEMAND_COLUMNS,
 )
@@ -947,6 +948,48 @@ class TestISONEAPI(TestHelperMixin):
 
             assert isinstance(result, pd.DataFrame)
             self._check_capacity_forecast_7_day_columns(result)
+
+    """get_morning_report"""
+
+    def _check_morning_report_columns(self, result: pd.DataFrame) -> None:
+        assert list(result.columns) == ISONE_MORNING_REPORT_COLUMNS
+        assert result["Report Date"].dtype == object
+        assert result["Prior Day"].dtype == object
+        assert result["Prior Day Peak Hour"].dtype in [np.int64, np.float64]
+        assert result["Capacity Supply Obligation"].dtype in [np.int64, np.float64]
+        assert result["Boston High Temperature"].dtype in [np.int64, np.float64]
+        assert result["Comments"].dtype == object
+
+    @pytest.mark.parametrize(
+        "date,end",
+        [
+            ("2024-06-15", "2024-06-16"),
+            ("2019-06-15", "2019-06-16"),
+        ],
+    )
+    def test_get_morning_report_date_range(self, date: str, end: str):
+        cassette_name = (
+            f"test_get_morning_report_{pd.Timestamp(date).strftime('%Y%m%d')}_"
+            f"{pd.Timestamp(end).strftime('%Y%m%d')}.yaml"
+        )
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_morning_report(date=date, end=end)
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 1
+            self._check_morning_report_columns(result)
+
+    def test_get_morning_report_multi_day(self):
+        cassette_name = "test_get_morning_report_20240615_20240617.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = self.iso.get_morning_report(
+                date="2024-06-15",
+                end="2024-06-17",
+            )
+
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 2
+            self._check_morning_report_columns(result)
 
     """get_regulation_clearing_prices_real_time_5_min"""
 
