@@ -34,7 +34,6 @@ keywords = [
     "grid data",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Financial and Insurance Industry",

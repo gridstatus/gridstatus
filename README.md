@@ -91,9 +91,6 @@ The exact dataset coverage per ISO is documented in the [API reference](https://
 
 ## Resources & help
 
-- **Open source documentation:** [API reference and example notebooks](https://opensource.gridstatus.io/) · [CAISO examples](https://opensource.gridstatus.io/en/latest/Examples/caiso/index.html)
-- **Hosted API:** [data catalog](https://www.gridstatus.io/datasets) · [OpenAPI spec](https://api.gridstatus.io/openapi.json) · [LLMs manifest](https://gridstatus.io/llms.txt) · [docs assistant](https://docs.gridstatus.io/)
-- **Project:** [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
-- **Questions or bugs:** Open a [GitHub issue](https://github.com/gridstatus/gridstatus/issues).
-- **Support:** Grid Status support resources are primarily focused on hosted API users, but we'll do our best to help with open source questions and issues here.
-- **Stay updated:** [LinkedIn](https://linkedin.com/company/grid-status) · [BlueSky](https://bsky.app/profile/gridstatus.io) · [blog](https://blog.gridstatus.io/)
+- **Open source:** [API reference and examples](https://opensource.gridstatus.io/) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
+- **Hosted API:** [data catalog](https://www.gridstatus.io/datasets) · [OpenAPI spec](https://api.gridstatus.io/openapi.json) · [docs assistant](https://docs.gridstatus.io/)
+- **Support:** Open a [GitHub issue](https://github.com/gridstatus/gridstatus/issues) for questions or bugs. Grid Status support is primarily focused on hosted API users, but we'll do our best to help with open source issues.
