@@ -82,6 +82,9 @@ AS_REPORTS_DAM_EMIL_ID = "np3-911-er"
 # https://data.ercot.com/data-product-archive/NP3-906-EX
 AS_REPORTS_SCED_EMIL_ID = "np3-906-ex"
 
+# https://data.ercot.com/data-product-archive/NP3-910-ER
+TWO_DAY_RT_GEN_LOAD_REPORTS_EMIL_ID = "np3-910-er"
+
 # https://data.ercot.com/data-product-archive/NP4-33-CD
 AS_PLAN_ENDPOINT = "/np4-33-cd/dam_as_plan"
 
@@ -1182,6 +1185,93 @@ class ErcotAPI:
         ]
 
         return pd.concat(dfs).reset_index(drop=True).sort_values("SCED Timestamp")
+
+    def _get_2_day_rt_gen_load_reports(
+        self,
+        date,
+        end=None,
+        product: str = "gen",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        offset = pd.DateOffset(days=2)
+
+        report_date = date.normalize() + offset
+
+        if end:
+            end = end + offset
+        else:
+            end = self._handle_end_date(report_date, end, days_to_add_if_no_end=1)
+
+        links_and_posted_datetimes = self._get_historical_data_links(
+            emil_id=TWO_DAY_RT_GEN_LOAD_REPORTS_EMIL_ID,
+            start_date=report_date,
+            end_date=end,
+            verbose=verbose,
+        )
+
+        urls = [tup[0] for tup in links_and_posted_datetimes]
+
+        dfs = []
+        for url in urls:
+            content = self.make_api_call(url, parse_json=False)
+            dfs.append(
+                self.ercot._handle_2_day_rt_gen_load_reports_file(
+                    content,
+                    product=product,
+                    verbose=verbose,
+                ),
+            )
+            time.sleep(self.sleep_seconds)
+
+        if not dfs:
+            raise NoDataFoundException(
+                f"No NP3-910-ER archives found for {report_date} to {end}",
+            )
+
+        return (
+            pd.concat(dfs)
+            .reset_index(drop=True)
+            .sort_values(["SCED Timestamp", "Area"])
+        )
+
+    @support_date_range(frequency=None)
+    def get_aggregate_gen_summary_2_day(self, date, end=None, verbose=False):
+        """Get 2-Day Aggregate Generation Summary by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            end=end,
+            product="gen",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_aggregate_load_summary_2_day(self, date, end=None, verbose=False):
+        """Get 2-Day Aggregate Load Summary by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            end=end,
+            product="load",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_aggregate_output_schedule_2_day(self, date, end=None, verbose=False):
+        """Get 2-Day Aggregate Output Schedules by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            end=end,
+            product="output_schedule",
+            verbose=verbose,
+        )
 
     @support_date_range(frequency=None)
     def get_as_plan(self, date, end=None, verbose=False):
