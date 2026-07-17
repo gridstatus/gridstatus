@@ -17,9 +17,14 @@
 
 `gridstatus` is an open source Python library, maintained by [Grid Status](https://www.gridstatus.io/), that fetches electricity market data directly from North American independent system operators (ISOs), regional transmission organizations (RTOs), and the U.S. EIA.
 
-> ⚡ **Have you considered our** [**Hosted API**](https://www.gridstatus.io/api)**?**
->
-> It provides a consistent schema across markets, a maintained historical archive, and server-side filtering. Python users can query it with [`gridstatusio`](https://github.com/gridstatus/gridstatusio); other languages can use the REST API directly.
+<table>
+  <tr>
+    <td>
+      ⚡ <strong>Have you considered our <a href="https://www.gridstatus.io/api">Hosted API</a>?</strong><br><br>
+      It provides a consistent schema across markets, a maintained historical archive, and server-side filtering. Python users can query it with <a href="https://github.com/gridstatus/gridstatusio"><code>gridstatusio</code></a>; other languages can use the REST API directly.
+    </td>
+  </tr>
+</table>
 
 ## Contents
 
