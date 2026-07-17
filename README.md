@@ -15,28 +15,27 @@
     </a>
 </p>
 
-`gridstatus` is an open-source Python library, maintained by [Grid Status](https://www.gridstatus.io/), that fetches electricity market data directly from North American independent system operators (ISOs), regional transmission organizations (RTOs), and the U.S. EIA.
+`gridstatus` is an open source Python library, maintained by [Grid Status](https://www.gridstatus.io/), that fetches electricity market data directly from North American independent system operators (ISOs), regional transmission organizations (RTOs), and the U.S. EIA.
 
-Available data includes load, fuel mix, forecasts, locational marginal prices (LMPs), storage, ancillary services, interconnection queues, and more. Coverage and historical availability vary by source.
-
+> [!TIP]
 > ⚡ **Have you considered our [Hosted API](https://www.gridstatus.io/api)?**
 >
 > It provides a consistent schema across markets, a maintained historical archive, and server-side filtering. Python users can query it with [`gridstatusio`](https://github.com/gridstatus/gridstatusio); other languages can use the REST API directly.
 
 ## Contents
 
-- [Why use `gridstatus`?](#why-use-gridstatus)
+- [Why use open source `gridstatus`?](#why-use-open-source-gridstatus)
 - [Installation](#installation)
 - [Getting started](#getting-started)
 - [What's available](#whats-available)
 - [Notes for programmatic use](#notes-for-programmatic-use)
 - [Documentation and examples](#documentation--examples)
 
-## Why use `gridstatus`?
+## Why use open source `gridstatus`?
 
-Choose between the open-source library and the hosted Grid Status API based on how you want to access and work with the data:
+Choose between the open source library and the hosted Grid Status API based on how you want to access and work with the data:
 
-| Open-source `gridstatus` | Hosted [Grid Status API](https://www.gridstatus.io/api) and [`gridstatusio`](https://github.com/gridstatus/gridstatusio) |
+| Open source `gridstatus` | Hosted [Grid Status API](https://www.gridstatus.io/api) and [`gridstatusio`](https://github.com/gridstatus/gridstatusio) |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | Minimally processed data fetched directly from ISO and EIA sources | Hosted data with consistent column names, timestamp formats, and DST handling |
 | Python library with source-specific integrations and fields | Single REST API with a Python client |
@@ -89,6 +88,8 @@ Most dataset methods return pandas DataFrames, with timezone-aware columns for t
 
 ## What's available
 
+Available data includes load, fuel mix, forecasts, locational marginal prices (LMPs), storage, ancillary services, interconnection queues, and more. Coverage and historical availability vary by source.
+
 - **ISOs / RTOs / grids:** CAISO, ERCOT, PJM, MISO, SPP, NYISO, ISO-NE, IESO, and AESO, plus the U.S. EIA.
 - **Datasets (vary by ISO):** fuel mix, load (demand), load forecasts, locational marginal prices (LMP, day-ahead & real-time), storage, ancillary-service prices, interconnection queues, and more.
 
@@ -116,5 +117,5 @@ Some parsers require credentials (e.g. EIA, ERCOT API). See [.env.template](.env
 ## Community & help
 
 - Questions or bugs? Open a [GitHub issue](https://github.com/gridstatus/gridstatus/issues).
-- **Support:** Grid Status support resources are primarily focused on hosted API users, but we'll do our best to help with open-source questions and issues here.
+- **Support:** Grid Status support resources are primarily focused on hosted API users, but we'll do our best to help with open source questions and issues here.
 - Stay updated: [LinkedIn](https://linkedin.com/company/grid-status) · [BlueSky](https://bsky.app/profile/gridstatus.io) · [blog](https://blog.gridstatus.io/)
