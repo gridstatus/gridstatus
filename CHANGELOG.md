@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v.Next
+
+### Documentation & Packaging
+
+* Clarified when to use the open source `gridstatus` library versus the hosted Grid Status API and `gridstatusio` client
+* Streamlined the installation and getting-started documentation
+* Improved PyPI metadata with a clearer description, expanded keywords and classifiers, and additional project URLs
 
 ### Breaking Changes
 
