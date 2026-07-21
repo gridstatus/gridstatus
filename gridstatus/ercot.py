@@ -5661,7 +5661,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_mcpc_real_time_price_corrections(
+    def get_mcpc_spp_real_time_price_corrections(
         self,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -5692,7 +5692,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def get_sced_shadow_price_corrections(
+    def get_shadow_price_real_time_price_corrections(
         self,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -5722,11 +5722,14 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self._handle_sced_shadow_price_corrections(docs, verbose=verbose)
+        df = self._handle_shadow_price_real_time_price_corrections(
+            docs,
+            verbose=verbose,
+        )
 
         return df
 
-    def get_settlement_only_generator_price_corrections(
+    def get_sog_price_real_time_price_corrections(
         self,
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -5752,7 +5755,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self._handle_settlement_only_generator_price_corrections(
+        df = self._handle_sog_price_real_time_price_corrections(
             docs,
             verbose=verbose,
         )
@@ -5885,7 +5888,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_sced_shadow_price_corrections(
+    def _handle_shadow_price_real_time_price_corrections(
         self,
         docs: list[Document],
         verbose: bool = False,
@@ -5950,7 +5953,7 @@ class Ercot(ISOBase):
 
         return df
 
-    def _handle_settlement_only_generator_price_corrections(
+    def _handle_sog_price_real_time_price_corrections(
         self,
         docs: list[Document],
         verbose: bool = False,

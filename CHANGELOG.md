@@ -18,7 +18,7 @@
 #### ERCOT
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 * ERCOT SCED AS Price Corrections via `Ercot.get_mcpc_sced_price_corrections`
-* ERCOT Real Time AS, SCED Shadow Price, and Settlement Only Generator Price Corrections via `Ercot.get_mcpc_real_time_price_corrections`, `Ercot.get_sced_shadow_price_corrections`, and `Ercot.get_settlement_only_generator_price_corrections`
+* ERCOT Real Time AS, SCED Shadow Price, and Settlement Only Generator Price Corrections via `Ercot.get_mcpc_spp_real_time_price_corrections`, `Ercot.get_shadow_price_real_time_price_corrections`, and `Ercot.get_sog_price_real_time_price_corrections`
 
 #### MISO
 * MISO Area Control Error dataset via `MISO.get_area_control_error`

@@ -2271,11 +2271,11 @@ class TestErcot(BaseTestISO):
             subset=["SCED Timestamp", "AS Type", "Price Correction Time"],
         ).any()
 
-    def test_get_mcpc_real_time_price_corrections(self):
+    def test_get_mcpc_spp_real_time_price_corrections(self):
         """Test Real Time AS Price Corrections (MCPC) at settlement intervals."""
-        with api_vcr.use_cassette("test_get_mcpc_real_time_price_corrections.yaml"):
+        with api_vcr.use_cassette("test_get_mcpc_spp_real_time_price_corrections.yaml"):
             try:
-                df = self.iso.get_mcpc_real_time_price_corrections()
+                df = self.iso.get_mcpc_spp_real_time_price_corrections()
             except NoDataFoundException:
                 pytest.skip(
                     "No RTM_MCPC_SPP price correction files currently listed",
@@ -2307,11 +2307,13 @@ class TestErcot(BaseTestISO):
             subset=["Interval Start", "AS Type", "Price Correction Time"],
         ).any()
 
-    def test_get_sced_shadow_price_corrections(self):
+    def test_get_shadow_price_real_time_price_corrections(self):
         """Test SCED Shadow Price Corrections."""
-        with api_vcr.use_cassette("test_get_sced_shadow_price_corrections.yaml"):
+        with api_vcr.use_cassette(
+            "test_get_shadow_price_real_time_price_corrections.yaml",
+        ):
             try:
-                df = self.iso.get_sced_shadow_price_corrections()
+                df = self.iso.get_shadow_price_real_time_price_corrections()
             except NoDataFoundException:
                 pytest.skip(
                     "No RTM_ShadowPrice price correction files currently listed",
@@ -2363,13 +2365,13 @@ class TestErcot(BaseTestISO):
             ],
         ).any()
 
-    def test_get_settlement_only_generator_price_corrections(self):
+    def test_get_sog_price_real_time_price_corrections(self):
         """Test Settlement Only Generator Price Corrections."""
         with api_vcr.use_cassette(
-            "test_get_settlement_only_generator_price_corrections.yaml",
+            "test_get_sog_price_real_time_price_corrections.yaml",
         ):
             try:
-                df = self.iso.get_settlement_only_generator_price_corrections()
+                df = self.iso.get_sog_price_real_time_price_corrections()
             except NoDataFoundException:
                 pytest.skip(
                     "No RTM_SOGPRICE price correction files currently listed",
