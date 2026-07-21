@@ -2351,6 +2351,146 @@ class TestErcot(BaseTestISO):
             subset=["SCED Timestamp", "AS Type", "Price Correction Time"],
         ).any()
 
+    def test_get_mcpc_spp_real_time_price_corrections(self):
+        """Test Real Time AS Price Corrections (MCPC) at settlement intervals."""
+        with api_vcr.use_cassette("test_get_mcpc_spp_real_time_price_corrections.yaml"):
+            try:
+                df = self.iso.get_mcpc_spp_real_time_price_corrections()
+            except NoDataFoundException:
+                pytest.skip(
+                    "No RTM_MCPC_SPP price correction files currently listed",
+                )
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC Original",
+            "MCPC Corrected",
+        ]
+
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_object_dtype(df["AS Type"])
+        assert pd.api.types.is_float_dtype(df["MCPC Original"])
+        assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=15)
+        ).all()
+        assert not df.duplicated(
+            subset=["Interval Start", "AS Type", "Price Correction Time"],
+        ).any()
+
+    def test_get_shadow_price_real_time_price_corrections(self):
+        """Test SCED Shadow Price Corrections."""
+        with api_vcr.use_cassette(
+            "test_get_shadow_price_real_time_price_corrections.yaml",
+        ):
+            try:
+                df = self.iso.get_shadow_price_real_time_price_corrections()
+            except NoDataFoundException:
+                pytest.skip(
+                    "No RTM_ShadowPrice price correction files currently listed",
+                )
+
+        cols = [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "Constraint ID",
+            "Constraint Name",
+            "Contingency Name",
+            "Shadow Price Original",
+            "Shadow Price Corrected",
+            "Limit Original",
+            "Limit Corrected",
+            "Value Original",
+            "Value Corrected",
+        ]
+
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["SCED Timestamp"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_integer_dtype(df["Constraint ID"])
+        assert pd.api.types.is_object_dtype(df["Constraint Name"])
+        assert pd.api.types.is_object_dtype(df["Contingency Name"])
+        assert pd.api.types.is_float_dtype(df["Shadow Price Original"])
+        assert pd.api.types.is_float_dtype(df["Shadow Price Corrected"])
+        assert pd.api.types.is_float_dtype(df["Limit Original"])
+        assert pd.api.types.is_float_dtype(df["Limit Corrected"])
+        assert pd.api.types.is_float_dtype(df["Value Original"])
+        assert pd.api.types.is_float_dtype(df["Value Corrected"])
+
+        assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=5)
+        ).all()
+        assert not df.duplicated(
+            subset=[
+                "SCED Timestamp",
+                "Constraint ID",
+                "Contingency Name",
+                "Price Correction Time",
+            ],
+        ).any()
+
+    def test_get_sog_price_real_time_price_corrections(self):
+        """Test Settlement Only Generator Price Corrections."""
+        with api_vcr.use_cassette(
+            "test_get_sog_price_real_time_price_corrections.yaml",
+        ):
+            try:
+                df = self.iso.get_sog_price_real_time_price_corrections()
+            except NoDataFoundException:
+                pytest.skip(
+                    "No RTM_SOGPRICE price correction files currently listed",
+                )
+
+        cols = [
+            "Price Correction Time",
+            "Interval Start",
+            "Interval End",
+            "Resource Type",
+            "Resource Name",
+            "Meter Name",
+            "Price Original",
+            "Price Corrected",
+        ]
+
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_object_dtype(df["Resource Type"])
+        assert pd.api.types.is_object_dtype(df["Resource Name"])
+        assert pd.api.types.is_float_dtype(df["Price Original"])
+        assert pd.api.types.is_float_dtype(df["Price Corrected"])
+
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=15)
+        ).all()
+        assert not df.duplicated(
+            subset=[
+                "Interval Start",
+                "Resource Name",
+                "Meter Name",
+                "Price Correction Time",
+            ],
+        ).any()
+
     """get_system_wide_actuals"""
 
     @pytest.mark.integration

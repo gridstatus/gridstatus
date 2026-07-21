@@ -5936,6 +5936,107 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_mcpc_spp_real_time_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get Market Clearing Price for Capacity (MCPC) corrections for the
+        Real Time Market at 15-minute settlement intervals.
+
+        MCPC (Market Clearing Price for Capacity) corrections contain
+        ancillary service prices at the system level.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - Interval Start
+                - Interval End
+                - AS Type
+                - MCPC Original
+                - MCPC Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_MCPC_SPP",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_mcpc_price_corrections(docs, verbose=verbose)
+
+        return df
+
+    def get_shadow_price_real_time_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get shadow price corrections for binding/violated constraints in SCED.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - SCED Timestamp
+                - Interval Start
+                - Interval End
+                - Constraint ID
+                - Constraint Name
+                - Contingency Name
+                - Shadow Price Original
+                - Shadow Price Corrected
+                - Limit Original
+                - Limit Corrected
+                - Value Original
+                - Value Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_ShadowPrice",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_shadow_price_real_time_price_corrections(
+            docs,
+            verbose=verbose,
+        )
+
+        return df
+
+    def get_sog_price_real_time_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get Settlement Only Generator price corrections for the Real Time
+        Market at 15-minute settlement intervals.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - Interval Start
+                - Interval End
+                - Resource Type
+                - Resource Name
+                - Meter Name
+                - Price Original
+                - Price Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_SOGPRICE",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_sog_price_real_time_price_corrections(
+            docs,
+            verbose=verbose,
+        )
+
+        return df
+
     def _handle_price_corrections(
         self,
         docs: list[Document],
@@ -6057,6 +6158,117 @@ class Ercot(ISOBase):
                 "AS Type",
                 "MCPC Original",
                 "MCPC Corrected",
+            ]
+        ]
+
+        return df
+
+    def _handle_shadow_price_real_time_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle SCED shadow price corrections.
+
+        Shadow price corrections are keyed by the SCED run timestamp rather
+        than delivery intervals, so the files cannot go through parse_doc().
+        The Interval Start/End columns are derived by flooring the SCED
+        Timestamp to five minutes and are approximations, not exact.
+        """
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
+        # The files use DSTFlag but _handle_sced_timestamp expects
+        # RepeatedHourFlag. The semantics are the same.
+        df = df.rename(columns={"DSTFlag": "RepeatedHourFlag"})
+
+        df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        # Rename columns to match gridstatus conventions
+        df = df.rename(
+            columns={
+                "ConstrID": "Constraint ID",
+                "ConstrName": "Constraint Name",
+                "ContingencyName": "Contingency Name",
+                "ShadowPriceOrig": "Shadow Price Original",
+                "ShadowPriceCorrected": "Shadow Price Corrected",
+                "LimitOrig": "Limit Original",
+                "LimitCorrected": "Limit Corrected",
+                "ValueOriginal": "Value Original",
+                "ValueCorrected": "Value Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        # Parse Price Correction Time
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        # Source files contain exact duplicate rows
+        df = df.drop_duplicates()
+
+        # Select and order final columns
+        df = df[
+            [
+                "Price Correction Time",
+                "SCED Timestamp",
+                "Interval Start",
+                "Interval End",
+                "Constraint ID",
+                "Constraint Name",
+                "Contingency Name",
+                "Shadow Price Original",
+                "Shadow Price Corrected",
+                "Limit Original",
+                "Limit Corrected",
+                "Value Original",
+                "Value Corrected",
+            ]
+        ]
+
+        return df
+
+    def _handle_sog_price_real_time_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle Settlement Only Generator price corrections.
+
+        These corrections contain prices per settlement only generator
+        resource and meter at 15-minute settlement intervals. read_docs()
+        already creates Interval Start/End columns.
+        """
+        df = self.read_docs(docs, verbose=verbose)
+
+        # Rename columns to match gridstatus conventions
+        df = df.rename(
+            columns={
+                "ResourceType": "Resource Type",
+                "ResourceName": "Resource Name",
+                "MeterName": "Meter Name",
+                "PriceOriginal": "Price Original",
+                "PriceCorrected": "Price Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        # Parse Price Correction Time
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        # Select and order final columns
+        df = df[
+            [
+                "Price Correction Time",
+                "Interval Start",
+                "Interval End",
+                "Resource Type",
+                "Resource Name",
+                "Meter Name",
+                "Price Original",
+                "Price Corrected",
             ]
         ]
 
