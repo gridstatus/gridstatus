@@ -867,6 +867,13 @@ class IESO(ISOBase):
         while retry_num < max_retries:
             r = requests.get(url, verify=tls_verify)
 
+            # Missing files redirect to an Error-404 HTML page that returns a
+            # 200 status code, so check the final URL to detect missing files.
+            if "Error-404" in r.url:
+                raise NoDataFoundException(
+                    f"File not found at {url}. Please check the URL.",
+                )
+
             if r.ok:
                 break
 
