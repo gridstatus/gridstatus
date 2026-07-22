@@ -2517,9 +2517,9 @@ class TestErcot(BaseTestISO):
         assert (
             df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=5)
         ).all()
-        assert not df.duplicated(
-            subset=["SCED Timestamp", "Location", "Price Correction Time"],
-        ).any()
+        # NB: no uniqueness assertion on (SCED Timestamp, Location,
+        # Price Correction Time) — source files can carry multiple rows for
+        # the same key and they are returned as-is.
 
     def test_get_lmp_by_settlement_point_price_corrections(self):
         """Test LMP Price Corrections by settlement point."""

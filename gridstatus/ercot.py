@@ -6361,7 +6361,13 @@ class Ercot(ISOBase):
         delivery intervals, so the files cannot go through parse_doc(). The
         Interval Start/End columns are derived by flooring the SCED Timestamp
         to five minutes and are approximations, not exact.
+
+        Files are processed in publish order, so when multiple files carry a
+        row for the same key, the row from the latest published file appears
+        last. No rows are dropped.
         """
+        docs = sorted(docs, key=lambda doc: doc.publish_date)
+
         df = self.read_docs(docs, parse=False, verbose=verbose)
 
         # The files use DSTFlag but _handle_sced_timestamp expects
