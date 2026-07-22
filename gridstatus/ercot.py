@@ -6361,7 +6361,14 @@ class Ercot(ISOBase):
         delivery intervals, so the files cannot go through parse_doc(). The
         Interval Start/End columns are derived by flooring the SCED Timestamp
         to five minutes and are approximations, not exact.
+
+        Distinct electrical buses can share a name, and a batch can revise a
+        key published minutes earlier in the same batch, so only one row per
+        (SCED Timestamp, Location, Price Correction Time) is kept — the last
+        one in publish order.
         """
+        docs = sorted(docs, key=lambda doc: doc.publish_date)
+
         df = self.read_docs(docs, parse=False, verbose=verbose)
 
         # The files use DSTFlag but _handle_sced_timestamp expects
@@ -6391,6 +6398,11 @@ class Ercot(ISOBase):
         df["Price Correction Time"] = pd.to_datetime(
             df["Price Correction Time"],
         ).dt.tz_localize(self.default_timezone)
+
+        df = df.drop_duplicates(
+            subset=["SCED Timestamp", "Location", "Price Correction Time"],
+            keep="last",
+        )
 
         # Select and order final columns
         df = df[
