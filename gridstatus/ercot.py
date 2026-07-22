@@ -6037,6 +6037,64 @@ class Ercot(ISOBase):
 
         return df
 
+    def get_lmp_by_settlement_point_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get LMP corrections by settlement point for each SCED run.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - SCED Timestamp
+                - Interval Start
+                - Interval End
+                - Location
+                - Location Type
+                - LMP Original
+                - LMP Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_SPLMP",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_lmp_price_corrections(docs, verbose=verbose)
+
+        return df
+
+    def get_lmp_by_bus_price_corrections(
+        self,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Get LMP corrections by electrical bus for each SCED run.
+
+        Returns:
+            pd.DataFrame: DataFrame with columns:
+                - Price Correction Time
+                - SCED Timestamp
+                - Interval Start
+                - Interval End
+                - Location
+                - Location Type
+                - LMP Original
+                - LMP Corrected
+        """
+        docs = self._get_documents(
+            report_type_id=RTM_PRICE_CORRECTIONS_RTID,
+            constructed_name_contains="RTM_EBLMP",
+            extension="csv",
+            verbose=verbose,
+        )
+
+        df = self._handle_lmp_price_corrections(docs, verbose=verbose)
+
+        return df
+
     def _handle_price_corrections(
         self,
         docs: list[Document],
@@ -6269,6 +6327,64 @@ class Ercot(ISOBase):
                 "Meter Name",
                 "Price Original",
                 "Price Corrected",
+            ]
+        ]
+
+        return df
+
+    def _handle_lmp_price_corrections(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Handle LMP price corrections by settlement point or electrical bus.
+
+        LMP corrections are keyed by the SCED run timestamp rather than
+        delivery intervals, so the files cannot go through parse_doc(). The
+        Interval Start/End columns are derived by flooring the SCED Timestamp
+        to five minutes and are approximations, not exact.
+        """
+        df = self.read_docs(docs, parse=False, verbose=verbose)
+
+        # The files use DSTFlag but _handle_sced_timestamp expects
+        # RepeatedHourFlag. The semantics are the same.
+        df = df.rename(columns={"DSTFlag": "RepeatedHourFlag"})
+
+        df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        if "SettlementPoint" in df.columns:
+            df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
+        elif "ElectricBusName" in df.columns:
+            df = df.rename(columns={"ElectricBusName": "Location"})
+            df["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
+            df["Location"] = df["Location"].astype("string")
+            df["Location Type"] = df["Location Type"].astype("category")
+
+        # Rename columns to match gridstatus conventions
+        df = df.rename(
+            columns={
+                "LMPOriginal": "LMP Original",
+                "LMPCorrected": "LMP Corrected",
+                "PriceCorrectionTime": "Price Correction Time",
+            },
+        )
+
+        # Parse Price Correction Time
+        df["Price Correction Time"] = pd.to_datetime(
+            df["Price Correction Time"],
+        ).dt.tz_localize(self.default_timezone)
+
+        # Select and order final columns
+        df = df[
+            [
+                "Price Correction Time",
+                "SCED Timestamp",
+                "Interval Start",
+                "Interval End",
+                "Location",
+                "Location Type",
+                "LMP Original",
+                "LMP Corrected",
             ]
         ]
 

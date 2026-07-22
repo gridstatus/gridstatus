@@ -2491,6 +2491,73 @@ class TestErcot(BaseTestISO):
             ],
         ).any()
 
+    def _check_lmp_price_corrections(self, df):
+        cols = [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "LMP Original",
+            "LMP Corrected",
+        ]
+
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == cols
+
+        assert pd.api.types.is_datetime64_any_dtype(df["Price Correction Time"])
+        assert pd.api.types.is_datetime64_any_dtype(df["SCED Timestamp"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval Start"])
+        assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
+        assert pd.api.types.is_float_dtype(df["LMP Original"])
+        assert pd.api.types.is_float_dtype(df["LMP Corrected"])
+
+        assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=5)
+        ).all()
+        assert not df.duplicated(
+            subset=["SCED Timestamp", "Location", "Price Correction Time"],
+        ).any()
+
+    def test_get_lmp_by_settlement_point_price_corrections(self):
+        """Test LMP Price Corrections by settlement point."""
+        with api_vcr.use_cassette(
+            "test_get_lmp_by_settlement_point_price_corrections.yaml",
+        ):
+            try:
+                df = self.iso.get_lmp_by_settlement_point_price_corrections()
+            except NoDataFoundException:
+                pytest.skip(
+                    "No RTM_SPLMP price correction files currently listed",
+                )
+
+        self._check_lmp_price_corrections(df)
+
+        assert set(df["Location Type"].unique()) <= {
+            "Trading Hub",
+            "Load Zone",
+            "Load Zone DC Tie",
+            "Resource Node",
+        }
+
+    def test_get_lmp_by_bus_price_corrections(self):
+        """Test LMP Price Corrections by electrical bus."""
+        with api_vcr.use_cassette(
+            "test_get_lmp_by_bus_price_corrections.yaml",
+        ):
+            try:
+                df = self.iso.get_lmp_by_bus_price_corrections()
+            except NoDataFoundException:
+                pytest.skip(
+                    "No RTM_EBLMP price correction files currently listed",
+                )
+
+        self._check_lmp_price_corrections(df)
+
+        assert (df["Location Type"] == "Electrical Bus").all()
+
     """get_system_wide_actuals"""
 
     @pytest.mark.integration
