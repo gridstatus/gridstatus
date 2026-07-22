@@ -5831,6 +5831,7 @@ class Ercot(ISOBase):
     def get_dam_price_corrections(
         self,
         dam_type: str,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -5841,6 +5842,7 @@ class Ercot(ISOBase):
 
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=DAM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains=dam_type,
             extension="csv",
@@ -5854,6 +5856,7 @@ class Ercot(ISOBase):
     def get_rtm_price_corrections(
         self,
         rtm_type: str,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -5865,6 +5868,7 @@ class Ercot(ISOBase):
 
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains=rtm_type,
             extension="csv",
@@ -5877,6 +5881,7 @@ class Ercot(ISOBase):
 
     def get_mcpc_dam_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -5895,6 +5900,7 @@ class Ercot(ISOBase):
                 - MCPC Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=DAM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="DAM_MCPC",
             extension="csv",
@@ -5907,6 +5913,7 @@ class Ercot(ISOBase):
 
     def get_mcpc_sced_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -5926,6 +5933,7 @@ class Ercot(ISOBase):
                 - MCPC Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="RTM_MCPC_SCED",
             extension="csv",
@@ -5938,6 +5946,7 @@ class Ercot(ISOBase):
 
     def get_mcpc_spp_real_time_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -5957,6 +5966,7 @@ class Ercot(ISOBase):
                 - MCPC Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="RTM_MCPC_SPP",
             extension="csv",
@@ -5969,6 +5979,7 @@ class Ercot(ISOBase):
 
     def get_shadow_price_real_time_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -5991,6 +6002,7 @@ class Ercot(ISOBase):
                 - Value Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="RTM_ShadowPrice",
             extension="csv",
@@ -6006,6 +6018,7 @@ class Ercot(ISOBase):
 
     def get_sog_price_real_time_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -6024,6 +6037,7 @@ class Ercot(ISOBase):
                 - Price Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="RTM_SOGPRICE",
             extension="csv",
@@ -6039,6 +6053,7 @@ class Ercot(ISOBase):
 
     def get_lmp_by_settlement_point_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -6056,6 +6071,7 @@ class Ercot(ISOBase):
                 - LMP Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="RTM_SPLMP",
             extension="csv",
@@ -6068,6 +6084,7 @@ class Ercot(ISOBase):
 
     def get_lmp_by_bus_price_corrections(
         self,
+        published_after: pd.Timestamp | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -6085,6 +6102,7 @@ class Ercot(ISOBase):
                 - LMP Corrected
         """
         docs = self._get_documents(
+            published_after=published_after,
             report_type_id=RTM_PRICE_CORRECTIONS_RTID,
             constructed_name_contains="RTM_EBLMP",
             extension="csv",
