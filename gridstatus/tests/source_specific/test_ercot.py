@@ -2517,9 +2517,9 @@ class TestErcot(BaseTestISO):
         assert (
             df["Interval End"] == df["Interval Start"] + pd.Timedelta(minutes=5)
         ).all()
-        assert not df.duplicated(
-            subset=["SCED Timestamp", "Location", "Price Correction Time"],
-        ).any()
+        # NB: no uniqueness assertion on (SCED Timestamp, Location,
+        # Price Correction Time) — source files can carry multiple rows for
+        # the same key and they are returned as-is.
 
     def test_get_lmp_by_settlement_point_price_corrections(self):
         """Test LMP Price Corrections by settlement point."""
@@ -2557,6 +2557,50 @@ class TestErcot(BaseTestISO):
         self._check_lmp_price_corrections(df)
 
         assert (df["Location Type"] == "Electrical Bus").all()
+
+    def test_price_corrections_published_after_filters_documents(self):
+        """A far-future published_after excludes every listed document, so every
+        getter raises NoDataFoundException without downloading any files."""
+        published_after = pd.Timestamp("2100-01-01", tz=self.iso.default_timezone)
+
+        fetchers = [
+            lambda: self.iso.get_dam_price_corrections(
+                dam_type="DAM_SPP",
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_rtm_price_corrections(
+                rtm_type="RTM_SPP",
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_mcpc_dam_price_corrections(
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_mcpc_sced_price_corrections(
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_mcpc_spp_real_time_price_corrections(
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_shadow_price_real_time_price_corrections(
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_sog_price_real_time_price_corrections(
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_lmp_by_settlement_point_price_corrections(
+                published_after=published_after,
+            ),
+            lambda: self.iso.get_lmp_by_bus_price_corrections(
+                published_after=published_after,
+            ),
+        ]
+
+        with api_vcr.use_cassette(
+            "test_price_corrections_published_after_filters_documents.yaml",
+        ):
+            for fetch in fetchers:
+                with pytest.raises(NoDataFoundException):
+                    fetch()
 
     """get_system_wide_actuals"""
 

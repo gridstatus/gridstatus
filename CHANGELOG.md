@@ -27,6 +27,7 @@
 * ERCOT Real Time AS, SCED Shadow Price, and Settlement Only Generator Price Corrections via `Ercot.get_mcpc_spp_real_time_price_corrections`, `Ercot.get_shadow_price_real_time_price_corrections`, and `Ercot.get_sog_price_real_time_price_corrections`
 * ERCOT 2-Day Aggregate Gen Summary, Load Summary, and Output Schedule datasets via `Ercot.get_aggregate_gen_summary_2_day`, `Ercot.get_aggregate_load_summary_2_day`, and `Ercot.get_aggregate_output_schedule_2_day`
 * ERCOT LMP Price Corrections by settlement point and by electrical bus via `Ercot.get_lmp_by_settlement_point_price_corrections` and `Ercot.get_lmp_by_bus_price_corrections`
+* ERCOT price correction getters accept `published_after` to skip documents already ingested
 
 #### MISO
 * MISO Area Control Error dataset via `MISO.get_area_control_error`
