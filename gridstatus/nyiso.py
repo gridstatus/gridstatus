@@ -48,6 +48,7 @@ AS_PRICES_DAY_AHEAD_HOURLY_DATASET = "damasp"
 AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
 LIMITING_CONSTRAINTS_REAL_TIME_DATASET = "LimitingConstraints"
 LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET = "DAMLimitingConstraints"
+AREA_CONTROL_ERROR_DATASET = "ace_data"
 
 """
 Pricing data:
@@ -1740,3 +1741,78 @@ class NYISO(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency="MONTH_START")
+    def get_area_control_error(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Retrieves the NYISO-wide area control error (ACE) in ~6 second
+        intervals.
+
+        Data is published as monthly archives, added after each month
+        completes. Source: https://mis.nyiso.com/public/P-38list.htm
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data. If ``end``
+                is provided, this is the start date.
+            end (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one month past ``date`` if not specified.
+            verbose (bool, optional): print out requested url. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns ``Time`` and
+                ``Area Control Error`` (MW).
+        """
+        return self._download_area_control_error_archive(
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    def _download_area_control_error_archive(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        # zip/csv are named ace-<YYYYMM01> rather than the usual <YYYYMMDD>.
+        date = gridstatus.utils._handle_date(date, self.default_timezone)
+        month = date.strftime("%Y%m01")
+
+        zip_url = (
+            f"http://mis.nyiso.com/public/{AREA_CONTROL_ERROR_DATASET}/ace-{month}.zip"
+        )
+        z = utils.get_zip_folder(zip_url, verbose=verbose)
+
+        csv_filename = f"ace-{month}.csv"
+        df = pd.read_csv(z.open(csv_filename))
+
+        return self._handle_area_control_error(df, date=date, end=end)
+
+    def _handle_area_control_error(
+        self,
+        df: pd.DataFrame,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        df = df.rename(columns={"value": "Area Control Error"})
+
+        parsed = df["time"].str.rsplit(" ", n=1, expand=True)
+        is_dst = parsed[1] == "EDT"
+        df["Time"] = pd.to_datetime(parsed[0]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=is_dst,
+        )
+
+        df = df[["Time", "Area Control Error"]].sort_values("Time")
+
+        # trim to the requested window
+        if end is not None:
+            df = df[(df["Time"] >= date) & (df["Time"] < end)]
+        else:
+            df = df[df["Time"] >= date]
+
+        return df.reset_index(drop=True)
