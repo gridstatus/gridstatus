@@ -496,5 +496,17 @@
       "Type": "BA",
       "Name": "Sikeston Board of Municipal Utilities",
       "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SIKE.xlsx"
+    },
+    "BHBA": {
+      "ID": "BHBA",
+      "Type": "BA",
+      "Name": "Black Hills Energy",
+      "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/BHBA.xlsx"
+    },
+    "SWPW": {
+      "ID": "SWPW",
+      "Type": "BA",
+      "Name": "Southwest Power Pool West Balancing Authority Area",
+      "URL": "https://www.eia.gov/electricity/gridmonitor/knownissues/xls/SWPW.xlsx"
     }
   }
