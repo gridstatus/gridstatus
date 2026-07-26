@@ -15,6 +15,9 @@
 
 ### Additions (New Features/Datasets)
 
+#### EPA
+* EPA Clean Air Markets Program Data (CAMPD) hourly power plant emissions and generation via `EPA.get_power_plant_emissions_generation`
+
 #### EIA
 * EIA Facility Fuel (EIA-923) dataset in [#912](https://github.com/gridstatus/gridstatus/pull/912)
 * `EIA.get_grid_monitor` support for the Black Hills Energy (`BHBA`) and Southwest Power Pool West (`SWPW`) balancing authorities, which EIA began publishing on June 22, 2026
