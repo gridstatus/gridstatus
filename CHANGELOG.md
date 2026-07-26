@@ -17,6 +17,7 @@
 
 #### EIA
 * EIA Facility Fuel (EIA-923) dataset in [#912](https://github.com/gridstatus/gridstatus/pull/912)
+* `EIA.get_grid_monitor` support for the Black Hills Energy (`BHBA`) and Southwest Power Pool West (`SWPW`) balancing authorities, which EIA began publishing on June 22, 2026
 
 #### PJM
 * PJM Emergency Postings now includes `Is Drill` from the XML `pjmDrill` flag
