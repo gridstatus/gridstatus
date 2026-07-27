@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from gridstatus import ISONE
-from gridstatus.base import Markets
+from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -148,6 +148,20 @@ class TestISONE(BaseTestISO):
         # Rolling data goes back 4 hours and should go up to the current time or close
         assert df["Interval Start"].min() < self.local_now() - pd.DateOffset(hours=3)
         assert df["Interval Start"].max() > self.local_now() - pd.DateOffset(minutes=15)
+
+    def test_get_lmp_real_time_historical_no_data(self):
+        with patch(
+            "gridstatus.isone.pd.read_csv",
+            side_effect=Exception("Failed to download interval"),
+        ):
+            with pytest.raises(
+                NoDataFoundException,
+                match="No REAL_TIME_5_MIN LMP data found for 2024-01-01",
+            ):
+                self.iso.get_lmp_real_time_5_min(
+                    date="2024-01-01",
+                    verbose=VERBOSE,
+                )
 
     """get_load"""
 
