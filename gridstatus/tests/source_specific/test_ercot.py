@@ -524,6 +524,58 @@ class TestErcot(BaseTestISO):
         assert df.columns.tolist() == self.fuel_mix_detailed_columns
         assert df["Time"].dt.date.nunique() == 1
 
+    def test_get_fuel_mix_detailed_interval_split_across_timestamps(self):
+        # Ercot sometimes reports a single interval under two timestamps a few seconds
+        # apart and splits the fuel types between them. The fuel types absent from each
+        # timestamp come through as NaN rather than a dict
+        fuel_types = [
+            "Coal and Lignite",
+            "Hydro",
+            "Nuclear",
+            "Power Storage",
+            "Solar",
+            "Wind",
+            "Natural Gas",
+            "Other",
+        ]
+        complete_interval = {fuel: {"gen": 100.0} for fuel in fuel_types}
+
+        payload = {
+            "monthlyCapacity": {fuel: 500 for fuel in fuel_types},
+            "data": {
+                "2026-07-28": {
+                    "2026-07-28 09:39:56-0500": complete_interval,
+                    # Ercot publishes these two halves of the 09:44 interval out of
+                    # chronological order, with Solar on its own two seconds earlier
+                    "2026-07-28 09:44:58-0500": {
+                        fuel: {"gen": 100.0} for fuel in fuel_types if fuel != "Solar"
+                    },
+                    "2026-07-28 09:44:56-0500": {"Solar": {"gen": 200.0}},
+                },
+            },
+        }
+
+        with mock.patch.object(Ercot, "_get_fuel_mix", return_value=payload):
+            df = self.iso.get_fuel_mix_detailed("latest")
+
+        assert df.columns.tolist() == self.fuel_mix_detailed_columns
+        assert len(df) == 3
+        # ercot published the two halves of the 09:44 interval out of order
+        assert df["Time"].is_monotonic_increasing
+
+        solar_only = df[df["Time"] == pd.Timestamp("2026-07-28 09:44:56-0500")].iloc[0]
+        assert solar_only["Solar Gen"] == 200.0
+        assert pd.isna(solar_only["Wind Gen"])
+        # Seasonal capacity comes from monthlyCapacity, not the interval, so it is
+        # populated even for the fuel types missing from this timestamp
+        assert solar_only["Wind Seasonal Capacity"] == 500
+
+        everything_else = df[
+            df["Time"] == pd.Timestamp("2026-07-28 09:44:58-0500")
+        ].iloc[0]
+        assert everything_else["Wind Gen"] == 100.0
+        assert pd.isna(everything_else["Solar Gen"])
+
     """get_lmp"""
 
     @pytest.mark.skip(reason="Not Applicable")
