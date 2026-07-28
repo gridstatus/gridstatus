@@ -681,6 +681,11 @@ class Ercot(ISOBase):
 
         data = data[columns]
 
+        # ercot does not always publish intervals in chronological order. when it
+        # reports one interval under two timestamps a few seconds apart, the later
+        # timestamp can come first
+        data = data.sort_values("Time").reset_index(drop=True)
+
         if date == "latest":
             return data
 
@@ -708,11 +713,17 @@ class Ercot(ISOBase):
         mix = pd.concat(dfs)
 
         # Each col is a tuple of (gen, hsl, seasonalCapacity). We want to split this
-        # to separate columns
+        # to separate columns. A fuel type can be absent from an interval when ercot
+        # reports the interval under two timestamps a few seconds apart and splits the
+        # fuel types between them, which leaves NaN rather than a dict after the concat
         cols_to_drop = []
         for col in mix.columns:
-            mix[col + " Gen"] = mix[col].apply(lambda x: x.get("gen"))
-            mix[col + " HSL"] = mix[col].apply(lambda x: x.get("hsl"))
+            mix[col + " Gen"] = mix[col].apply(
+                lambda x: x.get("gen") if isinstance(x, dict) else pd.NA,
+            )
+            mix[col + " HSL"] = mix[col].apply(
+                lambda x: x.get("hsl") if isinstance(x, dict) else pd.NA,
+            )
             mix[col + " Seasonal Capacity"] = capacity[col]
             cols_to_drop.append(col)
 
