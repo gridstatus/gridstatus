@@ -12,6 +12,7 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
+    NoDataFoundException,
     NotSupported,
 )
 from gridstatus.decorators import support_date_range
@@ -474,6 +475,11 @@ class ISONE(ISOBase):
                     ]
                     data = data_current.copy()
             else:
+                if data_intervals is None:
+                    raise NoDataFoundException(
+                        f"No {market.value} LMP data found for {date.date()}",
+                    )
+
                 data = data_intervals.copy()
 
             data = data.rename(columns={"Local Time": "Interval Start"})
