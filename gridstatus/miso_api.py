@@ -1,8 +1,9 @@
 import datetime
 import os
 import time
+from collections.abc import Callable
 from itertools import chain
-from typing import Any, Callable, Dict, List, Literal
+from typing import Any, Literal
 
 import pandas as pd
 import requests
@@ -213,7 +214,7 @@ class MISOAPI:
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
-        retrieval_func: Callable[..., List[Dict[str, Any]]],
+        retrieval_func: Callable[..., list[dict[str, Any]]],
         market: Markets,
         verbose: bool = False,
         **kwargs: Any,
@@ -231,7 +232,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
 
@@ -250,13 +251,13 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         resolution = HOURLY_RESOLUTION
 
-        url = f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={resolution}"  # noqa
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={resolution}"
 
         data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
@@ -268,7 +269,7 @@ class MISOAPI:
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         # Interval format is hh:mm at the start of the interval
         interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
         date_str = date.strftime("%Y-%m-%d")
@@ -289,14 +290,14 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         # Interval format is hh:mm at the start of the interval
         interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         resolution = FIVE_MINUTE_RESOLUTION
 
-        url = f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={resolution}"  # noqa
+        url = f"{BASE_PRICING_URL}/real-time/{date_str}/lmp-{version}?interval={interval}&preliminaryFinal={prelim_or_final}&timeResolution={resolution}"
 
         data_list = self._get_url(url, product=PRICING_PRODUCT, verbose=verbose)
 
@@ -314,7 +315,7 @@ class MISOAPI:
 
     def _process_pricing_data(
         self,
-        data_list: List[Dict[str, Any]],
+        data_list: list[dict[str, Any]],
         market: Markets,
     ) -> pd.DataFrame:
         df = self._data_list_to_df(data_list)
@@ -378,7 +379,7 @@ class MISOAPI:
 
         date_str = date.strftime("%Y-%m-%d")
 
-        historical_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/historical/{date_str}/interchange/net-scheduled"  # noqa
+        historical_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/historical/{date_str}/interchange/net-scheduled"
 
         historical_scheduled_data_list = self._get_url(
             historical_scheduled_url,
@@ -398,7 +399,7 @@ class MISOAPI:
 
         historical_scheduled_df = historical_scheduled_df.reset_index()
 
-        real_time_actual_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-actual"  # noqa
+        real_time_actual_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-actual"
 
         real_time_actual_data_list = self._get_url(
             real_time_actual_url,
@@ -422,7 +423,7 @@ class MISOAPI:
         real_time_actual_df.columns = real_time_actual_df.columns + " Actual"
         real_time_actual_df = real_time_actual_df.reset_index()
 
-        real_time_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-scheduled"  # noqa
+        real_time_scheduled_url = f"{BASE_LOAD_GENERATION_AND_INTERCHANGE_URL}/real-time/{date_str}/interchange/net-scheduled"
 
         real_time_scheduled_data_list = self._get_url(
             real_time_scheduled_url,
@@ -1851,7 +1852,7 @@ class MISOAPI:
         url: str,
         product: str,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         headers = self._headers(product=product)
         data_list = []
 
@@ -1902,8 +1903,8 @@ class MISOAPI:
     def _make_request_with_retry(
         self,
         url: str,
-        headers: Dict[str, str],
-        params: Dict[str, Any] | None = None,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
         verbose: bool = False,
     ) -> requests.Response:
         """Make a request with exponential backoff retry logic.
@@ -1961,7 +1962,7 @@ class MISOAPI:
         # If we've exhausted all retries, raise the last exception
         raise last_exception  # type: ignore[misc]
 
-    def _data_list_to_df(self, data_list: List[Dict[str, Any]]) -> pd.DataFrame:
+    def _data_list_to_df(self, data_list: list[dict[str, Any]]) -> pd.DataFrame:
         df = pd.DataFrame(data_list)
 
         if "timeInterval" not in df.columns and "interval" in df.columns:
@@ -2003,7 +2004,7 @@ class MISOAPI:
         else:
             raise ValueError(f"Unknown product: {product}")
 
-    def _headers(self, product: str) -> Dict[str, str]:
+    def _headers(self, product: str) -> dict[str, str]:
         return {
             "Ocp-Apim-Subscription-Key": (self._get_next_key(product)),
             "Cache-Control": "no-cache",
@@ -2011,8 +2012,8 @@ class MISOAPI:
 
     def _flatten(
         self,
-        list_of_lists: List[List[Dict[str, Any]]],
-    ) -> List[Dict[str, Any]]:
+        list_of_lists: list[list[dict[str, Any]]],
+    ) -> list[dict[str, Any]]:
         if len(list_of_lists) == 0:
             raise NoDataFoundException()
 
@@ -2144,8 +2145,8 @@ class MISOAPI:
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None,
-        retrieval_func: Callable[..., List[List[Dict[str, Any]]]],
-        daily_retrieval_func: Callable[..., List[List[Dict[str, Any]]]] | None = None,
+        retrieval_func: Callable[..., list[list[dict[str, Any]]]],
+        daily_retrieval_func: Callable[..., list[list[dict[str, Any]]]] | None = None,
         use_daily_requests: bool = False,
         verbose: bool = False,
         **kwargs: Any,
@@ -2170,7 +2171,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
 
@@ -2188,7 +2189,7 @@ class MISOAPI:
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
         date_str = date.strftime("%Y-%m-%d")
         version = EX_ANTE
@@ -2208,7 +2209,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         interval = date.floor("5min").strftime("%H:%M")  # type: ignore[attr-defined]
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
@@ -2227,7 +2228,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         interval = str(date.hour + 1)
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
@@ -2246,7 +2247,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         version: str = EX_POST,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         date_str = date.strftime("%Y-%m-%d")
 
         url = f"{BASE_PRICING_URL}/day-ahead/{date_str}/asm-{version}"
@@ -2261,7 +2262,7 @@ class MISOAPI:
         date: datetime.datetime,
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         date_str = date.strftime("%Y-%m-%d")
         version = EX_ANTE
 
@@ -2278,7 +2279,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         time_resolution = FIVE_MINUTE_RESOLUTION
@@ -2296,7 +2297,7 @@ class MISOAPI:
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
         prelim_or_final: str = PRELIMINARY_STRING,
         verbose: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         date_str = date.strftime("%Y-%m-%d")
         version = EX_POST
         time_resolution = HOURLY_RESOLUTION
@@ -2309,7 +2310,7 @@ class MISOAPI:
 
     def _process_as_mcp_data(
         self,
-        data_list: List[Dict[str, Any]],
+        data_list: list[dict[str, Any]],
     ) -> pd.DataFrame:
         df = self._data_list_to_df(data_list)
 
@@ -2339,7 +2340,7 @@ class MISOAPI:
         self,
         start: pd.Timestamp,
         end: pd.Timestamp,
-    ) -> List[pd.Timestamp]:
+    ) -> list[pd.Timestamp]:
         """
         MISO pricing nodes are updated quarterly on March 1st, June 1st, September 1st, and December 1st.
         This function generates a list of these dates within the specified start and end range.

@@ -1,7 +1,7 @@
 import warnings
 from enum import StrEnum
 from io import BytesIO
-from typing import BinaryIO, Dict, Literal, NamedTuple
+from typing import BinaryIO, Literal, NamedTuple
 
 import pandas as pd
 import requests
@@ -61,7 +61,7 @@ class DatasetInterval(NamedTuple):
     interval_duration_minutes: int | None
 
 
-DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
+DATASET_INTERVAL_MAP: dict[str, DatasetInterval] = {
     LOAD_DATASET: DatasetInterval("instantaneous", None),
     ZONAL_LOAD_HOURLY_DATASET: DatasetInterval("start", 60),
     FUEL_MIX_DATASET: DatasetInterval("instantaneous", None),
@@ -563,7 +563,7 @@ class NYISO(ISOBase):
         """Get interface limits and flows for a date"""
         if date == "latest":
             data = pd.read_csv(
-                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
+                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",
             )
             data = self._handle_time(
                 data,
@@ -976,7 +976,7 @@ class NYISO(ISOBase):
         return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     def get_raw_interconnection_queue(self) -> BinaryIO:
-        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"
 
         logger.info(f"Downloading interconnection queue from {url}")
         response = requests.get(url)
@@ -991,7 +991,7 @@ class NYISO(ISOBase):
             pandas.DataFrame: Interconnection queue containing, active, withdrawn, \
                 and completed project
 
-        """  # noqa
+        """
 
         # 5 sheets - ['Interconnection Queue', 'Cluster Projects', 'Withdrawn', 'Cluster Projects-Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
@@ -1230,7 +1230,7 @@ class NYISO(ISOBase):
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
-        capacity_url_2024 = "https://www.nyiso.com/documents/20142/44474211/2024-NYCA-Generators.xlsx/41a5cba2-523a-9fe0-9830-a523839a2831"  # noqa
+        capacity_url_2024 = "https://www.nyiso.com/documents/20142/44474211/2024-NYCA-Generators.xlsx/41a5cba2-523a-9fe0-9830-a523839a2831"
 
         logger.info(f"Requesting {capacity_url_2024}")
 
@@ -1451,7 +1451,7 @@ class NYISO(ISOBase):
             if add_file_date:
                 df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
-            zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
+            zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
             z = utils.get_zip_folder(zip_url, verbose=verbose)
 
             all_dfs = []

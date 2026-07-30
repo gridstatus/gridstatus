@@ -27,7 +27,7 @@ class ISONE(ISOBase):
     iso_id = "isone"
     default_timezone = "US/Eastern"
 
-    status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"  # noqa
+    status_homepage = "https://www.iso-ne.com/markets-operations/system-forecast-status/current-system-status"
     interconnection_homepage = "https://irtt.iso-ne.com/reports/external"
 
     markets = [
@@ -168,7 +168,7 @@ class ISONE(ISOBase):
             return self.get_load("today", verbose=verbose)
 
         date_str = date.strftime("%Y%m%d")
-        url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"  # noqa
+        url = f"https://www.iso-ne.com/transform/csv/fiveminutesystemload?start={date_str}&end={date_str}"
         data = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
         data["Date/Time"] = pd.to_datetime(data["Date/Time"]).dt.tz_localize(
@@ -283,7 +283,7 @@ class ISONE(ISOBase):
         value_name = f"{resource_type.capitalize()} Forecast"
         file_designator = "wphf" if resource_type == "Wind" else "sphf"
 
-        url = f"https://www.iso-ne.com/transform/csv/{file_designator}?start={date.strftime('%Y%m%d')}"  # noqa
+        url = f"https://www.iso-ne.com/transform/csv/{file_designator}?start={date.strftime('%Y%m%d')}"
 
         df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
 
@@ -330,15 +330,20 @@ class ISONE(ISOBase):
 
         return data
 
-    def _get_latest_lmp(self, market: str, locations: list = None, verbose=False):
+    def _get_latest_lmp(
+        self,
+        market: str,
+        locations: list | None = None,
+        verbose=False,
+    ):
         """
         Find Node ID mapping: https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
-        """  # noqa
+        """
         if locations is None:
             locations = "ALL"
 
         if market == Markets.REAL_TIME_5_MIN:
-            url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"  # noqa
+            url = "https://www.iso-ne.com/transform/csv/fiveminlmp/current?type=prelim"
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
             data.rename(
                 columns={
@@ -348,7 +353,7 @@ class ISONE(ISOBase):
             )
 
         elif market == Markets.REAL_TIME_HOURLY:
-            url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"  # noqa
+            url = "https://www.iso-ne.com/transform/csv/hourlylmp/current?type=prelim&market=rt"
             data = _make_request(url, skiprows=[0, 1, 2, 4], verbose=verbose)
 
             # reformat this data so it looks like other endpoints
@@ -386,15 +391,15 @@ class ISONE(ISOBase):
         self,
         date,
         end=None,
-        market: str = None,
-        locations: list = None,
+        market: str | None = None,
+        locations: list | None = None,
         include_id=False,
         verbose=False,
     ):
         """
         Find Node ID mapping:
             https://www.iso-ne.com/markets-operations/settlements/pricing-node-tables/
-        """  # noqa
+        """
         if date == "latest":
             return self._get_latest_lmp(
                 market=market,
@@ -423,9 +428,9 @@ class ISONE(ISOBase):
 
             dfs = []
             for interval in intervals:
-                msg = "Loading interval {}".format(interval)
+                msg = f"Loading interval {interval}"
                 log(msg, verbose=verbose)
-                u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"  # noqa
+                u = f"https://www.iso-ne.com/static-transform/csv/histRpts/5min-rt-prelim/lmp_5min_{date_str}_{interval}.csv"
                 # Use a try and except in case the data for previous intervals is not
                 # published yet.
                 try:
@@ -449,7 +454,7 @@ class ISONE(ISOBase):
                 )
 
             if querying_for_today:
-                url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"  # noqa
+                url = "https://www.iso-ne.com/transform/csv/fiveminlmp/currentrollinginterval"
                 msg = "Loading current interval"
                 log(msg, verbose=verbose)
                 # this request is very very slow for some reason.
@@ -490,7 +495,7 @@ class ISONE(ISOBase):
                     f"date {date.date()} is in the future and cannot be used to query real-time data",
                 )
 
-            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"  # noqa
+            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/rt-lmp/lmp_rt_prelim_{date_str}.csv"
             data = _make_request(
                 url,
                 skiprows=[0, 1, 2, 3, 5],
@@ -498,7 +503,7 @@ class ISONE(ISOBase):
             )
 
         elif market == Markets.DAY_AHEAD_HOURLY:
-            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"  # noqa
+            url = f"https://www.iso-ne.com/static-transform/csv/histRpts/da-lmp/WW_DALMP_ISO_{date_str}.csv"
             data = _make_request(
                 url,
                 skiprows=[0, 1, 2, 3, 5],
@@ -533,8 +538,8 @@ class ISONE(ISOBase):
         self,
         date,
         end=None,
-        market: str = None,
-        locations: list = None,
+        market: str | None = None,
+        locations: list | None = None,
         include_id=False,
         verbose=False,
     ):
@@ -749,7 +754,7 @@ class ISONE(ISOBase):
         Returns:
             pandas.DataFrame: interconnection queue
 
-        """  # noqa
+        """
 
         # determine report date from homepage
 

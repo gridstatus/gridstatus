@@ -41,19 +41,14 @@ class lmp_config:
 
         if date == "latest":
             return _handle_date("today", tz=tz)
-        elif (
-            isinstance(date, str)
-            or isinstance(date, pd.Timestamp)
-            or isinstance(date, datetime.date)
-        ):
+        elif isinstance(date, (str, pd.Timestamp, datetime.date)):
             final_date = _handle_date(date, tz=tz)
             if not isinstance(final_date, pd.Timestamp):
-                raise ValueError(f"Cannot parse date {repr(date)}")
+                raise ValueError(f"Cannot parse date {date!r}")
             return final_date
         else:
             raise ValueError(
-                "date must be string or pd.Timestamp: "
-                f"{repr(date)} of type ({type(date)})",
+                f"date must be string or pd.Timestamp: {date!r} of type ({type(date)})",
             )
 
     @staticmethod
@@ -112,7 +107,7 @@ class lmp_config:
 
         if not supported:
             raise NotSupported(
-                f"{market} does not support {repr(orig_date)}",
+                f"{market} does not support {orig_date!r}",
             )
 
     @classmethod

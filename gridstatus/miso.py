@@ -4,7 +4,7 @@ import re
 import urllib
 import warnings
 import zipfile
-from typing import Any, BinaryIO, Dict
+from typing import Any, BinaryIO
 
 import pandas as pd
 import requests
@@ -46,7 +46,7 @@ historical fuel mix: https://www.misoenergy.org/markets-and-operations/real-time
 
 - ancillary services available in consolidate api
 
-"""  # noqa
+"""
 
 
 class MISO(ISOBase):
@@ -61,7 +61,7 @@ class MISO(ISOBase):
 
     # Parsing of raw data is done in EST since that is what api returns and what
     # MISO operates in
-    # Source: https://www.rtoinsider.com/25291-ferc-oks-miso-use-of-eastern-standard-time-in-day-ahead-market/ # noqa
+    # Source: https://www.rtoinsider.com/25291-ferc-oks-miso-use-of-eastern-standard-time-in-day-ahead-market/
     default_timezone = "EST"
 
     markets = [
@@ -113,7 +113,7 @@ class MISO(ISOBase):
         response_json = self._get_json(url, verbose=verbose)
         return self._parse_fuel_mix(response_json)
 
-    def _parse_fuel_mix(self, raw_json: Dict[str, dict]) -> pd.DataFrame:
+    def _parse_fuel_mix(self, raw_json: dict[str, dict]) -> pd.DataFrame:
         df = pd.json_normalize(raw_json["Fuel"]["Type"])
         df["INTERVALEST"] = pd.to_datetime(
             df["INTERVALEST"],
@@ -272,7 +272,7 @@ class MISO(ISOBase):
         ]
 
     def _get_load_forecast_file(self, date: str | pd.Timestamp) -> pd.DataFrame:
-        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_df_al.xls"  # noqa
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_df_al.xls"
         logger.info(f"Downloading hourly load and load forecast data from {url}")
         # Locate the header row dynamically: MISO changed the file layout on
         # 2026-04-27 so the headers moved from row 4 to row 6, with extra blank
@@ -336,7 +336,7 @@ class MISO(ISOBase):
             )
         except Exception as e:
             raise NoDataFoundException(
-                f"Error reading historical zonal load data for year {year}: {str(e)}",
+                f"Error reading historical zonal load data for year {year}: {e!s}",
             )
 
         # NB: The first row is sometimes a header row, so we drop it
@@ -446,7 +446,7 @@ class MISO(ISOBase):
         verbose: bool = False,
     ) -> pd.ExcelFile:
         # Example url: https://docs.misoenergy.org/marketreports/20240327_mom.xlsx
-        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"
 
         logger.info(f"Downloading mom forecast data from {url}")
 
@@ -531,7 +531,7 @@ class MISO(ISOBase):
         if date == "latest" or utils.is_today(date, tz=self.default_timezone):
             raise NotSupported("Only historical data is available for final LMPs")
 
-        if not date.weekday() == 0:
+        if date.weekday() != 0:
             logger.warning("Weekly LMP data is only available for Mondays")
             logger.warning("Changing date to the previous Monday")
             date -= pd.DateOffset(days=date.weekday())
@@ -673,9 +673,9 @@ class MISO(ISOBase):
             date_str = date.strftime("%Y%m%d")
 
             if market == Markets.DAY_AHEAD_HOURLY:
-                url = f"https://docs.misoenergy.org/marketreports/{date_str}_da_expost_lmp.csv"  # noqa
+                url = f"https://docs.misoenergy.org/marketreports/{date_str}_da_expost_lmp.csv"
             elif market == Markets.REAL_TIME_HOURLY_FINAL:
-                url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_final.csv"  # noqa
+                url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_final.csv"
             elif market == Markets.REAL_TIME_HOURLY_PRELIM:
                 url = f"https://docs.misoenergy.org/marketreports/{date_str}_rt_lmp_prelim.csv"
 
@@ -859,7 +859,7 @@ class MISO(ISOBase):
     def _get_node_to_type_mapping(self, verbose: bool = False) -> pd.DataFrame:
         # use dam to get location types
         today = utils._handle_date("today", self.default_timezone)
-        url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"  # noqa
+        url = f"https://docs.misoenergy.org/marketreports/{today.strftime('%Y%m%d')}_da_expost_lmp.csv"
         logger.info(f"Downloading LMP data from {url}")
         today_dam_data = pd.read_csv(url, skiprows=4)
         node_to_type = (
@@ -991,7 +991,7 @@ class MISO(ISOBase):
                 tz=self.default_timezone,
             ).normalize() - pd.DateOffset(days=1)
 
-        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"
 
         logger.info(f"Downloading outages {type} data from {url}")
 
@@ -1077,7 +1077,7 @@ class MISO(ISOBase):
         logger.info(f"Downloading supplemental binding constraints data from {url}")
 
         excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+        market_date, _publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
         data = pd.read_excel(excel_file, skiprows=3)
@@ -1117,7 +1117,7 @@ class MISO(ISOBase):
         logger.info(f"Downloading day-ahead binding constraints data from {url}")
 
         excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+        market_date, _publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
         data = pd.read_excel(
@@ -1318,7 +1318,7 @@ class MISO(ISOBase):
         )
 
         excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+        market_date, _publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
         data = pd.read_excel(excel_file, skiprows=3)
@@ -1367,7 +1367,7 @@ class MISO(ISOBase):
         logger.info(f"Downloading real-time binding constraints data from {url}")
 
         excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+        market_date, _publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
         data = pd.read_excel(
@@ -1501,7 +1501,7 @@ class MISO(ISOBase):
         )
 
         excel_file = pd.ExcelFile(url)
-        market_date, publish_date = self._get_constraint_header_dates_from_excel(
+        market_date, _publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )
         data = pd.read_excel(
@@ -1984,7 +1984,7 @@ class MISO(ISOBase):
 
         return self._parse_area_control_error(response)
 
-    def _parse_area_control_error(self, raw_json: Dict[str, Any]) -> pd.DataFrame:
+    def _parse_area_control_error(self, raw_json: dict[str, Any]) -> pd.DataFrame:
         df = pd.DataFrame(raw_json["ACE"])
 
         df["Time"] = pd.to_datetime(
@@ -2023,7 +2023,7 @@ class MISO(ISOBase):
             committed/uncommitted resources, renewable forecasts, load projections,
             and operating margin calculations.
         """
-        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"
 
         logger.info(f"Downloading multiday operating margin data from {url}")
 
@@ -2072,7 +2072,7 @@ class MISO(ISOBase):
             (NORTH, CENTRAL, NORTH+CENTRAL, SOUTH) including committed/uncommitted
             resources, renewable forecasts, load projections, and regional metrics.
         """
-        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"  # noqa
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_mom.xlsx"
 
         logger.info(f"Downloading multiday operating margin data from {url}")
 
@@ -2289,15 +2289,15 @@ class MISO(ISOBase):
 
                 # Region Resources Above Load = MISO Resources Available - Projected Load
                 # (only calculate if not already in the data, e.g., NORTH+CENTRAL has this)
-                if "Region Resources Above Load" not in result_df.columns:
-                    if (
-                        "MISO Resources Available" in result_df.columns
-                        and "Projected Load" in result_df.columns
-                    ):
-                        result_df["Region Resources Above Load"] = (
-                            result_df["MISO Resources Available"]
-                            - result_df["Projected Load"]
-                        )
+                if (
+                    "Region Resources Above Load" not in result_df.columns
+                    and "MISO Resources Available" in result_df.columns
+                    and "Projected Load" in result_df.columns
+                ):
+                    result_df["Region Resources Above Load"] = (
+                        result_df["MISO Resources Available"]
+                        - result_df["Projected Load"]
+                    )
 
                 # Max Possible RDT - only add if not already present
                 if "Max Possible RDT" not in result_df.columns:

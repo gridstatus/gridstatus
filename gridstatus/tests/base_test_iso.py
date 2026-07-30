@@ -375,15 +375,13 @@ class BaseTestISO(TestHelperMixin):
             publish_column_name = (
                 "Forecast Time" if "Forecast Time" in df.columns else "Publish Time"
             )
-            assert set(df.columns) == set(
-                [
-                    "Time",
-                    "Interval Start",
-                    "Interval End",
-                    publish_column_name,
-                    "Load Forecast",
-                ],
-            )
+            assert set(df.columns) == {
+                "Time",
+                "Interval Start",
+                "Interval End",
+                publish_column_name,
+                "Load Forecast",
+            }
 
         assert self._check_is_datetime_type(
             df["Forecast Time" if "Forecast Time" in df.columns else "Publish Time"],
@@ -423,6 +421,6 @@ class BaseTestISO(TestHelperMixin):
         assert df.shape[0] >= 0
 
     def _check_storage(self, df):
-        assert set(["Time", "Interval Start", "Interval End", "Supply"]).issubset(
+        assert {"Time", "Interval Start", "Interval End", "Supply"}.issubset(
             df.columns,
         )

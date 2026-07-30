@@ -1,6 +1,5 @@
 import datetime
 from io import StringIO
-from typing import Dict
 from unittest import mock
 
 import numpy as np
@@ -2166,14 +2165,14 @@ class TestErcot(BaseTestISO):
 
         assert df["Publish Time"].nunique() == hours_since_local_midnight
 
-    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range(  # noqa: E501
+    def test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range(
         self,
     ):
         start = self.local_today() - pd.Timedelta(days=3)
         end = self.local_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range_{start}_{end}.yaml",  # noqa: E501
+            f"test_get_wind_actual_and_forecast_by_geographical_region_hourly_historical_date_range_{start}_{end}.yaml",
         ):
             df = self.iso.get_wind_actual_and_forecast_by_geographical_region_hourly(
                 start,
@@ -2208,7 +2207,7 @@ class TestErcot(BaseTestISO):
         end = self.local_today() - pd.Timedelta(days=1)
 
         with api_vcr.use_cassette(
-            f"test_get_solar_actual_and_forecast_hourly_historical_date_range_{start}_{end}.yaml",  # noqa: E501
+            f"test_get_solar_actual_and_forecast_hourly_historical_date_range_{start}_{end}.yaml",
         ):
             df = self.iso.get_solar_actual_and_forecast_hourly(start, end, verbose=True)
 
@@ -2257,7 +2256,7 @@ class TestErcot(BaseTestISO):
         assert df["Publish Time"].nunique() == 1
 
     @pytest.mark.integration
-    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_historical_date(  # noqa: E501
+    def test_get_solar_actual_and_forecast_by_geographical_region_hourly_historical_date(
         self,
     ):
         date = self.local_today() - pd.Timedelta(days=1)
@@ -4552,7 +4551,7 @@ def check_load_forecast_by_model(df: pd.DataFrame) -> None:
     assert df["In Use Flag"].dtype == bool
 
 
-def check_60_day_sced_disclosure(df_dict: Dict[str, pd.DataFrame]) -> None:
+def check_60_day_sced_disclosure(df_dict: dict[str, pd.DataFrame]) -> None:
     load_resource = df_dict[SCED_LOAD_RESOURCE_KEY]
     gen_resource = df_dict[SCED_GEN_RESOURCE_KEY]
     smne = df_dict[SCED_SMNE_KEY]

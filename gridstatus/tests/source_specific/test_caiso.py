@@ -1047,9 +1047,7 @@ class TestCAISO(BaseTestISO):
                     test_region_2,
                 ],
             )
-            assert set(df["Fuel Region Id"].unique()) == set(
-                [test_region_1, test_region_2],
-            )
+            assert set(df["Fuel Region Id"].unique()) == {test_region_1, test_region_2}
             assert len(df) == 24 * 2
 
     """get_fuel_regions"""
@@ -1281,9 +1279,11 @@ class TestCAISO(BaseTestISO):
         with caiso_vcr.use_cassette(
             f"test_warning_no_end_date_{start.strftime('%Y-%m-%d')}.yaml",
         ):
-            with pytest.warns(
+            # The block wraps a VCR-backed call plus its expected failure, so it
+            # cannot reduce to a single statement.
+            with pytest.warns(  # noqa: PT031
                 UserWarning,
-                match="Only 1 hour of data will be returned for real time markets if end is not specified and all nodes are requested",  # noqa
+                match="Only 1 hour of data will be returned for real time markets if end is not specified and all nodes are requested",
             ):
                 try:
                     self.iso.get_lmp(
@@ -2321,15 +2321,10 @@ class TestCAISO(BaseTestISO):
                 "Type",
                 "MW",
             }
-        elif method_name == "get_storage_awards_rtd":
-            assert df.shape == (576, 4)
-            assert set(df.columns) == {
-                "Interval Start",
-                "Interval End",
-                "Type",
-                "MW",
-            }
-        elif method_name == "get_storage_energy_awards_ruc":
+        elif (
+            method_name == "get_storage_awards_rtd"
+            or method_name == "get_storage_energy_awards_ruc"
+        ):
             assert df.shape == (576, 4)
             assert set(df.columns) == {
                 "Interval Start",

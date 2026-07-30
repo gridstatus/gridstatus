@@ -3,8 +3,8 @@ import io
 import re
 import time
 import warnings
-import xml.etree.ElementTree as ElementTree
 from typing import Literal
+from xml.etree import ElementTree
 from zipfile import ZipFile
 
 import numpy as np
@@ -45,9 +45,7 @@ def _determine_lmp_frequency(args: dict) -> str:
     market = args.get("market", "")
     # due to limitations of OASIS api
     if isinstance(locations, str) and locations.lower() in ["all", "all_ap_nodes"]:
-        if market == Markets.REAL_TIME_5_MIN:
-            return "1h"
-        elif market == Markets.REAL_TIME_15_MIN:
+        if market == Markets.REAL_TIME_5_MIN or market == Markets.REAL_TIME_15_MIN:
             return "1h"
         elif market == Markets.DAY_AHEAD_HOURLY:
             return "1D"
@@ -154,7 +152,6 @@ def _caiso_handle_start_end(
     start = date.tz_convert("UTC")
 
     if end:
-        end = end
         end = end.tz_convert("UTC")
     else:
         end = start + pd.DateOffset(1)
@@ -515,7 +512,7 @@ class CAISO(ISOBase):
         # maybe better way to do this in case there are other cases
         # where there are all na rows
         # ignore Time, Interval Start, Interval End columns
-        subset = set(df.columns) - set(["Time", "Interval Start", "Interval End"])
+        subset = set(df.columns) - {"Time", "Interval Start", "Interval End"}
         df = df.dropna(axis=0, how="all", subset=subset)
 
         return df
@@ -1483,7 +1480,7 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         market: str,
-        locations: list = None,
+        locations: list | None = None,
         sleep: int = 5,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
@@ -1554,7 +1551,6 @@ class CAISO(ISOBase):
             warnings.warn(
                 "Only 1 hour of data will be returned for real time markets if end is "
                 "not specified and all nodes are requested",
-                # noqa
             )
 
         df = self.get_oasis_dataset(
@@ -1646,7 +1642,7 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         market: str,
-        locations: list = None,
+        locations: list | None = None,
         sleep: int = 5,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
@@ -1967,7 +1963,7 @@ class CAISO(ISOBase):
         """Retrieves the (mostly static) list of fuel regions with associated data.
         This file can be joined to the gas prices on Fuel Region Id"""
         url = (
-            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"
         )
 
         logger.info(f"Fetching {url}")
@@ -2718,11 +2714,11 @@ class CAISO(ISOBase):
         ):
             date_str = date.strftime("%Y%m%d")
 
-        url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
+        url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"
 
         # Jun 1, 2024 has an extra "and" in the url
         if date.date() == pd.Timestamp("2024-06-01").date():
-            url = f"https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
+            url = f"https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"
 
         logger.info(f"Fetching {url}")
         # fetch this way to avoid having to
@@ -2890,10 +2886,9 @@ class CAISO(ISOBase):
         )
 
         df.columns = df.columns.map(
-            lambda x: x.title()
-            .replace("_", " ")
-            .replace("Baa", "BAA")
-            .replace("Mw", "MW"),
+            lambda x: (
+                x.title().replace("_", " ").replace("Baa", "BAA").replace("Mw", "MW")
+            ),
         )
 
         # Create an identifier column (separated by hyphens because some of the tie

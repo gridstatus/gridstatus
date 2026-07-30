@@ -2,9 +2,10 @@ import datetime
 import io
 import time
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import BinaryIO, Callable, List, Literal
+from typing import BinaryIO, Literal
 from zipfile import ZipFile
 
 import numpy as np
@@ -423,17 +424,13 @@ PLANNED_OUTAGE_CAPACITY_FUTURE_RTID = 22470
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-732-CD
 WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID = 13028
 
-# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region  # noqa
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-742-cd
-WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
-    14787
-)
+WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = 14787
 
-# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region
 # https://www.ercot.com/mp/data-products/data-product-details?id=NP4-745-CD
-SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = (  # noqa
-    21809
-)
+SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID = 21809
 
 # Solar Power Production - Hourly Averaged Actual and Forecasted Values
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-737-cd
@@ -453,7 +450,7 @@ Hub	SH	ERCOT_345KV_HUBBUSES_AVG
 Hub	AH	ERCOT_HUB_AVG
 ============================================================
 Source: https://www.ercot.com/files/docs/2009/10/26/07_tests_for_rsnable_lmps_overview_of_price_valid_tool_09102.ppt
-"""  # noqa
+"""
 RESOURCE_NODE_SETTLEMENT_TYPES = ["RN", "PCCRN", "LCCRN", "PUN"]
 LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
 HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
@@ -517,8 +514,8 @@ class Ercot(ISOBase):
     ]
 
     BASE = "https://www.ercot.com/api/1/services/read/dashboards"
-    ACTUAL_LOADS_FORECAST_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"  # noqa
-    ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"  # noqa
+    ACTUAL_LOADS_FORECAST_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_forecast_zones.html"
+    ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"
     LOAD_HISTORICAL_MAX_DAYS = 14
 
     def get_status(
@@ -616,7 +613,7 @@ class Ercot(ISOBase):
         data = self._get_fuel_mix(date, verbose=verbose)
 
         dfs = []
-        for day in data["data"].keys():
+        for day in data["data"]:
             df = pd.DataFrame(data["data"][day])
             # Only care about the gen for this method
             df_transformed = df.apply(
@@ -649,12 +646,11 @@ class Ercot(ISOBase):
         date: str | datetime.datetime | pd.Timestamp,
         verbose: bool,
     ):
-        if date != "latest":
-            if not (
-                utils.is_today(date, tz=self.default_timezone)
-                or utils.is_yesterday(date, tz=self.default_timezone)
-            ):
-                raise NotSupported()
+        if date != "latest" and not (
+            utils.is_today(date, tz=self.default_timezone)
+            or utils.is_yesterday(date, tz=self.default_timezone)
+        ):
+            raise NotSupported()
 
         url = self.BASE + "/fuel-mix.json"
         data = self._get_json(url, verbose=verbose)
@@ -665,7 +661,7 @@ class Ercot(ISOBase):
         self,
         date: str | datetime.datetime | pd.Timestamp,
         data: pd.DataFrame,
-        columns: List[str],
+        columns: list[str],
     ):
         data.index.name = "Time"
         data = data.reset_index()
@@ -705,7 +701,7 @@ class Ercot(ISOBase):
 
         dfs = []
 
-        for day in data["data"].keys():
+        for day in data["data"]:
             df = pd.DataFrame(data["data"][day])
             df_transformed = df.T
             dfs.append(df_transformed)
@@ -1005,7 +1001,7 @@ class Ercot(ISOBase):
             zip_file = utils.get_zip_folder(year_link)
             filename = zip_file.namelist()[0]
             df = pd.read_excel(zip_file.open(filename))
-        elif year_link.endswith(".xls") or year_link.endswith(".xlsx"):
+        elif year_link.endswith((".xls", ".xlsx")):
             response = requests.get(year_link)
             response.raise_for_status()
             df = pd.read_excel(io.BytesIO(response.content))
@@ -1044,7 +1040,7 @@ class Ercot(ISOBase):
             "TOTAL": "ERCOT",
         }
 
-        existing_columns = [col for col in column_mapping.keys() if col in df.columns]
+        existing_columns = [col for col in column_mapping if col in df.columns]
         rename_dict = {col: column_mapping[col] for col in existing_columns}
         df = df.rename(columns=rename_dict)
 
@@ -1526,7 +1522,7 @@ class Ercot(ISOBase):
 
         Source:
             https://www.ercot.com/mp/data-products/data-product-details?id=NP6-785-ER
-        """  # noqa
+        """
         doc_info = self._get_document(
             report_type_id=HISTORICAL_RTM_LOAD_ZONE_AND_HUB_PRICES_RTID,
             constructed_name_contains=f"{year}.zip",
@@ -1840,7 +1836,7 @@ class Ercot(ISOBase):
 
         Monthly historical data available here:
             http://mis.ercot.com/misapp/GetReports.do?reportTypeId=15933&reportTitle=GIS%20Report&showHTMLView=&mimicKey
-        """  # noqa
+        """
         raw_data = self.get_raw_interconnection_queue(verbose)
         excel_file = pd.ExcelFile(raw_data)
 
@@ -1933,17 +1929,16 @@ class Ercot(ISOBase):
             report = LMPS_BY_SETTLEMENT_POINT_RTID
         else:
             raise ValueError(
-                f"Invalid location type: {location_type}. Must be 'settlement point' or 'electrical bus'",  # noqa
+                f"Invalid location type: {location_type}. Must be 'settlement point' or 'electrical bus'",
             )
 
         # if end is None, assume requesting one day
         if end is None:
+            # Single day: pass it through as `date` and leave the range unset.
             start = None
-            end = None
-            date = date
         else:
+            # Range: `date` becomes the range start and is cleared.
             start = date
-            end = end
             date = None
 
         docs = self._get_documents(
@@ -2175,7 +2170,7 @@ class Ercot(ISOBase):
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
-        market: str = None,
+        market: str | None = None,
         locations: list = "ALL",
         location_type: str = "ALL",
         verbose: bool = False,
@@ -2322,8 +2317,8 @@ class Ercot(ISOBase):
         self,
         df: pd.DataFrame,
         market: str,
-        locations: list = None,
-        location_type: str = None,
+        locations: list | None = None,
+        location_type: str | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
@@ -3343,7 +3338,7 @@ class Ercot(ISOBase):
         z: ZipFile,
         process: bool = False,
         verbose: bool = False,
-        files_prefix: dict = None,
+        files_prefix: dict | None = None,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
     ) -> dict:
         """Parse a 60-day DAM disclosure zip file into DataFrames.
@@ -3368,7 +3363,7 @@ class Ercot(ISOBase):
                 DAM_ENERGY_BID_AWARDS_KEY: "60d_DAM_EnergyBidAwards-",
                 DAM_ENERGY_BIDS_KEY: "60d_DAM_EnergyBids-",
                 DAM_PTP_OBLIGATION_OPTION_KEY: "60d_DAM_PTP_Obligation_Option-",
-                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",  # noqa
+                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: "60d_DAM_PTP_Obligation_OptionAwards-",
             }
 
         # Optional files added to the disclosure bundle starting operating day
@@ -3413,12 +3408,12 @@ class Ercot(ISOBase):
                 DAM_LOAD_RESOURCE_AS_OFFERS_KEY: process_dam_or_gen_load_as_offers,
                 DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: process_dam_energy_only_offer_awards,
                 DAM_ENERGY_ONLY_OFFERS_KEY: process_dam_energy_only_offers,
-                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,  # noqa
+                DAM_PTP_OBLIGATION_BID_AWARDS_KEY: process_dam_ptp_obligation_bid_awards,
                 DAM_PTP_OBLIGATION_BIDS_KEY: process_dam_ptp_obligation_bids,
                 DAM_ENERGY_BID_AWARDS_KEY: process_dam_energy_bid_awards,
                 DAM_ENERGY_BIDS_KEY: process_dam_energy_bids,
                 DAM_PTP_OBLIGATION_OPTION_KEY: process_dam_ptp_obligation_option,
-                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,  # noqa
+                DAM_PTP_OBLIGATION_OPTION_AWARDS_KEY: process_dam_ptp_obligation_option_awards,
                 DAM_ESR_KEY: process_dam_esr,
                 DAM_ESR_AS_OFFERS_KEY: process_dam_esr_as_offers,
                 DAM_AS_ONLY_AWARDS_KEY: process_dam_as_only_awards,
@@ -3475,7 +3470,7 @@ class Ercot(ISOBase):
         df = df.rename(
             columns={
                 "UNIT NAME": "Unit Name",
-                "GENERATION INTERCONNECTION PROJECT CODE": "Generation Interconnection Project Code",  # noqa: E501
+                "GENERATION INTERCONNECTION PROJECT CODE": "Generation Interconnection Project Code",
                 "UNIT CODE": "Unit Code",
                 "COUNTY": "County",
                 "FUEL": "Fuel",
@@ -3483,7 +3478,7 @@ class Ercot(ISOBase):
                 "IN SERVICE YEAR": "In Service Year",
                 "INSTALLED CAPACITY RATING": "Installed Capacity Rating",
                 "SUMMER\nCAPACITY\n(MW)": "Summer Capacity (MW)",
-                "NEW PLANNED PROJECT ADDITIONS TO REPORT": "New Planned Project Additions to Report",  # noqa: E501
+                "NEW PLANNED PROJECT ADDITIONS TO REPORT": "New Planned Project Additions to Report",
             },
         )
         # every unit should have this defined
@@ -3671,7 +3666,7 @@ class Ercot(ISOBase):
 
         row_data = {}
 
-        for group_name, group_data in json_data.get("data", {}).items():
+        for group_data in json_data.get("data", {}).values():
             if not isinstance(group_data, list) or len(group_data) < 2:
                 continue
             for item in group_data[1:]:
@@ -3898,7 +3893,7 @@ class Ercot(ISOBase):
                 "Frequency - Current Frequency": "Current Frequency",
                 "Real-Time Data - Actual System Demand": "Actual System Demand",
                 "Real-Time Data - Average Net Load": "Average Net Load",
-                "Real-Time Data - Total System Capacity (not including Ancillary Services)": "Total System Capacity excluding Ancillary Services",  # noqa: E501
+                "Real-Time Data - Total System Capacity (not including Ancillary Services)": "Total System Capacity excluding Ancillary Services",
                 "Real-Time Data - Total Wind Output": "Total Wind Output",
                 "Real-Time Data - Total PVGR Output": "Total PVGR Output",
                 "Real-Time Data - Current System Inertia": "Current System Inertia",
@@ -3965,7 +3960,7 @@ class Ercot(ISOBase):
     def get_wind_actual_and_forecast_hourly(
         self,
         date: str | datetime.date,
-        end: str | datetime.date = None,
+        end: str | datetime.date | None = None,
         verbose: bool = False,
     ):
         """Get Hourly Wind Report.
@@ -3988,7 +3983,7 @@ class Ercot(ISOBase):
         df = self._get_hourly_report(
             start=date,
             end=end,
-            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,  # noqa: E501
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
             extension="csv",
             handle_doc=self._handle_hourly_wind_or_solar_report,
             verbose=True,
@@ -4002,7 +3997,7 @@ class Ercot(ISOBase):
     def get_wind_actual_and_forecast_by_geographical_region_hourly(
         self,
         date: str | datetime.date,
-        end: str | datetime.date = None,
+        end: str | datetime.date | None = None,
         verbose: bool = False,
     ):
         """Get Hourly Wind Report by geographical region
@@ -4017,7 +4012,7 @@ class Ercot(ISOBase):
         df = self._get_hourly_report(
             start=date,
             end=end,
-            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,  # noqa: E501
+            report_type_id=WIND_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
             extension="csv",
             handle_doc=self._handle_hourly_wind_or_solar_report,
             verbose=True,
@@ -4031,7 +4026,7 @@ class Ercot(ISOBase):
     def get_solar_actual_and_forecast_hourly(
         self,
         date: str | datetime.date,
-        end: str | datetime.date = None,
+        end: str | datetime.date | None = None,
         verbose: bool = False,
     ):
         """Get Hourly Solar Report.
@@ -4047,7 +4042,7 @@ class Ercot(ISOBase):
         df = self._get_hourly_report(
             start=date,
             end=end,
-            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,  # noqa: E501
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_RTID,
             extension="csv",
             handle_doc=self._handle_hourly_wind_or_solar_report,
             verbose=True,
@@ -4061,7 +4056,7 @@ class Ercot(ISOBase):
     def get_solar_actual_and_forecast_by_geographical_region_hourly(
         self,
         date: str | datetime.date,
-        end: str | datetime.date = None,
+        end: str | datetime.date | None = None,
         verbose: bool = False,
     ):
         """Get Hourly Solar Report by geographical region
@@ -4083,7 +4078,7 @@ class Ercot(ISOBase):
         df = self._get_hourly_report(
             start=date,
             end=end,
-            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,  # noqa: E501
+            report_type_id=SOLAR_POWER_PRODUCTION_HOURLY_AVERAGED_ACTUAL_AND_FORECASTED_VALUES_BY_GEOGRAPHICAL_REGION_RTID,
             extension="csv",
             handle_doc=self._handle_hourly_wind_or_solar_report,
             verbose=True,
@@ -4162,7 +4157,7 @@ class Ercot(ISOBase):
         logger.info("Downloading ERCOT reported outages data")
 
         json = requests.get(
-            "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",  # noqa: E501
+            "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",
         ).json()
 
         current = json["current"]
@@ -4837,7 +4832,13 @@ class Ercot(ISOBase):
                 df_offers_raw = pd.read_csv(z.open(offers_file))
                 if not df_offers_raw.empty:
                     # Create offer curve as list of [MW, Price] pairs
-                    def _make_offer_curve(group_df: pd.DataFrame) -> list[list[float]]:
+                    # as_name is bound as a default so the closure captures this
+                    # iteration's value rather than whatever the loop variable holds
+                    # when the function is eventually called.
+                    def _make_offer_curve(
+                        group_df: pd.DataFrame,
+                        as_name: str = as_name,
+                    ) -> list[list[float]]:
                         return [
                             [mw, price]
                             for mw, price in zip(
@@ -5756,13 +5757,13 @@ class Ercot(ISOBase):
         df = df.rename(
             columns={
                 # New data (post RTC+B)
-                "Resource Name with Highest-Priced AS Offer Selected in DAM": "Resource Name",  # noqa: E501
-                "Resource Name with Highest-Priced AS Offer Selected in SCED": "Resource Name",  # noqa: E501
+                "Resource Name with Highest-Priced AS Offer Selected in DAM": "Resource Name",
+                "Resource Name with Highest-Priced AS Offer Selected in SCED": "Resource Name",
                 # SCED has spaces around the dash
-                "Resource Name with Highest - Priced AS Offer Selected in SCED": "Resource Name",  # noqa: E501
+                "Resource Name with Highest - Priced AS Offer Selected in SCED": "Resource Name",
                 # Older data
-                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",  # noqa: E501
-                "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",  # noqa: E501
+                "Resource Name with Highest-Priced Offer Selected in DAM and SASMs": "Resource Name",
+                "Resource Name with Highest-Priced Offer Selected in DAM": "Resource Name",
             },
         )
 
@@ -6753,7 +6754,7 @@ class Ercot(ISOBase):
             list of Document with URL and Publish Date
         """
         # Include a cache buster to ensure we get the latest data
-        url = f"https://{base_url}/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"  # noqa
+        url = f"https://{base_url}/misapp/servlets/IceDocListJsonWS?reportTypeId={report_type_id}&_{int(time.time())}"
 
         logger.info(f"Fetching document {url}")
 
@@ -6770,7 +6771,7 @@ class Ercot(ISOBase):
         for doc in docs:
             match = True
 
-            doc_url = f"https://{base_url}/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"  # noqa
+            doc_url = f"https://{base_url}/misdownload/servlets/mirDownload?doclookupId={doc['Document']['DocID']}"
             # make sure to handle retry files
             # e.g SPPHLZNP6905_retry_20230608_1545_csv
             try:
@@ -6850,7 +6851,7 @@ class Ercot(ISOBase):
                 if k not in ["self", "msg", "url", "docs"]
             }
             raise NoDataFoundException(
-                f"No documents found with the given parameters: {params}",  # noqa
+                f"No documents found with the given parameters: {params}",
             )
 
         return matches

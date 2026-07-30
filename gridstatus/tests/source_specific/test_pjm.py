@@ -140,7 +140,7 @@ class TestPJM(BaseTestISO):
                 with pytest.raises(
                     NoDataFoundException,
                     match="No data found for rt_hrl_lmps",
-                ):  # noqa
+                ):
                     self.iso.get_lmp("today", market=market)
             else:
                 df = self.iso.get_lmp("today", market=market)
@@ -321,7 +321,7 @@ class TestPJM(BaseTestISO):
                 "APS",
                 "ATSI",
                 "BC",
-                "COMED",  # noqa
+                "COMED",
                 "DAYTON",
                 "DEOK",
                 "DOM",
@@ -331,17 +331,17 @@ class TestPJM(BaseTestISO):
                 "JC",
                 "ME",
                 "PE",
-                "PEP",  # noqa
+                "PEP",
                 "PJM MID ATLANTIC REGION",
                 "PJM RTO",
-                "PJM SOUTHERN REGION",  # noqa
+                "PJM SOUTHERN REGION",
                 "PJM WESTERN REGION",
                 "PL",
                 "PN",
                 "PS",
                 "RECO",
                 "UG",
-            ]  # noqa
+            ]
 
     """get_load_forecast"""
 
@@ -1655,7 +1655,7 @@ class TestPJM(BaseTestISO):
             assert "Ancillary Service" in df.columns
             for row in df.iterrows():
                 prefix, suffix = row[1]["Ancillary Service"].split("-")
-                assert prefix in self.iso.locale_abbreviated_to_full.keys()
+                assert prefix in self.iso.locale_abbreviated_to_full
                 assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
     expected_real_time_as_market_results_cols = [
@@ -1736,7 +1736,7 @@ class TestPJM(BaseTestISO):
             assert "Ancillary Service" in df.columns
             for row in df.iterrows():
                 prefix, suffix = row[1]["Ancillary Service"].split("-")
-                assert prefix in self.iso.locale_abbreviated_to_full.keys()
+                assert prefix in self.iso.locale_abbreviated_to_full
                 assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
     def test_get_real_time_as_market_results_valid_dates_before_cutoff(self):
@@ -2603,7 +2603,7 @@ class TestPJM(BaseTestISO):
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
-            f"test_get_instantaneous_dispatch_rates_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_instantaneous_dispatch_rates_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_instantaneous_dispatch_rates(start, end)
             self._check_instantaneous_dispatch_rates(df)
