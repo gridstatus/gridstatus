@@ -17,6 +17,14 @@ from gridstatus.spp import (
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
 
+# Module-level and immutable so it is not a mutable default argument. Only ever
+# consumed via set(), so a tuple is equivalent.
+DEFAULT_LOCATION_TYPES = (
+    LOCATION_TYPE_HUB,
+    LOCATION_TYPE_INTERFACE,
+    LOCATION_TYPE_SETTLEMENT_LOCATION,
+)
+
 api_vcr = setup_vcr(
     source="spp",
     record_mode=RECORD_MODE,
@@ -249,11 +257,7 @@ class TestSPP(BaseTestISO):
     def _check_lmp_real_time_5_min_by_location(
         self,
         df,
-        location_types=[
-            LOCATION_TYPE_HUB,
-            LOCATION_TYPE_INTERFACE,
-            LOCATION_TYPE_SETTLEMENT_LOCATION,
-        ],
+        location_types=DEFAULT_LOCATION_TYPES,
     ):
         assert df.columns.tolist() == [
             "Time",
@@ -561,11 +565,7 @@ class TestSPP(BaseTestISO):
     def _check_lmp_day_ahead_hourly(
         self,
         df,
-        location_types=[
-            LOCATION_TYPE_HUB,
-            LOCATION_TYPE_INTERFACE,
-            LOCATION_TYPE_SETTLEMENT_LOCATION,
-        ],
+        location_types=DEFAULT_LOCATION_TYPES,
     ):
         assert df.columns.tolist() == [
             "Time",
@@ -770,7 +770,7 @@ class TestSPP(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
             days=1,
-        )  # noqa
+        )
         yesterday_1230am = yesterday + pd.Timedelta(minutes=30)
         with api_vcr.use_cassette(
             f"test_get_operating_reserves_{yesterday.strftime('%Y%m%d')}_{yesterday_1230am.strftime('%Y%m%d')}.yaml",
@@ -1012,7 +1012,7 @@ class TestSPP(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
             days=3,
-        )  # noqa
+        )
         three_days_ago_0015 = three_days_ago + pd.Timedelta(minutes=15)
 
         with api_vcr.use_cassette(
@@ -1032,7 +1032,7 @@ class TestSPP(BaseTestISO):
             pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
             - pd.Timedelta(days=2)
             + pd.Timedelta(hours=23, minutes=45)
-        )  # noqa
+        )
         one_day_ago_0010 = two_days_ago_2345 + pd.Timedelta(minutes=25)
 
         with api_vcr.use_cassette(
@@ -1050,7 +1050,7 @@ class TestSPP(BaseTestISO):
     def test_get_lmp_real_time_weis_single_interval(self):
         three_weeks_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
             days=21,
-        )  # noqa
+        )
         with api_vcr.use_cassette(
             f"test_get_lmp_real_time_weis_single_interval_{three_weeks_ago.strftime('%Y%m%d')}.yaml",
         ):

@@ -34,17 +34,17 @@ all_isos = [AESO, NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM, IESO]
 
 __all__ = [
     "AESO",
-    "NYISO",
     "CAISO",
-    "Ercot",
+    "IESO",
     "ISONE",
     "MISO",
-    "SPP",
+    "NYISO",
     "PJM",
-    "IESO",
+    "SPP",
+    "Ercot",
     "Markets",
+    "NotSupported",
     "get_iso",
     "list_isos",
-    "NotSupported",
     "load_folder",
 ]

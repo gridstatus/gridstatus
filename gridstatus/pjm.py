@@ -219,7 +219,7 @@ class PJM(ISOBase):
 
         params = {
             "fields": (
-                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"  # noqa: E501
+                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
             ),
         }
 
@@ -250,7 +250,7 @@ class PJM(ISOBase):
         # Historical data uses a different endpoint with slightly different fields.
         params = {
             "fields": (
-                "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"  # noqa: E501
+                "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"
             ),
         }
 
@@ -532,12 +532,12 @@ class PJM(ISOBase):
             )
         except NoDataFoundException as e:
             if "No data found" not in str(e):
-                raise e
+                raise
 
             if market_endpoint == "rt_fivemin_hrl_lmps":
                 market_endpoint = "rt_unverified_fivemin_lmps"
                 params["fields"] = (
-                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"
                 )
                 # remove this field because it's not supported in this endpoint
                 del params["row_is_current"]
@@ -812,7 +812,7 @@ class PJM(ISOBase):
         """Get real-time unverified hourly LMPs"""
 
         params = {
-            "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",  # noqa: E501
+            "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",
         }
         if location_type:
             location_type = location_type.upper()
@@ -883,7 +883,7 @@ class PJM(ISOBase):
 
         params = {
             "fields": (
-                "case_approval_datetime_utc,datetime_beginning_utc,itsced_lmp,marginal_congestion,marginal_loss,pnode_id,pnode_name"  # noqa: E501
+                "case_approval_datetime_utc,datetime_beginning_utc,itsced_lmp,marginal_congestion,marginal_loss,pnode_id,pnode_name"
             ),
         }
 
@@ -948,7 +948,7 @@ class PJM(ISOBase):
             "rt_fivemin_mnt_lmps",
             start=date,
             params={
-                "fields": "congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_rt,total_lmp_rt,type,voltage,zone",  # noqa: E501
+                "fields": "congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_rt,total_lmp_rt,type,voltage,zone",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -995,7 +995,7 @@ class PJM(ISOBase):
             "rt_da_monthly_lmps",
             start=date,
             params={
-                "fields": "congestion_price_da,congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_da,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_da,system_energy_price_rt,total_lmp_da,total_lmp_rt,type,voltage,zone",  # noqa: E501
+                "fields": "congestion_price_da,congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_da,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_da,system_energy_price_rt,total_lmp_da,total_lmp_rt,type,voltage,zone",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -1088,7 +1088,7 @@ class PJM(ISOBase):
         end: str | pd.Timestamp | None = None,
         start_row: int = 1,
         row_count: int = 50000,
-        interval_duration_min: int | float | None = None,
+        interval_duration_min: float | None = None,
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
     ):
@@ -1145,7 +1145,7 @@ class PJM(ISOBase):
         if num_pages > 1:
             to_add = [df]
             for page in tqdm.tqdm(range(1, num_pages), initial=1, total=num_pages):
-                next_url = [x for x in r["links"] if x["rel"] == "next"][0]["href"]
+                next_url = next(x for x in r["links"] if x["rel"] == "next")["href"]
                 r = self._make_api_call(
                     next_url,
                     headers={
@@ -1250,7 +1250,7 @@ class PJM(ISOBase):
             "Facilities Study",
             "Facilities Study Status",
             "Interim/Interconnection Service/Generation Interconnection Agreement",
-            "Interim/Interconnection Service/Generation Interconnection Agreement Status",  # noqa: E501
+            "Interim/Interconnection Service/Generation Interconnection Agreement Status",
             "Wholesale Market Participation Agreement",
             "Construction Service Agreement",
             "Construction Service Agreement Status",
@@ -2371,7 +2371,7 @@ class PJM(ISOBase):
             "hrl_load_metered",
             start=date,
             params={
-                "fields": "datetime_beginning_ept,datetime_beginning_utc,is_verified,load_area,mkt_region,mw,nerc_region,zone",  # noqa: E501
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,is_verified,load_area,mkt_region,mw,nerc_region,zone",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -2425,7 +2425,7 @@ class PJM(ISOBase):
             "frcstd_gen_outages",
             start=date,
             params={
-                "fields": "forecast_execution_date_ept,forecast_date,forecast_gen_outage_mw_rto,forecast_gen_outage_mw_west,forecast_gen_outage_mw_other",  # noqa: E501
+                "fields": "forecast_execution_date_ept,forecast_date,forecast_gen_outage_mw_rto,forecast_gen_outage_mw_west,forecast_gen_outage_mw_other",
             },
             end=end,
             filter_timestamp_name="forecast_execution_date",

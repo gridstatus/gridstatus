@@ -1,5 +1,3 @@
-# flake8: noqa: E501
-
 import datetime
 import http.client
 import os
@@ -8,7 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from io import StringIO
-from typing import Literal, Optional
+from typing import Literal
 from urllib.error import HTTPError
 from warnings import warn
 from xml.etree import ElementTree
@@ -74,11 +72,11 @@ class SurplusState(str, Enum):
 
 
 def _safe_find_text(
-    element: Optional[Element],
+    element: Element | None,
     tag: str,
-    namespaces: Optional[dict[str, str]] = None,
-    default: Optional[str] = None,
-) -> Optional[str]:
+    namespaces: dict[str, str] | None = None,
+    default: str | None = None,
+) -> str | None:
     """Safely find and extract text from an XML element.
 
     Args:
@@ -101,11 +99,11 @@ def _safe_find_text(
 
 
 def _safe_find_int(
-    element: Optional[Element],
+    element: Element | None,
     tag: str,
-    namespaces: Optional[dict[str, str]] = None,
-    default: Optional[int] = None,
-) -> Optional[int]:
+    namespaces: dict[str, str] | None = None,
+    default: int | None = None,
+) -> int | None:
     """Safely find and extract integer from an XML element.
 
     Args:
@@ -128,11 +126,11 @@ def _safe_find_int(
 
 
 def _safe_find_float(
-    element: Optional[Element],
+    element: Element | None,
     tag: str,
-    namespaces: Optional[dict[str, str]] = None,
-    default: Optional[float] = None,
-) -> Optional[float]:
+    namespaces: dict[str, str] | None = None,
+    default: float | None = None,
+) -> float | None:
     """Safely find and extract float from an XML element.
 
     Args:
@@ -783,10 +781,10 @@ class IESO(ISOBase):
 
         if utils.is_today(date, tz=self.default_timezone):
             # This file always contains the most recent file for today
-            url = "https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP.csv"  # noqa: E501
+            url = "https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP.csv"
         else:
             # The most recent file for a give date does not have a version number
-            url = f"https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP_{date.strftime('%Y%m%d')}.csv"  # noqa: E501
+            url = f"https://reports-public.ieso.ca/public/DispUnconsHOEP/PUB_DispUnconsHOEP_{date.strftime('%Y%m%d')}.csv"
 
         # Data is only available for a limited number of days through this method
         try:
@@ -800,7 +798,7 @@ class IESO(ISOBase):
         except HTTPError as e:
             if e.code == 404:
                 raise NotSupported(
-                    f"HOEP data is not available for the requested date {date}. Try using the historical method.",  # noqa: E501
+                    f"HOEP data is not available for the requested date {date}. Try using the historical method.",
                 )
             raise
 
@@ -823,7 +821,7 @@ class IESO(ISOBase):
     ):
         retired_data_warning()
 
-        url = f"https://reports-public.ieso.ca/public/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_{date.year}.csv"  # noqa: E501
+        url = f"https://reports-public.ieso.ca/public/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_{date.year}.csv"
 
         data = pd.read_csv(url, skiprows=1, header=2)
 
@@ -973,7 +971,7 @@ class IESO(ISOBase):
                 dfs.append(df)
             except Exception as e:
                 logger.warning(
-                    f"Failed to parse resource adequacy report: {str(e)}",
+                    f"Failed to parse resource adequacy report: {e!s}",
                 )
                 continue
 
@@ -1170,17 +1168,17 @@ class IESO(ISOBase):
                         retries += 1
                         if retries == max_retries:
                             logger.error(
-                                f"Remote connection closed for file {file}: {str(e)}",
+                                f"Remote connection closed for file {file}: {e!s}",
                             )
                             break
                         logger.warning(
-                            f"Remote connection closed for file {file}: {str(e)}. Retrying in {retry_delay} seconds...",
+                            f"Remote connection closed for file {file}: {e!s}. Retrying in {retry_delay} seconds...",
                         )
                         time.sleep(retry_delay)
                         retry_delay *= 2
                     except Exception as e:
                         logger.error(
-                            f"Unexpected error processing file {file}: {str(e)}",
+                            f"Unexpected error processing file {file}: {e!s}",
                         )
                         break
 
@@ -1263,15 +1261,15 @@ class IESO(ISOBase):
                             2 ** (retries - 1)
                         )  # Exponential backoff
                         logger.warning(
-                            f"Connection error for file {file}: {str(e)}. Retrying in {wait_time} seconds... (attempt {retries + 1})",
+                            f"Connection error for file {file}: {e!s}. Retrying in {wait_time} seconds... (attempt {retries + 1})",
                         )
                         time.sleep(wait_time)
                     else:
                         logger.error(
-                            f"Failed to fetch file {file} after {max_retries} retries: {str(e)}",
+                            f"Failed to fetch file {file} after {max_retries} retries: {e!s}",
                         )
                 except Exception as e:
-                    logger.error(f"Unexpected error processing file {file}: {str(e)}")
+                    logger.error(f"Unexpected error processing file {file}: {e!s}")
                     break  # Don't retry for unexpected errors
 
         return json_data_with_times
@@ -1850,9 +1848,11 @@ class IESO(ISOBase):
         df["Metric"] = df["Metric"].replace({"Imp": "Import", "Exp": "Export"})
 
         df["Zone"] = df["Zone"].apply(
-            lambda x: x.replace(".", "")
-            if isinstance(x, str) and x.startswith("PQ")
-            else (x.replace("-", " ").title() if isinstance(x, str) else x),
+            lambda x: (
+                x.replace(".", "")
+                if isinstance(x, str) and x.startswith("PQ")
+                else (x.replace("-", " ").title() if isinstance(x, str) else x)
+            ),
         )
 
         df = df.pivot_table(
@@ -2869,7 +2869,7 @@ class IESO(ISOBase):
                     ):
                         nisl_values[interval_num] = lmp_value
 
-            for interval_num in lmp_values.keys():
+            for interval_num, lmp in lmp_values.items():
                 if (
                     interval_num in loss_values
                     and interval_num in energy_congestion_values
@@ -2881,7 +2881,6 @@ class IESO(ISOBase):
                     )
                     interval_end = interval_start + pd.Timedelta(minutes=5)
 
-                    lmp = lmp_values[interval_num]
                     congestion = energy_congestion_values[interval_num]
                     loss = loss_values[interval_num]
                     external_congestion = external_congestion_values[interval_num]
@@ -3396,7 +3395,7 @@ class IESO(ISOBase):
                     file_data = future.result()
                     data_list.append(file_data)
                 except Exception as e:
-                    logger.error(f"Error processing {url}: {str(e)}")
+                    logger.error(f"Error processing {url}: {e!s}")
                     continue
 
         if not data_list:
@@ -4046,7 +4045,7 @@ class IESO(ISOBase):
                             (json_data, pd.Timestamp(time, tz=self.default_timezone)),
                         )
                     except Exception as e:
-                        logger.error(f"Error processing file {file}: {str(e)}")
+                        logger.error(f"Error processing file {file}: {e!s}")
             logger.info(
                 f"Found {len(json_data_with_times)} variable generation forecast files for {date_str}",
             )

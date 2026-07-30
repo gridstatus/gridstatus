@@ -249,7 +249,7 @@ class TestMISO(BaseTestISO):
             assert df["Interval End"].max() == self.local_start_of_day(
                 date,
             ) + pd.DateOffset(days=1)
-            assert sorted(list(df["Location Type"].unique())) == [
+            assert sorted(df["Location Type"].unique()) == [
                 "Gennode",
                 "Hub",
                 "Interface",

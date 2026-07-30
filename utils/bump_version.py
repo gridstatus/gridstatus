@@ -58,7 +58,8 @@ def update_citation_cff(file_path: Path, old_version: str, new_version: str) -> 
 
     updated = updated.replace(
         re.search(r"date-released: \d{4}-\d{2}-\d{2}", updated).group(0),
-        f"date-released: {datetime.datetime.now().strftime('%Y-%m-%d')}",
+        # Local, not UTC: a release date is the maintainer's calendar date.
+        f"date-released: {datetime.datetime.now().strftime('%Y-%m-%d')}",  # noqa: DTZ005
     )
 
     if updated != content:

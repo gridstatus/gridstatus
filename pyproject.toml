@@ -70,7 +70,7 @@ dev = [
     "pytest-xdist ~=3.8",
     "pytest-rerunfailures ~=15.0",
     "pytest-cov ~=6.1",
-    "ruff==0.11.5",
+    "ruff==0.16.0",
     "pre-commit ~=4.6",
     "ipython >=8.4.0,<10",
     "jupyter ~=1.1",
@@ -133,14 +133,40 @@ line-length = 88
 src = ["gridstatus"]
 
 [tool.ruff.lint]
-ignore = ["E501"]
-select = ["F", "E", "W", "Q", "I001"]
+# ruff >=0.16 ships a broad curated default rule set
+# (https://docs.astral.sh/ruff/default-rules/). We inherit it and use
+# extend-select for the families enforced here that are not part of it, rather
+# than pinning our own select and missing future default additions.
+extend-select = [
+    "F",    # Pyflakes in full (the default set carries only a subset)
+    "E",    # pycodestyle errors (the default set carries only E722/E902)
+    "W",    # pycodestyle warnings
+    "Q",    # flake8-quotes
+    "I001", # unsorted-imports
+]
+ignore = [
+    "E501",   # line length: the formatter wraps code; long strings/URLs are deliberate
+    "RUF012", # class-level mutable defaults here are declarative dataset config
+    "SIM117", # nested `with` blocks read better than one merged statement
+    "TRY002", # raising builtin exceptions directly is the established style here
+    "TRY003", # long messages at the raise site are fine; custom exceptions are noise
+    "TRY004", # swapping ValueError for TypeError on a type check changes what callers catch
+    # This library scrapes HTML, CSV, XML and PDFs from a dozen ISOs, where any
+    # source can fail in an unpredictable way. Nearly every broad handler either
+    # logs and moves to the next document or re-raises as RequestException on
+    # purpose, so keeping this on would mean ~20 inline noqas rather than a signal.
+    "BLE001", # blind-except
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["gridstatus"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402", "F403", "F405", "E501", "I001"]
+# Example notebooks pass naive datetimes on purpose, to show that the API accepts
+# them. Anchored with `**/` so the pattern matches from any working directory,
+# since `make lint` runs from the repo root but the hook may not.
+"**/docs/**/*.ipynb" = ["DTZ001"]
 
 [tool.ruff.format]
 quote-style = "double"

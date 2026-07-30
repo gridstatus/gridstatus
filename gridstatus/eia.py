@@ -5,7 +5,6 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import Dict
 from zipfile import BadZipFile
 
 import numpy as np
@@ -94,20 +93,14 @@ class EIA:
         params = {
             "api_key": self.api_key,
         }
-        try:
-            data = self.session.get(url, params=params)
-            data.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            raise err
+        data = self.session.get(url, params=params)
+        data.raise_for_status()
         response = data.json()["response"]
         return response
 
     def _fetch_page(self, url, headers):
-        try:
-            data = self.session.get(url, headers=headers)
-            data.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            raise err
+        data = self.session.get(url, headers=headers)
+        data.raise_for_status()
         response = data.json()["response"]
         df = pd.DataFrame(response["data"])
         return df, int(response["total"])
@@ -225,7 +218,7 @@ class EIA:
             pages = range(1, total_pages)
             with concurrent.futures.ThreadPoolExecutor(
                 max_workers=n_workers,
-            ) as executor:  # noqa
+            ) as executor:
                 args = ((url, headers.copy(), page, page_size) for page in pages)
                 futures = [executor.submit(fetch_page_wrapper, *arg) for arg in args]
 
@@ -236,7 +229,7 @@ class EIA:
                         for future, page in zip(
                             concurrent.futures.as_completed(futures),
                             pages,
-                        ):  # noqa
+                        ):
                             progress_bar.update(1)
 
                 page_dfs = [future.result() for future in futures]
@@ -611,11 +604,11 @@ class EIA:
 
         coal_exports = pd.DataFrame(coal_exports)
         coal_exports["delivery_month"] = coal_exports["delivery_month"].map(
-            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),
+            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),  # noqa: DTZ007
         )
         coke_exports = pd.DataFrame(coke_exports)
         coke_exports["delivery_month"] = coke_exports["delivery_month"].map(
-            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),
+            lambda x: datetime.datetime.strptime(str(x), "%Y%m"),  # noqa: DTZ007
         )
 
         return {
@@ -798,9 +791,9 @@ class EIA:
     def get_generators(
         self,
         date: str | datetime.datetime,
-        end: str | datetime.datetime = None,
+        end: str | datetime.datetime | None = None,
         verbose: bool = False,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         date = utils._handle_date(date, "UTC")
         month_name = date.strftime("%B").lower()
         year = date.year
@@ -924,7 +917,7 @@ class EIA:
             if col not in df.columns and col in columns:
                 if verbose:
                     logger.warning(
-                        f"Column {col} not found in data for {generator_status} generators. Adding and filling with np.nan values.",  # noqa
+                        f"Column {col} not found in data for {generator_status} generators. Adding and filling with np.nan values.",
                     )
                 df[col] = np.nan
 
@@ -1094,7 +1087,7 @@ def _handle_fuel_type_data(df):
     df["type-name"] = df["type-name"].str.lower()
 
     # These columns are grouped together by EIA as confirmed by inspection of the EIA
-    # fuel mix graphs. https://www.eia.gov/electricity/gridmonitor/expanded-view/electric_overview/US48/US48/GenerationByEnergySource-4/edit # noqa
+    # fuel mix graphs. https://www.eia.gov/electricity/gridmonitor/expanded-view/electric_overview/US48/US48/GenerationByEnergySource-4/edit
     df["type-name"] = df["type-name"].replace(
         {
             "battery": "battery storage",

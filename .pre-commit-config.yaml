@@ -21,8 +21,11 @@ repos:
     rev: v0.24.1
     hooks:
       - id: validate-pyproject
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.13.2
+  # This rev must match the exact ruff pin in pyproject.toml, which is what CI's
+  # `make lint` resolves through uv.lock. They drifted before (hook on 0.13.2,
+  # lockfile on 0.11.5), so the local hook enforced a different rule set than CI.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
     hooks:
       - id: ruff
         args: ["--fix"]

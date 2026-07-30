@@ -146,7 +146,7 @@ class ISONEAPI:
     def make_api_call(
         self,
         url: str,
-        api_params: dict = None,
+        api_params: dict | None = None,
         parse_json: bool = True,
         verbose: bool = False,
     ):
@@ -456,7 +456,7 @@ class ISONEAPI:
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
-        locations: list[str] = None,
+        locations: list[str] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -504,7 +504,7 @@ class ISONEAPI:
                 if not locations:
                     locations = [
                         loc
-                        for loc in ZONE_LOCATIONID_MAP.keys()
+                        for loc in ZONE_LOCATIONID_MAP
                         if loc not in EXCLUDE_FROM_REALTIME_HOURLY_DEMAND
                     ]
 
@@ -599,7 +599,7 @@ class ISONEAPI:
         self,
         date: str | pd.Timestamp = "latest",
         end: str | pd.Timestamp | None = None,
-        locations: list[str] = None,
+        locations: list[str] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
@@ -951,7 +951,7 @@ class ISONEAPI:
         if date == "latest":
             url = f"{self.base_url}/fifteenminuteinterchange/current"
         else:
-            url = f"{self.base_url}/fifteenminuteinterchange/day/{date.strftime('%Y%m%d')}"  # noqa: E501
+            url = f"{self.base_url}/fifteenminuteinterchange/day/{date.strftime('%Y%m%d')}"
 
         log.info(f"Requesting interchange data for date: {date}")
 

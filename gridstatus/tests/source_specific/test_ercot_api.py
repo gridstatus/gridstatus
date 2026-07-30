@@ -181,7 +181,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     @api_vcr.use_cassette(
-        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
+        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",
     )
     def test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range(
         self,
@@ -293,7 +293,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     @api_vcr.use_cassette(
-        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
+        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",
     )
     def test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range(
         self,

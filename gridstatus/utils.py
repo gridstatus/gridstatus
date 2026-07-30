@@ -1,7 +1,7 @@
 import glob
 import io
 import os
-from typing import Callable
+from collections.abc import Callable
 from zipfile import ZipFile
 
 import pandas as pd

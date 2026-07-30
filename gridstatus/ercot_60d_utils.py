@@ -450,7 +450,7 @@ def match_gen_load_names(list1, list2):
     result = {}
     for item in list1:
         prefix = item.split("_")[0]
-        if prefix in prefix_dict and prefix_dict[prefix]:
+        if prefix_dict.get(prefix):
             result[item] = prefix_dict[prefix].pop(0)
         else:
             print(f"No match found for {item}")
@@ -537,7 +537,7 @@ def make_storage_resources(data):
                 "Unit Name": "unit_name",
                 "County": "county",
                 "Zone": "zone",
-                "Generation Interconnection Project Code": "generation_interconnection_project_code",  # noqa
+                "Generation Interconnection Project Code": "generation_interconnection_project_code",
                 "In Service Year": "in_service_year",
                 "Installed Capacity Rating": "installed_capacity_rating",
                 "Summer Capacity (MW)": "summer_capacity_mw",
@@ -1580,6 +1580,6 @@ def process_sced_resource_as_offers(
 
 
 # # backup for more node names
-# pd.read_html("https://www.ercot.com/content/cdr/html/current_np6788.html", skiprows=3)[0][0] # noqa
+# pd.read_html("https://www.ercot.com/content/cdr/html/current_np6788.html", skiprows=3)[0][0]
 # # todo add in QSE
 # # todo prefix and county match

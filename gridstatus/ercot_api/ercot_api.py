@@ -4,13 +4,12 @@ import os
 import random
 import time
 from enum import StrEnum
-from typing import Dict
 from zipfile import ZipFile
 
 import pandas as pd
 import pytz
 import requests
-import requests.status_codes as status_codes
+from requests import status_codes
 from tqdm import tqdm
 
 from gridstatus import utils
@@ -32,7 +31,7 @@ from gridstatus.ercot_constants import (
 from gridstatus.gs_logging import logger
 
 # API to hit with subscription key to get token
-TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
+TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"
 
 PUBLIC_BASE_URL = "https://api.ercot.com/api/public-reports"
 ESR_BASE_URL = "https://api.ercot.com/api/public-data"
@@ -111,7 +110,7 @@ SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 HOURLY_WIND_POWER_PRODUCTION_ENDPOINT = "/np4-732-cd/wpp_hrly_avrg_actl_fcast"
 
 
-# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region
 # https://data.ercot.com/data-product-archive/NP4-742-CD
 HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-742-cd/wpp_hrly_actual_fcast_geo"
@@ -122,7 +121,7 @@ HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
 HOURLY_SOLAR_POWER_PRODUCTION_ENDPOINT = "/np4-737-cd/spp_hrly_avrg_actl_fcast"
 
 
-# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region
 # https://data.ercot.com/data-product-archive/NP4-745-CD
 HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
@@ -141,7 +140,7 @@ ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT = "/np6-345-cd/act_sys_load_by_wzn"
 ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE_ENDPOINT = "/np6-346-cd/act_sys_load_by_fzn"
 
 
-# Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
+# Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes.
 # https://data.ercot.com/data-product-archive/NP6-905-CD
 SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
 
@@ -190,16 +189,16 @@ class ErcotAPI:
 
     To register, create an account here: https://apiexplorer.ercot.com/
     To obtain a subscription key, follow the instructions here: https://developer.ercot.com/applications/pubapi/ERCOT%20Public%20API%20Registration%20and%20Authentication/
-    """  # noqa
+    """
 
     default_timezone = "US/Central"
 
     def __init__(
         self,
-        username: str = None,
-        password: str = None,
-        public_subscription_key: str = None,
-        esr_subscription_key: str = None,
+        username: str | None = None,
+        password: str | None = None,
+        public_subscription_key: str | None = None,
+        esr_subscription_key: str | None = None,
         sleep_seconds: float = 0.2,
         max_retries: int = 3,
         batch_size: int = 1000,
@@ -221,7 +220,7 @@ class ErcotAPI:
             ],
         ):
             raise ValueError(
-                "Username, password, and subscription key must be provided or set as environment variables",  # noqa
+                "Username, password, and subscription key must be provided or set as environment variables",
             )
 
         self.client_id = "fec253ea-0d06-4272-a5e6-b478baeecd70"  # From the docs
@@ -293,7 +292,7 @@ class ErcotAPI:
         if not self.token or time.time() >= self.token_expiry:
             self.get_token()
 
-    def headers(self, api: APITypeEnum = APITypeEnum.PUBLIC_API) -> Dict[str, str]:
+    def headers(self, api: APITypeEnum = APITypeEnum.PUBLIC_API) -> dict[str, str]:
         self.refresh_token_if_needed()
 
         # Both forms of authentication are required
@@ -309,7 +308,7 @@ class ErcotAPI:
     def make_api_call(
         self,
         url: str,
-        api_params: dict = None,
+        api_params: dict | None = None,
         parse_json: bool = True,
         method: str = "GET",
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
@@ -480,21 +479,24 @@ class ErcotAPI:
         )
 
         # Find CST timestamps by checking for "xhr" in filename
-        if raw_data is not None and "postDatetime" in raw_data.columns:
-            if "_source_filename" in raw_data.columns:
-                xhr_mask = (
-                    raw_data["_source_filename"]
-                    .astype(str)
-                    .str.contains("xhr", case=False, na=False)
+        if (
+            raw_data is not None
+            and "postDatetime" in raw_data.columns
+            and "_source_filename" in raw_data.columns
+        ):
+            xhr_mask = (
+                raw_data["_source_filename"]
+                .astype(str)
+                .str.contains("xhr", case=False, na=False)
+            )
+            if xhr_mask.any():
+                raw_post_datetime_str = (
+                    raw_data.loc[xhr_mask, "postDatetime"].astype(str).unique()
                 )
-                if xhr_mask.any():
-                    raw_post_datetime_str = (
-                        raw_data.loc[xhr_mask, "postDatetime"].astype(str).unique()
-                    )
-                    # Mark rows in result that match these postDatetime values as CST
-                    for xhr_post in raw_post_datetime_str:
-                        if "T01:" in str(xhr_post):
-                            result[post_datetime_str == xhr_post] = False
+                # Mark rows in result that match these postDatetime values as CST
+                for xhr_post in raw_post_datetime_str:
+                    if "T01:" in str(xhr_post):
+                        result[post_datetime_str == xhr_post] = False
 
         return result
 
@@ -1522,11 +1524,11 @@ class ErcotAPI:
     def parse_dam_doc(self, data: pd.DataFrame) -> pd.DataFrame:
         data = self.ercot.parse_doc(
             data.rename(
-                columns=dict(
-                    deliveryDate="DeliveryDate",
-                    hourEnding="HourEnding",
-                    busName="BusName",
-                ),
+                columns={
+                    "deliveryDate": "DeliveryDate",
+                    "hourEnding": "HourEnding",
+                    "busName": "BusName",
+                },
             ),
         )
 
@@ -1544,7 +1546,7 @@ class ErcotAPI:
 
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead market shadow prices
-        """  # noqa
+        """
         if date == "latest":
             return self.get_shadow_prices_dam("today", verbose=verbose)
 
@@ -1594,7 +1596,7 @@ class ErcotAPI:
 
         Returns:
             pandas.DataFrame: A DataFrame with real-time market shadow prices
-        """  # noqa
+        """
         if date == "latest":
             return self.get_shadow_prices_sced("today", verbose=verbose)
 
@@ -1739,7 +1741,7 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Get the 60-day DAM disclosure reports from ERCOT.
 
@@ -1809,7 +1811,7 @@ class ErcotAPI:
             df_list.append(processed_files)
 
         # Take the list of dictionaries and concat the dataframes for each key
-        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
+        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0]}
 
     @support_date_range(frequency=None)
     def get_60_day_sced_disclosure(
@@ -1819,7 +1821,7 @@ class ErcotAPI:
         verbose: bool = False,
         process: bool = True,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Get the 60-day SCED disclosure reports from ERCOT.
 
@@ -1877,7 +1879,7 @@ class ErcotAPI:
             df_list.append(processed_files)
 
         # Take the list of dictionaries and concat the dataframes for each key
-        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
+        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0]}
 
     @support_date_range(frequency=None)
     def get_cop_adjustment_period_snapshot_60_day(
@@ -2109,7 +2111,7 @@ class ErcotAPI:
 
             if retries == max_retries:
                 logger.error(
-                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",
                 )
 
         return documents
@@ -2407,13 +2409,15 @@ class ErcotAPI:
         return parsed_api_params
 
     def _get_public_endpoints_map(self) -> dict:
-        endpoints = json.load(open(PUBLIC_ENDPOINTS_MAP_FILE))
+        with open(PUBLIC_ENDPOINTS_MAP_FILE) as endpoints_file:
+            endpoints = json.load(endpoints_file)
         endpoints = parse_all_endpoints(apijson=endpoints)
 
         return endpoints
 
     def _get_esr_endpoints_map(self) -> dict:
-        esr_endpoints = json.load(open(ESR_ENDPOINTS_MAP_FILE))
+        with open(ESR_ENDPOINTS_MAP_FILE) as esr_endpoints_file:
+            esr_endpoints = json.load(esr_endpoints_file)
         esr_endpoints = parse_all_endpoints(apijson=esr_endpoints)
 
         return esr_endpoints

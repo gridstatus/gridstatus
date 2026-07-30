@@ -191,7 +191,7 @@ class ISOBase:
         return latest_df
 
     def _latest_from_today(self, method, *args, **kwargs):
-        data = method(date="today", *args, **kwargs)
+        data = method(*args, date="today", **kwargs)
         latest = data.iloc[-1]
 
         latest.index = latest.index.str.lower()
@@ -211,19 +211,19 @@ class GridStatus:
     def __repr__(self) -> str:
         s = self.iso.name + "\n"
 
-        s += "Time: %s \n" % str(self.time)
-        s += "Status: %s \n" % self.status
+        s += f"Time: {self.time!s} \n"
+        s += f"Status: {self.status} \n"
 
         if self.iso.status_homepage:
-            s += "Status Homepage: %s \n" % self.iso.status_homepage
+            s += f"Status Homepage: {self.iso.status_homepage} \n"
 
         if self.reserves is not None:
-            s += "Reserves: %.0f %s \n" % (self.reserves, self.unit)
+            s += f"Reserves: {self.reserves:.0f} {self.unit} \n"
 
         if self.notes and len(self.notes):
             s += "Notes:\n"
             for n in self.notes:
-                s += "-  %s\n" % n
+                s += f"-  {n}\n"
 
         return s
 

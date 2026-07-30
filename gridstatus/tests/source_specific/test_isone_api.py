@@ -56,8 +56,10 @@ class TestISONEAPI(TestHelperMixin):
         assert self.iso.password is not None
 
     def test_zone_locationid_map(self):
-        for zone, location_id in ZONE_LOCATIONID_MAP.items():
-            assert ZONE_LOCATIONID_MAP[zone] == location_id
+        # `location_id == location_id` asserted nothing. The map's contract is that
+        # every zone name resolves to an integer location id.
+        for location_id in ZONE_LOCATIONID_MAP.values():
+            assert isinstance(location_id, int)
 
     def test_get_locations(self):
         with api_vcr.use_cassette("test_get_locations.yaml"):

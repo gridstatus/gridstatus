@@ -1,7 +1,8 @@
 import re
 import urllib
+from collections.abc import Callable
 from enum import StrEnum
-from typing import BinaryIO, Callable
+from typing import BinaryIO
 
 import pandas as pd
 import pytz
@@ -61,8 +62,8 @@ LOCATION_TYPE_HUB = "Hub"
 LOCATION_TYPE_INTERFACE = "Interface"
 LOCATION_TYPE_SETTLEMENT_LOCATION = "Settlement Location"
 
-QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"  # noqa
-QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"  # noqa
+QUERY_RTM5_HUBS_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/1/query"
+QUERY_RTM5_INTERFACES_URL = "https://pricecontourmap.spp.org/arcgis/rest/services/MarketMaps/RTBM_FeatureData/MapServer/2/query"
 
 RELIABILITY_LEVELS = [
     "Normal Operations",
@@ -406,7 +407,7 @@ class SPP(ISOBase):
         else:
             raise ValueError(f"Unexpected date type: {type(date)}")
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/{baa}/{file_type}_{baa}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/generation-mix-historical?path=/{baa}/{file_type}_{baa}.csv"
 
         if verbose:
             logger.info(f"Downloading fuel mix from {url}")
@@ -1242,7 +1243,7 @@ class SPP(ISOBase):
 
 
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{date.strftime('%Y')}/{date.strftime('%m')}/Capacity-Gen-Outage-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{date.strftime('%Y')}/{date.strftime('%m')}/Capacity-Gen-Outage-{date.strftime('%Y%m%d')}.csv"
 
         logger.info(f"Downloading {url}")
 
@@ -1265,7 +1266,7 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: VER Curtailments
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/capacity-of-generation-on-outage?path=/{year}/{year}.zip"
 
         def process_csv(df, file_name):
             # infer date from '2020/01/Capacity-Gen-Outage-20200101.csv'
@@ -1320,7 +1321,7 @@ class SPP(ISOBase):
 
     def _fetch_ver_curtailments_daily(self, date: pd.Timestamp) -> pd.DataFrame:
         """Fetch and process a single day's VER curtailments CSV."""
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{date.strftime('%Y')}/{date.strftime('%m')}/VER-Curtailments-{date.strftime('%Y%m%d')}.csv"
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return self._process_ver_curtailments(df)
@@ -1331,7 +1332,7 @@ class SPP(ISOBase):
         verbose: bool = True,
     ) -> pd.DataFrame:
         """Fetch and process a full year's VER curtailments zip."""
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/ver-curtailments?path=/{year}/{year}.zip"
         df = utils.download_csvs_from_zip_url(url, verbose=verbose)
         return self._process_ver_curtailments(df)
 
@@ -1761,7 +1762,7 @@ class SPP(ISOBase):
             endpoint = FS_DAM_LMP_BY_LOCATION
             file_prefix = "DA-LMP-SL"
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/{file_prefix}-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/{file_prefix}-{date.strftime('%Y%m%d')}0100.csv"
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
         return df
@@ -1870,7 +1871,7 @@ class SPP(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"  # noqa
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/operating-reserves?path=/RTBM-OR-latestInterval.csv"
         else:
             url = self._format_5_min_url(
                 date,
@@ -2065,7 +2066,7 @@ class SPP(ISOBase):
                 "Latest not supported for Day Ahead Marginal Clearing Prices",
             )
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/da-mcp?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MCP-{date.strftime('%Y%m%d')}0100.csv"
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
@@ -2126,12 +2127,12 @@ class SPP(ISOBase):
         # if no end, find nearest 5 minute interval end
         # to use
         if date == "latest":
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"  # noqa
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/WEIS-RTBM-LMP-SL-latestInterval.csv"
         else:
             url = self._format_5_min_url(date, end, endpoint, "WEIS-RTBM-LMP-SL")
             # todo before 2022 only annual files are available
 
-        # TODO: sometimes there are missing interval files (example: https://portal.spp.org/pages/lmp-by-settlement-location-weis#%2F2024%2F01%2FBy_Interval%2F21) # noqa
+        # TODO: sometimes there are missing interval files (example: https://portal.spp.org/pages/lmp-by-settlement-location-weis#%2F2024%2F01%2FBy_Interval%2F21)
         # We can't do anything in these cases but log a message
         logger.info(f"Downloading {url}")
 
@@ -2209,7 +2210,7 @@ class SPP(ISOBase):
 
         interval_str = "/By_Interval" if include_interval else ""
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}{interval_str}/{folder_day}/{file_prefix}-{end.strftime('%Y%m%d%H%M')}.csv"
 
         # Intervals that occur after DST end during the repeated hour have a "d" suffix
         # Identify these intervals by the offset of the end time. Since CDT is UTC-5 and
@@ -2247,7 +2248,7 @@ class SPP(ISOBase):
         folder_year = start.strftime("%Y")
         folder_month = start.strftime("%m")
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}/By_Day/{file_prefix}-{start.strftime('%Y%m%d')}.csv"  # noqa: E501
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{endpoint}?path=/{folder_year}/{folder_month}/By_Day/{file_prefix}-{start.strftime('%Y%m%d')}.csv"
 
         return url
 
@@ -2336,7 +2337,7 @@ class SPP(ISOBase):
                 "Use get_hourly_load for data on or after 2026-03-24.",
             )
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
@@ -2372,7 +2373,7 @@ class SPP(ISOBase):
                 "Use get_hourly_load_historical for data before 2026-03-24.",
             )
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{date.strftime('%Y')}/DAILY_HOURLY_LOAD-{date.strftime('%Y%m%d')}.csv"
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
@@ -2389,7 +2390,7 @@ class SPP(ISOBase):
         Returns:
             pd.DataFrame: Hourly Load
         """
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/hourly-load?path=/{year}/{year}.zip"
         df = utils.download_csvs_from_zip_url(
             url=url,
             verbose=verbose,
@@ -2549,7 +2550,7 @@ class SPP(ISOBase):
                     verbose=verbose,
                 )
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing-rtbm?path=/{date.strftime('%Y')}/{date.strftime('%m')}/RTBM-MC-{date.strftime('%Y%m%d')}.csv"
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
@@ -2582,7 +2583,7 @@ class SPP(ISOBase):
                 )
                 return self.get_market_clearing_day_ahead("today", verbose=verbose)
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/market-clearing?path=/{date.strftime('%Y')}/{date.strftime('%m')}/DA-MC-{date.strftime('%Y%m%d')}0100.csv"
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
@@ -2640,7 +2641,7 @@ class SPP(ISOBase):
             except NoDataFoundException:
                 return self.get_binding_constraints_day_ahead_hourly(date="today")
 
-        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"  # noqa
+        url = f"{FILE_BROWSER_DOWNLOAD_URL}/{DA_BINDING_CONSTRAINTS}?path=/{date.strftime('%Y')}/{date.strftime('%m')}/By_Day/DA-BC-{date.strftime('%Y%m%d')}0100.csv"
         return self._process_binding_constraints_day_ahead_hourly(url)
 
     def _process_binding_constraints_day_ahead_hourly(self, url: str) -> pd.DataFrame:
@@ -2809,7 +2810,7 @@ class SPP(ISOBase):
     ) -> pd.DataFrame:
         """Get Real-Time Binding Constraints from 5-minute interval files."""
         if date == "latest":
-            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/RTBM-BC-latestInterval.csv"  # noqa
+            url = f"{FILE_BROWSER_DOWNLOAD_URL}/{RTBM_BINDING_CONSTRAINTS}?path=/RTBM-BC-latestInterval.csv"
         else:
             url = self._format_5_min_url(
                 date,

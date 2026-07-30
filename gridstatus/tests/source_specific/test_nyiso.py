@@ -1001,7 +1001,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.Timedelta(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1027,7 +1027,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_end_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_dst_end_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1053,7 +1053,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_start_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_dst_start_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1081,7 +1081,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lake_erie_circulation_real_time(
                 start=start,
@@ -1101,7 +1101,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lake_erie_circulation_day_ahead(
                 start=start,
@@ -1117,9 +1117,7 @@ class TestNYISO(BaseTestISO):
 
     @staticmethod
     def _check_status(df):
-        assert set(df.columns) == set(
-            ["Time", "Status", "Notes"],
-        )
+        assert set(df.columns) == {"Time", "Status", "Notes"}
 
     def _check_as_prices(
         self,

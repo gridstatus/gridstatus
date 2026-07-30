@@ -1,6 +1,7 @@
 import functools
 import pprint
-from typing import Any, Callable, Dict, List, ParamSpec, TypeVar, cast
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar, cast
 
 import pandas as pd
 import tqdm
@@ -15,8 +16,8 @@ T = TypeVar("T")
 def _get_args_dict(
     fn: Callable[..., Any],
     args: tuple[Any, ...],
-    kwargs: Dict[str, Any],
-) -> Dict[str, Any]:
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
     args_names = fn.__code__.co_varnames[: fn.__code__.co_argcount]
     return {**dict(zip(args_names, args)), **kwargs}
 
@@ -28,7 +29,7 @@ def date_range_maker(
     end: pd.Timestamp,
     freq: str | pd.DateOffset,
     inclusive: str = "neither",
-) -> List[pd.Timestamp]:
+) -> list[pd.Timestamp]:
     """Generate a date range based on start and end dates and a frequency."""
     # implement other behavior
     # if/when needed
@@ -87,11 +88,11 @@ class support_date_range:
 
     def __init__(
         self,
-        frequency: str | Callable[[Dict[str, Any]], str] | None,
+        frequency: str | Callable[[dict[str, Any]], str] | None,
         update_dates: (
             Callable[
-                [List[pd.Timestamp | None], Dict[str, Any]],
-                List[pd.Timestamp | None],
+                [list[pd.Timestamp | None], dict[str, Any]],
+                list[pd.Timestamp | None],
             ]
             | None
         ) = None,
@@ -126,16 +127,12 @@ class support_date_range:
 
             if "date" in args_dict and "start" in args_dict:
                 raise ValueError(
-                    "Cannot supply both 'date' and 'start' to function {}".format(
-                        f,
-                    ),
+                    f"Cannot supply both 'date' and 'start' to function {f}",
                 )
 
             if "date" not in args_dict and "start" not in args_dict:
                 raise ValueError(
-                    "Must supply either 'date' or 'start' to function {}".format(
-                        f,
-                    ),
+                    f"Must supply either 'date' or 'start' to function {f}",
                 )
 
             if "start" in args_dict:
@@ -151,7 +148,7 @@ class support_date_range:
             if (
                 self.frequency in ["HOUR_START", "5_MIN"]
                 and args_dict.get("date") == "today"
-            ):  # noqa
+            ):
                 args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
                 args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
 
@@ -266,17 +263,15 @@ class support_date_range:
                         df = inner_f(**args_dict)
                     except Exception as e:
                         if error == "raise":
-                            raise e
+                            raise
                         elif error == "ignore":
                             df = None
                             errors += [args_dict.copy()]
-                            print("Error: {}".format(e))
-                            print("Args: {}\n".format(args_dict))
+                            print(f"Error: {e}")
+                            print(f"Args: {args_dict}\n")
                         else:
                             raise ValueError(
-                                "Invalid value for error: {}".format(
-                                    error,
-                                ),
+                                f"Invalid value for error: {error}",
                             )
 
                     pbar.update(1)
@@ -320,12 +315,7 @@ def _get_pjm_archive_date(market: str | Markets) -> pd.Timestamp:
         archive_date = pd.Timestamp.now(
             tz=tz,
         ) - pd.Timedelta(days=186)
-    elif market == Markets.REAL_TIME_HOURLY:
-        archive_date = pd.Timestamp.now(
-            tz=tz,
-        ) - pd.Timedelta(days=731)
-        # todo implemlement location type filter
-    elif market == Markets.DAY_AHEAD_HOURLY:
+    elif market == Markets.REAL_TIME_HOURLY or market == Markets.DAY_AHEAD_HOURLY:
         archive_date = pd.Timestamp.now(
             tz=tz,
         ) - pd.Timedelta(days=731)
@@ -335,9 +325,9 @@ def _get_pjm_archive_date(market: str | Markets) -> pd.Timestamp:
 
 # todo convert to custom PJMDateOffset class
 def pjm_update_dates(
-    dates: List[pd.Timestamp | None],
-    args_dict: Dict[str, Any],
-) -> List[pd.Timestamp | None]:
+    dates: list[pd.Timestamp | None],
+    args_dict: dict[str, Any],
+) -> list[pd.Timestamp | None]:
     """PJM has a weird API. This method updates the date range list to account
     for the following restrictions:
 
@@ -348,7 +338,7 @@ def pjm_update_dates(
 
     archive_date = _get_pjm_archive_date(args_dict["market"])
 
-    new_dates: List[pd.Timestamp | None] = []
+    new_dates: list[pd.Timestamp | None] = []
 
     for i, date in enumerate(dates):
         # stop if last date

@@ -1,5 +1,4 @@
 import datetime
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -100,7 +99,7 @@ def test_list_facets():
 
     facets = eia.list_facets("electricity/rto/region-data")
 
-    assert "type" in facets.keys()
+    assert "type" in facets
 
 
 @pytest.mark.integration
@@ -345,15 +344,13 @@ def _check_henry_hub_natural_gas_spot_prices(df):
     assert (df["Interval End"] - df["Interval Start"]).unique() == pd.Timedelta(days=1)
 
     # Only RNGWHHD is present after 2024-04-05
-    assert set(df["series"].unique()) == set(
-        [
-            "RNGWHHD",
-            "RNGC1",
-            "RNGC2",
-            "RNGC3",
-            "RNGC4",
-        ],
-    )
+    assert set(df["series"].unique()) == {
+        "RNGWHHD",
+        "RNGC1",
+        "RNGC2",
+        "RNGC3",
+        "RNGC4",
+    }
 
     assert df["area_name"].isna().any()
     assert not df["price"].isna().any()
@@ -397,11 +394,11 @@ def test_get_henry_hub_natural_gas_spot_prices_historical_date_range():
 def _check_generators_data(
     df: pd.DataFrame,
     generator_status: str,
-    columns: List[str] = None,
-    expected_rows: int = None,
-    expected_period: datetime.date = None,
+    columns: list[str] | None = None,
+    expected_rows: int | None = None,
+    expected_period: datetime.date | None = None,
     expected_updated_at: pd.Timestamp = None,
-    expected_all_na_columns: List[str] = None,
+    expected_all_na_columns: list[str] | None = None,
 ):
     assert df.columns.tolist() == columns
     if expected_rows is not None:
@@ -455,7 +452,7 @@ def _check_generators_data(
 
 def _check_facility_fuel_data(
     df: pd.DataFrame,
-    expected_periods: List[datetime.date],
+    expected_periods: list[datetime.date],
 ):
     assert df.columns.tolist() == FACILITY_FUEL_COLUMNS
 
