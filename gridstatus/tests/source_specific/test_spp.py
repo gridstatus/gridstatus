@@ -79,6 +79,15 @@ class TestSPP(BaseTestISO):
         "Other Self",
     ]
 
+    FUEL_MIX_OPTIONAL_COLS = [
+        "Energy Storage",
+    ]
+
+    FUEL_MIX_DETAILED_OPTIONAL_COLS = [
+        "Energy Storage Market",
+        "Energy Storage Self",
+    ]
+
     FUEL_MIX_BAA_COLS = [
         "Interval Start",
         "Interval End",
@@ -120,6 +129,15 @@ class TestSPP(BaseTestISO):
         "Other Market",
         "Other Self",
     ]
+
+    def _assert_fuel_mix_columns(
+        self,
+        df: pd.DataFrame,
+        required: list[str],
+        optional: list[str],
+    ) -> None:
+        assert all(c in df.columns for c in required)
+        assert set(df.columns) <= set(required) | set(optional)
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)
@@ -169,7 +187,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
         assert "BAA" not in fm.columns
 
@@ -178,7 +200,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix(date="today")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert "BAA" not in fm.columns
 
     def test_get_fuel_mix_detailed_latest(self):
@@ -186,7 +212,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_detailed(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_DETAILED_COLS,
+            self.FUEL_MIX_DETAILED_OPTIONAL_COLS,
+        )
         assert "BAA" not in fm.columns
 
     def test_get_fuel_mix_too_old_raises(self):
@@ -204,7 +234,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix(date=yesterday)
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert "BAA" not in fm.columns
         assert fm["Interval Start"].min() >= yesterday
 
@@ -215,7 +249,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_BAA_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
         assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
@@ -224,7 +262,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa(date="today")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_BAA_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
     def test_get_fuel_mix_by_baa_historical_recent(self):
@@ -237,7 +279,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa(date=yesterday)
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_BAA_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert set(fm["BAA"].unique()).issubset({"SPP", "SWPW"})
         assert "SPP" in fm["BAA"].values
         assert fm["Interval Start"].min() >= yesterday
@@ -249,7 +295,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_DETAILED_BAA_COLS,
+            self.FUEL_MIX_DETAILED_OPTIONAL_COLS,
+        )
         assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
     """get_lmp_real_time_5_min_by_location"""
