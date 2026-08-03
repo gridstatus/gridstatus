@@ -3084,6 +3084,7 @@ def process_gen_mix(df: pd.DataFrame, detailed: bool = False) -> pd.DataFrame:
         "Waste Disposal Services",
         "Wind",
         "Waste Heat",
+        "Energy Storage",
         "Other",
     ]
 
