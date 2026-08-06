@@ -5242,3 +5242,362 @@ class TestCategorizeStrings:
         df = pd.DataFrame({"Resource Name": ["RES_A", "RES_B", "RES_A"]})
         result = _categorize_strings(df)
         assert list(result["Resource Name"]) == ["RES_A", "RES_B", "RES_A"]
+
+
+class TestErcotGISMergedHeaders:
+    """Offline contracts for GIS columns whose merged headers parse as unnamed.
+
+    The GIS report renders some column labels as merged cells spanning the
+    sub-header rows below the header row, so pandas names those columns
+    "Unnamed: N". These tests build synthetic workbooks with that layout —
+    including a layout-drift variant with shifted column positions — and
+    assert the labels are recovered from the fragment text (not by position)
+    and canonicalized instead of dropped. Every recovered column carries a
+    distinct sentinel value so a cross-wired or positional rename cannot pass.
+    """
+
+    # None marks a merged-label column; fragments below fill them in order:
+    # Change Indicators, Site Control approval date, Financial Security, QSA.
+    LARGE_GEN_HEADER = [
+        "INR",
+        "Project Name",
+        "GIM Study Phase",
+        "Interconnecting Entity",
+        "POI Location",
+        "County",
+        "CDR Reporting Zone",
+        "Projected COD",
+        "Fuel",
+        "Technology",
+        "Capacity (MW)",
+        None,
+        None,
+        "Screening Study Started",
+        "Screening Study Complete",
+        "FIS Requested",
+        "FIS Approved",
+        "Economic Study Required",
+        "IA Signed",
+        None,
+        "Air Permit",
+        "GHG Permit",
+        "Water Availability",
+        "Meets Planning",
+        "Meets All Planning",
+        None,
+        "Construction Start",
+        "Construction End",
+        "Approved for Energization",
+        "Approved for Synchronization",
+        "Comment",
+    ]
+
+    MERGED_FRAGMENT_SETS = [
+        ["Change indicators: Proj Name, MW", "Size, COD, SFS/NtP", ""],
+        ["Approval Date for", "Submission of Proof of", "Site Control"],
+        ["Financial Security", "and Notice to", "Proceed Provided"],
+        ["Meets Planning Guide", "QSA (Section 5.9)", "Prerequisites"],
+    ]
+
+    CANONICAL_BY_FRAGMENT_SET = [
+        "Change Indicators",
+        "Approval Date for Submission of Proof of Site Control",
+        "Financial Security and Notice to Proceed Provided",
+        "Meets Planning Guide QSA (Section 5.9) Prerequisites",
+    ]
+
+    SMALL_GEN_HEADER = [
+        "INR",
+        "Project Name",
+        "Model Ready Date",
+        "Interconnecting Entity",
+        "POI Location",
+        "County",
+        "CDR Reporting Zone",
+        "Projected COD",
+        "Fuel",
+        "Technology",
+        "Capacity (MW)",
+        "Change indicators: Proj Name, MW",
+        "IA Signed",
+        "Financial Security ",  # trailing space as published
+        "Approved for Energization",
+        "Approved for Synchronization",
+        "Comment",
+    ]
+
+    def _large_gen_row(self, header, inr, finsec, ia_signed):
+        """One data row; each merged-label column gets a distinct sentinel."""
+        merged_positions = [i for i, h in enumerate(header) if h is None]
+        row = [None] * len(header)
+        row[header.index("INR")] = inr
+        row[header.index("Project Name")] = f"Project {inr}"
+        row[header.index("GIM Study Phase")] = "SS Completed, FIS Completed, IA"
+        row[header.index("County")] = "Nolan"
+        row[header.index("CDR Reporting Zone")] = "WEST"
+        row[header.index("Projected COD")] = "2028-06-30"
+        row[header.index("Fuel")] = "WIN"
+        row[header.index("Technology")] = "WT"
+        row[header.index("Capacity (MW)")] = 100.0
+        row[header.index("Screening Study Started")] = "2020-01-15"
+        row[header.index("IA Signed")] = ia_signed
+        row[merged_positions[0]] = f"CI-{inr}"
+        row[merged_positions[1]] = f"SC-{inr}"
+        row[merged_positions[2]] = finsec
+        row[merged_positions[3]] = f"QSA-{inr}"
+        return row
+
+    def _write_gis_workbook(self, path, large_gen_header=None):
+        """Write a minimal GIS workbook with all four project sheets."""
+        header = large_gen_header or self.LARGE_GEN_HEADER
+        merged_positions = [i for i, h in enumerate(header) if h is None]
+        lead = [[None] * len(header) for _ in range(3)]
+        fragment_rows = []
+        for i in range(3):
+            row = [None] * len(header)
+            for position, fragments in zip(
+                merged_positions,
+                self.MERGED_FRAGMENT_SETS,
+            ):
+                row[position] = fragments[i] or None
+            fragment_rows.append(row)
+        large_rows = (
+            lead
+            + [header]
+            + fragment_rows
+            + [
+                self._large_gen_row(header, "24INR0001", "Yes", "2025-03-01"),
+                self._large_gen_row(header, "24INR0002", None, "2025-03-01"),
+                self._large_gen_row(header, "24INR0003", "Yes", None),
+            ]
+        )
+
+        small_rows = [
+            [None] * len(self.SMALL_GEN_HEADER),
+            self.SMALL_GEN_HEADER,
+            [
+                "24INR9001",
+                "Small Project",
+                "2024-05-01",
+                "Some LLC",
+                "POI 138kV",
+                "Webb",
+                "SOUTH",
+                "2027-01-15",
+                "SOL",
+                "PV",
+                9.9,
+                "CI-24INR9001",
+                "2024-08-01",
+                "Yes",
+                None,
+                None,
+                None,
+            ],
+        ]
+
+        inactive_header = [
+            "INR",
+            "Project Name",
+            "County",
+            "Size Category",
+            "MW **",
+            "Fuel",
+            "Inactive Date",
+        ]
+        inactive_rows = [
+            inactive_header,
+            ["21INR0400", "Gone Wind", "Ector", "Large", 150.0, "WIN", "2024-02-01"],
+        ]
+        cancelled_header = [
+            "INR",
+            "Project Name",
+            "County",
+            "Size Category",
+            "MW **",
+            "Fuel",
+            "Cancel Date",
+        ]
+        cancelled_rows = [
+            cancelled_header,
+            ["20INR0300", "Axed Solar", "Bexar", "Large", 200.0, "SOL", "2023-09-15"],
+        ]
+
+        with pd.ExcelWriter(path) as writer:
+            for sheet_name, rows in (
+                ("Project Details - Large Gen", large_rows),
+                ("Project Details - Small Gen", small_rows),
+                ("Inactive Projects", inactive_rows),
+                ("Cancellation Update", cancelled_rows),
+            ):
+                pd.DataFrame(rows).to_excel(
+                    writer,
+                    sheet_name=sheet_name,
+                    header=False,
+                    index=False,
+                )
+
+    def _assert_large_gen_recovered(self, queue):
+        """Every recovered column holds its own sentinel for every project."""
+        by_inr = queue.set_index("INR")
+        for inr in ("24INR0001", "24INR0002", "24INR0003"):
+            assert by_inr.loc[inr, "Change Indicators"] == f"CI-{inr}"
+            assert (
+                by_inr.loc[
+                    inr,
+                    "Approval Date for Submission of Proof of Site Control",
+                ]
+                == f"SC-{inr}"
+            )
+            assert (
+                by_inr.loc[inr, "Meets Planning Guide QSA (Section 5.9) Prerequisites"]
+                == f"QSA-{inr}"
+            )
+        finsec = by_inr["Financial Security and Notice to Proceed Provided"]
+        assert finsec["24INR0001"] == "Yes"
+        assert pd.isna(finsec["24INR0002"])
+        assert finsec["24INR0003"] == "Yes"
+        assert not [c for c in queue.columns if str(c).startswith("Unnamed")]
+
+    def test_parse_large_gen_recovers_merged_headers(self, tmp_path):
+        path = tmp_path / "gis.xlsx"
+        self._write_gis_workbook(path)
+
+        queue = Ercot()._parse_large_gen(pd.ExcelFile(path))
+
+        self._assert_large_gen_recovered(queue)
+
+    def test_parse_large_gen_recovery_survives_layout_drift(self, tmp_path):
+        """Recovery keys off the fragment text, not hardcoded column positions.
+
+        Insert an extra named column early in the sheet so every merged-label
+        column shifts one position to the right; the right data must still
+        land under the right canonical names.
+        """
+        drifted = self.LARGE_GEN_HEADER.copy()
+        drifted.insert(2, "Queue Cycle")
+        path = tmp_path / "gis.xlsx"
+        self._write_gis_workbook(path, large_gen_header=drifted)
+
+        queue = Ercot()._parse_large_gen(pd.ExcelFile(path))
+
+        self._assert_large_gen_recovered(queue)
+
+    def test_parse_small_gen_canonicalizes_headers(self, tmp_path):
+        path = tmp_path / "gis.xlsx"
+        self._write_gis_workbook(path)
+
+        queue = Ercot()._parse_small_gen(pd.ExcelFile(path))
+
+        by_inr = queue.set_index("INR")
+        finsec = by_inr["Financial Security and Notice to Proceed Provided"]
+        assert finsec["24INR9001"] == "Yes"
+        assert by_inr.loc["24INR9001", "Change Indicators"] == "CI-24INR9001"
+        assert "Financial Security " not in queue.columns
+        assert "Change indicators: Proj Name, MW" not in queue.columns
+
+    def test_unrecognized_unnamed_column_is_left_alone(self):
+        queue = pd.DataFrame(
+            {
+                "INR": [None, "24INR0001"],
+                "Unnamed: 5": ["Mystery Label", "value"],
+            },
+        )
+
+        recovered = Ercot._recover_merged_gis_headers(queue)
+
+        assert "Unnamed: 5" in recovered.columns
+
+    def test_named_column_with_matching_prefix_is_not_renamed(self):
+        """Prefix matching is reserved for fragment-recovered labels; a future
+        named column that merely starts with a known phrase keeps its name."""
+        queue = pd.DataFrame(
+            {
+                "INR": ["24INR0001"],
+                "Financial Security Posted Date": ["2025-06-30"],
+            },
+        )
+
+        recovered = Ercot._recover_merged_gis_headers(queue)
+
+        assert "Financial Security Posted Date" in recovered.columns
+        assert (
+            "Financial Security and Notice to Proceed Provided" not in recovered.columns
+        )
+
+    def test_recovery_skips_rename_when_canonical_name_already_taken(self):
+        """Header drift cannot produce duplicate columns: if a sheet already
+        names a column canonically, the fragment-recovered duplicate keeps its
+        unnamed header (and is dropped downstream, the pre-existing behavior)."""
+        queue = pd.DataFrame(
+            {
+                "INR": [None, None, None, "24INR0001"],
+                "Financial Security and Notice to Proceed Provided": [
+                    None,
+                    None,
+                    None,
+                    "Yes",
+                ],
+                "Unnamed: 7": [
+                    "Financial Security",
+                    "and Notice to",
+                    "Proceed Provided",
+                    "No",
+                ],
+            },
+        )
+
+        recovered = Ercot._recover_merged_gis_headers(queue)
+
+        assert not recovered.columns.duplicated().any()
+        assert "Unnamed: 7" in recovered.columns
+        finsec = recovered["Financial Security and Notice to Proceed Provided"]
+        assert finsec.iloc[-1] == "Yes"
+
+    def test_get_interconnection_queue_includes_recovered_columns(self, tmp_path):
+        path = tmp_path / "gis.xlsx"
+        self._write_gis_workbook(path)
+        iso = Ercot()
+
+        with mock.patch.object(
+            Ercot,
+            "get_raw_interconnection_queue",
+            return_value=path.open("rb"),
+        ):
+            queue = iso.get_interconnection_queue()
+
+        by_inr = queue.set_index("Queue ID")
+        assert (
+            by_inr.loc[
+                "24INR0001",
+                "Financial Security and Notice to Proceed Provided",
+            ]
+            == "Yes"
+        )
+        assert (
+            by_inr.loc[
+                "24INR0001",
+                "Approval Date for Submission of Proof of Site Control",
+            ]
+            == "SC-24INR0001"
+        )
+        assert by_inr.loc["24INR0001", "Change Indicators"] == "CI-24INR0001"
+        # All four sheets survive the concat
+        assert set(by_inr.index) >= {
+            "24INR0001",
+            "24INR9001",
+            "21INR0400",
+            "20INR0300",
+        }
+
+    @pytest.mark.integration
+    def test_get_interconnection_queue_recovers_columns_live(self):
+        """The recovered columns carry real data from the live GIS report, so
+        a silent recovery failure cannot hide behind the all-None backfill."""
+        queue = Ercot().get_interconnection_queue()
+
+        large = queue[queue["Size Category"] == "Large"]
+        assert large["Financial Security and Notice to Proceed Provided"].notna().any()
+        assert (
+            large["Approval Date for Submission of Proof of Site Control"].notna().any()
+        )

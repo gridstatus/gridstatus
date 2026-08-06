@@ -26,6 +26,7 @@
 * PJM Emergency Postings now includes `Is Drill` from the XML `pjmDrill` flag
 
 #### ERCOT
+* ERCOT `get_interconnection_queue` now recovers GIS columns whose merged multi-row headers previously parsed as unnamed and were dropped: `Financial Security and Notice to Proceed Provided`, `Approval Date for Submission of Proof of Site Control`, `Meets Planning Guide QSA (Section 5.9) Prerequisites`, and `Change Indicators` in [#932](https://github.com/gridstatus/gridstatus/issues/932)
 * ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
 * ERCOT SCED AS Price Corrections via `Ercot.get_mcpc_sced_price_corrections`
 * ERCOT Real Time AS, SCED Shadow Price, and Settlement Only Generator Price Corrections via `Ercot.get_mcpc_spp_real_time_price_corrections`, `Ercot.get_shadow_price_real_time_price_corrections`, and `Ercot.get_sog_price_real_time_price_corrections`
