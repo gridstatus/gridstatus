@@ -1624,6 +1624,99 @@ class Ercot(ISOBase):
         "WT": "Wind Turbine",
     }
 
+    # GIS report column labels that pandas cannot read from the header row
+    # because they are merged cells spanning the sub-header rows *below* the
+    # header row (so the header cell is empty and the column parses as
+    # "Unnamed: N"). Each entry maps a normalized label prefix (lowercased,
+    # whitespace collapsed) to the canonical column name; longer prefixes are
+    # listed first so the most specific match wins. Prefix matching is applied
+    # only to labels recovered from the sub-header fragments — never to a
+    # sheet's own named headers — so a future named column that merely starts
+    # with one of these phrases cannot be mis-renamed. Labels that match
+    # nothing keep their unnamed header and are dropped downstream, which is
+    # the pre-existing behavior.
+    _gis_merged_header_canonical_names = (
+        (
+            "financial security and notice to proceed provided",
+            "Financial Security and Notice to Proceed Provided",
+        ),
+        (
+            "approval date for submission of proof of site control",
+            "Approval Date for Submission of Proof of Site Control",
+        ),
+        (
+            "meets planning guide qsa",
+            "Meets Planning Guide QSA (Section 5.9) Prerequisites",
+        ),
+        (
+            "change indicators",
+            "Change Indicators",
+        ),
+    )
+
+    # Sheet-published header variants (normalized, matched exactly) for the
+    # same columns — the Small Gen sheet names these in its single header row
+    # using abbreviated labels.
+    _gis_named_header_aliases = {
+        "financial security": "Financial Security and Notice to Proceed Provided",
+        "change indicators: proj name, mw": "Change Indicators",
+    }
+
+    @classmethod
+    def _recover_merged_gis_headers(cls, queue: pd.DataFrame) -> pd.DataFrame:
+        """Rename GIS columns whose labels pandas cannot read from the header row.
+
+        The GIS report renders several column labels as merged cells spanning
+        the sub-header rows below the header row, so ``read_excel`` sees an
+        empty header cell, names the column ``Unnamed: N``, and the label text
+        lands in the leading rows that have no INR (which are dropped later).
+        For each unnamed column, join those fragments to recover the label and
+        prefix-match it against the known merged labels; named headers are
+        only ever matched exactly against known abbreviated variants. A rename
+        is skipped (and logged) when its canonical name is already taken, so
+        header drift in a future report degrades to the pre-existing
+        drop-the-column behavior instead of producing duplicate columns.
+        """
+        has_inr = queue["INR"].notna().to_numpy()
+        first_data_row = int(has_inr.argmax()) if has_inr.any() else 0
+        fragment_block = queue.iloc[:first_data_row]
+
+        renames = {}
+        existing = {c for c in queue.columns if isinstance(c, str)}
+        for column in queue.columns:
+            if not isinstance(column, str):
+                continue
+            canonical = None
+            if column.startswith("Unnamed"):
+                label = " ".join(
+                    str(value).strip()
+                    for value in fragment_block[column]
+                    if pd.notna(value)
+                )
+                normalized = " ".join(label.split()).lower()
+                for prefix, candidate in cls._gis_merged_header_canonical_names:
+                    if normalized.startswith(prefix):
+                        canonical = candidate
+                        break
+                if canonical is None and normalized:
+                    logger.warning(
+                        f"Unrecognized merged GIS header {label!r} for column "
+                        f"{column!r}; leaving it unnamed (it will be dropped)",
+                    )
+            else:
+                normalized = " ".join(column.split()).lower()
+                canonical = cls._gis_named_header_aliases.get(normalized)
+            if canonical is None or column == canonical:
+                continue
+            if canonical in existing or canonical in renames.values():
+                logger.warning(
+                    f"Not renaming GIS column {column!r} to {canonical!r}: "
+                    "that name is already taken; leaving the column as-is",
+                )
+                continue
+            renames[column] = canonical
+        return queue.rename(columns=renames)
+
     @staticmethod
     def _find_header_row(
         excel_file: pd.ExcelFile,
@@ -1653,6 +1746,7 @@ class Ercot(ISOBase):
             sheet_name="Project Details - Large Gen",
             header=header_row,
         )
+        queue = self._recover_merged_gis_headers(queue)
         queue = queue.dropna(subset=["INR"])
 
         queue["State"] = "Texas"
@@ -1686,6 +1780,7 @@ class Ercot(ISOBase):
             sheet_name="Project Details - Small Gen",
             header=header_row,
         )
+        queue = self._recover_merged_gis_headers(queue)
         # Drop sub-header rows and empty rows
         queue = queue.dropna(subset=["INR"])
 
@@ -1723,6 +1818,10 @@ class Ercot(ISOBase):
             "Water Availability",
             "Meets Planning",
             "Meets All Planning",
+            "Approval Date for Submission of Proof of Site Control",
+            "Meets Planning Guide QSA (Section 5.9) Prerequisites",
+            "Change Indicators",
+            "Financial Security and Notice to Proceed Provided",
         ]:
             if col not in queue.columns:
                 queue[col] = None
@@ -1772,6 +1871,10 @@ class Ercot(ISOBase):
             "Approved for Synchronization",
             "Comment",
             "Fuel",
+            "Approval Date for Submission of Proof of Site Control",
+            "Meets Planning Guide QSA (Section 5.9) Prerequisites",
+            "Change Indicators",
+            "Financial Security and Notice to Proceed Provided",
         ]:
             if col not in df.columns:
                 df[col] = None
@@ -1821,6 +1924,10 @@ class Ercot(ISOBase):
             "Approved for Synchronization",
             "Comment",
             "Fuel",
+            "Approval Date for Submission of Proof of Site Control",
+            "Meets Planning Guide QSA (Section 5.9) Prerequisites",
+            "Change Indicators",
+            "Financial Security and Notice to Proceed Provided",
         ]:
             if col not in df.columns:
                 df[col] = None
@@ -1885,6 +1992,10 @@ class Ercot(ISOBase):
             "Approved for Energization",
             "Approved for Synchronization",
             "Comment",
+            "Approval Date for Submission of Proof of Site Control",
+            "Meets Planning Guide QSA (Section 5.9) Prerequisites",
+            "Change Indicators",
+            "Financial Security and Notice to Proceed Provided",
         ]
 
         missing = [
