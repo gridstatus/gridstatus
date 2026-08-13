@@ -327,6 +327,103 @@ class TestNYISO(BaseTestISO):
                         f"Intervals must be contiguous for location {location}"
                     )
 
+    def test_process_lmp_data_daily_file_ahead_of_latest_file(self, monkeypatch):
+        """Test 5/15-min classification when the daily file leads the latest file.
+
+        The daily realtime file mixes past 5-minute (RTD) rows with future
+        15-minute (RTC) rows, and the split is anchored to the most recent
+        interval in the standalone latest-interval file. When the daily file
+        receives a new 5-minute interval before the latest-interval file does,
+        that row falls after the anchor and was previously relabeled as 15-min
+        data with Interval Start = Interval End - 15 minutes, producing
+        intervals starting off the quarter-hour grid (e.g. 05:25-05:40).
+
+        A 15-minute interval always ends on a quarter-hour boundary, so the
+        newer 5-minute row (ending 05:40 here) must stay 5-minute data.
+        """
+        tz = self.iso.default_timezone
+
+        def timestamp(minute):
+            return pd.Timestamp("2026-06-29 05:00", tz=tz) + pd.Timedelta(
+                minutes=minute,
+            )
+
+        locations = ["CAPITL", "WEST"]
+        # Interval ends present in the daily file: 05:30 and 05:35 are past RTD
+        # rows, 05:40 is the RTD row not yet in the latest-interval file, and
+        # 05:45 and 06:00 are future RTC rows.
+        interval_end_minutes = [30, 35, 40, 45, 60]
+        daily = pd.DataFrame(
+            [
+                {
+                    "Time": timestamp(minute - 5),
+                    "Interval Start": timestamp(minute - 5),
+                    "Interval End": timestamp(minute),
+                    "Name": location,
+                    "LBMP ($/MWHr)": 30.0,
+                    "Marginal Cost Losses ($/MWHr)": 1.0,
+                    "Marginal Cost Congestion ($/MWHr)": -2.0,
+                }
+                for minute in interval_end_minutes
+                for location in locations
+            ],
+        )
+
+        # The latest-interval file still ends at 05:35, one interval behind
+        # the daily file. Values match the daily rows at the same timestamp
+        # (Congestion sign already flipped by processing).
+        latest_5_min = pd.DataFrame(
+            {
+                "Interval Start": [timestamp(30)] * 2,
+                "Interval End": [timestamp(35)] * 2,
+                "Location": locations,
+                "LMP": 30.0,
+                "Loss": 1.0,
+                "Congestion": 2.0,
+            },
+        )
+        monkeypatch.setattr(
+            self.iso,
+            "_get_lmp",
+            lambda *args, **kwargs: latest_5_min,
+        )
+
+        result_15_min = self.iso._process_lmp_data(
+            daily.copy(),
+            date="today",
+            market=Markets.REAL_TIME_15_MIN,
+            location_type=gridstatus.nyiso.NYISOLocationType.ZONE,
+            locations="ALL",
+        )
+
+        assert result_15_min["Interval Start"].dt.minute.isin([0, 15, 30, 45]).all()
+        assert result_15_min["Interval End"].dt.minute.isin([0, 15, 30, 45]).all()
+        assert (
+            result_15_min["Interval End"] - result_15_min["Interval Start"]
+            == pd.Timedelta(minutes=15)
+        ).all()
+        # Only the two future RTC rows per location are 15-min data
+        assert sorted(result_15_min["Interval End"].unique()) == [
+            timestamp(45),
+            timestamp(60),
+        ]
+
+        result_5_min = self.iso._process_lmp_data(
+            daily.copy(),
+            date="today",
+            market=Markets.REAL_TIME_5_MIN,
+            location_type=gridstatus.nyiso.NYISOLocationType.ZONE,
+            locations="ALL",
+        )
+
+        # The newer RTD row ending 05:40 stays 5-min data instead of being
+        # dropped from the 5-min output
+        assert (result_5_min["Interval End"] == timestamp(40)).any()
+        assert (
+            result_5_min["Interval End"] - result_5_min["Interval Start"]
+            == pd.Timedelta(minutes=5)
+        ).all()
+
     @pytest.mark.parametrize(
         "start,end",
         [

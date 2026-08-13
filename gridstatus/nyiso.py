@@ -791,6 +791,16 @@ class NYISO(ISOBase):
                 # When not equal, the data at this timestamp is 15 min data
                 mask_15_min = df["Interval Start"] >= most_recent_5_min_timestamp
 
+            # 15 min (RTC) intervals always end on a quarter-hour boundary. When
+            # the daily file receives a new 5 min interval before the
+            # latest-interval file does, that row falls after the comparison
+            # timestamp and would otherwise be relabeled as 15 min data with
+            # Interval Start = Interval End - 15 minutes, creating an interval
+            # that starts off the quarter-hour grid. A row whose interval ends
+            # off the quarter-hour is always 5 min data, so exclude it from the
+            # 15 min mask.
+            mask_15_min &= df["Interval End"].dt.minute % 15 == 0
+
             df.loc[~mask_15_min, "Market"] = Markets.REAL_TIME_5_MIN.value
             df.loc[mask_15_min, "Market"] = Markets.REAL_TIME_15_MIN.value
 
