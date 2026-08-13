@@ -3585,6 +3585,22 @@ class TestErcot(BaseTestISO):
         assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
         assert df["Interval End"].max() == pd.Timestamp(end, tz="US/Central")
 
+    @pytest.mark.parametrize("date", [("2026-01-01")])
+    def test_get_hourly_load_post_settlements_corrupt_zip_central_directory(
+        self,
+        date,
+    ):
+        """The 2026 Native_Load zip has a central directory whose CRC and
+        sizes disagree with the local file header, so reading it falls back
+        to the local file header metadata."""
+        with api_vcr.use_cassette(
+            "test_get_hourly_load_post_settlements_corrupt_zip_central_directory.yaml",
+        ):
+            df = self.iso.get_hourly_load_post_settlements(date)
+        self._check_hourly_load_post_settlements(df)
+
+        assert df["Interval Start"].min() == pd.Timestamp(date, tz="US/Central")
+
     """get_mcpc_dam"""
 
     def _check_get_mcpc_dam(self, df: pd.DataFrame):

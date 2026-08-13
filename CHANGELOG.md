@@ -41,6 +41,7 @@
 #### ERCOT
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
 * `Ercot.get_fuel_mix` and `Ercot.get_fuel_mix_detailed` now sort by `Time`. Ercot publishes the two halves of a split interval out of chronological order, which previously produced an unsorted `Time` column.
+* `Ercot.get_hourly_load_post_settlements` no longer raises `BadZipFile: Bad CRC-32` on zip archives whose central directory disagrees with the local file header, as published for the 2026 Native_Load archive. Reading now falls back to the local file header's CRC and sizes, which are still validated against the data.
 
 #### Maintenance
 

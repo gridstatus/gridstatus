@@ -1000,7 +1000,13 @@ class Ercot(ISOBase):
         if year_link.endswith(".zip"):
             zip_file = utils.get_zip_folder(year_link)
             filename = zip_file.namelist()[0]
-            df = pd.read_excel(zip_file.open(filename))
+            # ERCOT has published zips whose central directory disagrees with
+            # the local file header, which zipfile rejects on read
+            excel_bytes = utils.read_zip_member_with_local_header_fallback(
+                zip_file,
+                filename,
+            )
+            df = pd.read_excel(io.BytesIO(excel_bytes))
         elif year_link.endswith((".xls", ".xlsx")):
             response = requests.get(year_link)
             response.raise_for_status()
