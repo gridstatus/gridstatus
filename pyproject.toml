@@ -44,7 +44,7 @@ classifiers = [
 ]
 license = { file = "LICENSE" }
 dependencies = [
-    "requests >=2.33,<3",
+    "requests>=2.34.2,<3",
     "pandas ~=2.2",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
@@ -87,14 +87,14 @@ dev = [
     "sphinx-favicon ~=1.1",
     "sphinx-autoapi ~=3.8",
     "notebook ~=7.6",
-    "jupyterlab >=4.6.0,<5",
+    "jupyterlab>=4.6.2,<5",
     "jupyter-server >=2.20.0,<3",
     "mypy ~=1.15",
     "types-requests ~=2.32",
     "time-machine ~=2.16",
-    "tornado >=6.5.7,<7",
+    "tornado>=6.5.8,<7",
     "jinja2 ~=3.1",
-    "pillow >=12.2.0,<13",
+    "pillow>=12.3.0,<13",
     "nbconvert >=7.17.1,<8",
     "bleach >=6.4.0,<7",
     "mistune >=3.2.1,<4",
