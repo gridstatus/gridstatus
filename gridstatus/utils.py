@@ -1,8 +1,9 @@
 import glob
 import io
 import os
+import struct
 from collections.abc import Callable
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
 import requests
@@ -218,6 +219,58 @@ def get_zip_folder(url: str, verbose: bool = False, **kwargs) -> ZipFile:
     r = requests.get(url, **kwargs)
     z = ZipFile(io.BytesIO(r.content))
     return z
+
+
+ZIP_LOCAL_FILE_HEADER_FORMAT = "<4s5H3I2H"
+ZIP_LOCAL_FILE_HEADER_SIGNATURE = b"PK\x03\x04"
+ZIP_LOCAL_FILE_HEADER_SIZE = 30
+ZIP_FLAG_USES_DATA_DESCRIPTOR = 0x08
+
+
+def read_zip_member_with_local_header_fallback(
+    zip_file: ZipFile,
+    filename: str,
+) -> bytes:
+    """Read a zip member, tolerating a corrupt central directory.
+
+    Some sources publish zip files whose central directory CRC and sizes
+    disagree with the compressed data (for example ERCOT's Native_Load
+    archives). Python's zipfile validates reads against the central
+    directory, so those archives raise BadZipFile even though the data is
+    intact. On failure, retry the read using the local file header's CRC and
+    sizes, which zipfile validates against instead — genuinely corrupt data
+    still raises BadZipFile.
+    """
+    try:
+        return zip_file.read(filename)
+    except BadZipFile:
+        member_info = zip_file.getinfo(filename)
+        zip_file.fp.seek(member_info.header_offset)
+        local_header = zip_file.fp.read(ZIP_LOCAL_FILE_HEADER_SIZE)
+        if len(local_header) < ZIP_LOCAL_FILE_HEADER_SIZE:
+            raise
+        (
+            signature,
+            _version,
+            flags,
+            _compression_method,
+            _modified_time,
+            _modified_date,
+            local_crc,
+            local_compressed_size,
+            local_uncompressed_size,
+            _filename_length,
+            _extra_field_length,
+        ) = struct.unpack(ZIP_LOCAL_FILE_HEADER_FORMAT, local_header)
+        if (
+            signature != ZIP_LOCAL_FILE_HEADER_SIGNATURE
+            or flags & ZIP_FLAG_USES_DATA_DESCRIPTOR
+        ):
+            raise
+        member_info.CRC = local_crc
+        member_info.compress_size = local_compressed_size
+        member_info.file_size = local_uncompressed_size
+        return zip_file.read(filename)
 
 
 def get_response_blob(resp: requests.Response) -> io.BytesIO:
