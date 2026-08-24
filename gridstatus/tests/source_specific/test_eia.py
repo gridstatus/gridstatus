@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 import gridstatus
+from gridstatus.base import NoDataFoundException
 from gridstatus.eia import EIA, HENRY_HUB_TIMEZONE
 from gridstatus.eia_constants import (
     CANCELED_OR_POSTPONED_GENERATOR_COLUMNS,
@@ -184,6 +185,27 @@ def test_fuel_type():
     assert df["Interval End"].max() == end
 
     _check_fuel_type(df)
+
+
+@pytest.mark.integration
+def test_get_dataset_no_data_found():
+    eia = gridstatus.EIA()
+
+    # Far enough ahead that EIA cannot have published data for the window. A
+    # request past the end of published data returns zero rows, which used to
+    # surface as a KeyError on the missing "period" column.
+    start = (pd.Timestamp.utcnow() + pd.Timedelta(days=30)).normalize()
+    end = start + pd.Timedelta(days=1)
+
+    with pytest.raises(
+        NoDataFoundException,
+        match="No EIA data found for electricity/rto/interchange-data",
+    ):
+        eia.get_dataset(
+            dataset="electricity/rto/interchange-data",
+            start=start,
+            end=end,
+        )
 
 
 @pytest.mark.integration

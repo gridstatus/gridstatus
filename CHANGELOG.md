@@ -46,6 +46,10 @@
 * `Ercot.get_fuel_mix` and `Ercot.get_fuel_mix_detailed` now sort by `Time`. Ercot publishes the two halves of a split interval out of chronological order, which previously produced an unsorted `Time` column.
 * `Ercot.get_hourly_load_post_settlements` no longer raises `BadZipFile: Bad CRC-32` on zip archives whose central directory disagrees with the local file header, as published for the 2026 Native_Load archive. Reading now falls back to the local file header's CRC and sizes, which are still validated against the data.
 
+#### EIA
+
+* `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
+
 #### Maintenance
 
 * Removed unused runtime dependencies (`setuptools`, `virtualenv`, `h11`, `zipp`, `filelock`) — none are imported and nothing in the runtime tree requires them, so they no longer ship to consumers. Resolves the `setuptools <79` cap reported in [#901](https://github.com/gridstatus/gridstatus/issues/901).
