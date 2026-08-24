@@ -42,6 +42,10 @@
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
 * `Ercot.get_fuel_mix` and `Ercot.get_fuel_mix_detailed` now sort by `Time`. Ercot publishes the two halves of a split interval out of chronological order, which previously produced an unsorted `Time` column.
 
+#### EIA
+
+* `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
+
 #### Maintenance
 
 * Removed unused runtime dependencies (`setuptools`, `virtualenv`, `h11`, `zipp`, `filelock`) — none are imported and nothing in the runtime tree requires them, so they no longer ship to consumers. Resolves the `setuptools <79` cap reported in [#901](https://github.com/gridstatus/gridstatus/issues/901).

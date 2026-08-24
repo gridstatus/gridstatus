@@ -197,6 +197,11 @@ class EIA:
 
         raw_df, total_records = self._fetch_page(url, headers)
 
+        if total_records == 0:
+            raise NoDataFoundException(
+                f"No EIA data found for {dataset} between {start_str} and {end_str}",
+            )
+
         # Calculate the number of pages
         page_size = 5000
         total_pages = (total_records + page_size - 1) // page_size
