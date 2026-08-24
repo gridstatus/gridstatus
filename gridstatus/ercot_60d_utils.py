@@ -1501,32 +1501,63 @@ def process_sced_resource_as_offers(
 
     df = df.rename(columns=_rename_suffix)
 
-    # First create a curve_type column with the logic:
-    # regulation down : values only in _DRS columns and not in other columns
-    # offline: values in _NS and optionally _ECRS columns and not in other columns
-    # online : values in any column except for _DRS
     price_cols = [c for c in df.columns if c.startswith("PRICE")]
-    drs_cols = [c for c in price_cols if c.endswith("_DRS")]
-    ns_cols = [c for c in price_cols if c.endswith("_NS")]
-    non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
+    quantity_cols = [c for c in df.columns if c.startswith("QUANTITY_MW")]
 
-    # Use fillna(0) so that NaN values are treated as "no value" (same as zero).
-    # ERCOT corrected files (April 4, 2026+) use NaN instead of zero for empty
-    # AS Sub-Type Offer Prices (see ERCOT notice M-B040326-01).
-    has_drs = (df[drs_cols].fillna(0) != 0).any(axis=1)
-    has_non_drs = (df[non_drs_cols].fillna(0) != 0).any(axis=1)
-    has_ns = (df[ns_cols].fillna(0) != 0).any(axis=1)
+    if "Offer Type" in df.columns:
+        # Files starting with Operating Day June 25, 2026 carry an explicit
+        # Offer Type column, so the curve type no longer needs to be inferred
+        # from which price columns hold values. The explicit column is also
+        # required: these files contain ECRS-only rows under both ONRES and
+        # OFFNS, which no price-column pattern can tell apart.
+        offer_type_to_curve_type = {
+            "ONRES": "Online",
+            "OFFNS": "Offline",
+            "REGDN": "Regulation Down",
+        }
+        unknown_offer_types = set(df["Offer Type"].dropna().unique()) - set(
+            offer_type_to_curve_type,
+        )
+        if unknown_offer_types:
+            raise ValueError(
+                f"Unknown offer type(s) found: {sorted(unknown_offer_types)}",
+            )
+        df["Curve Type"] = df["Offer Type"].map(offer_type_to_curve_type)
 
-    non_drs_ns_ecrs_cols = [c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))]
-    has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols].fillna(0) != 0).any(axis=1)
+        # These files also pad every resource out to all three offer types with
+        # rows holding no price or quantity values. Earlier files had no such
+        # rows, so drop them to keep the output consistent.
+        has_any_value = (df[price_cols + quantity_cols].fillna(0) != 0).any(axis=1)
+        df = df[has_any_value].copy()
+    else:
+        # First create a curve_type column with the logic:
+        # regulation down : values only in _DRS columns and not in other columns
+        # offline: values in _NS and optionally _ECRS columns and not in other
+        # columns
+        # online : values in any column except for _DRS
+        drs_cols = [c for c in price_cols if c.endswith("_DRS")]
+        ns_cols = [c for c in price_cols if c.endswith("_NS")]
+        non_drs_cols = [c for c in price_cols if not c.endswith("_DRS")]
 
-    df["Curve Type"] = "unknown"
-    df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
-    df.loc[has_non_drs & has_non_drs_ns_ecrs, "Curve Type"] = "Online"
-    df.loc[has_ns & ~has_drs & ~has_non_drs_ns_ecrs, "Curve Type"] = "Offline"
+        # Use fillna(0) so that NaN values are treated as "no value" (same as
+        # zero). ERCOT corrected files (April 4, 2026+) use NaN instead of zero
+        # for empty AS Sub-Type Offer Prices (see ERCOT notice M-B040326-01).
+        has_drs = (df[drs_cols].fillna(0) != 0).any(axis=1)
+        has_non_drs = (df[non_drs_cols].fillna(0) != 0).any(axis=1)
+        has_ns = (df[ns_cols].fillna(0) != 0).any(axis=1)
 
-    if any(df["Curve Type"] == "unknown"):
-        raise ValueError("Unknown curve type found")
+        non_drs_ns_ecrs_cols = [
+            c for c in non_drs_cols if not c.endswith(("_NS", "_ECRS"))
+        ]
+        has_non_drs_ns_ecrs = (df[non_drs_ns_ecrs_cols].fillna(0) != 0).any(axis=1)
+
+        df["Curve Type"] = "unknown"
+        df.loc[has_drs & ~has_non_drs, "Curve Type"] = "Regulation Down"
+        df.loc[has_non_drs & has_non_drs_ns_ecrs, "Curve Type"] = "Online"
+        df.loc[has_ns & ~has_drs & ~has_non_drs_ns_ecrs, "Curve Type"] = "Offline"
+
+        if any(df["Curve Type"] == "unknown"):
+            raise ValueError("Unknown curve type found")
 
     # Map source column suffixes to output curve names
     as_type_mapping = {
