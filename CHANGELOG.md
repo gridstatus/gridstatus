@@ -45,6 +45,7 @@
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
 * `Ercot.get_fuel_mix` and `Ercot.get_fuel_mix_detailed` now sort by `Time`. Ercot publishes the two halves of a split interval out of chronological order, which previously produced an unsorted `Time` column.
 * `Ercot.get_hourly_load_post_settlements` no longer raises `BadZipFile: Bad CRC-32` on zip archives whose central directory disagrees with the local file header, as published for the 2026 Native_Load archive. Reading now falls back to the local file header's CRC and sizes, which are still validated against the data.
+* `Ercot.get_60_day_sced_disclosure` no longer raises `ValueError: Unknown curve type found` on Resource AS Offers files starting with Operating Day June 25, 2026. These files carry an explicit `Offer Type` column (`ONRES`/`OFFNS`/`REGDN`), which is now mapped directly to the curve type instead of inferring it from which price columns hold values. The explicit column is also required to classify the ECRS-only rows these files contain under both `ONRES` and `OFFNS`. Padding rows holding no price or quantity values are dropped to keep the output consistent with earlier files.
 
 #### EIA
 

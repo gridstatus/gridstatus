@@ -4901,6 +4901,116 @@ class TestProcessScedResourceAsOffersNewSuffixes:
             assert old[col].iloc[0] == new[col].iloc[0], col
 
 
+def _with_offer_type(rows):
+    """Build a raw AS offers DataFrame carrying the Offer Type column that
+    files starting with Operating Day June 25, 2026 include."""
+    df = _to_new_suffixes(_make_sced_resource_as_offers_df(rows))
+    df["Offer Type"] = [row["Offer Type"] for row in rows]
+    return df
+
+
+class TestProcessScedResourceAsOffersOfferTypeColumn:
+    """Files starting with Operating Day June 25, 2026 carry an explicit
+    Offer Type column (ONRES/OFFNS/REGDN) which maps directly to the curve
+    type. They also contain ECRS-only rows under both ONRES and OFFNS, which
+    the price-column inference cannot classify, and pad every resource out to
+    all three offer types with rows holding no price or quantity values.
+    """
+
+    def test_offer_type_maps_to_curve_type(self):
+        df = _with_offer_type(
+            [
+                {**_AEEC_ANTLP_3_ONRES_CORRECTED, "Offer Type": "ONRES"},
+                {**_AEEC_ANTLP_3_REGDN_CORRECTED, "Offer Type": "REGDN"},
+                {**_AEEC_ANTLP_3_OFFNS_CORRECTED, "Offer Type": "OFFNS"},
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == [
+            "Online",
+            "Regulation Down",
+            "Offline",
+        ]
+
+    # The new-format files use NaN for empty price and quantity cells, like the
+    # corrected-period files (ERCOT notice M-B040326-01).
+    _NAN_CELLS = {
+        **{
+            f"PRICE{i}_{suffix}": _N
+            for i in range(1, 7)
+            for suffix in ["URS", "DRS", "RRSPF", "RRSUF", "RRSFF", "NS", "ECRS"]
+        },
+        **{f"QUANTITY_MW{i}": _N for i in range(1, 7)},
+    }
+
+    def test_ecrs_only_rows_classified_by_offer_type(self):
+        """ECRS-only rows appear under both ONRES and OFFNS; only the Offer
+        Type column can tell them apart (inference raised on them)."""
+        ecrs_only = {
+            **self._NAN_CELLS,
+            "SCED Timestamp": "2026-06-25 15:50:22",
+            "Resource Name": "7RNCHSLR_UNIT1",
+            "QUANTITY_MW1": 10.0,
+            "PRICE1_ECRS": 5.0,
+        }
+        df = _with_offer_type(
+            [
+                {**ecrs_only, "Offer Type": "ONRES"},
+                {**ecrs_only, "Offer Type": "OFFNS"},
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert list(result["Curve Type"]) == ["Online", "Offline"]
+        assert result["ECRS Offer Curve"].iloc[0] == [[10.0, 5.0]]
+
+    def test_empty_padding_rows_dropped(self):
+        """Rows with no price or quantity values are dropped."""
+        empty = {
+            **self._NAN_CELLS,
+            "SCED Timestamp": "2026-06-25 15:50:22",
+            "Resource Name": "7RNCHSLR_UNIT1",
+        }
+        df = _with_offer_type(
+            [
+                {**_AEEC_ANTLP_3_ONRES_CORRECTED, "Offer Type": "ONRES"},
+                {**empty, "Offer Type": "REGDN"},
+                {**empty, "Offer Type": "OFFNS"},
+            ],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert len(result) == 1
+        assert result["Curve Type"].iloc[0] == "Online"
+
+    def test_unknown_offer_type_raises(self):
+        df = _with_offer_type(
+            [{**_AEEC_ANTLP_3_ONRES_CORRECTED, "Offer Type": "ONECRS"}],
+        )
+        with pytest.raises(ValueError, match="Unknown offer type"):
+            process_sced_resource_as_offers(df)
+
+    def test_output_columns(self):
+        """Offer Type is dropped from the processed output."""
+        df = _with_offer_type(
+            [{**_AEEC_ANTLP_3_ONRES_CORRECTED, "Offer Type": "ONRES"}],
+        )
+        result = process_sced_resource_as_offers(df)
+        assert result.columns.tolist() == SCED_RESOURCE_AS_OFFERS_COLUMNS
+
+    def test_curves_match_inference_path(self):
+        """The same row produces identical curves through both paths."""
+        inferred = process_sced_resource_as_offers(
+            _make_sced_resource_as_offers_df([_AEEC_ANTLP_3_ONRES_CORRECTED]),
+        )
+        mapped = process_sced_resource_as_offers(
+            _with_offer_type(
+                [{**_AEEC_ANTLP_3_ONRES_CORRECTED, "Offer Type": "ONRES"}],
+            ),
+        )
+        assert mapped["Curve Type"].iloc[0] == inferred["Curve Type"].iloc[0]
+        for col in [c for c in mapped.columns if c.endswith("Offer Curve")]:
+            assert inferred[col].iloc[0] == mapped[col].iloc[0], col
+
+
 def check_60_day_dam_disclosure(df_dict):
     assert df_dict is not None
 
