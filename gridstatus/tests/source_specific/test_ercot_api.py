@@ -1026,6 +1026,7 @@ class TestErcotAPI(TestHelperMixin):
             "Location",
             "Location Type",
             "LMP",
+            "Uncapped LMP",
         ]
 
         assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
@@ -1035,6 +1036,7 @@ class TestErcotAPI(TestHelperMixin):
         assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
 
         assert df.dtypes["LMP"] == "float64"
+        assert df.dtypes["Uncapped LMP"] == "float64"
 
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)
