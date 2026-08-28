@@ -32,6 +32,7 @@
 * ERCOT 2-Day Aggregate Gen Summary, Load Summary, and Output Schedule datasets via `Ercot.get_aggregate_gen_summary_2_day`, `Ercot.get_aggregate_load_summary_2_day`, and `Ercot.get_aggregate_output_schedule_2_day`
 * ERCOT LMP Price Corrections by settlement point and by electrical bus via `Ercot.get_lmp_by_settlement_point_price_corrections` and `Ercot.get_lmp_by_bus_price_corrections`
 * ERCOT price correction getters accept `published_after` to skip documents already ingested
+* ERCOT uncapped SCED prices via the new `Uncapped System Lambda`, `Uncapped LMP`, and `Uncapped MCPC` columns on `Ercot.get_sced_system_lambda`, `Ercot.get_lmp_by_bus`, and `Ercot.get_mcpc_sced`. ERCOT began publishing these alongside the capped prices on August 27, 2026 with NPRR1290 and NPRR1323. The two values differ only when the price would exceed the Value of Lost Load. Files published before that date have no uncapped value, so the column is null for earlier data.
 
 #### MISO
 * MISO Area Control Error dataset via `MISO.get_area_control_error`
@@ -45,6 +46,7 @@
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
 * `Ercot.get_fuel_mix` and `Ercot.get_fuel_mix_detailed` now sort by `Time`. Ercot publishes the two halves of a split interval out of chronological order, which previously produced an unsorted `Time` column.
 * `Ercot.get_hourly_load_post_settlements` no longer raises `BadZipFile: Bad CRC-32` on zip archives whose central directory disagrees with the local file header, as published for the 2026 Native_Load archive. Reading now falls back to the local file header's CRC and sizes, which are still validated against the data.
+* `Ercot.get_sced_system_lambda`, `Ercot.get_lmp_by_bus`, and `Ercot.get_mcpc_sced` no longer raise `KeyError` on files published from August 27, 2026 onward. ERCOT renamed the price column in each of these reports to `CappedSystemLambda`, `CappedLMP`, and `CappedMCPC` when NPRR1290 and NPRR1323 were implemented. The capped value is the same series these methods have always returned, so it keeps its existing column name and no output changes meaning. Older files that use the original names still parse.
 * `Ercot.get_60_day_sced_disclosure` no longer raises `ValueError: Unknown curve type found` on Resource AS Offers files starting with Operating Day June 25, 2026. These files carry an explicit `Offer Type` column (`ONRES`/`OFFNS`/`REGDN`), which is now mapped directly to the curve type instead of inferring it from which price columns hold values. The explicit column is also required to classify the ECRS-only rows these files contain under both `ONRES` and `OFFNS`. Padding rows holding no price or quantity values are dropped to keep the output consistent with earlier files.
 
 #### EIA

@@ -16,6 +16,7 @@ from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import (
+    CAPPED_TO_LEGACY_COLUMNS,
     ELECTRICAL_BUS_LOCATION_TYPE,
     Ercot,
 )
@@ -1470,11 +1471,27 @@ class ErcotAPI:
         return self._handle_lmp_by_bus(data, verbose=verbose)
 
     def _handle_lmp_by_bus(self, data, verbose=False):
+        data = data.rename(columns=CAPPED_TO_LEGACY_COLUMNS)
+
         data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
 
-        data = data.rename(columns={"ElectricalBus": "Location"})
+        data = data.rename(
+            columns={
+                "ElectricalBus": "Location",
+                "UncappedLMP": "Uncapped LMP",
+            },
+        )
         data["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
         data["Market"] = Markets.REAL_TIME_SCED.value
+
+        # Only published from 2026-08-27 onward. Older data has no uncapped value.
+        if "Uncapped LMP" not in data.columns:
+            data["Uncapped LMP"] = pd.NA
+
+        data["Uncapped LMP"] = pd.to_numeric(
+            data["Uncapped LMP"],
+            errors="coerce",
+        ).astype("float64")
 
         data = utils.move_cols_to_front(
             data,
@@ -1486,6 +1503,7 @@ class ErcotAPI:
                 "Location",
                 "Location Type",
                 "LMP",
+                "Uncapped LMP",
             ],
         )
 

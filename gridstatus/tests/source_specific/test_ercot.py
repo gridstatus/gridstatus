@@ -148,6 +148,7 @@ class TestErcot(BaseTestISO):
             "Interval End",
             "SCED Timestamp",
             "System Lambda",
+            "Uncapped System Lambda",
         ]
         today = pd.Timestamp.now(tz=self.iso.default_timezone).date()
         assert df["SCED Timestamp"].unique()[0].date() == today
@@ -3710,10 +3711,12 @@ class TestErcot(BaseTestISO):
             "SCED Timestamp",
             "AS Type",
             "MCPC",
+            "Uncapped MCPC",
         ]
         assert df.dtypes["SCED Timestamp"] == "datetime64[ns, US/Central]"
         assert df.dtypes["AS Type"] == "object"
         assert df.dtypes["MCPC"] == "float64"
+        assert df.dtypes["Uncapped MCPC"] == "float64"
 
     def test_get_mcpc_sced_date_range(self):
         # Choose a date range that spans two days to test we handle day transitions
@@ -5368,3 +5371,179 @@ class TestCategorizeStrings:
         df = pd.DataFrame({"Resource Name": ["RES_A", "RES_B", "RES_A"]})
         result = _categorize_strings(df)
         assert list(result["Resource Name"]) == ["RES_A", "RES_B", "RES_A"]
+
+
+class TestCappedUncappedSCEDColumns:
+    """On 2026-08-27, when NPRR1290 and NPRR1323 were implemented, ERCOT renamed
+    the price column in SCED System Lambda (NP6-322-CD), LMPs by Electrical Bus
+    (NP6-787-CD) and Real-Time MCPC by SCED Interval (NP6-332-CD) with a
+    "Capped" prefix and added an "Uncapped" counterpart. The capped value is the
+    series gridstatus has always published, so it keeps the original name and the
+    uncapped value is exposed as a new column. Files published before the cutover
+    carry only the legacy name and get a null uncapped value.
+    """
+
+    iso = Ercot()
+
+    _TIMESTAMPS = ["08/27/2026 22:45:23", "08/27/2026 22:50:23"]
+
+    def _system_lambda_source(self, capped: bool) -> pd.DataFrame:
+        df = pd.DataFrame(
+            {
+                "SCEDTimeStamp": self._TIMESTAMPS,
+                "RepeatedHourFlag": ["N", "N"],
+                "SystemLambda": [83.89810, 79.89353],
+            },
+        )
+
+        if capped:
+            df = df.rename(columns={"SystemLambda": "CappedSystemLambda"})
+            df["UncappedSystemLambda"] = [120.5, 79.89353]
+
+        return df
+
+    def _lmp_by_bus_source(self, capped: bool) -> pd.DataFrame:
+        df = pd.DataFrame(
+            {
+                "SCEDTimestamp": self._TIMESTAMPS,
+                "RepeatedHourFlag": ["N", "N"],
+                "ElectricalBus": ["0001", "0001"],
+                "LMP": [84.14, 80.90],
+            },
+        )
+
+        if capped:
+            df = df.rename(columns={"LMP": "CappedLMP"})
+            df["UncappedLMP"] = [120.5, 80.90]
+
+        return df
+
+    def _mcpc_sced_source(self, capped: bool) -> pd.DataFrame:
+        df = pd.DataFrame(
+            {
+                "SCEDTimestamp": self._TIMESTAMPS,
+                "RepeatedHourFlag": ["N", "N"],
+                "ASType": ["ECRS", "ECRS"],
+                "MCPC": [14.98, 13.97],
+            },
+        )
+
+        if capped:
+            df = df.rename(columns={"MCPC": "CappedMCPC"})
+            df["UncappedMCPC"] = [120.5, 13.97]
+
+        return df
+
+    def _settlement_point_source(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "SCEDTimestamp": self._TIMESTAMPS,
+                "RepeatedHourFlag": ["N", "N"],
+                "SettlementPoint": ["A4_DGR1_RN", "A4_DGR1_RN"],
+                "SettlementPointType": ["RN", "RN"],
+                "LMP": [84.08, 80.12],
+            },
+        )
+
+    """system lambda"""
+
+    def test_system_lambda_capped_maps_to_existing_column(self):
+        result = self.iso._handle_sced_system_lambda_df(
+            self._system_lambda_source(capped=True),
+        )
+
+        assert result.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "System Lambda",
+            "Uncapped System Lambda",
+        ]
+        assert result["System Lambda"].tolist() == [83.89810, 79.89353]
+        assert result["Uncapped System Lambda"].tolist() == [120.5, 79.89353]
+
+    def test_system_lambda_pre_cutover_files_still_parse(self):
+        """Files without the capped rename produce a null uncapped value."""
+        old = self.iso._handle_sced_system_lambda_df(
+            self._system_lambda_source(capped=False),
+        )
+        new = self.iso._handle_sced_system_lambda_df(
+            self._system_lambda_source(capped=True),
+        )
+
+        assert old.columns.tolist() == new.columns.tolist()
+        assert old["Uncapped System Lambda"].isna().all()
+        assert old["System Lambda"].tolist() == new["System Lambda"].tolist()
+        assert old.dtypes["Uncapped System Lambda"] == "float64"
+
+    """lmp by bus"""
+
+    def test_lmp_by_bus_capped_maps_to_existing_column(self):
+        result = self.iso._handle_lmp_df(
+            self._lmp_by_bus_source(capped=True),
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+        )
+
+        assert result.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Uncapped LMP",
+        ]
+        assert result["LMP"].tolist() == [84.14, 80.90]
+        assert result["Uncapped LMP"].tolist() == [120.5, 80.90]
+
+    def test_lmp_by_bus_pre_cutover_files_still_parse(self):
+        old = self.iso._handle_lmp_df(
+            self._lmp_by_bus_source(capped=False),
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+        )
+        new = self.iso._handle_lmp_df(
+            self._lmp_by_bus_source(capped=True),
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+        )
+
+        assert old.columns.tolist() == new.columns.tolist()
+        assert old["Uncapped LMP"].isna().all()
+        assert old["LMP"].tolist() == new["LMP"].tolist()
+
+    def test_lmp_by_settlement_point_columns_unchanged(self):
+        """Only the electrical bus report changed. The settlement point report
+        must not gain a permanently null uncapped column."""
+        result = self.iso._handle_lmp_df(self._settlement_point_source())
+
+        assert result.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+    """mcpc sced"""
+
+    def test_mcpc_sced_capped_maps_to_existing_column(self):
+        result = self.iso._handle_mcpc_sced(self._mcpc_sced_source(capped=True))
+
+        assert result.columns.tolist() == [
+            "SCED Timestamp",
+            "AS Type",
+            "MCPC",
+            "Uncapped MCPC",
+        ]
+        assert result["MCPC"].tolist() == [14.98, 13.97]
+        assert result["Uncapped MCPC"].tolist() == [120.5, 13.97]
+
+    def test_mcpc_sced_pre_cutover_files_still_parse(self):
+        old = self.iso._handle_mcpc_sced(self._mcpc_sced_source(capped=False))
+        new = self.iso._handle_mcpc_sced(self._mcpc_sced_source(capped=True))
+
+        assert old.columns.tolist() == new.columns.tolist()
+        assert old["Uncapped MCPC"].isna().all()
+        assert old["MCPC"].tolist() == new["MCPC"].tolist()

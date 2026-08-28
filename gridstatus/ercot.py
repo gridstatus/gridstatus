@@ -455,6 +455,16 @@ RESOURCE_NODE_SETTLEMENT_TYPES = ["RN", "PCCRN", "LCCRN", "PUN"]
 LOAD_ZONE_SETTLEMENT_TYPES = ["LZ", "LZ_DC"]
 HUB_SETTLEMENT_TYPES = ["HU", "SH", "AH"]
 
+# On 2026-08-27, when NPRR1290 and NPRR1323 were implemented, ERCOT renamed the
+# price column in each of these SCED reports with a "Capped" prefix and added an
+# "Uncapped" counterpart. Files published before that date carry only the legacy
+# name, so the rename is applied when the capped name is present.
+CAPPED_TO_LEGACY_COLUMNS = {
+    "CappedSystemLambda": "SystemLambda",
+    "CappedLMP": "LMP",
+    "CappedMCPC": "MCPC",
+}
+
 
 @dataclass
 class Document:
@@ -1956,7 +1966,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        return self._handle_lmp(docs=docs, verbose=verbose)
+        return self._handle_lmp(
+            docs=docs,
+            verbose=verbose,
+            location_type=location_type,
+        )
 
     @support_date_range(frequency=None)
     def get_lmp(
@@ -2015,33 +2029,51 @@ class Ercot(ISOBase):
         docs: list[Document],
         verbose: bool = False,
         sced: bool = True,
+        location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,
     ) -> pd.DataFrame:
+        empty_columns = [
+            "SCEDTimestamp",
+            "RepeatedHourFlag",
+            "Location",
+            "Location Type",
+            "LMP",
+        ]
+
+        if location_type.lower() == ELECTRICAL_BUS_LOCATION_TYPE.lower():
+            empty_columns.append("UncappedLMP")
+
         df = self.read_docs(
             docs,
             parse=False,
             # need to return a DF that works with the
             # logic in rest of function
-            empty_df=pd.DataFrame(
-                columns=[
-                    "SCEDTimestamp",
-                    "RepeatedHourFlag",
-                    "Location",
-                    "Location Type",
-                    "LMP",
-                ],
-            ),
+            empty_df=pd.DataFrame(columns=empty_columns),
             verbose=verbose,
         )
 
-        return self._handle_lmp_df(df, verbose=verbose, sced=sced)
+        return self._handle_lmp_df(
+            df,
+            verbose=verbose,
+            sced=sced,
+            location_type=location_type,
+        )
 
     def _handle_lmp_df(
         self,
         df: pd.DataFrame,
         verbose: bool = False,
         sced: bool = True,
+        location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,
     ) -> pd.DataFrame:
+        df = df.rename(columns=CAPPED_TO_LEGACY_COLUMNS)
+
         df = self._handle_sced_timestamp(df=df, verbose=verbose)
+
+        # Only the electrical bus report gained an uncapped price. The settlement
+        # point report is unchanged, so its columns must stay as they are.
+        is_electrical_bus = (
+            location_type.lower() == ELECTRICAL_BUS_LOCATION_TYPE.lower()
+        )
 
         if "SettlementPoint" in df.columns:
             df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
@@ -2057,21 +2089,34 @@ class Ercot(ISOBase):
             df["Location"] = df["Location"].astype("string")
             df["Location Type"] = df["Location Type"].astype("category")
 
+        if is_electrical_bus:
+            # Only published from 2026-08-27 onward.
+            if "UncappedLMP" not in df.columns:
+                df["UncappedLMP"] = pd.NA
+
+            df["Uncapped LMP"] = pd.to_numeric(
+                df["UncappedLMP"],
+                errors="coerce",
+            ).astype("float64")
+
         df["Market"] = (
             Markets.REAL_TIME_SCED.value if sced else Markets.DAY_AHEAD_HOURLY.value
         )
 
-        df = df[
-            [
-                "Interval Start",
-                "Interval End",
-                "SCED Timestamp",
-                "Market",
-                "Location",
-                "Location Type",
-                "LMP",
-            ]
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "SCED Timestamp",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
         ]
+
+        if is_electrical_bus:
+            columns.append("Uncapped LMP")
+
+        df = df[columns]
         # sort by SCED Timestamp and Location
         df = df.sort_values(
             [
@@ -5400,23 +5445,55 @@ class Ercot(ISOBase):
 
         if len(all_dfs) == 0:
             df = pd.DataFrame(
-                columns=["SCEDTimeStamp", "RepeatedHourFlag", "SystemLambda"],
+                columns=[
+                    "SCEDTimeStamp",
+                    "RepeatedHourFlag",
+                    "SystemLambda",
+                    "UncappedSystemLambda",
+                ],
             )
         else:
             df = pd.concat(all_dfs)
+
+        return self._handle_sced_system_lambda_df(df, verbose=verbose)
+
+    def _handle_sced_system_lambda_df(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        df = df.rename(columns=CAPPED_TO_LEGACY_COLUMNS)
 
         df = self._handle_sced_timestamp(df, verbose=verbose)
 
         df["SystemLambda"] = df["SystemLambda"].astype("float64")
 
+        # Only published from 2026-08-27 onward. Older files have no uncapped value.
+        if "UncappedSystemLambda" not in df.columns:
+            df["UncappedSystemLambda"] = pd.NA
+
+        df["UncappedSystemLambda"] = pd.to_numeric(
+            df["UncappedSystemLambda"],
+            errors="coerce",
+        ).astype("float64")
+
         df = df.rename(
             columns={
                 "SystemLambda": "System Lambda",
+                "UncappedSystemLambda": "Uncapped System Lambda",
             },
         )
 
         df.sort_values("SCED Timestamp", inplace=True)
-        return df[["Interval Start", "Interval End", "SCED Timestamp", "System Lambda"]]
+        return df[
+            [
+                "Interval Start",
+                "Interval End",
+                "SCED Timestamp",
+                "System Lambda",
+                "Uncapped System Lambda",
+            ]
+        ]
 
     @support_date_range("DAY_START")
     def get_highest_price_as_offer_selected(
@@ -7608,14 +7685,23 @@ class Ercot(ISOBase):
         return self._handle_mcpc_sced(df)
 
     def _handle_mcpc_sced(self, df: pd.DataFrame) -> pd.DataFrame:
-        df = df.rename(columns={"ASType": "AS Type"})
+        df = df.rename(columns={"ASType": "AS Type", **CAPPED_TO_LEGACY_COLUMNS})
         df = self._handle_sced_timestamp(df)
 
         df["MCPC"] = pd.to_numeric(df["MCPC"], errors="coerce")
 
+        # Only published from 2026-08-27 onward. Older files have no uncapped value.
+        if "UncappedMCPC" not in df.columns:
+            df["UncappedMCPC"] = pd.NA
+
+        df["Uncapped MCPC"] = pd.to_numeric(
+            df["UncappedMCPC"],
+            errors="coerce",
+        ).astype("float64")
+
         return (
             # Only need the SCED Timestamps
-            df[["SCED Timestamp", "AS Type", "MCPC"]]
+            df[["SCED Timestamp", "AS Type", "MCPC", "Uncapped MCPC"]]
             .sort_values(["SCED Timestamp", "AS Type"])
             .reset_index(drop=True)
         )
