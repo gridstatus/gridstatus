@@ -106,7 +106,10 @@ def _get_historical(
         url: str = f"{HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
         latest = False
     logger.info(f"Fetching URL: {url}")
-    df = pd.read_csv(url)
+    # NOTE: Use requests instead of pd.read_csv(url); urllib fails SSL verify on CAISO's Sectigo R46 chain with macOS system CAs.
+    r = requests.get(url, timeout=120)
+    r.raise_for_status()
+    df = pd.read_csv(io.StringIO(r.text))
 
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
