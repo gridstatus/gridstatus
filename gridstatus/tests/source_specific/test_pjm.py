@@ -223,6 +223,31 @@ class TestPJM(BaseTestISO):
 
             assert len(df) > 0
 
+    def test_get_lmp_keeps_retired_pnodes(self):
+        """Historical LMPs cover nodes PJM has since retired.
+
+        Those rows used to be dropped by an inner merge against the
+        active-only pnode directory, so a node retired after the fact lost its
+        whole price history.
+        """
+        with pjm_vcr.use_cassette("test_get_lmp_keeps_retired_pnodes.yaml"):
+            df = self.iso.get_lmp_day_ahead_hourly(
+                date="2021-06-03",
+                end="2021-06-04",
+            )
+            active = self.iso.get_pnode_ids()
+            everything = self.iso.get_pnode_ids(include_terminated=True)
+
+        first_hour = df[df["Interval Start"] == df["Interval Start"].min()]
+        retired = set(everything["pnode_id"]) - set(active["pnode_id"])
+
+        # The day predates the retirement of some of the nodes priced on it.
+        assert len(set(first_hour["Location Id"]) & retired) > 0
+        # Every row is labelled, retired nodes included, and the merge on a
+        # unique id adds no rows.
+        assert first_hour["Location Name"].notna().all()
+        assert first_hour["Location Id"].is_unique
+
     """get_it_sced_lmp_5_min"""
 
     def _check_it_sced_lmp_5_min(self, df):
@@ -463,6 +488,18 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette("test_get_pnode_ids.yaml"):
             df = self.iso.get_pnode_ids()
             assert len(df) > 0
+            assert df["pnode_id"].is_unique
+
+    def test_get_pnode_ids_include_terminated(self):
+        with pjm_vcr.use_cassette("test_get_pnode_ids_include_terminated.yaml"):
+            active = self.iso.get_pnode_ids()
+            everything = self.iso.get_pnode_ids(include_terminated=True)
+
+        # Retired pnodes are a superset of the active ones, and the dedup still
+        # leaves exactly one row per id so a merge on it cannot fan out.
+        assert len(everything) > len(active)
+        assert everything["pnode_id"].is_unique
+        assert set(active["pnode_id"]) <= set(everything["pnode_id"])
 
     """get_status"""
 

@@ -42,6 +42,9 @@
 #### NYISO
 * `NYISO.get_lmp` with `market=REAL_TIME_15_MIN` no longer mislabels the newest 5-minute RTD interval as 15-minute RTC data when the daily realtime file updates before the latest-interval file. Mislabeled rows produced 15-minute intervals starting off the quarter-hour grid (e.g. 05:25-05:40). 15-minute rows are now required to end on a quarter-hour boundary, and the affected rows stay in the `REAL_TIME_5_MIN` output.
 
+#### PJM
+* PJM LMP methods no longer drop prices for pnodes PJM has since retired. The pnode directory used to be fetched with an active-only filter and inner-merged onto the prices, so any node retired after a delivery date lost its entire history from that date's results whenever the data was fetched again. Fetching one historical day-ahead hour now returns 13,018 nodes where it previously returned 11,681. `PJM.get_pnode_ids` takes a new `include_terminated` argument for the same reason, defaulting to `False` so its existing output is unchanged.
+
 #### ERCOT
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
 * `Ercot.get_fuel_mix` and `Ercot.get_fuel_mix_detailed` now sort by `Time`. Ercot publishes the two halves of a split interval out of chronological order, which previously produced an unsorted `Time` column.
