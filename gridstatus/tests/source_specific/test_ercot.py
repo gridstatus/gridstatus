@@ -2382,6 +2382,8 @@ class TestErcot(BaseTestISO):
             "AS Type",
             "MCPC Original",
             "MCPC Corrected",
+            "Uncapped MCPC Original",
+            "Uncapped MCPC Corrected",
         ]
 
         assert df.shape[0] > 0
@@ -2394,6 +2396,8 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_object_dtype(df["AS Type"])
         assert pd.api.types.is_float_dtype(df["MCPC Original"])
         assert pd.api.types.is_float_dtype(df["MCPC Corrected"])
+        assert df.dtypes["Uncapped MCPC Original"] == "float64"
+        assert df.dtypes["Uncapped MCPC Corrected"] == "float64"
 
         assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
         assert (
@@ -2543,7 +2547,7 @@ class TestErcot(BaseTestISO):
             ],
         ).any()
 
-    def _check_lmp_price_corrections(self, df):
+    def _check_lmp_price_corrections(self, df, electrical_bus: bool = False):
         cols = [
             "Price Correction Time",
             "SCED Timestamp",
@@ -2555,6 +2559,9 @@ class TestErcot(BaseTestISO):
             "LMP Corrected",
         ]
 
+        if electrical_bus:
+            cols.extend(["Uncapped LMP Original", "Uncapped LMP Corrected"])
+
         assert df.shape[0] > 0
         assert df.columns.tolist() == cols
 
@@ -2564,6 +2571,10 @@ class TestErcot(BaseTestISO):
         assert pd.api.types.is_datetime64_any_dtype(df["Interval End"])
         assert pd.api.types.is_float_dtype(df["LMP Original"])
         assert pd.api.types.is_float_dtype(df["LMP Corrected"])
+
+        if electrical_bus:
+            assert df.dtypes["Uncapped LMP Original"] == "float64"
+            assert df.dtypes["Uncapped LMP Corrected"] == "float64"
 
         assert (df["Interval Start"] == df["SCED Timestamp"].dt.floor("5min")).all()
         assert (
@@ -2606,7 +2617,7 @@ class TestErcot(BaseTestISO):
                     "No RTM_EBLMP price correction files currently listed",
                 )
 
-        self._check_lmp_price_corrections(df)
+        self._check_lmp_price_corrections(df, electrical_bus=True)
 
         assert (df["Location Type"] == "Electrical Bus").all()
 
@@ -5547,3 +5558,243 @@ class TestCappedUncappedSCEDColumns:
         assert old.columns.tolist() == new.columns.tolist()
         assert old["Uncapped MCPC"].isna().all()
         assert old["MCPC"].tolist() == new["MCPC"].tolist()
+
+
+class TestCappedUncappedPriceCorrectionColumns:
+    """On 2026-09-01 the two price correction reports keyed by SCED run,
+    RTM_MCPC_SCED and RTM_EBLMP, followed the 2026-08-27 SCED report change:
+    the original and corrected price columns gained a "Capped" prefix and
+    "Uncapped" counterparts. The bus report also renamed ElectricBusName to
+    ElectricalBus and DSTFlag to RepeatedHourFlag. The capped value keeps the
+    existing column name and the uncapped value is a new column, null for files
+    published before the cutover. A single fetch can span the cutover, so files
+    in both layouts must concatenate cleanly.
+    """
+
+    iso = Ercot()
+
+    _TIMESTAMPS = ["08/30/2026 09:15:19", "08/30/2026 09:20:18"]
+
+    def _documents(self, count: int) -> list[Document]:
+        return [
+            Document(
+                url=f"https://example.com/{index}",
+                publish_date=pd.Timestamp("2026-07-24", tz="US/Central")
+                + pd.Timedelta(days=index),
+                constructed_name="",
+                friendly_name="",
+                friendly_name_timestamp=pd.NaT,
+            )
+            for index in range(count)
+        ]
+
+    def _mcpc_sced_source(self, capped: bool) -> pd.DataFrame:
+        if capped:
+            return pd.DataFrame(
+                {
+                    "SCEDTimestamp": self._TIMESTAMPS,
+                    "ASType": ["REGDN", "REGDN"],
+                    "CappedMCPCOriginal": [0.05, 0.07],
+                    "UncappedMCPCOriginal": [120.5, 0.07],
+                    "CappedMCPCCorrected": [0.03, 0.04],
+                    "UncappedMCPCCorrected": [130.5, 0.04],
+                    "PriceCorrectionTime": ["09/01/2026 16:00:00"] * 2,
+                    "RepeatedHourFlag": ["N", "N"],
+                },
+            )
+
+        return pd.DataFrame(
+            {
+                "SCEDTimestamp": self._TIMESTAMPS,
+                "ASType": ["REGDN", "REGDN"],
+                "MCPCOriginal": [0.05, 0.07],
+                "MCPCCorrected": [0.03, 0.04],
+                "PriceCorrectionTime": ["07/24/2026 16:00:00"] * 2,
+                "RepeatedHourFlag": ["N", "N"],
+            },
+        )
+
+    def _lmp_by_bus_source(self, capped: bool) -> pd.DataFrame:
+        if capped:
+            return pd.DataFrame(
+                {
+                    "SCEDTimestamp": self._TIMESTAMPS,
+                    "ElectricalBus": ["0001", "0001"],
+                    "CappedLMPOriginal": [15.9, 15.8],
+                    "UncappedLMPOriginal": [15.9, 15.8],
+                    "CappedLMPCorrected": [15.66, 15.7],
+                    "UncappedLMPCorrected": [16.0, 15.7],
+                    "PriceCorrectionTime": ["09/01/2026 16:00:00"] * 2,
+                    "RepeatedHourFlag": ["N", "N"],
+                },
+            )
+
+        return pd.DataFrame(
+            {
+                "SCEDTimestamp": self._TIMESTAMPS,
+                "ElectricBusName": ["0001", "0001"],
+                "LMPOriginal": [146.08, 146.1],
+                "LMPCorrected": [145.99, 146.0],
+                "PriceCorrectionTime": ["07/24/2026 16:00:00"] * 2,
+                "DSTFlag": ["N", "N"],
+            },
+        )
+
+    def _settlement_point_source(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "SCEDTimestamp": self._TIMESTAMPS,
+                "SettlementPoint": ["A4_DGR1_RN", "A4_DGR1_RN"],
+                "LMPOriginal": [84.08, 80.12],
+                "LMPCorrected": [84.0, 80.0],
+                "PriceCorrectionTime": ["09/01/2026 16:00:00"] * 2,
+                "DSTFlag": ["N", "N"],
+            },
+        )
+
+    """mcpc sced"""
+
+    def test_mcpc_sced_capped_maps_to_existing_column(self):
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[self._mcpc_sced_source(capped=True)],
+        ):
+            result = self.iso._handle_mcpc_sced_price_corrections(
+                self._documents(1),
+            )
+
+        assert result.columns.tolist() == [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "AS Type",
+            "MCPC Original",
+            "MCPC Corrected",
+            "Uncapped MCPC Original",
+            "Uncapped MCPC Corrected",
+        ]
+        assert result["MCPC Original"].tolist() == [0.05, 0.07]
+        assert result["MCPC Corrected"].tolist() == [0.03, 0.04]
+        assert result["Uncapped MCPC Original"].tolist() == [120.5, 0.07]
+        assert result["Uncapped MCPC Corrected"].tolist() == [130.5, 0.04]
+
+    def test_mcpc_sced_files_spanning_cutover_concatenate(self):
+        """A pre-cutover file and a post-cutover file in one fetch produce one
+        frame with the legacy columns filled for every row and the uncapped
+        columns null only for the pre-cutover rows."""
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[
+                self._mcpc_sced_source(capped=False),
+                self._mcpc_sced_source(capped=True),
+            ],
+        ):
+            result = self.iso._handle_mcpc_sced_price_corrections(
+                self._documents(2),
+            )
+
+        assert len(result) == 4
+        assert result["MCPC Original"].tolist() == [0.05, 0.07, 0.05, 0.07]
+        assert result["MCPC Corrected"].tolist() == [0.03, 0.04, 0.03, 0.04]
+        assert result["Uncapped MCPC Original"].isna().tolist() == [
+            True,
+            True,
+            False,
+            False,
+        ]
+        assert result["Uncapped MCPC Corrected"].isna().tolist() == [
+            True,
+            True,
+            False,
+            False,
+        ]
+        assert result.dtypes["Uncapped MCPC Original"] == "float64"
+        assert result.dtypes["Uncapped MCPC Corrected"] == "float64"
+
+    """lmp by bus"""
+
+    def test_lmp_by_bus_capped_maps_to_existing_column(self):
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[self._lmp_by_bus_source(capped=True)],
+        ):
+            result = self.iso._handle_lmp_price_corrections(
+                self._documents(1),
+                location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+            )
+
+        assert result.columns.tolist() == [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "LMP Original",
+            "LMP Corrected",
+            "Uncapped LMP Original",
+            "Uncapped LMP Corrected",
+        ]
+        assert result["Location"].tolist() == ["0001", "0001"]
+        assert (result["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
+        assert result["LMP Original"].tolist() == [15.9, 15.8]
+        assert result["LMP Corrected"].tolist() == [15.66, 15.7]
+        assert result["Uncapped LMP Original"].tolist() == [15.9, 15.8]
+        assert result["Uncapped LMP Corrected"].tolist() == [16.0, 15.7]
+
+    def test_lmp_by_bus_files_spanning_cutover_concatenate(self):
+        """The bus report renamed three columns at once (ElectricBusName,
+        DSTFlag, and the price pair). Concatenating a file from each side of
+        the cutover must not leave duplicate or split columns behind."""
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[
+                self._lmp_by_bus_source(capped=False),
+                self._lmp_by_bus_source(capped=True),
+            ],
+        ):
+            result = self.iso._handle_lmp_price_corrections(
+                self._documents(2),
+                location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+            )
+
+        assert len(result) == 4
+        assert result["Location"].tolist() == ["0001"] * 4
+        assert result["LMP Original"].tolist() == [146.08, 146.1, 15.9, 15.8]
+        assert result["LMP Corrected"].tolist() == [145.99, 146.0, 15.66, 15.7]
+        assert result["Uncapped LMP Original"].isna().tolist() == [
+            True,
+            True,
+            False,
+            False,
+        ]
+        assert result["Uncapped LMP Corrected"].tolist()[2:] == [16.0, 15.7]
+        assert result["SCED Timestamp"].notna().all()
+        assert result.dtypes["Uncapped LMP Original"] == "float64"
+        assert result.dtypes["Uncapped LMP Corrected"] == "float64"
+
+    def test_lmp_by_settlement_point_columns_unchanged(self):
+        """Only the electrical bus report changed. The settlement point report
+        must not gain permanently null uncapped columns."""
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[self._settlement_point_source()],
+        ):
+            result = self.iso._handle_lmp_price_corrections(self._documents(1))
+
+        assert result.columns.tolist() == [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "LMP Original",
+            "LMP Corrected",
+        ]
