@@ -465,6 +465,21 @@ CAPPED_TO_LEGACY_COLUMNS = {
     "CappedMCPC": "MCPC",
 }
 
+# The two price correction reports keyed by SCED run (RTM_MCPC_SCED and
+# RTM_EBLMP) followed on 2026-09-01: the original and corrected price columns
+# gained a "Capped" prefix and "Uncapped" counterparts, and the bus report also
+# renamed ElectricBusName to ElectricalBus and DSTFlag to RepeatedHourFlag.
+# Each file is normalized to the legacy names before files are concatenated so
+# a fetch spanning the cutover does not end up with both spellings of a column.
+PRICE_CORRECTION_CAPPED_TO_LEGACY_COLUMNS = {
+    "CappedMCPCOriginal": "MCPCOriginal",
+    "CappedMCPCCorrected": "MCPCCorrected",
+    "CappedLMPOriginal": "LMPOriginal",
+    "CappedLMPCorrected": "LMPCorrected",
+    "ElectricalBus": "ElectricBusName",
+    "DSTFlag": "RepeatedHourFlag",
+}
+
 
 @dataclass
 class Document:
@@ -6026,6 +6041,11 @@ class Ercot(ISOBase):
                 - AS Type
                 - MCPC Original
                 - MCPC Corrected
+                - Uncapped MCPC Original
+                - Uncapped MCPC Corrected
+
+            The uncapped columns are only published from September 1, 2026
+            onward and are null for earlier files.
         """
         docs = self._get_documents(
             published_after=published_after,
@@ -6195,6 +6215,11 @@ class Ercot(ISOBase):
                 - Location Type
                 - LMP Original
                 - LMP Corrected
+                - Uncapped LMP Original
+                - Uncapped LMP Corrected
+
+            The uncapped columns are only published from September 1, 2026
+            onward and are null for earlier files.
         """
         docs = self._get_documents(
             published_after=published_after,
@@ -6204,7 +6229,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self._handle_lmp_price_corrections(docs, verbose=verbose)
+        df = self._handle_lmp_price_corrections(
+            docs,
+            verbose=verbose,
+            location_type=ELECTRICAL_BUS_LOCATION_TYPE,
+        )
 
         return df
 
@@ -6300,9 +6329,57 @@ class Ercot(ISOBase):
         Interval Start/End columns are derived by flooring the SCED Timestamp
         to five minutes and are approximations, not exact.
         """
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_sced_price_correction_docs(docs, verbose=verbose)
 
+        return self._process_mcpc_sced_price_corrections(df, verbose=verbose)
+
+    def _read_sced_price_correction_docs(
+        self,
+        docs: list[Document],
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Read SCED-keyed price correction files, normalizing each file's
+        columns to the legacy names before concatenating. See
+        PRICE_CORRECTION_CAPPED_TO_LEGACY_COLUMNS."""
+        frames = []
+        for doc in tqdm.tqdm(docs, desc="Reading files", disable=not verbose):
+            df = self.read_doc(doc, parse=False, verbose=verbose)
+            frames.append(df.rename(columns=PRICE_CORRECTION_CAPPED_TO_LEGACY_COLUMNS))
+
+        return pd.concat(frames).reset_index(drop=True)
+
+    def _add_uncapped_price_correction_columns(
+        self,
+        df: pd.DataFrame,
+        source_to_output: dict[str, str],
+    ) -> pd.DataFrame:
+        """Expose the uncapped columns as float64, null when a file predates
+        the 2026-09-01 cutover and has no uncapped values."""
+        for source_column, output_column in source_to_output.items():
+            if source_column not in df.columns:
+                df[source_column] = pd.NA
+
+            df[output_column] = pd.to_numeric(
+                df[source_column],
+                errors="coerce",
+            ).astype("float64")
+
+        return df
+
+    def _process_mcpc_sced_price_corrections(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
         df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        df = self._add_uncapped_price_correction_columns(
+            df,
+            {
+                "UncappedMCPCOriginal": "Uncapped MCPC Original",
+                "UncappedMCPCCorrected": "Uncapped MCPC Corrected",
+            },
+        )
 
         # Rename columns to match gridstatus conventions
         df = df.rename(
@@ -6329,6 +6406,8 @@ class Ercot(ISOBase):
                 "AS Type",
                 "MCPC Original",
                 "MCPC Corrected",
+                "Uncapped MCPC Original",
+                "Uncapped MCPC Corrected",
             ]
         ]
 
@@ -6449,6 +6528,7 @@ class Ercot(ISOBase):
         self,
         docs: list[Document],
         verbose: bool = False,
+        location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,
     ) -> pd.DataFrame:
         """Handle LMP price corrections by settlement point or electrical bus.
 
@@ -6463,13 +6543,27 @@ class Ercot(ISOBase):
         """
         docs = sorted(docs, key=lambda doc: doc.publish_date)
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_sced_price_correction_docs(docs, verbose=verbose)
 
-        # The files use DSTFlag but _handle_sced_timestamp expects
-        # RepeatedHourFlag. The semantics are the same.
-        df = df.rename(columns={"DSTFlag": "RepeatedHourFlag"})
+        return self._process_lmp_price_corrections(
+            df,
+            verbose=verbose,
+            location_type=location_type,
+        )
 
+    def _process_lmp_price_corrections(
+        self,
+        df: pd.DataFrame,
+        verbose: bool = False,
+        location_type: str = SETTLEMENT_POINT_LOCATION_TYPE,
+    ) -> pd.DataFrame:
         df = self._handle_sced_timestamp(df, verbose=verbose)
+
+        # Only the electrical bus report gained uncapped prices. The settlement
+        # point report is unchanged, so its columns must stay as they are.
+        is_electrical_bus = (
+            location_type.lower() == ELECTRICAL_BUS_LOCATION_TYPE.lower()
+        )
 
         if "SettlementPoint" in df.columns:
             df = self._handle_settlement_point_name_and_type(df, verbose=verbose)
@@ -6478,6 +6572,15 @@ class Ercot(ISOBase):
             df["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
             df["Location"] = df["Location"].astype("string")
             df["Location Type"] = df["Location Type"].astype("category")
+
+        if is_electrical_bus:
+            df = self._add_uncapped_price_correction_columns(
+                df,
+                {
+                    "UncappedLMPOriginal": "Uncapped LMP Original",
+                    "UncappedLMPCorrected": "Uncapped LMP Corrected",
+                },
+            )
 
         # Rename columns to match gridstatus conventions
         df = df.rename(
@@ -6493,19 +6596,21 @@ class Ercot(ISOBase):
             df["Price Correction Time"],
         ).dt.tz_localize(self.default_timezone)
 
-        # Select and order final columns
-        df = df[
-            [
-                "Price Correction Time",
-                "SCED Timestamp",
-                "Interval Start",
-                "Interval End",
-                "Location",
-                "Location Type",
-                "LMP Original",
-                "LMP Corrected",
-            ]
+        columns = [
+            "Price Correction Time",
+            "SCED Timestamp",
+            "Interval Start",
+            "Interval End",
+            "Location",
+            "Location Type",
+            "LMP Original",
+            "LMP Corrected",
         ]
+
+        if is_electrical_bus:
+            columns.extend(["Uncapped LMP Original", "Uncapped LMP Corrected"])
+
+        df = df[columns]
 
         return df
 
