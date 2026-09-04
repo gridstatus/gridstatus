@@ -269,7 +269,7 @@ class TestMISO(BaseTestISO):
         )
         monkeypatch.setattr(self.iso, "_get_json", lambda *args, **kwargs: response)
         monkeypatch.setattr(
-            self.iso,
+            MISO,
             "_get_node_to_type_mapping",
             lambda *args, **kwargs: node_types,
         )
