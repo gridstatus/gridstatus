@@ -256,6 +256,32 @@ class TestMISO(BaseTestISO):
                 "Loadzone",
             ]
 
+    def test_get_lmp_real_time_5_min_uses_interval_ending_timestamp(
+        self,
+        monkeypatch,
+    ):
+        response = {
+            "headers": ["INTERVAL", "CPNODE", "LMP", "MLC", "MCC"],
+            "data": [["2026-09-04 00:05:00", "INDIANA.HUB", 25.0, 1.0, 2.0]],
+        }
+        node_types = pd.DataFrame(
+            {"Node": ["INDIANA.HUB"], "Location Type": ["Hub"]},
+        )
+        monkeypatch.setattr(self.iso, "_get_json", lambda *args, **kwargs: response)
+        monkeypatch.setattr(
+            self.iso,
+            "_get_node_to_type_mapping",
+            lambda *args, **kwargs: node_types,
+        )
+
+        result = self.iso.get_lmp_real_time_5_min(date="latest")
+
+        expected_start = pd.Timestamp("2026-09-04 00:00:00", tz="EST")
+        expected_end = pd.Timestamp("2026-09-04 00:05:00", tz="EST")
+        assert result.loc[0, "Time"] == expected_start
+        assert result.loc[0, "Interval Start"] == expected_start
+        assert result.loc[0, "Interval End"] == expected_end
+
     def test_get_lmp_locations(self):
         cassette_name = "test_get_lmp_locations.yaml"
         with miso_vcr.use_cassette(cassette_name):
