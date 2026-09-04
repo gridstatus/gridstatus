@@ -245,10 +245,14 @@ class TestMISO(BaseTestISO):
                 date=date,
                 market=Markets.REAL_TIME_5_MIN,
             )
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() == self.local_start_of_day(
-                date,
-            ) + pd.DateOffset(days=1)
+            assert df["Interval Start"].min() == (
+                self.local_start_of_day(date) - pd.Timedelta(minutes=5)
+            )
+            assert df["Interval End"].max() == (
+                self.local_start_of_day(date)
+                + pd.DateOffset(days=1)
+                - pd.Timedelta(minutes=5)
+            )
             assert sorted(df["Location Type"].unique()) == [
                 "Gennode",
                 "Hub",
