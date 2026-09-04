@@ -651,10 +651,10 @@ class MISO(ISOBase):
             data = pd.DataFrame(response_json["data"], columns=response_json["headers"])
 
             # MISO's public feed labels INTERVAL by the interval-ending time.
-            interval_end = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
+            data["Interval End"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
                 self.default_timezone,
             )
-            data["Interval Start"] = interval_end - pd.Timedelta(minutes=5)
+            data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
 
             node_to_type_mapping = (
                 MISO()
