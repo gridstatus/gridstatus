@@ -650,9 +650,11 @@ class MISO(ISOBase):
             # Convert JSON format to DataFrame
             data = pd.DataFrame(response_json["data"], columns=response_json["headers"])
 
-            data["Interval Start"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
+            # MISO's public feed labels INTERVAL by the interval-ending time.
+            data["Interval End"] = pd.to_datetime(data["INTERVAL"]).dt.tz_localize(
                 self.default_timezone,
             )
+            data["Interval Start"] = data["Interval End"] - pd.Timedelta(minutes=5)
 
             node_to_type_mapping = (
                 MISO()
