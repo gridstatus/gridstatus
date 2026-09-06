@@ -365,16 +365,35 @@ class PJM(ISOBase):
             drop=True,
         )
 
-    def get_pnode_ids(self) -> pd.DataFrame:
+    def get_pnode_ids(self, include_terminated: bool = False) -> pd.DataFrame:
+        """Returns the pnode directory.
+
+        Arguments:
+            include_terminated: Include pnodes PJM has retired. Defaults to
+                False, which returns only pnodes that are currently active.
+                Pass True when labelling historical data, since a node that
+                has since been retired still appears in LMPs for the dates it
+                was in service.
+
+        Returns:
+            pd.DataFrame: One row per pnode id, carrying its most recent
+            effective date.
+        """
         data = {
             "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type\
                 ,termination_date,voltage_level,zone",
-            "termination_date": "12/31/9999exact",
         }
+
+        if not include_terminated:
+            data["termination_date"] = "12/31/9999exact"
+
         nodes = self._get_pjm_json("pnode", start=None, params=data)
 
-        # only keep most recent effective date for each id
-        # return sorted by pnode_id
+        # PJM publishes one row per effective-date window, so a node that has
+        # been revised carries several. Keeping the most recent window per id
+        # leaves one row each: a pnode's name never differs across its own
+        # windows, so this labels historical data the same as current data.
+        # Returned sorted by pnode_id.
         nodes = (
             nodes.sort_values("effective_date", ascending=False)
             .drop_duplicates(
@@ -693,11 +712,17 @@ class PJM(ISOBase):
         # will get full name by merge with pnode data later
         data = data.drop(columns=["pnode_name"])
 
-        p_nodes = self.get_pnode_ids()[
+        # Terminated pnodes are included because historical LMPs contain nodes
+        # PJM has since retired. An inner merge against the active-only list
+        # dropped their rows outright, so a backfill run after a node was
+        # retired silently lost its whole history.
+        p_nodes = self.get_pnode_ids(include_terminated=True)[
             ["pnode_id", "pnode_name", "voltage_level", "pnode_short_name"]
         ]
 
-        data = data.merge(p_nodes, on="pnode_id")
+        # Left so an id missing from the directory keeps its prices rather
+        # than vanishing; the name columns are simply null for it.
+        data = data.merge(p_nodes, on="pnode_id", how="left")
 
         return data
 
