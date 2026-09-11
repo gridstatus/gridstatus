@@ -18,6 +18,9 @@
 #### NYISO
 * NYISO Area Control Error (ACE) data available at https://mis.nyiso.com/public/P-38list.htm requested in [#906](https://github.com/gridstatus/gridstatus/issues/906)
 
+#### CAISO
+* CAISO real-time 15-minute ancillary service prices via `CAISO.get_as_prices_real_time_15_min`
+
 #### EIA
 * EIA Facility Fuel (EIA-923) dataset in [#912](https://github.com/gridstatus/gridstatus/pull/912)
 * `EIA.get_grid_monitor` support for the Black Hills Energy (`BHBA`) and Southwest Power Pool West (`SWPW`) balancing authorities, which EIA began publishing on June 22, 2026

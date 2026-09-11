@@ -2449,6 +2449,102 @@ class CAISO(ISOBase):
 
         return df
 
+    def get_as_prices_real_time_15_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return real-time 15-minute AS prices for each region.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of real-time 15-minute AS prices
+        """
+        if end is None and not isinstance(date, tuple):
+            date_ts = utils._handle_date(date, self.default_timezone)
+            end = date_ts + pd.DateOffset(days=1)
+
+        df = self.get_oasis_dataset(
+            dataset="as_clearing_prices_real_time_15_min",
+            date=date,
+            end=end,
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        columns = [
+            "Time",
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Market",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Mileage Down",
+            "Regulation Mileage Up",
+            "Regulation Up",
+            "Spinning Reserves",
+        ]
+
+        if df.empty:
+            return pd.DataFrame(columns=columns)
+
+        df = df.rename(
+            columns={
+                "ANC_REGION": "Region",
+                "MARKET_RUN_ID": "Market",
+            },
+        )
+
+        as_type_map = {
+            "NR": "Non-Spinning Reserves",
+            "RD": "Regulation Down",
+            "RMD": "Regulation Mileage Down",
+            "RMU": "Regulation Mileage Up",
+            "RU": "Regulation Up",
+            "SR": "Spinning Reserves",
+            "NS_CLR_PRC": "Non-Spinning Reserves",
+            "RD_CLR_PRC": "Regulation Down",
+            "RMD_CLR_PRC": "Regulation Mileage Down",
+            "RMU_CLR_PRC": "Regulation Mileage Up",
+            "RU_CLR_PRC": "Regulation Up",
+            "SP_CLR_PRC": "Spinning Reserves",
+        }
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+
+        df = df.pivot_table(
+            index=[
+                "Time",
+                "Interval Start",
+                "Interval End",
+                "Region",
+                "Market",
+            ],
+            columns="ANC_TYPE",
+            values="MW",
+        ).reset_index()
+
+        df = df.fillna(0)
+
+        df.columns.name = None
+
+        df = df.reindex(
+            columns=columns,
+            fill_value=0,
+        )
+
+        return df
+
     @support_date_range(frequency="DAY_START")
     def get_ir_rc_prices(
         self,

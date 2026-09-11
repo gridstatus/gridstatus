@@ -136,6 +136,54 @@ class TestCAISO(BaseTestISO):
                 "Spinning Reserves",
             ]
 
+    AS_PRICES_REAL_TIME_15_MIN_COLUMNS = [
+        "Time",
+        "Interval Start",
+        "Interval End",
+        "Region",
+        "Market",
+        "Non-Spinning Reserves",
+        "Regulation Down",
+        "Regulation Mileage Down",
+        "Regulation Mileage Up",
+        "Regulation Up",
+        "Spinning Reserves",
+    ]
+
+    def _check_as_prices_real_time_15_min(self, df: pd.DataFrame) -> None:
+        assert df.shape[0] > 0
+        assert df.columns.tolist() == self.AS_PRICES_REAL_TIME_15_MIN_COLUMNS
+        assert (df["Market"] == "RTM").all()
+
+        interval_minutes = (
+            df["Interval End"] - df["Interval Start"]
+        ).dt.total_seconds() / 60
+        assert (interval_minutes == 15).all()
+
+        assert not df.duplicated(
+            subset=["Interval Start", "Region", "Market"],
+        ).any()
+
+    @pytest.mark.parametrize("date", ["2026-08-24 00:00"])
+    def test_get_as_prices_real_time_15_min(self, date):
+        with caiso_vcr.use_cassette(f"test_get_as_prices_real_time_15_min_{date}.yaml"):
+            df = self.iso.get_as_prices_real_time_15_min(
+                date,
+                end="2026-08-24 02:00",
+            )
+            self._check_as_prices_real_time_15_min(df)
+
+    @pytest.mark.parametrize(
+        "start, end",
+        [("2026-08-24 00:00", "2026-08-24 03:00")],
+    )
+    def test_get_as_prices_real_time_15_min_date_range(self, start, end):
+        with caiso_vcr.use_cassette(
+            f"test_get_as_prices_real_time_15_min_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_as_prices_real_time_15_min(date=start, end=end)
+            self._check_as_prices_real_time_15_min(df)
+
     @pytest.mark.parametrize("date", ["2022-10-15", "2022-10-16"])
     def test_get_as_procurement(self, date):
         with caiso_vcr.use_cassette(f"test_get_as_procurement_{date}.yaml"):

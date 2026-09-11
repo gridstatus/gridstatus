@@ -92,6 +92,30 @@ OASIS_DATASET_CONFIG = {
             ],
         },
     },
+    "as_clearing_prices_real_time_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_INTVL_AS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "RTM",
+            "anc_type": ["ALL", "NR", "RD", "RMD", "RMU", "RU", "SR"],
+            "anc_region": [
+                "ALL",
+                "AS_CAISO",
+                "AS_SP26_EXP",
+                "AS_SP26",
+                "AS_CAISO_EXP",
+                "AS_NP26_EXP",
+                "AS_NP26",
+            ],
+        },
+        "meta": {
+            "max_query_frequency": "1h",
+        },
+    },
     "ir_rc_prices_day_ahead_hourly": {
         "query": {
             "path": "GroupZip",
