@@ -140,7 +140,6 @@ class TestCAISO(BaseTestISO):
         "Interval Start",
         "Interval End",
         "Region",
-        "Market",
         "Non-Spinning Reserves",
         "Regulation Down",
         "Regulation Mileage Down",
@@ -152,7 +151,6 @@ class TestCAISO(BaseTestISO):
     def _check_as_prices_real_time_15_min(self, df: pd.DataFrame) -> None:
         assert df.shape[0] > 0
         assert df.columns.tolist() == self.AS_PRICES_REAL_TIME_15_MIN_COLUMNS
-        assert (df["Market"] == "RTM").all()
 
         interval_minutes = (
             df["Interval End"] - df["Interval Start"]
@@ -160,7 +158,7 @@ class TestCAISO(BaseTestISO):
         assert (interval_minutes == 15).all()
 
         assert not df.duplicated(
-            subset=["Interval Start", "Region", "Market"],
+            subset=["Interval Start", "Region"],
         ).any()
 
     @pytest.mark.real_sleep

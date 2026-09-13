@@ -2486,7 +2486,6 @@ class CAISO(ISOBase):
             "Interval Start",
             "Interval End",
             "Region",
-            "Market",
             "Non-Spinning Reserves",
             "Regulation Down",
             "Regulation Mileage Down",
@@ -2501,7 +2500,6 @@ class CAISO(ISOBase):
         df = df.rename(
             columns={
                 "ANC_REGION": "Region",
-                "MARKET_RUN_ID": "Market",
             },
         )
 
@@ -2526,7 +2524,6 @@ class CAISO(ISOBase):
                 "Interval Start",
                 "Interval End",
                 "Region",
-                "Market",
             ],
             columns="ANC_TYPE",
             values="MW",
