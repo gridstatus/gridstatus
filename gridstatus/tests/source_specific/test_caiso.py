@@ -137,7 +137,6 @@ class TestCAISO(BaseTestISO):
             ]
 
     AS_PRICES_REAL_TIME_15_MIN_COLUMNS = [
-        "Time",
         "Interval Start",
         "Interval End",
         "Region",
@@ -164,6 +163,7 @@ class TestCAISO(BaseTestISO):
             subset=["Interval Start", "Region", "Market"],
         ).any()
 
+    @pytest.mark.real_sleep
     @pytest.mark.parametrize("date", ["2026-08-24 00:00"])
     def test_get_as_prices_real_time_15_min(self, date):
         with caiso_vcr.use_cassette(f"test_get_as_prices_real_time_15_min_{date}.yaml"):
@@ -173,6 +173,7 @@ class TestCAISO(BaseTestISO):
             )
             self._check_as_prices_real_time_15_min(df)
 
+    @pytest.mark.real_sleep
     @pytest.mark.parametrize(
         "start, end",
         [("2026-08-24 00:00", "2026-08-24 03:00")],

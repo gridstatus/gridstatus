@@ -2483,7 +2483,6 @@ class CAISO(ISOBase):
         )
 
         columns = [
-            "Time",
             "Interval Start",
             "Interval End",
             "Region",
@@ -2524,7 +2523,6 @@ class CAISO(ISOBase):
 
         df = df.pivot_table(
             index=[
-                "Time",
                 "Interval Start",
                 "Interval End",
                 "Region",
