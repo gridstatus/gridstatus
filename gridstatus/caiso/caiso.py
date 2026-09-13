@@ -24,6 +24,7 @@ from gridstatus.base import (
 )
 from gridstatus.caiso import caiso_utils, daily_energy_storage
 from gridstatus.caiso.caiso_constants import (
+    AS_TYPE_MAP,
     CURRENT_BASE,
     HISTORY_BASE,
     OASIS_DATASET_CONFIG,
@@ -2421,15 +2422,7 @@ class CAISO(ISOBase):
             },
         )
 
-        as_type_map = {
-            "NR": "Non-Spinning Reserves",
-            "RD": "Regulation Down",
-            "RMD": "Regulation Mileage Down",
-            "RMU": "Regulation Mileage Up",
-            "RU": "Regulation Up",
-            "SR": "Spinning Reserves",
-        }
-        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(AS_TYPE_MAP)
 
         df = df.pivot_table(
             index=[
@@ -2503,21 +2496,7 @@ class CAISO(ISOBase):
             },
         )
 
-        as_type_map = {
-            "NR": "Non-Spinning Reserves",
-            "RD": "Regulation Down",
-            "RMD": "Regulation Mileage Down",
-            "RMU": "Regulation Mileage Up",
-            "RU": "Regulation Up",
-            "SR": "Spinning Reserves",
-            "NS_CLR_PRC": "Non-Spinning Reserves",
-            "RD_CLR_PRC": "Regulation Down",
-            "RMD_CLR_PRC": "Regulation Mileage Down",
-            "RMU_CLR_PRC": "Regulation Mileage Up",
-            "RU_CLR_PRC": "Regulation Up",
-            "SP_CLR_PRC": "Spinning Reserves",
-        }
-        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(AS_TYPE_MAP)
 
         df = df.pivot_table(
             index=[
@@ -3051,15 +3030,7 @@ class CAISO(ISOBase):
             },
         )
 
-        as_type_map = {
-            "NR": "Non-Spinning Reserves",
-            "RD": "Regulation Down",
-            "RMD": "Regulation Mileage Down",
-            "RMU": "Regulation Mileage Up",
-            "RU": "Regulation Up",
-            "SR": "Spinning Reserves",
-        }
-        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(AS_TYPE_MAP)
 
         result_type_map = {
             "AS_BUY_MW": "Procured (MW)",
