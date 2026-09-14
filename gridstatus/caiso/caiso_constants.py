@@ -7,6 +7,21 @@ DAY_AHEAD_MARKET_MARKET_RUN_ID = "DAM"
 REAL_TIME_DISPATCH_MARKET_RUN_ID = "RTD"
 REAL_TIME_DISPATCH_15_MIN_MARKET_RUN_ID = "RTPD"
 
+AS_TYPE_MAP = {
+    "NR": "Non-Spinning Reserves",
+    "RD": "Regulation Down",
+    "RMD": "Regulation Mileage Down",
+    "RMU": "Regulation Mileage Up",
+    "RU": "Regulation Up",
+    "SR": "Spinning Reserves",
+    "NS_CLR_PRC": "Non-Spinning Reserves",
+    "RD_CLR_PRC": "Regulation Down",
+    "RMD_CLR_PRC": "Regulation Mileage Down",
+    "RMU_CLR_PRC": "Regulation Mileage Up",
+    "RU_CLR_PRC": "Regulation Up",
+    "SP_CLR_PRC": "Spinning Reserves",
+}
+
 OASIS_DATASET_CONFIG = {
     "transmission_interface_usage": {
         "query": {
@@ -90,6 +105,30 @@ OASIS_DATASET_CONFIG = {
                 "AS_NP26_EXP",
                 "AS_NP26",
             ],
+        },
+    },
+    "as_clearing_prices_real_time_15_min": {
+        "query": {
+            "path": "SingleZip",
+            "resultformat": 6,
+            "queryname": "PRC_INTVL_AS",
+            "version": 1,
+        },
+        "params": {
+            "market_run_id": "RTM",
+            "anc_type": ["ALL", "NR", "RD", "RMD", "RMU", "RU", "SR"],
+            "anc_region": [
+                "ALL",
+                "AS_CAISO",
+                "AS_SP26_EXP",
+                "AS_SP26",
+                "AS_CAISO_EXP",
+                "AS_NP26_EXP",
+                "AS_NP26",
+            ],
+        },
+        "meta": {
+            "max_query_frequency": "1h",
         },
     },
     "ir_rc_prices_day_ahead_hourly": {
