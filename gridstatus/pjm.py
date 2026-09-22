@@ -1132,14 +1132,17 @@ class PJM(ISOBase):
         start_row: int,
         row_count: int | None,
         vary_page_size: bool,
-    ) -> list[dict]:
+    ) -> pd.DataFrame:
         """Fetch every page of a Data Miner query by explicit ``startRow``.
 
         Every page must report the same ``totalRows`` and the pages together
         must hold that many rows; otherwise raises DataMinerSnapshotMismatch.
+        Each page becomes a DataFrame as it arrives so the pull never holds the
+        whole feed as dicts.
         """
         headers = {"Ocp-Apim-Subscription-Key": self.api_key}
-        items: list[dict] = []
+        pages: list[pd.DataFrame] = []
+        rows_fetched = 0
         total_rows: int | None = None
         next_start_row = start_row
         progress = None
@@ -1171,7 +1174,8 @@ class PJM(ISOBase):
                     f"{r['totalRows']} total rows, first page reported {total_rows}",
                 )
 
-            items.extend(r["items"])
+            pages.append(pd.DataFrame(r["items"]))
+            rows_fetched += len(r["items"])
             if progress is not None:
                 progress.update(len(r["items"]))
             next_start_row += page_params["rowCount"]
@@ -1182,13 +1186,13 @@ class PJM(ISOBase):
             progress.close()
 
         expected_rows = total_rows - start_row + 1
-        if len(items) != expected_rows:
+        if rows_fetched != expected_rows:
             raise DataMinerSnapshotMismatch(
-                f"{endpoint}: pages returned {len(items)} rows, "
+                f"{endpoint}: pages returned {rows_fetched} rows, "
                 f"totalRows says {expected_rows}",
             )
 
-        return items
+        return pd.concat(pages, ignore_index=True)
 
     def _get_pjm_json(
         self,
@@ -1234,7 +1238,7 @@ class PJM(ISOBase):
 
         for attempt in range(2):
             try:
-                items = self._fetch_data_miner_pages(
+                df = self._fetch_data_miner_pages(
                     endpoint,
                     final_params,
                     start_row,
@@ -1246,8 +1250,6 @@ class PJM(ISOBase):
                 if attempt:
                     raise
                 logger.warning(f"{error}; retrying the pull with new page sizes")
-
-        df = pd.DataFrame(items)
 
         if "datetime_beginning_utc" in df.columns:
             df["Interval Start"] = (
