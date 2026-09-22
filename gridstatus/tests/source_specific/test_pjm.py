@@ -3463,3 +3463,117 @@ class TestPJM(BaseTestISO):
             self._check_marginal_emission_rates_5_min(df)
             assert df["Interval Start"].min() >= date
             assert df["Interval End"].max() <= end
+
+
+class TestPJMDataMinerPagination:
+    """_get_pjm_json pages by explicit startRow and rejects mixed snapshots."""
+
+    endpoint = "agg_definitions"
+    params = {"fields": "agg_pnode_id"}
+
+    @staticmethod
+    def _pages(total_rows: int, per_page_total_rows: dict[int, int] | None = None):
+        """Fake _make_api_call serving ``total_rows`` numbered rows.
+
+        ``per_page_total_rows`` overrides the ``totalRows`` a page reports, keyed
+        by its startRow, to simulate a page served from an older result set.
+        """
+        calls = []
+
+        def fake(url, params=None, headers=None):
+            calls.append(params)
+            start_row = params["startRow"]
+            row_count = params["rowCount"]
+            items = [
+                {"agg_pnode_id": row}
+                for row in range(start_row, min(start_row + row_count, total_rows + 1))
+            ]
+            reported = (per_page_total_rows or {}).get(start_row, total_rows)
+            return {"totalRows": reported, "items": items}
+
+        return fake, calls
+
+    def test_pages_are_requested_by_start_row_without_next_links(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=5)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            df = pjm._get_pjm_json(self.endpoint, None, self.params, row_count=2)
+
+        assert [call["startRow"] for call in calls] == [1, 3, 5]
+        assert all(call["rowCount"] == 2 for call in calls)
+        assert df["agg_pnode_id"].tolist() == [1, 2, 3, 4, 5]
+
+    def test_unfiltered_query_draws_a_random_page_size(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=1)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            for _ in range(20):
+                pjm._get_pjm_json(self.endpoint, None, self.params)
+
+        sizes = {call["rowCount"] for call in calls}
+        assert len(sizes) > 1
+        assert all(
+            gridstatus.pjm.DATA_MINER_MIN_RANDOM_ROW_COUNT
+            <= size
+            <= gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
+            for size in sizes
+        )
+
+    def test_date_filtered_query_keeps_the_maximum_page_size(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=1)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            pjm._get_pjm_json(self.endpoint, "2026-09-20", self.params)
+
+        assert calls[0]["rowCount"] == gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
+        assert calls[0]["datetime_beginning_ept"] == (
+            "09/20/2026 00:00to09/20/2026 23:59"
+        )
+
+    def test_mixed_snapshot_is_retried_once_then_rejected(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=5, per_page_total_rows={3: 4})
+        with (
+            mock.patch.object(pjm, "_make_api_call", side_effect=fake),
+            pytest.raises(
+                gridstatus.pjm.DataMinerSnapshotMismatch,
+                match="4 total rows",
+            ),
+        ):
+            pjm._get_pjm_json(self.endpoint, None, self.params, row_count=2)
+
+        # Two attempts, each stopped at the second page.
+        assert [call["startRow"] for call in calls] == [1, 3, 1, 3]
+
+    def test_mixed_snapshot_succeeds_when_the_retry_is_consistent(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=5)
+        stale_once = [True]
+
+        def flaky(url, params=None, headers=None):
+            response = fake(url, params=params, headers=headers)
+            if stale_once[0] and params["startRow"] == 3:
+                stale_once[0] = False
+                return response | {"totalRows": 4}
+            return response
+
+        with mock.patch.object(pjm, "_make_api_call", side_effect=flaky):
+            df = pjm._get_pjm_json(self.endpoint, None, self.params, row_count=2)
+
+        assert df["agg_pnode_id"].tolist() == [1, 2, 3, 4, 5]
+        assert [call["startRow"] for call in calls] == [1, 3, 1, 3, 5]
+
+    def test_short_pull_is_rejected(self):
+        pjm = PJM(api_key="test")
+
+        def short(url, params=None, headers=None):
+            return {"totalRows": 3, "items": [{"agg_pnode_id": 1}]}
+
+        with (
+            mock.patch.object(pjm, "_make_api_call", side_effect=short),
+            pytest.raises(
+                gridstatus.pjm.DataMinerSnapshotMismatch,
+                match="returned 1 rows",
+            ),
+        ):
+            pjm._get_pjm_json(self.endpoint, None, self.params, row_count=5)
