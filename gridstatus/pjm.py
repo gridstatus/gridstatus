@@ -43,6 +43,16 @@ class DataMinerSnapshotMismatch(RuntimeError):
     """The pages of one Data Miner pull did not come from the same result set."""
 
 
+def _same_rows(first: pd.DataFrame, second: pd.DataFrame) -> bool:
+    """Whether two pages hold the same rows, in any order."""
+    if first.shape != second.shape or set(first.columns) != set(second.columns):
+        return False
+    columns = list(first.columns)
+    first_hashes = pd.util.hash_pandas_object(first[columns], index=False)
+    second_hashes = pd.util.hash_pandas_object(second[columns], index=False)
+    return sorted(first_hashes) == sorted(second_hashes)
+
+
 class PJM(ISOBase):
     """PJM"""
 
@@ -1115,15 +1125,34 @@ class PJM(ISOBase):
             time.sleep(delay + random.uniform(0, delay * 0.1))
             delay *= 2
 
-    def _data_miner_page_size(self, row_count: int | None, vary: bool) -> int:
+    def _data_miner_page_size(
+        self,
+        row_count: int | None,
+        vary: bool,
+        exclude: int | None = None,
+    ) -> int:
         if row_count is not None:
             return row_count
-        if vary:
-            return random.randint(
+        if not vary:
+            return DATA_MINER_MAX_ROW_COUNT
+        while True:
+            size = random.randint(
                 DATA_MINER_MIN_RANDOM_ROW_COUNT,
                 DATA_MINER_MAX_ROW_COUNT,
             )
-        return DATA_MINER_MAX_ROW_COUNT
+            if size != exclude:
+                return size
+
+    def _data_miner_page(self, endpoint: str, page_params: dict) -> dict:
+        logger.info(f"Retrieving data from {endpoint} with params {page_params}")
+        r = self._make_api_call(
+            DATA_MINER_URL + endpoint,
+            params=page_params,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
+        )
+        if "errors" in r:
+            raise RuntimeError(r["errors"])
+        return r
 
     def _fetch_data_miner_pages(
         self,
@@ -1137,10 +1166,11 @@ class PJM(ISOBase):
 
         Every page must report the same ``totalRows`` and the pages together
         must hold that many rows; otherwise raises DataMinerSnapshotMismatch.
-        Each page becomes a DataFrame as it arrives so the pull never holds the
-        whole feed as dicts.
+        A varied-size pull that fits in one page has no second page to check
+        it against, so it is fetched again with a different size and the two
+        copies must match. Each page becomes a DataFrame as it arrives so the
+        pull never holds the whole feed as dicts.
         """
-        headers = {"Ocp-Apim-Subscription-Key": self.api_key}
         pages: list[pd.DataFrame] = []
         rows_fetched = 0
         total_rows: int | None = None
@@ -1152,15 +1182,7 @@ class PJM(ISOBase):
                 "startRow": next_start_row,
                 "rowCount": self._data_miner_page_size(row_count, vary_page_size),
             }
-            logger.info(f"Retrieving data from {endpoint} with params {page_params}")
-            r = self._make_api_call(
-                DATA_MINER_URL + endpoint,
-                params=page_params,
-                headers=headers,
-            )
-
-            if "errors" in r:
-                raise RuntimeError(r["errors"])
+            r = self._data_miner_page(endpoint, page_params)
 
             if total_rows is None:
                 total_rows = r["totalRows"]
@@ -1191,6 +1213,28 @@ class PJM(ISOBase):
                 f"{endpoint}: pages returned {rows_fetched} rows, "
                 f"totalRows says {expected_rows}",
             )
+
+        if vary_page_size and row_count is None and len(pages) == 1:
+            check_params = params | {
+                "startRow": start_row,
+                "rowCount": self._data_miner_page_size(
+                    row_count,
+                    vary_page_size,
+                    exclude=page_params["rowCount"],
+                ),
+            }
+            check = self._data_miner_page(endpoint, check_params)
+            if check["totalRows"] != total_rows or not _same_rows(
+                pages[0],
+                pd.DataFrame(check["items"]),
+            ):
+                raise DataMinerSnapshotMismatch(
+                    f"{endpoint}: a second request for the same page "
+                    f"(rowCount={check_params['rowCount']}) returned "
+                    f"{check['totalRows']} total rows and "
+                    f"{len(check['items'])} rows against {total_rows} and "
+                    f"{rows_fetched} on the first",
+                )
 
         return pd.concat(pages, ignore_index=True)
 

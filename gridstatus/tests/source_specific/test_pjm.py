@@ -3577,3 +3577,44 @@ class TestPJMDataMinerPagination:
             ),
         ):
             pjm._get_pjm_json(self.endpoint, None, self.params, row_count=5)
+
+    def test_single_page_varied_pull_is_checked_against_a_second_size(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=3)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            df = pjm._get_pjm_json(self.endpoint, None, self.params)
+
+        assert len(calls) == 2
+        assert [call["startRow"] for call in calls] == [1, 1]
+        assert calls[0]["rowCount"] != calls[1]["rowCount"]
+        assert df["agg_pnode_id"].tolist() == [1, 2, 3]
+
+    def test_single_page_check_rejects_a_differing_copy(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=3)
+
+        def differing(url, params=None, headers=None):
+            response = fake(url, params=params, headers=headers)
+            if len(calls) % 2 == 0:
+                # Every second request is the check; serve it an older copy.
+                response["items"][0] = {"agg_pnode_id": 99}
+            return response
+
+        with (
+            mock.patch.object(pjm, "_make_api_call", side_effect=differing),
+            pytest.raises(
+                gridstatus.pjm.DataMinerSnapshotMismatch,
+                match="second request",
+            ),
+        ):
+            pjm._get_pjm_json(self.endpoint, None, self.params)
+
+        assert len(calls) == 4
+
+    def test_explicit_row_count_skips_the_single_page_check(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=3)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            pjm._get_pjm_json(self.endpoint, None, self.params, row_count=10)
+
+        assert len(calls) == 1
