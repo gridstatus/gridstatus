@@ -980,7 +980,9 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_gen_outages_by_type(date)
             self._check_gen_outages_by_type(df)
 
-            expected_date = self.to_local_datetime(start_date_local)
+            expected_date = self.to_local_datetime(start_date_local) + pd.DateOffset(
+                hour=6,
+            )
             assert (df["Publish Time"] == expected_date).all()
             assert (
                 df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
@@ -995,7 +997,9 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_gen_outages_by_type(start_date_time_local)
             self._check_gen_outages_by_type(df)
 
-            expected_date = self.to_local_datetime(start_date_local)
+            expected_date = self.to_local_datetime(start_date_local) + pd.DateOffset(
+                hour=6,
+            )
             assert (df["Publish Time"] == expected_date).all()
             assert (
                 df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
@@ -1011,8 +1015,8 @@ class TestPJM(BaseTestISO):
         ],
     )
     def test_get_gen_outages_by_type_with_multi_day_range(self, date, end):
-        expected_date_1 = "2024-04-30 00:00:00-04:00"
-        expected_date_2 = "2024-05-01 00:00:00-04:00"
+        expected_date_1 = "2024-04-30 06:00:00-04:00"
+        expected_date_2 = "2024-05-01 06:00:00-04:00"
         expected_dates = {expected_date_1, expected_date_2}
 
         with pjm_vcr.use_cassette(
@@ -1027,6 +1031,50 @@ class TestPJM(BaseTestISO):
             assert (
                 df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
             ).all()
+
+    @pytest.mark.parametrize(
+        "execution_date, expected_publish_time",
+        [
+            ("2024-01-15", "2024-01-15 11:00:00+00:00"),
+            ("2024-07-15", "2024-07-15 10:00:00+00:00"),
+            ("2024-03-10", "2024-03-10 10:00:00+00:00"),
+            ("2024-11-03", "2024-11-03 11:00:00+00:00"),
+        ],
+    )
+    def test_parse_gen_outages_by_type_publish_time(
+        self,
+        execution_date,
+        expected_publish_time,
+    ):
+        raw = pd.DataFrame(
+            {
+                "forecast_execution_date_ept": [f"{execution_date}T00:00:00"] * 2,
+                "forecast_date": [
+                    execution_date,
+                    str(pd.Timestamp(execution_date).date() + pd.Timedelta(days=6)),
+                ],
+                "region": ["RTO", "West"],
+                "planned_outages_mw": [100.0, 200.0],
+                "maintenance_outages_mw": [10.0, 20.0],
+                "forced_outages_mw": [1.0, 2.0],
+                "total_outages_mw": [111.0, 222.0],
+            },
+        )
+
+        df = self.iso._parse_gen_outages_by_type(raw)
+
+        self._check_gen_outages_by_type(df)
+        assert (df["Publish Time"].dt.hour == 6).all()
+        assert (df["Publish Time"] == pd.Timestamp(expected_publish_time)).all()
+        assert df["Interval Start"].tolist() == [
+            pd.Timestamp(date, tz=self.iso.default_timezone)
+            for date in raw["forecast_date"]
+        ]
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
+        assert df["Region"].tolist() == raw["region"].tolist()
+        assert df.iloc[:, 4:].values.tolist() == raw.iloc[:, 3:].values.tolist()
 
     def to_local_datetime(self, date_local):
         return pd.to_datetime(date_local).tz_localize(
