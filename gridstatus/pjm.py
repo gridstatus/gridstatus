@@ -1,5 +1,4 @@
 import io
-import math
 import os
 import random
 import time
@@ -31,6 +30,27 @@ from gridstatus.pjm_constants import (
     REQUEST_TIMEOUT,
     ZONE_NODE_IDS,
 )
+
+DATA_MINER_URL = "https://api.pjm.com/api/v1/"
+DATA_MINER_MAX_ROW_COUNT = 50000
+# Smallest page size drawn for a feed requested without a date filter. Half the
+# maximum keeps a pull within twice the request count while giving 25,001
+# distinct sizes, so consecutive pulls do not repeat a page URL.
+DATA_MINER_MIN_RANDOM_ROW_COUNT = 25000
+
+
+class DataMinerSnapshotMismatch(RuntimeError):
+    """The pages of one Data Miner pull did not come from the same result set."""
+
+
+def _same_rows(first: pd.DataFrame, second: pd.DataFrame) -> bool:
+    """Whether two pages hold the same rows, in any order."""
+    if first.shape != second.shape or set(first.columns) != set(second.columns):
+        return False
+    columns = list(first.columns)
+    first_hashes = pd.util.hash_pandas_object(first[columns], index=False)
+    second_hashes = pd.util.hash_pandas_object(second[columns], index=False)
+    return sorted(first_hashes) == sorted(second_hashes)
 
 
 class PJM(ISOBase):
@@ -1105,6 +1125,119 @@ class PJM(ISOBase):
             time.sleep(delay + random.uniform(0, delay * 0.1))
             delay *= 2
 
+    def _data_miner_page_size(
+        self,
+        row_count: int | None,
+        vary: bool,
+        exclude: int | None = None,
+    ) -> int:
+        if row_count is not None:
+            return row_count
+        if not vary:
+            return DATA_MINER_MAX_ROW_COUNT
+        while True:
+            size = random.randint(
+                DATA_MINER_MIN_RANDOM_ROW_COUNT,
+                DATA_MINER_MAX_ROW_COUNT,
+            )
+            if size != exclude:
+                return size
+
+    def _data_miner_page(self, endpoint: str, page_params: dict) -> dict:
+        logger.info(f"Retrieving data from {endpoint} with params {page_params}")
+        r = self._make_api_call(
+            DATA_MINER_URL + endpoint,
+            params=page_params,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
+        )
+        if "errors" in r:
+            raise RuntimeError(r["errors"])
+        return r
+
+    def _fetch_data_miner_pages(
+        self,
+        endpoint: str,
+        params: dict,
+        start_row: int,
+        row_count: int | None,
+        vary_page_size: bool,
+    ) -> pd.DataFrame:
+        """Fetch every page of a Data Miner query by explicit ``startRow``.
+
+        Every page must report the same ``totalRows`` and the pages together
+        must hold that many rows; otherwise raises DataMinerSnapshotMismatch.
+        A varied-size pull that fits in one page has no second page to check
+        it against, so it is fetched again with a different size and the two
+        copies must match. Each page becomes a DataFrame as it arrives so the
+        pull never holds the whole feed as dicts.
+        """
+        pages: list[pd.DataFrame] = []
+        rows_fetched = 0
+        total_rows: int | None = None
+        next_start_row = start_row
+        progress = None
+
+        while True:
+            page_params = params | {
+                "startRow": next_start_row,
+                "rowCount": self._data_miner_page_size(row_count, vary_page_size),
+            }
+            r = self._data_miner_page(endpoint, page_params)
+
+            if total_rows is None:
+                total_rows = r["totalRows"]
+                if total_rows == 0:
+                    raise NoDataFoundException(f"No data found for {endpoint}")
+                if total_rows > page_params["rowCount"]:
+                    progress = tqdm.tqdm(total=total_rows, initial=0, unit="rows")
+            elif r["totalRows"] != total_rows:
+                raise DataMinerSnapshotMismatch(
+                    f"{endpoint}: page at startRow={next_start_row} reports "
+                    f"{r['totalRows']} total rows, first page reported {total_rows}",
+                )
+
+            pages.append(pd.DataFrame(r["items"]))
+            rows_fetched += len(r["items"])
+            if progress is not None:
+                progress.update(len(r["items"]))
+            next_start_row += page_params["rowCount"]
+            if next_start_row > total_rows:
+                break
+
+        if progress is not None:
+            progress.close()
+
+        expected_rows = total_rows - start_row + 1
+        if rows_fetched != expected_rows:
+            raise DataMinerSnapshotMismatch(
+                f"{endpoint}: pages returned {rows_fetched} rows, "
+                f"totalRows says {expected_rows}",
+            )
+
+        if vary_page_size and row_count is None and len(pages) == 1:
+            check_params = params | {
+                "startRow": start_row,
+                "rowCount": self._data_miner_page_size(
+                    row_count,
+                    vary_page_size,
+                    exclude=page_params["rowCount"],
+                ),
+            }
+            check = self._data_miner_page(endpoint, check_params)
+            if check["totalRows"] != total_rows or not _same_rows(
+                pages[0],
+                pd.DataFrame(check["items"]),
+            ):
+                raise DataMinerSnapshotMismatch(
+                    f"{endpoint}: a second request for the same page "
+                    f"(rowCount={check_params['rowCount']}) returned "
+                    f"{check['totalRows']} total rows and "
+                    f"{len(check['items'])} rows against {total_rows} and "
+                    f"{rows_fetched} on the first",
+                )
+
+        return pd.concat(pages, ignore_index=True)
+
     def _get_pjm_json(
         self,
         endpoint: str,
@@ -1112,22 +1245,25 @@ class PJM(ISOBase):
         params: dict,
         end: str | pd.Timestamp | None = None,
         start_row: int = 1,
-        row_count: int = 50000,
+        row_count: int | None = None,
         interval_duration_min: float | None = None,
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
     ):
+        """Query a Data Miner feed and return every row as a DataFrame.
+
+        Data Miner can keep answering a query it has served before with the
+        result set it computed at the time, page by page, across the feed's
+        later data loads. Pages are therefore requested by explicit ``startRow``
+        rather than the API's ``next`` links, a query without a date filter
+        (whose parameters would otherwise be identical on every run) draws a
+        random page size, and a pull whose pages disagree on ``totalRows`` is
+        retried once with new page sizes and then rejected.
+        """
         if start == "latest":
             raise NotSupported(f"{self.name} does not support 'latest'")
 
-        default_params = {
-            "startRow": start_row,
-            "rowCount": row_count,
-        }
-
-        # update final params with default params
         final_params = params.copy()
-        final_params.update(default_params)
 
         if start is not None:
             start = utils._handle_date(start)
@@ -1144,42 +1280,20 @@ class PJM(ISOBase):
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
-        # Exclude API key from logs
-        params_to_log = final_params.copy()
-
-        if "Ocp-Apim-Subscription-Key" in params_to_log:
-            params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
-
-        logger.info(f"Retrieving data from {endpoint} with params {params_to_log}")
-        r = self._make_api_call(
-            "https://api.pjm.com/api/v1/" + endpoint,
-            params=final_params,
-            headers={"Ocp-Apim-Subscription-Key": self.api_key},
-        )
-
-        if "errors" in r:
-            raise RuntimeError(r["errors"])
-
-        # # todo should this be a warning?
-        if r["totalRows"] == 0:
-            raise NoDataFoundException(f"No data found for {endpoint}")
-
-        df = pd.DataFrame(r["items"])
-
-        num_pages = math.ceil(r["totalRows"] / row_count)
-        if num_pages > 1:
-            to_add = [df]
-            for page in tqdm.tqdm(range(1, num_pages), initial=1, total=num_pages):
-                next_url = next(x for x in r["links"] if x["rel"] == "next")["href"]
-                r = self._make_api_call(
-                    next_url,
-                    headers={
-                        "Ocp-Apim-Subscription-Key": self.api_key,
-                    },
+        for attempt in range(2):
+            try:
+                df = self._fetch_data_miner_pages(
+                    endpoint,
+                    final_params,
+                    start_row,
+                    row_count,
+                    vary_page_size=start is None,
                 )
-                to_add.append(pd.DataFrame(r["items"]))
-
-            df = pd.concat(to_add)
+                break
+            except DataMinerSnapshotMismatch as error:
+                if attempt:
+                    raise
+                logger.warning(f"{error}; retrying the pull with new page sizes")
 
         if "datetime_beginning_utc" in df.columns:
             df["Interval Start"] = (
