@@ -945,6 +945,17 @@ class EIA:
                     .astype("Int64")
                 )
 
+        # A blank or whitespace-only Plant ID survives the dropna above and only
+        # becomes null after the integer conversion, so drop those rows here.
+        null_plant_id_rows = df.loc[df["Plant ID"].isnull()]
+
+        if not null_plant_id_rows.empty:
+            logger.warning(
+                f"Found rows with null Plant Ids for {generator_status} "
+                + f"power plants. {null_plant_id_rows}",
+            )
+            df = df.dropna(subset=["Plant ID"])
+
         null_generator_id_rows = df.loc[df["Generator ID"].isnull()]
 
         # There are some rows with null Generator IDs. We drop these rows
