@@ -1618,7 +1618,8 @@ class PJM(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Retrieves the generation outage data
+        Retrieves the generation outage data. Publish Time is 06:00 Eastern on
+        the forecast execution date; PJM provides that date at midnight.
         From: https://dataminer2.pjm.com/feed/gen_outages_by_type/definition
         """
 
@@ -1652,7 +1653,11 @@ class PJM(ISOBase):
 
         df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
         df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
-        df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
+        # Set the local wall-clock time before localizing so DST transition days
+        # also publish at 06:00 Eastern, rather than six elapsed hours after midnight.
+        df["Publish Time"] = (
+            pd.to_datetime(df["Publish Time"]).dt.normalize() + pd.Timedelta(hours=6)
+        ).dt.tz_localize(self.default_timezone)
 
         df = df[
             [
