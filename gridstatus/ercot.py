@@ -3575,6 +3575,12 @@ class Ercot(ISOBase):
             # weird that these files dont have this column like all other ERCOT files
             # add so we can parse
             doc["DSTFlag"] = "N"
+            # On the DST end day, these files label the repeated hour (01:00-02:00
+            # CST) as Hour Ending 25. Relabel it as Hour Ending 2 with DSTFlag "Y" so
+            # parse_doc localizes it to 01:00 CST instead of next-day 00:00.
+            repeated_hour = doc["Hour Ending"] == 25
+            doc.loc[repeated_hour, "Hour Ending"] = 2
+            doc.loc[repeated_hour, "DSTFlag"] = "Y"
             data[key] = self.parse_doc(doc, verbose=verbose)
 
         if process:
