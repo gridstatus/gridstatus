@@ -1,6 +1,7 @@
 import datetime
-from io import StringIO
+from io import BytesIO, StringIO
 from unittest import mock
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
@@ -1367,6 +1368,69 @@ class TestErcot(BaseTestISO):
             col,
             "dam_gen_resource_as_offers",
         )
+
+    def test_handle_60_day_dam_disclosure_dst_end(self):
+        """On the DST end day, the files label the repeated hour (01:00-02:00 CST)
+        as Hour Ending 25. Rows are trimmed from the 2025-11-02 file. The Hour
+        Ending 25 price (46.18) matches the 01:00 CST DAM settlement point price.
+        """
+        data_string = """Delivery Date,Hour Ending,Settlement Point,QSE Name,Energy Only Offer Award in MW,Settlement Point Price,Offer ID
+11/02/2025,1,HB_NORTH,QCALP,21.8,54.43,000030
+11/02/2025,2,HB_NORTH,QCALP,21.8,44.77,000030
+11/02/2025,3,HB_NORTH,QCALP,21.8,50.11,000030
+11/02/2025,4,HB_NORTH,QCALP,21.8,49.07,000030
+11/02/2025,5,HB_NORTH,QCALP,21.8,47.5,000030
+11/02/2025,6,HB_NORTH,QCALP,21.8,43.32,000030
+11/02/2025,7,HB_NORTH,QCALP,0,35.05,000045
+11/02/2025,8,HB_NORTH,QCALP,0,25.16,000045
+11/02/2025,9,HB_NORTH,QCALP,204.2,13.87,000030
+11/02/2025,10,HB_NORTH,QCALP,207.2,6.42,000030
+11/02/2025,11,HB_NORTH,QCALP,207.2,6.37,000030
+11/02/2025,12,HB_NORTH,QCALP,207.2,7.97,000030
+11/02/2025,13,HB_NORTH,QCALP,206.2,9.08,000030
+11/02/2025,14,HB_NORTH,QCALP,207.2,8.99,000030
+11/02/2025,15,HB_NORTH,QCALP,207.2,9.55,000030
+11/02/2025,16,HB_NORTH,QCALP,207.2,11.99,000030
+11/02/2025,17,HB_NORTH,QCALP,0,26.47,000045
+11/02/2025,18,HB_NORTH,QCALP,0,74.62,000045
+11/02/2025,19,HB_NORTH,QCALP,0,64.05,000045
+11/02/2025,20,HB_NORTH,QCALP,0,45.6,000045
+11/02/2025,21,HB_NORTH,QCALP,0,29.85,000045
+11/02/2025,22,HB_NORTH,QCALP,0,22.69,000045
+11/02/2025,23,HB_NORTH,QCALP,246.8,25.68,000030
+11/02/2025,24,HB_NORTH,QCALP,246.8,22.33,000030
+11/02/2025,25,HB_NORTH,QCALP,21.8,46.18,000030
+"""
+        buffer = BytesIO()
+        with ZipFile(buffer, "w") as z:
+            z.writestr("60d_DAM_EnergyOnlyOfferAwards-01-JAN-26.csv", data_string)
+
+        with ZipFile(buffer) as z:
+            df_dict = self.iso._handle_60_day_dam_disclosure(
+                z,
+                process=True,
+                files_prefix={
+                    DAM_ENERGY_ONLY_OFFER_AWARDS_KEY: "60d_DAM_EnergyOnlyOfferAwards-",
+                },
+            )
+
+        df = df_dict[DAM_ENERGY_ONLY_OFFER_AWARDS_KEY]
+        assert df.columns.tolist() == DAM_ENERGY_ONLY_OFFER_AWARDS_COLUMNS
+
+        # 25 consecutive hours: 00:00 and 01:00 CDT, then 01:00 to 23:00 CST
+        expected_starts = pd.date_range(
+            pd.Timestamp("2025-11-02", tz=self.iso.default_timezone),
+            periods=25,
+            freq="h",
+        )
+        assert df["Interval Start"].tolist() == expected_starts.tolist()
+        assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta("1h")).all()
+
+        prices = df.set_index("Interval Start")["Settlement Point Price"]
+        repeated_hour_cdt = pd.Timestamp("2025-11-02 01:00:00-0500", tz="US/Central")
+        repeated_hour_cst = pd.Timestamp("2025-11-02 01:00:00-0600", tz="US/Central")
+        assert prices[repeated_hour_cdt] == 44.77
+        assert prices[repeated_hour_cst] == 46.18
 
     @pytest.mark.integration
     def test_get_sara(self):
