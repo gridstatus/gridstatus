@@ -1260,26 +1260,6 @@ class MISO(ISOBase):
         # in the column names, so we clean it all up.
         data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "CONSTRAINT_NAME",
-                    "PRELIMINARY_SHADOW_PRICE",
-                    "CURVETYPE",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                    "BP3",
-                    "PC3",
-                    "BP4",
-                    "PC4",
-                    "OVERRIDE",
-                    "REASON",
-                ]
-            ]
 
         data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
             self.default_timezone,
@@ -1324,27 +1304,16 @@ class MISO(ISOBase):
             excel_file,
         )
         data = pd.read_excel(excel_file, skiprows=3)
-        data = data.iloc[:-1]
-        print(data)
-        print(market_date)
+        # The last row is a text disclaimer. On days with no binding constraints,
+        # MISO also leaves a blank row above it, which would otherwise come
+        # through as a row of nulls.
+        data = data.iloc[:-1].dropna(how="all")
         data["Interval End"] = market_date + pd.to_timedelta(
             data[
                 "Hour of Occurence"
             ],  # NOTE(kladar): sic, this is a persistent typo in the header from MISO
             unit="h",
         )
-
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Constraint Name",
-                    "Shadow Price",
-                    "Constraint Description",
-                ]
-            ]
-
         data["Interval Start"] = data["Interval End"] - pd.Timedelta(hours=1)
 
         return data[
@@ -1589,26 +1558,6 @@ class MISO(ISOBase):
         # in the column names, so we clean it all up.
         data = data.iloc[:-1]
         data.columns = data.columns.str.strip()
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "CONSTRAINT_NAME",
-                    "PRELIMINARY_SHADOW_PRICE",
-                    "CURVETYPE",
-                    "BP1",
-                    "PC1",
-                    "BP2",
-                    "PC2",
-                    "BP3",
-                    "PC3",
-                    "BP4",
-                    "PC4",
-                    "OVERRIDE",
-                    "REASON",
-                ]
-            ]
 
         data["Interval End"] = pd.to_datetime(data["MARKET_HOUR_EST"]).dt.tz_localize(
             self.default_timezone,
@@ -1652,17 +1601,9 @@ class MISO(ISOBase):
 
         # NOTE(kladar): The last row is a text disclaimer, and there is a leading space
         # in the column names, so we clean it all up.
-        data = data.iloc[:-1]
-        if data.empty:
-            return data[
-                [
-                    "Interval Start",
-                    "Interval End",
-                    "Constraint Name",
-                    "Shadow Price",
-                    "Constraint Description",
-                ]
-            ]
+        # On days with no binding constraints, MISO also leaves a blank row above
+        # the disclaimer, which would otherwise come through as a row of nulls.
+        data = data.iloc[:-1].dropna(how="all")
 
         data["Interval End"] = pd.to_datetime(data["Time of Occurence"]).dt.tz_localize(
             self.default_timezone,
