@@ -1,3 +1,8 @@
+from io import BytesIO
+from pathlib import Path
+from unittest.mock import patch
+from urllib.response import addinfourl
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -12,6 +17,45 @@ miso_vcr = setup_vcr(
     source="miso",
     record_mode=RECORD_MODE,
 )
+
+MISO_FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "miso"
+
+# Sub-regional power balance constraint reports as MISO publishes them on days with
+# no binding constraints: the usual header and disclaimer with no data rows. The
+# disclaimer is shortened here.
+NO_CONSTRAINTS_POWER_BALANCE_CSVS = {
+    "20260818_da_pbc.csv": """Day-Ahead Binding Sub-Regional Power Balance Constraints
+Published Date 08/18/2026
+Market Date 08/19/2026
+
+MARKET_HOUR_EST, CONSTRAINT_NAME, PRELIMINARY_SHADOW_PRICE, CURVETYPE, BP1, PC1, BP2, PC2, BP3, PC3, BP4, PC4, OVERRIDE, REASON
+
+"MISO MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, WITH RESPECT TO THE ACCURACY OR ADEQUACY OF THE INFORMATION CONTAINED HEREIN."
+""",
+    "20260824_rt_pbc.csv": """Real-Time Binding Sub-Regional Power Balance Constraints
+Published Date 08/24/2026
+Market Date 08/23/2026
+
+MARKET_HOUR_EST, CONSTRAINT_NAME, PRELIMINARY_SHADOW_PRICE, CURVETYPE, BP1, PC1, BP2, PC2, BP3, PC3, BP4, PC4, OVERRIDE, REASON
+
+"MISO MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, WITH RESPECT TO THE ACCURACY OR ADEQUACY OF THE INFORMATION CONTAINED HEREIN."
+""",
+}
+
+
+def serve_miso_reports(reports: dict[str, bytes]):
+    """Answer MISO report downloads from ``reports``, keyed by file name.
+
+    Patches the HTTP layer pandas reads URLs through, so the method under test
+    runs unchanged and never touches the network.
+    """
+
+    def urlopen(request, *args, **kwargs):
+        file_name = request.full_url.rsplit("/", 1)[-1]
+        assert file_name in reports, f"Unexpected download: {request.full_url}"
+        return addinfourl(BytesIO(reports[file_name]), {}, request.full_url, 200)
+
+    return patch("urllib.request.urlopen", side_effect=urlopen)
 
 
 class TestMISO(BaseTestISO):
@@ -1001,6 +1045,100 @@ class TestMISO(BaseTestISO):
                 pytest.skip(
                     "No data available for this date range, so skipping data-comparison assertions",
                 )
+
+    @pytest.mark.parametrize(
+        "method,date,report",
+        [
+            (
+                "get_subregional_power_balance_constraints_day_ahead_hourly",
+                "2026-08-19",
+                "20260818_da_pbc.csv",
+            ),
+            (
+                "get_subregional_power_balance_constraints_real_time_5_min",
+                "2026-08-23",
+                "20260824_rt_pbc.csv",
+            ),
+        ],
+    )
+    def test_get_subregional_power_balance_constraints_no_binding_constraints(
+        self,
+        method,
+        date,
+        report,
+    ):
+        """A day with no binding constraints returns an empty DataFrame.
+
+        This used to raise KeyError: ['Interval Start', 'Interval End'] not in index.
+        """
+        content = NO_CONSTRAINTS_POWER_BALANCE_CSVS[report].encode()
+        with serve_miso_reports({report: content}) as urlopen:
+            df = getattr(self.iso, method)(date=date)
+
+        urlopen.assert_called()
+        assert df.empty
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "CONSTRAINT_NAME",
+            "PRELIMINARY_SHADOW_PRICE",
+            "CURVETYPE",
+            "BP1",
+            "PC1",
+            "BP2",
+            "PC2",
+            "BP3",
+            "PC3",
+            "BP4",
+            "PC4",
+            "OVERRIDE",
+            "REASON",
+        ]
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
+
+    @pytest.mark.parametrize(
+        "method,date,report",
+        [
+            (
+                "get_reserve_product_binding_constraints_day_ahead_hourly",
+                "2026-08-29",
+                "20260828_da_rpe.xls",
+            ),
+            (
+                "get_reserve_product_binding_constraints_real_time_5_min",
+                "2026-08-23",
+                "20260824_rt_rpe.xls",
+            ),
+        ],
+    )
+    def test_get_reserve_product_binding_constraints_no_binding_constraints(
+        self,
+        method,
+        date,
+        report,
+    ):
+        """A day with no binding constraints returns an empty DataFrame.
+
+        The fixtures are the reports MISO published for these days. They hold a
+        blank row between the header and the disclaimer, which used to come back
+        as a row of nulls with no interval times.
+        """
+        content = (MISO_FIXTURES_DIR / report).read_bytes()
+        with serve_miso_reports({report: content}) as urlopen:
+            df = getattr(self.iso, method)(date=date)
+
+        urlopen.assert_called()
+        assert df.empty
+        assert list(df.columns) == [
+            "Interval Start",
+            "Interval End",
+            "Constraint Name",
+            "Shadow Price",
+            "Constraint Description",
+        ]
+        assert df["Interval Start"].dtype == "datetime64[ns, EST]"
+        assert df["Interval End"].dtype == "datetime64[ns, EST]"
 
     """get_look_ahead_hourly"""
 
