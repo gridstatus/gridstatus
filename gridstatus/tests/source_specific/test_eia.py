@@ -619,3 +619,28 @@ def test_get_generators_absolute_date_with_missing_columns():
                 "Unit Code",
             ],
         )
+
+
+def test_handle_generator_data_drops_rows_with_blank_plant_id():
+    # The August 2026 EIA-860M retired sheet has a Punta Higuera row whose Plant ID
+    # is blank but not NaN, so it survives the footer dropna and only becomes null
+    # after the integer conversion.
+    raw = pd.DataFrame(
+        {
+            "Plant ID": ["3", " ", "nan", "7.0"],
+            "Plant Name": ["Barry", "Punta Higuera", "Unknown", "Gadsden"],
+            "Generator ID": ["1", "1", "2", "3"],
+        },
+    )
+
+    df = EIA(api_key="test")._handle_generator_data(
+        raw,
+        period=datetime.date(2026, 8, 1),
+        updated_at=pd.Timestamp("2026-09-23 22:24:21", tz="UTC"),
+        columns=["Period", "Updated At", "Plant ID", "Plant Name", "Generator ID"],
+        generator_status="retired",
+    )
+
+    assert df["Plant ID"].tolist() == [3, 7]
+    assert df["Plant Name"].tolist() == ["Barry", "Gadsden"]
+    assert df["Plant ID"].notna().all()
