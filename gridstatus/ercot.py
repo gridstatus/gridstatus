@@ -745,7 +745,9 @@ class Ercot(ISOBase):
             mix[col + " HSL"] = mix[col].apply(
                 lambda x: x.get("hsl") if isinstance(x, dict) else pd.NA,
             )
-            mix[col + " Seasonal Capacity"] = capacity[col]
+            # Power Storage Charging and Discharging split Power Storage and have no
+            # monthly capacity entry. They fall outside the returned columns
+            mix[col + " Seasonal Capacity"] = capacity.get(col)
             cols_to_drop.append(col)
 
         mix = mix.drop(columns=cols_to_drop)
