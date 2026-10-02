@@ -3384,7 +3384,7 @@ class TestPJM(BaseTestISO):
         mock_get.assert_called_once()
         assert mock_get.call_args.kwargs["params"] == {
             "start": "01-01-2016",
-            "stop": "12-31-2016",
+            "stop": "01-01-2017",
         }
         assert len(df) == 1
         assert df["Message ID"].iloc[0] == 1
@@ -3409,6 +3409,20 @@ class TestPJM(BaseTestISO):
 
         assert df.empty
         assert df.columns.tolist() == self.expected_emergency_postings_cols
+
+    def test_get_emergency_postings_rest_includes_postings_on_end_date(self):
+        # PJM posted messages 105540 and 105541 on 2026-10-01. A range ending
+        # partway through that day still returns them
+        with pjm_vcr.use_cassette(
+            "test_get_emergency_postings_rest_includes_postings_on_end_date.yaml",
+        ):
+            df = self.iso.get_emergency_postings(
+                date="2026-09-21",
+                end=pd.Timestamp("2026-10-01 22:00", tz=self.iso.default_timezone),
+            )
+
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
+        assert {105540, 105541} <= set(df["Message ID"])
 
     """get_voltage_limits"""
 
