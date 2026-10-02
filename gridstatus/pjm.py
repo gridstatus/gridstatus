@@ -3952,13 +3952,11 @@ class PJM(ISOBase):
         logger.info(
             f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL}...",
         )
-        # The endpoint excludes postings made on the stop date, so stop the day after
-        # end to include postings made on the day of end
         response = requests.get(
             EMERGENCY_POSTINGS_PUBLIC_REST_URL,
             params={
                 "start": date.strftime("%m-%d-%Y"),
-                "stop": (end + pd.Timedelta(days=1)).strftime("%m-%d-%Y"),
+                "stop": end.strftime("%m-%d-%Y"),
             },
             headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
             timeout=REQUEST_TIMEOUT,
