@@ -190,6 +190,28 @@ class TestCAISO(BaseTestISO):
                 df = self.iso.get_as_procurement(date, market=market)
                 self._check_as_data(df, market)
 
+    # OASIS answers a day it has not published yet (or a busy/rate-limited
+    # request) with an XML error, which _get_oasis turns into None.
+    @pytest.mark.parametrize("market", ["DAM", "HASP"])
+    def test_get_as_prices_raises_when_no_data(
+        self,
+        market: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(self.iso, "_get_oasis", lambda *args, **kwargs: None)
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_as_prices("2026-09-27", market=market)
+
+    @pytest.mark.parametrize("market", ["DAM", "RTM"])
+    def test_get_as_procurement_raises_when_no_data(
+        self,
+        market: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(self.iso, "_get_oasis", lambda *args, **kwargs: None)
+        with pytest.raises(NoDataFoundException):
+            self.iso.get_as_procurement("2026-09-27", market=market)
+
     """get_price_corrections"""
 
     PRICE_CORRECTIONS_COLUMNS = [
