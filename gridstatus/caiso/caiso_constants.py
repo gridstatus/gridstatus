@@ -540,10 +540,18 @@ def get_dataframe_config_for_renewables_report(
         offset_days: int = 0,
     ) -> pd.DatetimeIndex:
         start_date: pd.Timestamp = (
-            base_date - pd.Timedelta(days=offset_days) if offset_days else base_date
+            base_date - pd.DateOffset(days=offset_days) if offset_days else base_date
         )
         if start_date.tz is None:
             start_date = start_date.tz_localize(timezone)
+        if freq in ("1d", "MS"):
+            # Days and months start at local midnight. Stepping in UTC would put
+            # every step past a daylight saving change an hour off midnight
+            return pd.date_range(
+                start=start_date.tz_localize(None),
+                periods=periods,
+                freq=freq,
+            ).tz_localize(timezone)
         start_utc = start_date.tz_convert("UTC")
         timestamps_utc = pd.date_range(
             start=start_utc,
