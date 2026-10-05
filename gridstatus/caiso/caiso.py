@@ -2399,6 +2399,9 @@ class CAISO(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame of AS prices
+
+        Raises:
+            NoDataFoundException: if OASIS returns no data for the date.
         """
 
         params = {
@@ -2414,6 +2417,11 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for {market} AS prices for start date: {date} and end date: {end}",
+            )
 
         df = df.rename(
             columns={
@@ -3007,6 +3015,9 @@ class CAISO(ISOBase):
 
         Returns:
             pandas.DataFrame: A DataFrame of ancillary services data
+
+        Raises:
+            NoDataFoundException: if OASIS returns no data for the date range.
         """
 
         assert market in ["DAM", "RTM"], "market must be DAM or RTM"
@@ -3022,6 +3033,11 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for {market} AS procurement for start date: {date} and end date: {end}",
+            )
 
         df = df.rename(
             columns={
