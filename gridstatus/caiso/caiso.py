@@ -3776,6 +3776,10 @@ class CAISO(ISOBase):
                 values = extract_array(html_content, var_name)
                 if len(values) > target_length:
                     values = values[-target_length:]
+                elif len(values) < target_length and unit == "month":
+                    # On the last day of a month the rolling monthly chart drops
+                    # its oldest month. The values still end at the current month
+                    values = [np.nan] * (target_length - len(values)) + values
                 elif len(values) < target_length:
                     raise ValueError(
                         f"Renewables report column {var_name} returned {len(values)} values for {date.strftime('%Y-%m-%d')}, expected {target_length}",

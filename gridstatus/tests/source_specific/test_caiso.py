@@ -1074,6 +1074,32 @@ class TestCAISO(BaseTestISO):
         assert df["Interval Start"].min() == date
         assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
 
+    # On the last day of a month the report's rolling 13-month chart shows only
+    # the 12 months ending with the current one
+    def test_get_curtailment_last_day_of_month(self):
+        date = pd.Timestamp("2025-06-30", tz=self.iso.default_timezone)
+
+        with caiso_vcr.use_cassette("test_get_curtailment_2025-06-30.yaml"):
+            df = self.iso.get_curtailment(date)
+            monthly = self.iso.get_caiso_renewables_report(date)[
+                "curtailment_percentage_monthly"
+            ]
+
+        self._check_curtailment(df)
+        assert df["Interval Start"].min() == date
+        assert df["Interval Start"].max() == date + pd.Timedelta(hours=23)
+
+        assert monthly["Interval Start"].iloc[0] == pd.Timestamp(
+            "2024-06-01",
+            tz=self.iso.default_timezone,
+        )
+        assert pd.isna(monthly["Percent"].iloc[0])
+        assert monthly["Interval Start"].iloc[-1] == pd.Timestamp(
+            "2025-06-01",
+            tz=self.iso.default_timezone,
+        )
+        assert monthly["Percent"].iloc[-1] == 3.07
+
     @pytest.mark.parametrize("date", ["2026-03-20", "2026-10-01", "2026-11-10"])
     def test_renewables_report_days_and_months_start_at_local_midnight(self, date):
         base_date = pd.Timestamp(date, tz=self.iso.default_timezone)

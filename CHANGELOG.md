@@ -54,6 +54,7 @@
 
 #### CAISO
 * `CAISO.get_curtailment` no longer raises `AmbiguousTimeError: Cannot infer dst time from 2026-11-01 01:00:00` for reports from October 1, 2026 onward. The daily renewables report's daily and monthly charts were timestamped by stepping from midnight in UTC, which left every point past a daylight saving change an hour off local midnight, so October's monthly point ended at the repeated 1 AM hour on November 1. They now start at local midnight. The curtailment data itself is hourly and unaffected.
+* `CAISO.get_curtailment` no longer raises `Renewables report column curt_monthly_ytd_perc_mwh returned 12 values ... expected 13` for some reports published on the last day of a month, such as June 30, 2025. On those days the report's rolling monthly curtailment percentage chart covers the 12 months ending with the current month instead of 13, so its oldest month is now returned as null.
 
 #### ERCOT
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
