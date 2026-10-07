@@ -318,6 +318,77 @@ class TestErcotAPI(TestHelperMixin):
             date.date(),
         ) + pd.DateOffset(days=7)
 
+    """get_load_distribution_factors"""
+
+    LOAD_DISTRIBUTION_FACTORS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Substation",
+        "Load ID",
+        "Distribution Factor",
+        "MVAR Distribution Factor",
+        "MRID Load",
+    ]
+
+    def _check_load_distribution_factors(self, df):
+        assert df.columns.tolist() == self.LOAD_DISTRIBUTION_FACTORS_COLUMNS
+        assert df.notna().all().all()
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert df["Interval Start"].is_monotonic_increasing
+        assert not df.duplicated(
+            subset=["Publish Time", "Interval Start", "Substation", "Load ID"],
+        ).any()
+        assert df["Distribution Factor"].dtype == float
+        assert df["MVAR Distribution Factor"].dtype == float
+
+        # Every load has a factor for every hour
+        assert df.groupby("Interval Start").size().nunique() == 1
+
+    @pytest.mark.integration
+    def test_get_load_distribution_factors_dst_end(self):
+        # This report covers the seven days after it was posted, which include the
+        # repeated hour on November 2, 2025
+        date = self.local_start_of_day(datetime.date(2025, 10, 29))
+
+        with api_vcr.use_cassette("test_get_load_distribution_factors_dst_end.yaml"):
+            df = self.iso.get_load_distribution_factors(date, verbose=True)
+
+        self._check_load_distribution_factors(df)
+
+        assert df["Publish Time"].unique().tolist() == [
+            pd.Timestamp("2025-10-29 14:21:33", tz=self.iso.default_timezone),
+        ]
+        assert df["Interval Start"].nunique() == 7 * 24 + 1
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            datetime.date(2025, 10, 30),
+        )
+        assert df["Interval End"].max() == self.local_start_of_day(
+            datetime.date(2025, 11, 6),
+        )
+
+    @pytest.mark.integration
+    def test_get_load_distribution_factors_dst_start(self):
+        # This report covers the seven days after it was posted, which include the
+        # skipped hour on March 10, 2019
+        date = self.local_start_of_day(datetime.date(2019, 3, 6))
+
+        with api_vcr.use_cassette("test_get_load_distribution_factors_dst_start.yaml"):
+            df = self.iso.get_load_distribution_factors(date, verbose=True)
+
+        self._check_load_distribution_factors(df)
+
+        assert df["Publish Time"].unique().tolist() == [
+            pd.Timestamp("2019-03-06 16:27:25.133", tz=self.iso.default_timezone),
+        ]
+        assert df["Interval Start"].nunique() == 7 * 24 - 1
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            datetime.date(2019, 3, 7),
+        )
+        assert df["Interval End"].max() == self.local_start_of_day(
+            datetime.date(2019, 3, 14),
+        )
+
     """get_load_forecast_by_model"""
 
     def _check_load_forecast_by_model(self, df):
