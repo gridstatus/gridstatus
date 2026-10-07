@@ -689,6 +689,9 @@ class ErcotAPI:
             end_date=end,
             verbose=verbose,
             add_post_datetime=True,
+            # Only empty fields are missing. Older reports have a substation named NA,
+            # which pandas would otherwise read as missing.
+            read_csv_kwargs={"keep_default_na": False, "na_values": [""]},
         )
 
         # A report has about 1.5 million rows but only 169 distinct hours, so parse
@@ -2097,6 +2100,7 @@ class ErcotAPI:
         bulk_download: bool = True,
         include_source_filename: bool = False,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
+        read_csv_kwargs: dict | None = None,
     ) -> pd.DataFrame | bytes:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
@@ -2125,6 +2129,8 @@ class ErcotAPI:
             include_source_filename [bool]: if True, the returned dataframe will
                 include a column with the filename each row came from. Defaults to
                 False.
+            read_csv_kwargs [dict]: extra keyword arguments passed to pd.read_csv
+                for each file. Defaults to None.
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data when read_as_csv is
@@ -2175,7 +2181,7 @@ class ErcotAPI:
                 bytes_data = file_data
                 filename = None
 
-            df = pd.read_csv(bytes_data, compression="zip")
+            df = pd.read_csv(bytes_data, compression="zip", **(read_csv_kwargs or {}))
             if add_post_datetime:
                 df["postDatetime"] = posted_datetime
             if include_source_filename:

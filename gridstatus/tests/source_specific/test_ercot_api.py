@@ -389,6 +389,29 @@ class TestErcotAPI(TestHelperMixin):
             datetime.date(2019, 3, 14),
         )
 
+    @pytest.mark.integration
+    def test_get_load_distribution_factors_substation_named_na(self):
+        # The first report in the current format has loads at a substation named NA
+        date = pd.Timestamp("2016-12-08 16:00", tz=self.iso.default_timezone)
+        end = date + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette(
+            "test_get_load_distribution_factors_substation_named_na.yaml",
+        ):
+            df = self.iso.get_load_distribution_factors(date, end, verbose=True)
+
+        self._check_load_distribution_factors(df)
+
+        assert df["Publish Time"].unique().tolist() == [
+            pd.Timestamp("2016-12-08 16:23:19.839", tz=self.iso.default_timezone),
+        ]
+        assert sorted(df.loc[df["Substation"] == "NA", "Load ID"].unique()) == [
+            "TR1",
+            "TR2",
+            "TR4",
+            "TR5",
+        ]
+
     """get_load_forecast_by_model"""
 
     def _check_load_forecast_by_model(self, df):
