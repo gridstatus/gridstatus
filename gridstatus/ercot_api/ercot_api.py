@@ -128,6 +128,10 @@ HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
 )
 
+# Load Distribution Factors
+# https://data.ercot.com/data-product-archive/NP4-159-CD
+LOAD_DISTRIBUTION_FACTORS_ENDPOINT = "/np4-159-cd/load_distribution_factors"
+
 # Seven-Day Load Forecast by Model and Weather Zone
 # https://data.ercot.com/data-product-archive/NP3-565-CD
 LOAD_FORECAST_BY_MODEL_ENDPOINT = "/np3-565-cd/lf_by_model_weather_zone"
@@ -650,6 +654,103 @@ class ErcotAPI:
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
         return data[columns]
+
+    @support_date_range(frequency=None)
+    def get_load_distribution_factors(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Load Distribution Factors.
+
+        Hourly load forecast distribution factors for each load at each
+        substation, from which Load at the Electrical Bus level can be calculated.
+        ERCOT posts a new report only when the values change (seasonally or
+        manually), and each report covers the seven days after it is posted.
+
+        Arguments:
+            date: the start of the publish time range to fetch reports for.
+            end: the end of the publish time range to fetch reports for.
+                Defaults to the start of the day after date.
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            A DataFrame with load distribution factors
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-159-CD
+        """
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        data = self.get_historical_data(
+            endpoint=LOAD_DISTRIBUTION_FACTORS_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+            # Only empty fields are missing. Older reports have a substation named NA,
+            # which pandas would otherwise read as missing.
+            read_csv_kwargs={"keep_default_na": False, "na_values": [""]},
+        )
+
+        # A report has about 1.5 million rows but only 169 distinct hours, so parse
+        # each distinct hour once and map the results back to the rows
+        hour_index = pd.MultiIndex.from_frame(data[["LdfDate", "LdfHour", "DSTFlag"]])
+        distinct_hours = hour_index.unique()
+        parsed_hours = self.ercot.parse_doc(
+            distinct_hours.to_frame(index=False).rename(
+                columns={"LdfDate": "DeliveryDate", "LdfHour": "HourEnding"},
+            ),
+            verbose=verbose,
+        ).sort_index()
+        hour_positions = distinct_hours.get_indexer(hour_index)
+        data["Interval Start"] = parsed_hours["Interval Start"].array.take(
+            hour_positions,
+        )
+        data["Interval End"] = parsed_hours["Interval End"].array.take(hour_positions)
+
+        # Assume daylight time for a report posted during the repeated hour
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=True,
+        )
+
+        # Reports posted before December 2016 name the factor LoadDistributionFactor,
+        # so a range spanning the rename has both columns, each null for the other
+        if "LoadDistributionFactor" in data.columns:
+            data["DistributionFactor"] = (
+                data["DistributionFactor"].fillna(data["LoadDistributionFactor"])
+                if "DistributionFactor" in data.columns
+                else data["LoadDistributionFactor"]
+            )
+
+        data = data.rename(
+            columns={
+                "SubStation": "Substation",
+                "LoadID": "Load ID",
+                "DistributionFactor": "Distribution Factor",
+                "MVARDistributionFactor": "MVAR Distribution Factor",
+                "MRIDLoad": "MRID Load",
+            },
+        )
+
+        return (
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Substation",
+                    "Load ID",
+                    "Distribution Factor",
+                    "MVAR Distribution Factor",
+                    "MRID Load",
+                ]
+            ]
+            .sort_values(["Interval Start", "Publish Time", "Substation", "Load ID"])
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency=None)
     def get_load_forecast_by_model(
@@ -1999,6 +2100,7 @@ class ErcotAPI:
         bulk_download: bool = True,
         include_source_filename: bool = False,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
+        read_csv_kwargs: dict | None = None,
     ) -> pd.DataFrame | bytes:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
@@ -2027,6 +2129,8 @@ class ErcotAPI:
             include_source_filename [bool]: if True, the returned dataframe will
                 include a column with the filename each row came from. Defaults to
                 False.
+            read_csv_kwargs [dict]: extra keyword arguments passed to pd.read_csv
+                for each file. Defaults to None.
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data when read_as_csv is
@@ -2077,7 +2181,7 @@ class ErcotAPI:
                 bytes_data = file_data
                 filename = None
 
-            df = pd.read_csv(bytes_data, compression="zip")
+            df = pd.read_csv(bytes_data, compression="zip", **(read_csv_kwargs or {}))
             if add_post_datetime:
                 df["postDatetime"] = posted_datetime
             if include_source_filename:
