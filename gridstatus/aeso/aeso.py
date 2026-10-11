@@ -29,8 +29,9 @@ class AESO:
     including supply and demand, market data, and operational information.
     """
 
-    # NB: Data is also typically provided in UTC
-    default_timezone = "US/Mountain"
+    # NB: Data is also typically provided in UTC. Alberta stays on UTC-6 year
+    # round from November 1, 2026, which US/Mountain does not.
+    default_timezone = "America/Edmonton"
     MAX_NAVIGATION_ATTEMPTS = 100
 
     HISTORICAL_FORECAST_EARLIEST = pd.Timestamp("2023-03-01").tz_localize(

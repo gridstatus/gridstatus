@@ -46,6 +46,9 @@ license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.34.2,<3",
     "pandas ~=2.2",
+    # pandas 2 resolves time zone names through pytz; 2026.3 is the first
+    # release with Alberta's year-round UTC-6 from November 1, 2026
+    "pytz >=2026.3",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
     "tqdm ~=4.67",

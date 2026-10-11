@@ -20,6 +20,13 @@ api_vcr = setup_vcr(
 )
 
 
+def test_default_timezone_stays_on_utc_minus_six_after_november_2026():
+    # Alberta stopped changing clocks on November 1, 2026
+    for utc in ["2026-10-31 12:00", "2026-12-15 12:00"]:
+        local = pd.Timestamp(utc, tz="UTC").tz_convert(AESO.default_timezone)
+        assert local.utcoffset() == pd.Timedelta(hours=-6)
+
+
 class TestAESO(TestHelperMixin):
     @classmethod
     def setup_class(cls):
