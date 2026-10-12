@@ -1,4 +1,5 @@
 import warnings
+from email.utils import parsedate_to_datetime
 from enum import StrEnum
 from io import BytesIO
 from typing import BinaryIO, Literal, NamedTuple
@@ -12,6 +13,7 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
+    NoDataFoundException,
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
@@ -49,6 +51,27 @@ AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
 LIMITING_CONSTRAINTS_REAL_TIME_DATASET = "LimitingConstraints"
 LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET = "DAMLimitingConstraints"
 AREA_CONTROL_ERROR_DATASET = "ace_data"
+
+OASIS_POSTINGS_URL = "https://oasis-postings.prod.nysdi.com"
+
+
+class OasisPosting(NamedTuple):
+    folder: str
+    # First daily file that NYISO did not post to mis.nyiso.com
+    first_date: str
+
+
+# NYISO stopped updating mis.nyiso.com for these datasets in October 2026. Earlier
+# files keep coming from mis.nyiso.com because oasis-postings timestamps the same
+# file differently, which would change already published load forecast times.
+OASIS_POSTINGS = {
+    LOAD_FORECAST_DATASET: OasisPosting("ISO_LF", "2026-10-12"),
+    BTM_INSTALLED_CAPACITY_DATASET: OasisPosting(
+        "BTM_INSTALLED_CAPACITY_TRACKING",
+        "2026-10-10",
+    ),
+    BTM_SOLAR_ACTUAL_DATASET: OasisPosting("BTM_ACTUAL_FORECAST", "2026-10-10"),
+}
 
 """
 Pricing data:
@@ -1446,6 +1469,44 @@ class NYISO(ISOBase):
             end = None
             date = date.normalize()
 
+        oasis_posting = OASIS_POSTINGS.get(dataset_name)
+        if oasis_posting is not None:
+            first_oasis_date = pd.Timestamp(
+                oasis_posting.first_date,
+                tz=self.default_timezone,
+            )
+            oasis_days = [
+                d for d in self._archive_days(date, end) if d >= first_oasis_date
+            ]
+            if oasis_days:
+                all_dfs = self._download_oasis_postings(
+                    oasis_days,
+                    oasis_posting.folder,
+                    dataset_name,
+                    filename,
+                    add_file_date,
+                    groupby,
+                )
+                if date < first_oasis_date:
+                    all_dfs.insert(
+                        0,
+                        self._download_nyiso_archive(
+                            date,
+                            # NB: end is inclusive within a month, see _archive_days
+                            end=first_oasis_date - pd.DateOffset(days=1),
+                            dataset_name=dataset_name,
+                            filename=filename,
+                            groupby=groupby,
+                            verbose=verbose,
+                        ),
+                    )
+                if not all_dfs:
+                    raise NoDataFoundException(
+                        f"No {dataset_name} files posted for "
+                        f"{oasis_days[0]:%Y-%m-%d} to {oasis_days[-1]:%Y-%m-%d}",
+                    )
+                return pd.concat(all_dfs).sort_values("Time").reset_index(drop=True)
+
         # NB: the last 7 days of file are hosted directly as csv
         # todo this can probably be optimized to a single csv in
         # a range and all files are in the last 7 days
@@ -1465,24 +1526,7 @@ class NYISO(ISOBase):
             z = utils.get_zip_folder(zip_url, verbose=verbose)
 
             all_dfs = []
-            if end is None:
-                date_range = [date]
-            else:
-                date_range = pd.date_range(
-                    date.date(),
-                    end.date(),
-                    freq="1D",
-                    inclusive="left",
-                ).tolist()
-
-                # NB: this handles case where end is the first of the next month
-                # this pops up from the support_date_range decorator
-                # and that date will be handled in the next month's zip file
-                if end.month == date.month:
-                    date_range += [end]
-
-            for d in date_range:
-                d = gridstatus.utils._handle_date(d, tz=self.default_timezone)
+            for d in self._archive_days(date, end):
                 month = d.strftime("%Y%m01")
                 day = d.strftime("%Y%m%d")
 
@@ -1504,6 +1548,65 @@ class NYISO(ISOBase):
             df = pd.concat(all_dfs)
 
         return df.sort_values("Time").reset_index(drop=True)
+
+    def _archive_days(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> list[pd.Timestamp]:
+        if end is None:
+            days = [date.normalize()]
+        else:
+            days = pd.date_range(
+                date.date(),
+                end.date(),
+                freq="1D",
+                inclusive="left",
+            ).tolist()
+
+            # NB: this handles case where end is the first of the next month
+            # this pops up from the support_date_range decorator
+            # and that date will be handled in the next month's zip file
+            if end.month == date.month:
+                days += [end]
+
+        return [
+            gridstatus.utils._handle_date(d, tz=self.default_timezone) for d in days
+        ]
+
+    def _download_oasis_postings(
+        self,
+        days: list[pd.Timestamp],
+        folder: str,
+        dataset_name: str,
+        filename: str,
+        add_file_date: bool,
+        groupby: str | None,
+    ) -> list[pd.DataFrame]:
+        all_dfs = []
+        for day in days:
+            url = (
+                f"{OASIS_POSTINGS_URL}/{folder}/CSV/{day:%Y/%m/%d}/"
+                f"{filename}-{day:%Y%m%d}.csv"
+            )
+            logger.info(f"Requesting {url}")
+            response = requests.get(url)
+            if response.status_code == 404:
+                logger.info(f"{url} not posted yet")
+                continue
+            response.raise_for_status()
+
+            df = pd.read_csv(BytesIO(response.content))
+            if add_file_date:
+                # NB: oasis-postings has no P-7list equivalent, so the post time is
+                # the file's Last-Modified, which matches nyiso.com's Last Updated
+                df["File Date"] = pd.Timestamp(
+                    parsedate_to_datetime(response.headers["Last-Modified"]),
+                ).tz_convert(self.default_timezone)
+            df = self._handle_time(df, dataset_name, groupby=groupby)
+            all_dfs.append(df)
+
+        return all_dfs
 
     def _get_load_forecast_file_date(
         self,

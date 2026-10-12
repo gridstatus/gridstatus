@@ -6,6 +6,7 @@ import pytest
 
 import gridstatus
 from gridstatus import NYISO, Markets
+from gridstatus.base import NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -864,6 +865,40 @@ class TestNYISO(BaseTestISO):
             )
             assert df["Time"].dt.date.nunique() == 3
 
+    def test_get_btm_installed_capacity_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_installed_capacity_across_oasis_postings_switch_2026-10-08_2026-10-11.yaml",
+        ):
+            df = self.iso.get_btm_installed_capacity(
+                start="2026-10-08",
+                end="2026-10-11",
+            )
+
+        assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
+            "2026-10-08",
+            "2026-10-09",
+            "2026-10-10",
+        ]
+
+    def test_get_btm_solar_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_solar_across_oasis_postings_switch_2026-10-08_2026-10-10.yaml",
+        ):
+            df = self.iso.get_btm_solar(start="2026-10-08", end="2026-10-10")
+
+        assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
+            "2026-10-08",
+            "2026-10-09",
+            "2026-10-10",
+        ]
+
+    def test_get_btm_installed_capacity_not_posted(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_installed_capacity_not_posted_2099-01-01.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_btm_installed_capacity(date="2099-01-01")
+
     """get_btm_solar_forecast"""
 
     def _check_btm_solar_forecast(self, df: pd.DataFrame):
@@ -964,6 +999,28 @@ class TestNYISO(BaseTestISO):
                     "Load Forecast",
                 ],
             )
+
+    def test_load_forecast_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_load_forecast_across_oasis_postings_switch_2026-10-09_2026-10-12.yaml",
+        ):
+            forecast = self.iso.get_load_forecast(start="2026-10-09", end="2026-10-12")
+
+        first_interval_by_forecast_time = forecast.groupby("Forecast Time")[
+            "Interval Start"
+        ].min()
+        assert first_interval_by_forecast_time.dt.strftime(
+            "%Y-%m-%d",
+        ).tolist() == ["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12"]
+        # The last mis.nyiso.com file keeps its mis.nyiso.com timestamp
+        assert first_interval_by_forecast_time.index[-2] == pd.Timestamp(
+            "2026-10-10 07:10:02",
+            tz="US/Eastern",
+        )
+        assert first_interval_by_forecast_time.index[-1] == pd.Timestamp(
+            "2026-10-11 07:00:11",
+            tz="US/Eastern",
+        )
 
     """get_zonal_load_forecast"""
 
