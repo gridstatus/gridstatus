@@ -116,6 +116,7 @@ class ISOBase:
         url: str,
         verbose: bool = False,
         retries: int | None = None,
+        session: requests.Session | None = None,
         **kwargs,
     ):
         """
@@ -127,6 +128,8 @@ class ISOBase:
             verbose (bool): Whether to print log messages
             retries (int): The number of retries to attempt if the request fails. The
                 total tries will be 1 + retries
+            session (requests.Session): Session to send the request with, for example
+                one that presents a client certificate. Defaults to requests.get
             **kwargs: Additional keyword arguments to pass to requests.get
 
         Returns:
@@ -138,7 +141,7 @@ class ISOBase:
         while attempt < max_attempts:
             try:
                 logger.info(f"Requesting {url} with {kwargs}")
-                r = requests.get(url, **kwargs)
+                r = (session or requests).get(url, **kwargs)
                 r.raise_for_status()  # Raise an error for HTTP error codes
                 return r.json()
             except requests.RequestException as e:
