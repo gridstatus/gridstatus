@@ -39,6 +39,7 @@
 * ERCOT price correction getters accept `published_after` to skip documents already ingested
 * ERCOT uncapped SCED prices via the new `Uncapped System Lambda`, `Uncapped LMP`, and `Uncapped MCPC` columns on `Ercot.get_sced_system_lambda`, `Ercot.get_lmp_by_bus`, and `Ercot.get_mcpc_sced`. ERCOT began publishing these alongside the capped prices on August 27, 2026 with NPRR1290 and NPRR1323. The two values differ only when the price would exceed the Value of Lost Load. Files published before that date have no uncapped value, so the column is null for earlier data.
 * ERCOT uncapped price corrections via the new `Uncapped MCPC Original` and `Uncapped MCPC Corrected` columns on `Ercot.get_mcpc_sced_price_corrections` and the new `Uncapped LMP Original` and `Uncapped LMP Corrected` columns on `Ercot.get_lmp_by_bus_price_corrections`. ERCOT began publishing these on September 1, 2026. Files published before that date have no uncapped values, so the columns are null for earlier data.
+* ERCOT `read_doc`, `read_docs`, `_get_document`, and `_get_documents` accept a `session`, so secure MIS reports can be fetched with a `requests.Session` that presents a client certificate, such as one loaded from a password-protected PFX
 
 #### MISO
 * MISO Area Control Error dataset via `MISO.get_area_control_error`

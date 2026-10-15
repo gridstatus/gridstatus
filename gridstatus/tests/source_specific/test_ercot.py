@@ -5,9 +5,11 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 import pytest
+import requests
 
 from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
+    DAM_SYSTEM_LAMBDA_RTID,
     ELECTRICAL_BUS_LOCATION_TYPE,
     Document,
     Ercot,
@@ -81,6 +83,16 @@ api_vcr = setup_vcr(
 )
 
 INTERVALS_PER_HOUR_AT_FIVE_MINUTE_RESOLUTION = 12
+
+
+class RecordingSession(requests.Session):
+    def __init__(self):
+        super().__init__()
+        self.requested_urls = []
+
+    def get(self, url, **kwargs):
+        self.requested_urls.append(url)
+        return super().get(url, **kwargs)
 
 
 class TestErcot(BaseTestISO):
@@ -3326,6 +3338,23 @@ class TestErcot(BaseTestISO):
     def test_get_documents_raises_exception_when_no_docs(self):
         with pytest.raises(NoDataFoundException):
             self.iso.get_load_forecast("2010-01-01")
+
+    def test_documents_are_listed_and_read_with_given_session(self):
+        session = RecordingSession()
+        with api_vcr.use_cassette(
+            "test_documents_are_listed_and_read_with_given_session.yaml",
+        ):
+            document = self.iso._get_document(
+                report_type_id=DAM_SYSTEM_LAMBDA_RTID,
+                constructed_name_contains="csv.zip",
+                session=session,
+            )
+            df = self.iso.read_doc(document, parse=False, session=session)
+
+        assert len(session.requested_urls) == 2
+        assert "IceDocListJsonWS?reportTypeId=13113" in session.requested_urls[0]
+        assert session.requested_urls[1] == document.url
+        assert "SystemLambda" in df.columns
 
     @pytest.mark.integration
     @pytest.mark.parametrize(

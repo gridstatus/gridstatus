@@ -7006,6 +7006,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
         base_url: str = "www.ercot.com",
         request_kwargs: dict | None = None,
+        session: requests.Session | None = None,
     ) -> Document:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -7031,6 +7032,7 @@ class Ercot(ISOBase):
             verbose=verbose,
             base_url=base_url,
             request_kwargs=request_kwargs,
+            session=session,
         )
 
         return max(documents, key=lambda x: x.publish_date)
@@ -7048,6 +7050,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
         base_url: str = "www.ercot.com",
         request_kwargs: dict | None = None,
+        session: requests.Session | None = None,
     ) -> list:
         """Searches by Report Type ID, filtering for date and/or constructed name
 
@@ -7064,9 +7067,12 @@ class Ercot(ISOBase):
         if published_before == "latest":
             published_before = None
 
-        docs = self._get_json(url, verbose=verbose, **(request_kwargs or {}))[
-            "ListDocsByRptTypeRes"
-        ]["DocumentList"]
+        docs = self._get_json(
+            url,
+            verbose=verbose,
+            session=session,
+            **(request_kwargs or {}),
+        )["ListDocsByRptTypeRes"]["DocumentList"]
 
         matches = []
         for doc in docs:
@@ -7413,11 +7419,13 @@ class Ercot(ISOBase):
         verbose: bool = False,
         request_kwargs: dict | None = None,
         read_csv_kwargs: dict | None = None,
+        session: requests.Session | None = None,
     ) -> pd.DataFrame:
         logger.debug(f"Reading {doc.url}")
 
-        if request_kwargs:
-            response = requests.get(doc.url, **(request_kwargs or {})).content
+        if request_kwargs or session:
+            requester = session or requests
+            response = requester.get(doc.url, **(request_kwargs or {})).content
             df = pd.read_csv(
                 io.BytesIO(response),
                 compression="zip",
@@ -7437,6 +7445,7 @@ class Ercot(ISOBase):
         empty_df: pd.DataFrame | None = None,
         verbose: bool = False,
         request_kwargs: dict | None = None,
+        session: requests.Session | None = None,
     ) -> pd.DataFrame:
         if len(docs) == 0:
             return empty_df
@@ -7449,6 +7458,7 @@ class Ercot(ISOBase):
                     parse=parse,
                     verbose=verbose,
                     request_kwargs=request_kwargs,
+                    session=session,
                 ),
             )
         return pd.concat(dfs).reset_index(drop=True)
