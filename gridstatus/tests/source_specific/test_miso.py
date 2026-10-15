@@ -681,6 +681,22 @@ class TestMISO(BaseTestISO):
             assert df["From KV"].dtype in [np.int64, np.float64]
             assert df["To KV"].dtype in [np.int64, np.float64]
 
+    def test_get_binding_constraints_supplemental_continuation_sheets(self):
+        with miso_vcr.use_cassette("test_miso_supplemental_all_sheets_20261014.yaml"):
+            df = self.iso.get_binding_constraints_supplemental(
+                "2026-10-14",
+                end="2026-10-16",
+                error="raise",
+            )
+        assert df.groupby("Date").size().tolist() == [91802, 91836]
+        assert df["Constraint ID"].dtype == np.int64
+        assert df["Direction"].dtype == np.int64
+        for _, day in df.groupby("Date"):
+            assert day.iloc[65532]["Constraint ID"] < day.iloc[65531]["Constraint ID"]
+            assert day.iloc[-1]["Constraint ID"] == 1
+        # Constraint IDs can refer to multiple equipment/flowgate rows.
+        assert len(df.loc[df["Constraint ID"] == 429810]) == 4
+
     @pytest.mark.parametrize(
         "date,end",
         constraint_dates,
