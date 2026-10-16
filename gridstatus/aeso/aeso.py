@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import re
@@ -61,6 +62,20 @@ class AESO:
 
     # Default timeout for API requests: (connect_timeout, read_timeout) in seconds
     REQUEST_TIMEOUT = (10, 120)
+
+    def _get(self, url: str) -> requests.Response:
+        """GET a public AESO page or file, bounded by REQUEST_TIMEOUT.
+
+        Without a timeout a stalled ets.aeso.ca connection blocks until the
+        caller's own time limit kills it.
+        """
+        response = requests.get(url, timeout=self.REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response
+
+    def _read_csv(self, url: str, **kwargs: Any) -> pd.DataFrame:
+        """Read a public AESO CSV file, bounded by REQUEST_TIMEOUT."""
+        return pd.read_csv(io.BytesIO(self._get(url).content), **kwargs)
 
     def _make_request(self, endpoint: str, method: str = "GET") -> dict[str, Any]:
         """
@@ -996,8 +1011,7 @@ class AESO:
         if date == "latest":
             url = "http://ets.aeso.ca/outage_reports/qryOpPlanTransmissionTable_1.html"
             logger.info("Fetching latest transmission outages data")
-            response = requests.get(url)
-            response.raise_for_status()
+            response = self._get(url)
 
             soup = BeautifulSoup(response.text, "html.parser")
             csv_link = soup.find("a", href=lambda x: x and "csvData" in x)
@@ -1015,7 +1029,7 @@ class AESO:
                 publish_datetime = pd.to_datetime(f"{publish_date} {publish_time}")
                 publish_datetime = publish_datetime.tz_localize(self.default_timezone)
 
-            df = pd.read_csv(csv_url)
+            df = self._read_csv(csv_url)
 
             df["Interval Start"] = pd.to_datetime(
                 df["From"],
@@ -1087,8 +1101,7 @@ class AESO:
                 self.MAX_NAVIGATION_ATTEMPTS,
             ):  # NB: Limit iterations to prevent infinite loops
                 try:
-                    response = requests.get(current_url)
-                    response.raise_for_status()
+                    response = self._get(current_url)
 
                     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -1188,7 +1201,7 @@ class AESO:
             all_dfs = []
             for csv_url, publish_datetime in historical_files:
                 try:
-                    df_hist = pd.read_csv(csv_url, on_bad_lines="skip")
+                    df_hist = self._read_csv(csv_url, on_bad_lines="skip")
                     df_hist["Interval Start"] = pd.to_datetime(
                         df_hist["From"],
                         format="%d-%b-%y %H:%M",
@@ -1389,7 +1402,7 @@ class AESO:
         url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{forecast_type}_rpt_{term}.csv"
 
         try:
-            df = pd.read_csv(url)
+            df = self._read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch {forecast_type} forecast data: {e!s}",
@@ -1487,7 +1500,7 @@ class AESO:
         url = f"https://www.aeso.ca/assets/{forecast_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
 
         try:
-            df = pd.read_csv(url)
+            df = self._read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch historical {forecast_type} forecast data: {e!s}",
@@ -1689,7 +1702,7 @@ class AESO:
         url = f"http://ets.aeso.ca/Market/Reports/Manual/Operations/prodweb_reports/wind_solar_forecast/{generation_type}_rpt_{forecast_type}.csv"
 
         try:
-            df = pd.read_csv(url)
+            df = self._read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch {generation_type} generation data: {e!s}",
@@ -1757,7 +1770,7 @@ class AESO:
         url = f"https://www.aeso.ca/assets/{generation_type.upper()}_GEN_MAR_2023-MAR_2025-Day-ahead.csv"
 
         try:
-            df = pd.read_csv(url)
+            df = self._read_csv(url)
         except Exception as e:
             raise RequestException(
                 f"Failed to fetch historical {generation_type} generation data: {e!s}",
