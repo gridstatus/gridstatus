@@ -1064,6 +1064,8 @@ class MISO(ISOBase):
     ) -> pd.DataFrame:
         """Get the supplemental binding constraints data from MISO.
 
+        Supports both XLS and XLSX reports, including continuation sheets.
+
         Source URL: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3ADay-Ahead%2FMarketReportName%3ABinding Constraints Supplemental (xls)&t=10&p=0&s=MarketReportPublished&sd=desc
 
         Args:
@@ -1078,7 +1080,14 @@ class MISO(ISOBase):
         url = f"https://docs.misoenergy.org/marketreports/{query_date.strftime('%Y%m%d')}_da_bcsf.xls"
         logger.info(f"Downloading supplemental binding constraints data from {url}")
 
-        excel_file = pd.ExcelFile(url)
+        try:
+            excel_file = pd.ExcelFile(url)
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            url = url.removesuffix(".xls") + ".xlsx"
+            logger.info(f"Downloading supplemental binding constraints data from {url}")
+            excel_file = pd.ExcelFile(url)
         market_date, _publish_date = self._get_constraint_header_dates_from_excel(
             excel_file,
         )

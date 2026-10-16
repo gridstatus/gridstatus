@@ -46,6 +46,9 @@
 
 ### Fixes
 
+#### MISO
+* `MISO.get_binding_constraints_supplemental` now tries the `.xlsx` report when the `.xls` URL returns 404, preserving support for both file formats and continuation sheets.
+
 #### NYISO
 * `NYISO.get_lmp` with `market=REAL_TIME_15_MIN` no longer mislabels the newest 5-minute RTD interval as 15-minute RTC data when the daily realtime file updates before the latest-interval file. Mislabeled rows produced 15-minute intervals starting off the quarter-hour grid (e.g. 05:25-05:40). 15-minute rows are now required to end on a quarter-hour boundary, and the affected rows stay in the `REAL_TIME_5_MIN` output.
 
