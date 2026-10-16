@@ -92,6 +92,24 @@ _interconnection_columns = [
 ]
 
 
+REDACTED = "<redacted>"
+
+
+def loggable_request_kwargs(kwargs: dict) -> dict:
+    """Return request kwargs that are safe to log.
+
+    Header and auth values carry credentials such as PJM's
+    Ocp-Apim-Subscription-Key, so they are replaced; header names stay
+    visible for debugging.
+    """
+    safe = dict(kwargs)
+    if safe.get("headers"):
+        safe["headers"] = {name: REDACTED for name in safe["headers"]}
+    if safe.get("auth") is not None:
+        safe["auth"] = REDACTED
+    return safe
+
+
 class ISOBase:
     markets = []
     status_homepage = None
@@ -140,7 +158,7 @@ class ISOBase:
         attempt = 0
         while attempt < max_attempts:
             try:
-                logger.info(f"Requesting {url} with {kwargs}")
+                logger.info(f"Requesting {url} with {loggable_request_kwargs(kwargs)}")
                 r = (session or requests).get(url, **kwargs)
                 r.raise_for_status()  # Raise an error for HTTP error codes
                 return r.json()
