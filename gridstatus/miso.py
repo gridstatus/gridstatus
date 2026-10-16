@@ -1083,6 +1083,23 @@ class MISO(ISOBase):
             excel_file,
         )
         data = pd.read_excel(excel_file, skiprows=3)
+        # XLS sheets stop at 65,536 rows. Continuation sheets have no header.
+        sheets = [data]
+        for sheet in excel_file.sheet_names[1:]:
+            continuation = pd.read_excel(excel_file, sheet_name=sheet, header=None)
+            if len(continuation.columns) != len(data.columns):
+                raise ValueError(f"Unexpected supplemental report sheet: {sheet}")
+            continuation.columns = data.columns
+            sheets.append(continuation)
+        data = pd.concat(sheets, ignore_index=True)
+        # The final sheet ends with MISO's disclaimer, not another constraint.
+        data = data.loc[
+            ~data["Constraint ID"]
+            .astype(str)
+            .str.startswith("MISO MAKES NO REPRESENTATIONS")
+        ].copy()
+        for column in ["Constraint ID", "Direction"]:
+            data[column] = pd.to_numeric(data[column], errors="raise").astype("int64")
         data["Date"] = market_date
 
         return data[
