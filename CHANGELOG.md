@@ -67,6 +67,10 @@
 * `Ercot.get_mcpc_sced_price_corrections` and `Ercot.get_lmp_by_bus_price_corrections` no longer fail on files published from September 1, 2026 onward, when ERCOT renamed the original and corrected price columns with a `Capped` prefix, and, in the bus report, renamed `ElectricBusName` to `ElectricalBus` and `DSTFlag` to `RepeatedHourFlag`. The capped values keep their existing column names. Each file is normalized before concatenation, so a fetch that spans the cutover no longer raises `Buffer has wrong number of dimensions` from the duplicated flag column.
 * `Ercot.get_60_day_sced_disclosure` no longer raises `ValueError: Unknown curve type found` on Resource AS Offers files starting with Operating Day June 25, 2026. These files carry an explicit `Offer Type` column (`ONRES`/`OFFNS`/`REGDN`), which is now mapped directly to the curve type instead of inferring it from which price columns hold values. The explicit column is also required to classify the ECRS-only rows these files contain under both `ONRES` and `OFFNS`. Padding rows holding no price or quantity values are dropped to keep the output consistent with earlier files.
 
+#### SPP
+
+* `SPP.get_load_by_baa_hourly` returns the 23:00 hour again for past dates. Since September 25, 2026, SPP's 23:00 mid-term load forecast file ends at the hour ending 23:00, and the 23:00 hour's averaged actual first appears in the next day's 00:00 file, so past-date requests now read that file. The day boundary is now calendar-aware, so DST fall-back days return all 25 hours.
+
 #### EIA
 
 * `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
