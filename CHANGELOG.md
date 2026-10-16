@@ -67,6 +67,10 @@
 * `Ercot.get_mcpc_sced_price_corrections` and `Ercot.get_lmp_by_bus_price_corrections` no longer fail on files published from September 1, 2026 onward, when ERCOT renamed the original and corrected price columns with a `Capped` prefix, and, in the bus report, renamed `ElectricBusName` to `ElectricalBus` and `DSTFlag` to `RepeatedHourFlag`. The capped values keep their existing column names. Each file is normalized before concatenation, so a fetch that spans the cutover no longer raises `Buffer has wrong number of dimensions` from the duplicated flag column.
 * `Ercot.get_60_day_sced_disclosure` no longer raises `ValueError: Unknown curve type found` on Resource AS Offers files starting with Operating Day June 25, 2026. These files carry an explicit `Offer Type` column (`ONRES`/`OFFNS`/`REGDN`), which is now mapped directly to the curve type instead of inferring it from which price columns hold values. The explicit column is also required to classify the ECRS-only rows these files contain under both `ONRES` and `OFFNS`. Padding rows holding no price or quantity values are dropped to keep the output consistent with earlier files.
 
+#### AESO
+
+* `AESO.get_transmission_outages` and the wind and solar forecast and actual generation methods now time out stalled downloads after `AESO.REQUEST_TIMEOUT` (10 seconds to connect, 120 seconds per read), the limit `AESO`'s API requests already use. These methods fetch public ets.aeso.ca and aeso.ca files with `requests.get` and `pandas.read_csv(url)` without a timeout, so a connection that stopped responding blocked until the caller gave up. They now raise an error instead.
+
 #### EIA
 
 * `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
