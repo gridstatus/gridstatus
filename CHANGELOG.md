@@ -74,6 +74,9 @@
 
 * `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
 
+#### AESO
+* `AESO` now uses `America/Edmonton` instead of `US/Mountain`. Alberta stays on UTC-6 year round from November 1, 2026, while `US/Mountain` falls back to UTC-7, so local timestamps from that date would have been an hour behind Alberta's clocks every winter. The two zones agree on every timestamp before November 1, 2026, but timezone-aware columns now have the dtype `datetime64[ns, America/Edmonton]`. `pytz` is now a direct dependency with a floor of 2026.3, the first release with the new rule, because pandas 2 converts time zone names through it.
+
 #### Maintenance
 
 * Removed unused runtime dependencies (`setuptools`, `virtualenv`, `h11`, `zipp`, `filelock`) — none are imported and nothing in the runtime tree requires them, so they no longer ship to consumers. Resolves the `setuptools <79` cap reported in [#901](https://github.com/gridstatus/gridstatus/issues/901).
