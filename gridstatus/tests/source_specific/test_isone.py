@@ -5,6 +5,7 @@ import pytest
 
 from gridstatus import ISONE
 from gridstatus.base import Markets, NoDataFoundException
+from gridstatus.isone_constants import ISONE_ENERGY_OFFERS_COLUMNS
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -516,3 +517,62 @@ class TestISONE(BaseTestISO):
             )
 
             self._check_get_reserve_zone_prices_designations_real_time_5_min_final(df)
+
+
+class TestISONEEnergyOffers:
+    iso = ISONE()
+
+    @pytest.mark.parametrize(
+        "start,end,hours",
+        [
+            ("2026-06-01", "2026-06-03", 48),
+            ("2024-01-01", "2024-01-02", 24),
+            ("2025-11-02", "2025-11-03", 25),
+            ("2026-03-08", "2026-03-09", 23),
+        ],
+    )
+    def test_energy_offers_day_ahead(self, start, end, hours):
+        with api_vcr.use_cassette(f"energy_offers_day_ahead_{start}_{end}.yaml"):
+            df = self.iso.get_energy_offers_day_ahead(date=(start, end), error="raise")
+        assert list(df) == ISONE_ENERGY_OFFERS_COLUMNS
+        assert df["Interval Start"].nunique() == hours
+        assert df["Interval Start"].min() == pd.Timestamp(
+            start,
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval End"].max() == pd.Timestamp(
+            end,
+            tz=self.iso.default_timezone,
+        )
+        assert not df.duplicated(
+            ["Interval Start", "Masked Lead Participant ID", "Masked Asset ID"],
+        ).any()
+        assert (
+            (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta(hours=1)).all()
+        )
+        assert df["Masked Asset ID"].dtype == "int64"
+        assert df["Segment 10 MW"].dtype == "float64"
+        if start == "2026-06-01":
+            first = df[
+                df["Interval Start"]
+                < pd.Timestamp("2026-06-02", tz=self.iso.default_timezone)
+            ]
+            assert len(first) == 8784
+            assert first["Max Daily Award Limit"].gt(0).sum() == 1992
+            row = first[
+                (first["Masked Asset ID"] == 88115)
+                & (first["Interval Start"].dt.hour == 0)
+            ].iloc[0]
+            assert row["Segment 1 MW"] == 0.1
+            assert row["Segment 2 MW"] == 3.9
+            assert row["Segment 2 Price"] == 0.01
+            assert pd.isna(row["Segment 3 MW"])
+        if hours == 25:
+            assert (
+                df.loc[df["Interval Start"].dt.hour == 1, "Interval Start"].nunique()
+                == 2
+            )
+
+    def test_energy_offers_day_ahead_reject_latest(self):
+        with pytest.raises(ValueError, match="specific operating date"):
+            self.iso.get_energy_offers_day_ahead("latest")

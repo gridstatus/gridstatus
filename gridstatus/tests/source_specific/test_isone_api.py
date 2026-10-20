@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -12,6 +14,14 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_MORNING_REPORT_COLUMNS,
     ISONE_RESERVE_ZONE_ALL_COLUMNS,
     ISONE_TOTAL_DEMAND_COLUMNS,
+)
+from gridstatus.isone_constants import (
+    ISONE_ANCILLARY_SERVICES_ARD_OFFERS_COLUMNS,
+    ISONE_ANCILLARY_SERVICES_DRR_OFFERS_COLUMNS,
+    ISONE_ANCILLARY_SERVICES_ENERGY_OFFERS_COLUMNS,
+    ISONE_ARD_BIDS_COLUMNS,
+    ISONE_DRR_OFFERS_COLUMNS,
+    ISONE_IMPORT_OFFERS_EXPORT_BIDS_COLUMNS,
 )
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -1668,3 +1678,168 @@ class TestISONEAPI(TestHelperMixin):
                 tz=date.tz,
             )
             assert result["Interval Start"].min().date() == expected_cp_start.date()
+
+
+HISTORICAL_OFFER_DATASETS = [
+    (
+        "ancillary_services_ard_offers_day_ahead",
+        ISONE_ANCILLARY_SERVICES_ARD_OFFERS_COLUMNS,
+        96,
+    ),
+    (
+        "ancillary_services_drr_offers_day_ahead",
+        ISONE_ANCILLARY_SERVICES_DRR_OFFERS_COLUMNS,
+        24,
+    ),
+    (
+        "ancillary_services_energy_offers_day_ahead",
+        ISONE_ANCILLARY_SERVICES_ENERGY_OFFERS_COLUMNS,
+        3844,
+    ),
+    ("ard_bids_day_ahead", ISONE_ARD_BIDS_COLUMNS, 624),
+    ("drr_offers_day_ahead", ISONE_DRR_OFFERS_COLUMNS, 5544),
+    (
+        "import_offers_export_bids_day_ahead",
+        ISONE_IMPORT_OFFERS_EXPORT_BIDS_COLUMNS,
+        3723,
+    ),
+]
+
+
+class TestISONEHistoricalOffersAPI:
+    def setup_method(self):
+        self.iso = ISONEAPI(sleep_seconds=0.1, max_retries=2)
+
+    @pytest.mark.parametrize(
+        "dataset,columns,first_day_rows",
+        HISTORICAL_OFFER_DATASETS,
+    )
+    def test_historical_offers_date_range(self, dataset, columns, first_day_rows):
+        with api_vcr.use_cassette(
+            f"historical_offers_{dataset}_20260601_20260603.yaml",
+        ):
+            df = getattr(self.iso, f"get_{dataset}")(
+                date=("2026-06-01", "2026-06-03"),
+                error="raise",
+            )
+        assert list(df) == columns
+        start = pd.Timestamp("2026-06-01", tz=self.iso.default_timezone)
+        end = pd.Timestamp("2026-06-03", tz=self.iso.default_timezone)
+        assert df["Interval Start"].min() == start
+        assert df["Interval End"].max() == end
+        assert (
+            (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta(hours=1)).all()
+        )
+        assert df["Interval Start"].is_monotonic_increasing
+        first = df[df["Interval Start"] < start + pd.Timedelta(days=1)]
+        assert len(first) == first_day_rows
+        for col in columns:
+            if col.endswith(" ID"):
+                assert df[col].dtype == "int64"
+        if dataset.startswith("import_"):
+            assert first.duplicated().sum() == 1240
+            assert df["Market Type"].eq("DA").all()
+            assert df.loc[df["Transaction Type"] == "FIXED", "Price"].isna().all()
+        else:
+            assert not df.duplicated(
+                ["Interval Start", "Masked Lead Participant ID", "Masked Asset ID"],
+            ).any()
+            assert (
+                df[["Masked Lead Participant ID", "Masked Asset ID"]]
+                .notna()
+                .all()
+                .all()
+            )
+        if dataset == "ard_bids_day_ahead":
+            assert first["Max Daily Award Limit"].gt(0).sum() == 120
+            assert first["Segment 10 Price"].notna().sum() == 10
+        if dataset == "drr_offers_day_ahead":
+            assert first["Max Daily Energy"].isna().sum() == 5376
+            assert first["Segment 2 MW"].notna().sum() == 72
+        if dataset == "ancillary_services_energy_offers_day_ahead":
+            row = first[
+                (first["Masked Asset ID"] == 11031)
+                & (first["Interval Start"].dt.hour == 5)
+            ].iloc[0]
+            assert row["TMSR Offer Price"] == 2.4
+            assert row["Offer MW"] == 47.0
+
+    @pytest.mark.parametrize("dataset,columns,_", HISTORICAL_OFFER_DATASETS)
+    @pytest.mark.parametrize("date,hours", [("2025-11-02", 25), ("2026-03-08", 23)])
+    def test_historical_offers_dst(self, dataset, columns, _, date, hours):
+        with api_vcr.use_cassette(f"historical_offers_{dataset}_{date}.yaml"):
+            df = getattr(self.iso, f"get_{dataset}")(date=date)
+        assert list(df) == columns
+        if dataset == "ancillary_services_drr_offers_day_ahead":
+            assert df.empty
+            assert str(df["Interval Start"].dtype) == "datetime64[ns, US/Eastern]"
+            return
+        assert df["Interval Start"].nunique() == hours
+        assert (
+            (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta(hours=1)).all()
+        )
+        if hours == 25:
+            repeated = df.loc[df["Interval Start"].dt.hour == 1, "Interval Start"]
+            assert repeated.dt.tz_convert("UTC").nunique() == 2
+
+    @pytest.mark.parametrize("dataset,_,__", HISTORICAL_OFFER_DATASETS)
+    def test_historical_offers_reject_latest(self, dataset, _, __):
+        with pytest.raises(ValueError, match="specific operating date"):
+            getattr(self.iso, f"get_{dataset}")(date="latest")
+
+    @pytest.mark.parametrize(
+        "dataset",
+        [
+            "ard_bids_day_ahead",
+            "drr_offers_day_ahead",
+            "import_offers_export_bids_day_ahead",
+        ],
+    )
+    def test_historical_offers_legacy(self, dataset):
+        with api_vcr.use_cassette(f"historical_offers_{dataset}_20240101.yaml"):
+            df = getattr(self.iso, f"get_{dataset}")(date="2024-01-01")
+        assert not df.empty
+        assert df["Interval Start"].nunique() == 24
+        if not dataset.startswith("import_"):
+            assert df["Max Daily Award Limit"].isna().all()
+
+    def test_historical_offers_schema_drift(self):
+        with patch.object(
+            self.iso,
+            "make_api_call",
+            return_value={"RenamedContainer": {}},
+        ):
+            with pytest.raises(KeyError):
+                self.iso.get_ard_bids_day_ahead("2026-06-01")
+        with patch.object(
+            self.iso,
+            "make_api_call",
+            return_value={
+                "HbDayAheadArdBids": {
+                    "HbDayAheadArdBid": [{"BeginDate": "2026-06-01T00:00:00-04:00"}],
+                },
+            },
+        ):
+            with pytest.raises(ValueError, match="Missing historical offer fields"):
+                self.iso.get_ard_bids_day_ahead("2026-06-01")
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            {"Segment": {"Number": 2, "Price": -10, "Mw": 4.5}},
+            {"Segment": [{"Number": 2, "Price": -10, "Mw": 4.5}]},
+            [{"Segment": {"@Number": "2", "Price": -10, "Mw": 4.5}}],
+        ],
+    )
+    def test_historical_offer_segment_shapes(self, value):
+        assert self.iso._parse_offer_segments(value) == {
+            "Segment 2 Price": -10,
+            "Segment 2 MW": 4.5,
+        }
+
+    @pytest.mark.parametrize("numbers", [[11], [1, 1]])
+    def test_historical_offer_invalid_segments(self, numbers):
+        with pytest.raises(ValueError, match="Invalid or duplicate"):
+            self.iso._parse_offer_segments(
+                {"Segment": [{"Number": n, "Price": 1, "Mw": 2} for n in numbers]},
+            )

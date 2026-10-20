@@ -17,6 +17,7 @@ from gridstatus.base import (
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import log
+from gridstatus.isone_constants import ISONE_ENERGY_OFFERS_COLUMNS
 from gridstatus.lmp_config import lmp_config
 
 
@@ -57,6 +58,52 @@ class ISONE(ISOBase):
         ".I.SHOREHAM138": 4014,
         ".I.NRTHPORT138": 4017,
     }
+
+    @support_date_range("DAY_START")
+    def get_energy_offers_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead energy offers, including all ten price/MW segment pairs.
+
+        Accepts an operating date or date range (exclusive end). Reports are
+        released on the first day of the fourth month after the operating month.
+        Uses the public CSV because the API omits Max Daily Award Limit.
+        Masked identifiers are retained as published, and absent segment values
+        remain null. Prices and quantities retain the source report's units.
+        """
+        if date == "latest":
+            raise ValueError("Historical offers require a specific operating date")
+        url = (
+            "https://www.iso-ne.com/static-transform/csv/histRpts/da-energy-offer/"
+            f"hbdayaheadenergyoffer_{date.strftime('%Y%m%d')}.csv"
+        )
+        df = _make_request(url, skiprows=[0, 1, 2, 3, 5], verbose=verbose)
+        if df.empty:
+            raise NoDataFoundException(f"No day-ahead energy offers for {date.date()}")
+        hours = df["Trading Interval"].astype(str)
+        starts = pd.to_datetime(df["Day"]) + pd.to_timedelta(
+            hours.str.replace("X", "", regex=False).astype(int) - 1,
+            unit="h",
+        )
+        df["Interval Start"] = starts.dt.tz_localize(
+            self.default_timezone,
+            ambiguous=~hours.str.endswith("X"),
+        )
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+        if "Max Daily Award Limit" not in df:
+            df["Max Daily Award Limit"] = float("nan")
+        df = df[ISONE_ENERGY_OFFERS_COLUMNS].copy()
+        for column in ISONE_ENERGY_OFFERS_COLUMNS[2:]:
+            if column != "Unit Status":
+                df[column] = pd.to_numeric(df[column], errors="raise").astype(
+                    "int64" if column.endswith(" ID") else "float64",
+                )
+        return df.sort_values(
+            ["Interval Start", "Masked Lead Participant ID", "Masked Asset ID"],
+        ).reset_index(drop=True)
 
     def get_status(self, date, verbose=False):
         """Get latest status for ISO NE"""
