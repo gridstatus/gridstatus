@@ -101,7 +101,9 @@ DATASET_INTERVAL_MAP: dict[str, DatasetInterval] = {
     LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
     AS_PRICES_DAY_AHEAD_HOURLY_DATASET: DatasetInterval("start", 60),
     AS_PRICES_REAL_TIME_5_MIN_DATASET: DatasetInterval("start", 5),
-    LIMITING_CONSTRAINTS_REAL_TIME_DATASET: DatasetInterval("start", 5),
+    # Stamped at interval end like the real-time LBMP file, even though each daily
+    # file holds the stamps 00:00 through 23:55 rather than 00:05 through 24:00
+    LIMITING_CONSTRAINTS_REAL_TIME_DATASET: DatasetInterval("end", 5),
     LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET: DatasetInterval("start", 60),
 }
 
