@@ -977,7 +977,13 @@ class SPP(ISOBase):
             if date_ts.normalize() == now.normalize():
                 fetch_date = now - pd.Timedelta(minutes=10)
             else:
-                fetch_date = date_ts.normalize() + pd.Timedelta(hours=23)
+                # Since 2026-09-25 the 23:00 file stops at the hour ending
+                # 23:00; the 23:00 hour's actual first appears in the next
+                # day's 00:00 file. Until that file is due, read the latest one.
+                fetch_date = min(
+                    date_ts.normalize() + pd.DateOffset(days=1),
+                    now - pd.Timedelta(minutes=10),
+                )
 
         result = self._get_mid_term_forecast_data(
             date=fetch_date,
@@ -1013,7 +1019,8 @@ class SPP(ISOBase):
         if date != "latest":
             date_ts = utils._handle_date(date, self.default_timezone)
             day_start = date_ts.normalize()
-            day_end = day_start + pd.Timedelta(days=1)
+            # DateOffset keeps the 25th hour on DST fall-back days
+            day_end = day_start + pd.DateOffset(days=1)
             result_df = result_df[
                 (result_df["Interval Start"] >= day_start)
                 & (result_df["Interval Start"] < day_end)
