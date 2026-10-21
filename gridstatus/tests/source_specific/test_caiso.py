@@ -2868,3 +2868,43 @@ class TestCollapseGroupToArray:
         ].iloc[0]
         assert row_08["Groups"] == [1, 2]
         assert row_09["Groups"] == [3, 4]
+
+
+class TestOasisEmptyResponseRaisesNoData:
+    """OASIS answers a window it has no rows for (e.g. no binding constraints in
+    a 5-minute window) with an XML error, which ``_get_oasis`` turns into None.
+    These methods group or pivot on ``Interval Start``, so without a guard the
+    empty frame surfaced as ``KeyError: 'Interval Start'`` instead of
+    ``NoDataFoundException``."""
+
+    # support_date_range swallows per-chunk errors by default, so the decorated
+    # method is called with error="raise" to reach the guard itself.
+    @pytest.mark.parametrize(
+        ("method", "kwargs"),
+        [
+            ("get_nomogram_branch_shadow_prices_day_ahead_hourly", {"error": "raise"}),
+            ("get_nomogram_branch_shadow_prices_hasp_hourly", {}),
+            ("get_nomogram_branch_shadow_price_forecast_15_min", {}),
+            ("get_interval_nomogram_branch_shadow_prices_real_time_5_min", {}),
+            ("get_intertie_constraint_shadow_prices_real_time_5_min", {}),
+            ("get_system_load_and_resource_schedules_day_ahead", {}),
+            ("get_system_load_and_resource_schedules_hasp", {}),
+            ("get_system_load_and_resource_schedules_real_time_5_min", {}),
+            ("get_system_load_and_resource_schedules_ruc", {}),
+        ],
+    )
+    def test_raises_no_data_found_when_oasis_is_empty(
+        self,
+        method: str,
+        kwargs: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        iso = CAISO()
+        monkeypatch.setattr(iso, "_get_oasis", lambda *args, **kwargs: None)
+
+        with pytest.raises(NoDataFoundException):
+            getattr(iso, method)(
+                pd.Timestamp("2026-10-21 04:15", tz=iso.default_timezone),
+                end=pd.Timestamp("2026-10-21 04:35", tz=iso.default_timezone),
+                **kwargs,
+            )

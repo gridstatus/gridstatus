@@ -3321,6 +3321,11 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for day-ahead hourly nomogram/branch shadow prices for start date: {date} and end date: {end}",
+            )
+
         df = df.rename(
             columns={
                 "NOMOGRAM_ID": "Location",
@@ -3386,6 +3391,11 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for HASP hourly nomogram/branch shadow prices for start date: {date} and end date: {end}",
+            )
 
         df = df.rename(
             columns={
@@ -3453,6 +3463,11 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for 15-min nomogram/branch shadow price forecast for start date: {date} and end date: {end}",
+            )
+
         df = df.rename(
             columns={
                 "NOMOGRAM_ID": "Location",
@@ -3518,6 +3533,11 @@ class CAISO(ISOBase):
             raw_data=False,
         )
 
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for real-time 5-min nomogram/branch shadow prices for start date: {date} and end date: {end}",
+            )
+
         df = df.rename(
             columns={
                 "NOMOGRAM_ID": "Location",
@@ -3579,6 +3599,11 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for real-time 5-min intertie constraint shadow prices for start date: {date} and end date: {end}",
+            )
 
         df = df.rename(
             columns={
@@ -4022,6 +4047,11 @@ class CAISO(ISOBase):
             verbose=verbose,
             raw_data=False,
         )
+
+        if df.empty:
+            raise NoDataFoundException(
+                f"No data found for {market} system load and resource schedules for start date: {date} and end date: {end}",
+            )
 
         df = df.pivot(
             columns=["SCHEDULE"],
