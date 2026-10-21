@@ -5,7 +5,11 @@ import pytest
 
 from gridstatus import ISONE
 from gridstatus.base import Markets, NoDataFoundException
-from gridstatus.isone_constants import ISONE_ENERGY_OFFERS_COLUMNS
+from gridstatus.isone_constants import (
+    ISONE_ENERGY_OFFERS_COLUMNS,
+    ISONE_OFFER_SEGMENT_COLUMNS,
+)
+from gridstatus.isone_utils import build_offer_curve
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -551,7 +555,7 @@ class TestISONEEnergyOffers:
             (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta(hours=1)).all()
         )
         assert df["Masked Asset ID"].dtype == "int64"
-        assert df["Segment 10 MW"].dtype == "float64"
+        assert df["Energy Offer Curve"].map(type).eq(list).all()
         if start == "2026-06-01":
             first = df[
                 df["Interval Start"]
@@ -563,10 +567,7 @@ class TestISONEEnergyOffers:
                 (first["Masked Asset ID"] == 88115)
                 & (first["Interval Start"].dt.hour == 0)
             ].iloc[0]
-            assert row["Segment 1 MW"] == 0.1
-            assert row["Segment 2 MW"] == 3.9
-            assert row["Segment 2 Price"] == 0.01
-            assert pd.isna(row["Segment 3 MW"])
+            assert row["Energy Offer Curve"] == [[0.1, 0.0], [3.9, 0.01]]
         if hours == 25:
             assert (
                 df.loc[df["Interval Start"].dt.hour == 1, "Interval Start"].nunique()
@@ -576,3 +577,32 @@ class TestISONEEnergyOffers:
     def test_energy_offers_day_ahead_reject_latest(self):
         with pytest.raises(ValueError, match="specific operating date"):
             self.iso.get_energy_offers_day_ahead("latest")
+
+
+@pytest.mark.parametrize(
+    "segments,expected",
+    [
+        ({}, []),
+        ({"Segment 1 MW": 0.123, "Segment 1 Price": -2.345}, [[0.123, -2.345]]),
+        (
+            {
+                "Segment 1 MW": 0,
+                "Segment 1 Price": 0,
+                "Segment 3 MW": 1.234,
+                "Segment 3 Price": -4.567,
+            },
+            [[0.0, 0.0], [1.234, -4.567]],
+        ),
+    ],
+)
+def test_isone_offer_curve_preserves_precision_and_segment_order(segments, expected):
+    df = pd.DataFrame([segments]).reindex(columns=ISONE_OFFER_SEGMENT_COLUMNS)
+    assert build_offer_curve(df).iloc[0] == expected
+
+
+def test_isone_offer_curve_rejects_incomplete_pair():
+    df = pd.DataFrame([{"Segment 1 MW": 1.0}]).reindex(
+        columns=ISONE_OFFER_SEGMENT_COLUMNS,
+    )
+    with pytest.raises(ValueError, match="both MW and Price"):
+        build_offer_curve(df)

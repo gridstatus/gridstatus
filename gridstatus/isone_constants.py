@@ -10,17 +10,17 @@ ISONE_OFFER_SEGMENT_COLUMNS = [
 ]
 
 ISONE_ANCILLARY_SERVICES_ENERGY_OFFERS_COLUMNS = ISONE_OFFER_ID_COLUMNS + [
-    "Offer MW",
-    "TMSR Offer Price",
-    "TMNSR Offer Price",
-    "TMOR Offer Price",
-    "EIR Offer Price",
+    "TMSR Price",
+    "TMNSR Price",
+    "TMOR Price",
+    "EIR Price",
+    "Offer Max MW",
 ]
 
 ISONE_ANCILLARY_SERVICES_ARD_OFFERS_COLUMNS = ISONE_OFFER_ID_COLUMNS + [
-    "Offer MW",
-    "TMSR Offer Price",
-    "TMOR Offer Price",
+    "TMSR Price",
+    "TMOR Price",
+    "Offer Max MW",
 ]
 
 ISONE_ANCILLARY_SERVICES_DRR_OFFERS_COLUMNS = (
@@ -30,7 +30,7 @@ ISONE_ANCILLARY_SERVICES_DRR_OFFERS_COLUMNS = (
 ISONE_ARD_BIDS_COLUMNS = (
     ISONE_OFFER_ID_COLUMNS
     + ["Claim 10", "Claim 30", "Minimum Consumption", "Maximum Consumption"]
-    + ISONE_OFFER_SEGMENT_COLUMNS
+    + ["ARD Bid Curve"]
     + ["Unit Status", "Max Daily Award Limit"]
 )
 
@@ -42,7 +42,7 @@ ISONE_DRR_OFFERS_COLUMNS = (
         "Maximum Reduction",
         "Interruption Cost",
     ]
-    + ISONE_OFFER_SEGMENT_COLUMNS
+    + ["DRR Offer Curve"]
     + ["Claim 10", "Claim 30", "Unit Status", "Max Daily Award Limit"]
 )
 
@@ -58,7 +58,7 @@ ISONE_ENERGY_OFFERS_COLUMNS = (
         "Hot Startup Price",
         "No Load Price",
     ]
-    + ISONE_OFFER_SEGMENT_COLUMNS
+    + ["Energy Offer Curve"]
     + ["Claim 10", "Claim 30", "Unit Status", "Max Daily Award Limit"]
 )
 

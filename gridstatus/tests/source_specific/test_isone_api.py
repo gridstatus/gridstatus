@@ -1752,17 +1752,17 @@ class TestISONEHistoricalOffersAPI:
             )
         if dataset == "ard_bids_day_ahead":
             assert first["Max Daily Award Limit"].gt(0).sum() == 120
-            assert first["Segment 10 Price"].notna().sum() == 10
+            assert first["ARD Bid Curve"].map(len).eq(10).sum() == 10
         if dataset == "drr_offers_day_ahead":
             assert first["Max Daily Energy"].isna().sum() == 5376
-            assert first["Segment 2 MW"].notna().sum() == 72
+            assert first["DRR Offer Curve"].map(len).ge(2).sum() == 72
         if dataset == "ancillary_services_energy_offers_day_ahead":
             row = first[
                 (first["Masked Asset ID"] == 11031)
                 & (first["Interval Start"].dt.hour == 5)
             ].iloc[0]
-            assert row["TMSR Offer Price"] == 2.4
-            assert row["Offer MW"] == 47.0
+            assert row["TMSR Price"] == 2.4
+            assert row["Offer Max MW"] == 47.0
 
     @pytest.mark.parametrize("dataset,columns,_", HISTORICAL_OFFER_DATASETS)
     @pytest.mark.parametrize("date,hours", [("2025-11-02", 25), ("2026-03-08", 23)])

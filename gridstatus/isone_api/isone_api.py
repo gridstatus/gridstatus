@@ -40,6 +40,7 @@ from gridstatus.isone_constants import (
     ISONE_IMPORT_OFFERS_EXPORT_BIDS_COLUMNS,
     ISONE_OFFER_SEGMENT_COLUMNS,
 )
+from gridstatus.isone_utils import build_offer_curve
 
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
@@ -232,9 +233,9 @@ class ISONEAPI:
             {
                 "masked_lead_participant_id": "Masked Lead Participant ID",
                 "masked_asset_id": "Masked Asset ID",
-                "offer_mw": "Offer MW",
-                "tmsr_offer_price": "TMSR Offer Price",
-                "tmor_offer_price": "TMOR Offer Price",
+                "offer_mw": "Offer Max MW",
+                "tmsr_offer_price": "TMSR Price",
+                "tmor_offer_price": "TMOR Price",
             },
             "market_hour.local_day",
         )
@@ -269,11 +270,11 @@ class ISONEAPI:
             {
                 "masked_lead_participant_id": "Masked Lead Participant ID",
                 "masked_asset_id": "Masked Asset ID",
-                "offer_mw": "Offer MW",
-                "tmsr_offer_price": "TMSR Offer Price",
-                "tmor_offer_price": "TMOR Offer Price",
-                "tmnsr_offer_price": "TMNSR Offer Price",
-                "eir_offer_price": "EIR Offer Price",
+                "offer_mw": "Offer Max MW",
+                "tmsr_offer_price": "TMSR Price",
+                "tmor_offer_price": "TMOR Price",
+                "tmnsr_offer_price": "TMNSR Price",
+                "eir_offer_price": "EIR Price",
             },
             "market_hour.local_day",
         )
@@ -308,11 +309,11 @@ class ISONEAPI:
             {
                 "masked_lead_participant_id": "Masked Lead Participant ID",
                 "masked_asset_id": "Masked Asset ID",
-                "offer_mw": "Offer MW",
-                "tmsr_offer_price": "TMSR Offer Price",
-                "tmor_offer_price": "TMOR Offer Price",
-                "tmnsr_offer_price": "TMNSR Offer Price",
-                "eir_offer_price": "EIR Offer Price",
+                "offer_mw": "Offer Max MW",
+                "tmsr_offer_price": "TMSR Price",
+                "tmor_offer_price": "TMOR Price",
+                "tmnsr_offer_price": "TMNSR Price",
+                "eir_offer_price": "EIR Price",
             },
             "market_hour.local_day",
         )
@@ -329,8 +330,8 @@ class ISONEAPI:
         Accepts an operating date or date range (exclusive end). ISO-NE publishes
         these reports on the first day of the fourth month after the operating
         month. Masked identifiers must not be treated as public asset IDs.
-        Each row retains the ten source price/MW segment pairs. Missing segments
-        and optional source values are null, not zero.
+        Each curve contains [MW, Price] pairs in source segment order, without
+        rounding or accumulating MW. Unreported segments are omitted.
         """
         records = self._get_historical_offer_records(
             date,
@@ -352,7 +353,7 @@ class ISONEAPI:
                 "MaximumConsumption": "Maximum Consumption",
             },
             "BeginDate",
-            segments=True,
+            curve_column="ARD Bid Curve",
             optional_fields=("MaxDailyAwardLimitMw",),
         )
 
@@ -368,8 +369,8 @@ class ISONEAPI:
         Accepts an operating date or date range (exclusive end). ISO-NE publishes
         these reports on the first day of the fourth month after the operating
         month. Masked identifiers must not be treated as public asset IDs.
-        Each row retains the ten source price/MW segment pairs. Missing segments
-        and optional source values are null, not zero.
+        Each curve contains [MW, Price] pairs in source segment order, without
+        rounding or accumulating MW. Unreported segments are omitted.
         """
         records = self._get_historical_offer_records(
             date,
@@ -393,7 +394,7 @@ class ISONEAPI:
                 "InterruptionCost": "Interruption Cost",
             },
             "Day",
-            segments=True,
+            curve_column="DRR Offer Curve",
             optional_fields=("MaxDailyEnergy", "MaxDailyAwardLimitMw"),
         )
 
@@ -433,7 +434,7 @@ class ISONEAPI:
                 "Mw": "Bid MW",
             },
             "BeginDate",
-            segments=False,
+            curve_column=None,
             optional_fields=("Price",),
         )
 
@@ -456,7 +457,7 @@ class ISONEAPI:
         columns,
         column_map,
         time_column,
-        segments=False,
+        curve_column=None,
         optional_fields=(),
     ):
         if records:
@@ -476,14 +477,14 @@ class ISONEAPI:
                 utc=True,
             ).dt.tz_convert(self.default_timezone)
             df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
-            if segments:
+            if curve_column:
                 segment_df = pd.DataFrame(
                     [
                         self._parse_offer_segments(record["Segments"])
                         for record in records
                     ],
                 ).reindex(columns=ISONE_OFFER_SEGMENT_COLUMNS)
-                df = pd.concat([df, segment_df], axis=1)
+                df[curve_column] = build_offer_curve(segment_df)
             df = df[columns].copy()
         else:
             df = pd.DataFrame(columns=columns)
@@ -497,13 +498,16 @@ class ISONEAPI:
             "Transaction Type",
         }
         for column in columns[2:]:
-            if column in text_columns:
+            if column in text_columns or column == curve_column:
                 df[column] = df[column].astype("object")
             else:
                 df[column] = pd.to_numeric(df[column], errors="raise").astype(
                     "int64" if column.endswith(" ID") else "float64",
                 )
-        return df.sort_values(columns, kind="stable").reset_index(drop=True)
+        return df.sort_values(
+            [column for column in columns if column != curve_column],
+            kind="stable",
+        ).reset_index(drop=True)
 
     @staticmethod
     def _parse_offer_segments(value):
