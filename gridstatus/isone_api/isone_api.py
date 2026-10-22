@@ -1862,14 +1862,20 @@ class ISONEAPI:
         url = self._build_url("daasstrikeprices", date)
         response = self.make_api_call(url, verbose=verbose)
 
-        df = pd.json_normalize(
+        # ISO-NE returns day_ahead_strike_prices as a single object for one market
+        # day and as a list when several days are returned, so normalize both shapes.
+        strike_price_groups = self._prepare_records(
             self._safe_get(
                 response,
                 "isone_web_services",
                 "day_ahead_strike_prices",
-                "day_ahead_strike_price",
             ),
         )
+        records = []
+        for group in strike_price_groups:
+            records.extend(self._prepare_records(group.get("day_ahead_strike_price")))
+
+        df = pd.json_normalize(records)
 
         if df.empty:
             raise NoDataFoundException(
