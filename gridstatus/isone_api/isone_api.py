@@ -31,6 +31,16 @@ from gridstatus.isone_api.isone_api_constants import (
     ISONE_RESERVE_ZONE_FLOAT_COLUMNS,
     ISONE_TOTAL_DEMAND_COLUMNS,
 )
+from gridstatus.isone_constants import (
+    ISONE_ANCILLARY_SERVICES_ARD_OFFERS_COLUMNS,
+    ISONE_ANCILLARY_SERVICES_DRR_OFFERS_COLUMNS,
+    ISONE_ANCILLARY_SERVICES_ENERGY_OFFERS_COLUMNS,
+    ISONE_ARD_BIDS_COLUMNS,
+    ISONE_DRR_OFFERS_COLUMNS,
+    ISONE_IMPORT_OFFERS_EXPORT_BIDS_COLUMNS,
+    ISONE_OFFER_SEGMENT_COLUMNS,
+)
+from gridstatus.isone_utils import build_offer_curve
 
 # Default page size for API requests
 DEFAULT_PAGE_SIZE = 1000
@@ -192,6 +202,329 @@ class ISONEAPI:
             return response.json()
         else:
             return response.content
+
+    @support_date_range("DAY_START")
+    def get_ancillary_services_ard_offers_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead ancillary-services ARD offers, with timezone-aware hourly intervals.
+
+        Accepts an operating date or date range (exclusive end). ISO-NE publishes
+        these reports on the first day of the fourth month after the operating
+        month. Masked identifiers must not be treated as public asset IDs.
+        """
+        records = self._get_historical_offer_records(
+            date,
+            "hbdaasardoffer",
+            (
+                "isone_web_services",
+                "offer_publishing",
+                "day_ahead_ancillary_services",
+                "daas_ard_offer_data",
+            ),
+            verbose,
+        )
+        return self._parse_historical_offers(
+            records,
+            ISONE_ANCILLARY_SERVICES_ARD_OFFERS_COLUMNS,
+            {
+                "masked_lead_participant_id": "Masked Lead Participant ID",
+                "masked_asset_id": "Masked Asset ID",
+                "offer_mw": "Offer Max MW",
+                "tmsr_offer_price": "TMSR Price",
+                "tmor_offer_price": "TMOR Price",
+            },
+            "market_hour.local_day",
+        )
+
+    @support_date_range("DAY_START")
+    def get_ancillary_services_drr_offers_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead ancillary-services DRR offers, with timezone-aware hourly intervals.
+
+        Accepts an operating date or date range (exclusive end). ISO-NE publishes
+        these reports on the first day of the fourth month after the operating
+        month. Masked identifiers must not be treated as public asset IDs.
+        """
+        records = self._get_historical_offer_records(
+            date,
+            "hbdaasdrroffer",
+            (
+                "isone_web_services",
+                "offer_publishing",
+                "day_ahead_ancillary_services",
+                "daas_drr_offer_data",
+            ),
+            verbose,
+        )
+        return self._parse_historical_offers(
+            records,
+            ISONE_ANCILLARY_SERVICES_DRR_OFFERS_COLUMNS,
+            {
+                "masked_lead_participant_id": "Masked Lead Participant ID",
+                "masked_asset_id": "Masked Asset ID",
+                "offer_mw": "Offer Max MW",
+                "tmsr_offer_price": "TMSR Price",
+                "tmor_offer_price": "TMOR Price",
+                "tmnsr_offer_price": "TMNSR Price",
+                "eir_offer_price": "EIR Price",
+            },
+            "market_hour.local_day",
+        )
+
+    @support_date_range("DAY_START")
+    def get_ancillary_services_energy_offers_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead ancillary-services energy offers, with timezone-aware hourly intervals.
+
+        Accepts an operating date or date range (exclusive end). ISO-NE publishes
+        these reports on the first day of the fourth month after the operating
+        month. Masked identifiers must not be treated as public asset IDs.
+        """
+        records = self._get_historical_offer_records(
+            date,
+            "hbdaasenergyoffer",
+            (
+                "isone_web_services",
+                "offer_publishing",
+                "day_ahead_ancillary_services",
+                "daas_gen_offer_data",
+            ),
+            verbose,
+        )
+        return self._parse_historical_offers(
+            records,
+            ISONE_ANCILLARY_SERVICES_ENERGY_OFFERS_COLUMNS,
+            {
+                "masked_lead_participant_id": "Masked Lead Participant ID",
+                "masked_asset_id": "Masked Asset ID",
+                "offer_mw": "Offer Max MW",
+                "tmsr_offer_price": "TMSR Price",
+                "tmor_offer_price": "TMOR Price",
+                "tmnsr_offer_price": "TMNSR Price",
+                "eir_offer_price": "EIR Price",
+            },
+            "market_hour.local_day",
+        )
+
+    @support_date_range("DAY_START")
+    def get_ard_bids_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead asset-related demand (ARD) bids, with timezone-aware hourly intervals.
+
+        Accepts an operating date or date range (exclusive end). ISO-NE publishes
+        these reports on the first day of the fourth month after the operating
+        month. Masked identifiers must not be treated as public asset IDs.
+        Each curve contains [MW, Price] pairs in source segment order, without
+        rounding or accumulating MW. Unreported segments are omitted.
+        """
+        records = self._get_historical_offer_records(
+            date,
+            "hbdayaheadardbid",
+            ("HbDayAheadArdBids", "HbDayAheadArdBid"),
+            verbose,
+        )
+        return self._parse_historical_offers(
+            records,
+            ISONE_ARD_BIDS_COLUMNS,
+            {
+                "MaskedParticipantId": "Masked Lead Participant ID",
+                "MaskedAssetId": "Masked Asset ID",
+                "Claim10Mw": "Claim 10",
+                "Claim30Mw": "Claim 30",
+                "UnitStatus": "Unit Status",
+                "MaxDailyAwardLimitMw": "Max Daily Award Limit",
+                "MinimumConsumption": "Minimum Consumption",
+                "MaximumConsumption": "Maximum Consumption",
+            },
+            "BeginDate",
+            curve_column="ARD Bid Curve",
+            optional_fields=("MaxDailyAwardLimitMw",),
+        )
+
+    @support_date_range("DAY_START")
+    def get_drr_offers_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead demand-response resource (DRR) offers, with timezone-aware hourly intervals.
+
+        Accepts an operating date or date range (exclusive end). ISO-NE publishes
+        these reports on the first day of the fourth month after the operating
+        month. Masked identifiers must not be treated as public asset IDs.
+        Each curve contains [MW, Price] pairs in source segment order, without
+        rounding or accumulating MW. Unreported segments are omitted.
+        """
+        records = self._get_historical_offer_records(
+            date,
+            "hbdayaheaddrrbid",
+            ("HbDayAheadDrrBids", "HbDayAheadDrrBid"),
+            verbose,
+        )
+        return self._parse_historical_offers(
+            records,
+            ISONE_DRR_OFFERS_COLUMNS,
+            {
+                "MaskedParticipantId": "Masked Lead Participant ID",
+                "MaskedAssetId": "Masked Asset ID",
+                "Claim10Mw": "Claim 10",
+                "Claim30Mw": "Claim 30",
+                "UnitStatus": "Unit Status",
+                "MaxDailyAwardLimitMw": "Max Daily Award Limit",
+                "MaxDailyEnergy": "Max Daily Energy",
+                "MinimumReduction": "Minimum Reduction",
+                "MaximumReduction": "Maximum Reduction",
+                "InterruptionCost": "Interruption Cost",
+            },
+            "Day",
+            curve_column="DRR Offer Curve",
+            optional_fields=("MaxDailyEnergy", "MaxDailyAwardLimitMw"),
+        )
+
+    @support_date_range("DAY_START")
+    def get_import_offers_export_bids_day_ahead(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Day-ahead import offers and export bids, with timezone-aware hourly intervals.
+
+        Accepts an operating date or date range (exclusive end). ISO-NE publishes
+        these reports on the first day of the fourth month after the operating
+        month. Masked identifiers must not be treated as public asset IDs.
+        The source provides no transaction identifier. Identical rows are retained
+        because they can represent separate bids. Price is null for fixed bids.
+        """
+        records = self._get_historical_offer_records(
+            date,
+            "hbimportexport/marketType/DA",
+            ("HbImportExports", "HbImportExport"),
+            verbose,
+        )
+        return self._parse_historical_offers(
+            records,
+            ISONE_IMPORT_OFFERS_EXPORT_BIDS_COLUMNS,
+            {
+                "MarketType": "Market Type",
+                "MaskedCustomerId": "Masked Customer ID",
+                "MaskedSourceId": "Masked Originating Location ID",
+                "MaskedSinkId": "Masked Destination Location ID",
+                "EmergencyFlag": "Emergency Flag",
+                "Direction": "Direction",
+                "TransactionType": "Transaction Type",
+                "Price": "Price",
+                "Mw": "Bid MW",
+            },
+            "BeginDate",
+            curve_column=None,
+            optional_fields=("Price",),
+        )
+
+    def _get_historical_offer_records(self, date, endpoint, keys, verbose):
+        if date == "latest":
+            raise ValueError("Historical offers require a specific operating date")
+        data = self.make_api_call(
+            self._build_url(endpoint, date),
+            verbose=verbose,
+        )
+        for key in keys:
+            if data == {}:
+                return []
+            data = data[key]
+        return self._prepare_records(data)
+
+    def _parse_historical_offers(
+        self,
+        records,
+        columns,
+        column_map,
+        time_column,
+        curve_column=None,
+        optional_fields=(),
+    ):
+        if records:
+            df = pd.json_normalize(records)
+            required = [time_column] + [
+                field for field in column_map if field not in optional_fields
+            ]
+            missing = set(required) - set(df.columns)
+            if missing:
+                raise ValueError(f"Missing historical offer fields: {sorted(missing)}")
+            for field in optional_fields:
+                if field not in df:
+                    df[field] = float("nan")
+            df = df.rename(columns=column_map)
+            df["Interval Start"] = pd.to_datetime(
+                df[time_column],
+                utc=True,
+            ).dt.tz_convert(self.default_timezone)
+            df["Interval End"] = df["Interval Start"] + pd.Timedelta(hours=1)
+            if curve_column:
+                segment_df = pd.DataFrame(
+                    [
+                        self._parse_offer_segments(record["Segments"])
+                        for record in records
+                    ],
+                ).reindex(columns=ISONE_OFFER_SEGMENT_COLUMNS)
+                df[curve_column] = build_offer_curve(segment_df)
+            df = df[columns].copy()
+        else:
+            df = pd.DataFrame(columns=columns)
+            for column in ["Interval Start", "Interval End"]:
+                df[column] = pd.Series(dtype=f"datetime64[ns, {self.default_timezone}]")
+        text_columns = {
+            "Unit Status",
+            "Market Type",
+            "Emergency Flag",
+            "Direction",
+            "Transaction Type",
+        }
+        for column in columns[2:]:
+            if column in text_columns or column == curve_column:
+                df[column] = df[column].astype("object")
+            else:
+                df[column] = pd.to_numeric(df[column], errors="raise").astype(
+                    "int64" if column.endswith(" ID") else "float64",
+                )
+        return df.sort_values(
+            [column for column in columns if column != curve_column],
+            kind="stable",
+        ).reset_index(drop=True)
+
+    @staticmethod
+    def _parse_offer_segments(value):
+        if isinstance(value, list):
+            segments = [item["Segment"] for item in value]
+        else:
+            segments = value["Segment"]
+            if isinstance(segments, dict):
+                segments = [segments]
+        result = {}
+        for segment in segments:
+            number = int(segment.get("Number", segment.get("@Number")))
+            if number not in range(1, 11) or f"Segment {number} Price" in result:
+                raise ValueError(f"Invalid or duplicate offer segment number: {number}")
+            result[f"Segment {number} Price"] = segment["Price"]
+            result[f"Segment {number} MW"] = segment["Mw"]
+        return result
 
     def get_locations(self) -> pd.DataFrame:
         """
