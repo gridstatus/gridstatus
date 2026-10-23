@@ -123,6 +123,10 @@
 * SPP real-time five-minute binding constraints read interval files for recent data and daily files only for complete days, so recent queries return current data, in [#869](https://github.com/gridstatus/gridstatus/pull/869)
 * SPP fuel mix combines `Energy Storage Market` and `Energy Storage Self` into a single `Energy Storage` column in [#931](https://github.com/gridstatus/gridstatus/pull/931)
 
+#### AESO
+
+* `AESO.get_transmission_outages` and the wind and solar forecast and actual generation methods now time out stalled downloads after `AESO.REQUEST_TIMEOUT` (10 seconds to connect, 120 seconds per read), the limit `AESO`'s API requests already use. These methods fetch public ets.aeso.ca and aeso.ca files with `requests.get` and `pandas.read_csv(url)` without a timeout, so a connection that stopped responding blocked until the caller gave up. They now raise an error instead.
+
 #### EIA
 
 * `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
