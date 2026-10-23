@@ -1,5 +1,12 @@
 # Changelog
 
+## v.Next
+
+### Fixes
+
+#### MISO
+* `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
+
 ## v0.37.0 - October 22, 2026
 
 ### Documentation & Packaging

@@ -33,6 +33,13 @@ DAILY_RESOLUTION = "daily"
 EX_POST = "expost"
 EX_ANTE = "exante"
 
+# (connect, read) timeout in seconds. MISO closes requests it hasn't answered in
+# about 60 seconds, and slow successful responses take up to about 55 seconds, so
+# the read timeout only ends connections that have stopped responding.
+CONNECT_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 120
+REQUEST_TIMEOUT = (CONNECT_TIMEOUT_SECONDS, READ_TIMEOUT_SECONDS)
+
 logger = setup_gs_logger()
 
 
@@ -1924,6 +1931,8 @@ class MISOAPI:
         Raises:
             requests.HTTPError: If a non-retryable error occurs or all retries
                 are exhausted.
+            requests.Timeout: If MISO doesn't accept the connection or stops
+                responding within `REQUEST_TIMEOUT`.
         """
         last_exception: Exception | None = None
 
@@ -1933,6 +1942,7 @@ class MISOAPI:
                 params=params,
                 headers=headers,
                 verify=CERTIFICATES_CHAIN_FILE,
+                timeout=REQUEST_TIMEOUT,
             )
 
             if response.ok:
