@@ -1,6 +1,6 @@
 # Changelog
 
-## v.Next
+## v0.37.0 - October 22, 2026
 
 ### Documentation & Packaging
 
@@ -12,14 +12,37 @@
 
 * Removed the `save_to` parameter from data retrieval methods. Data is no longer written to CSV files as it is fetched; callers should save the returned DataFrame themselves (e.g. with `df.to_csv(...)`). The `load_folder` utility remains available for loading previously saved CSV folders.
 * Removed `MISOAPI.get_medium_term_load_forecast_hourly`. Use `get_load_forecast_mid_term_by_region` instead, which fetches the mid-term load forecast by publish date across the full horizon. Use `max_offset=1` to fetch only the first forecast day after the publish date. in [#892](https://github.com/gridstatus/gridstatus/pull/892)
+* Removed the PJM FTR methods `PJM.get_ftr_option_paths_monthly`, `PJM.get_ftr_source_sink_monthly_prompt`, and `PJM.get_ftr_source_sink_monthly_non_prompt` in [#881](https://github.com/gridstatus/gridstatus/pull/881)
+* Removed `"latest"` support from most ERCOT methods. It remains on the fuel mix, load forecast, and capacity forecast methods and on latest-only methods such as `Ercot.get_status` in [#891](https://github.com/gridstatus/gridstatus/pull/891)
+* Renamed `Ercot.get_3_day_highest_price_sced` to `Ercot.get_3_day_highest_price_bids_selected_sced` to distinguish it from the new offers dataset in [#860](https://github.com/gridstatus/gridstatus/pull/860)
+
+### Deprecations
+
+* `get_lmp` on CAISO, ERCOT, MISO, PJM, NYISO, and ISONE now emits a `DeprecationWarning`. Use the per-dataset methods instead, which take only `date`, `end`, and `verbose` and return all locations, such as `CAISO.get_lmp_day_ahead_hourly`, `Ercot.get_lmp_by_settlement_point`, `MISO.get_lmp_real_time_5_min`, `PJM.get_lmp_real_time_hourly`, `NYISO.get_lmp_real_time_15_min`, and `ISONE.get_lmp_day_ahead_hourly`, in [#890](https://github.com/gridstatus/gridstatus/pull/890)
 
 ### Additions (New Features/Datasets)
 
 #### NYISO
 * NYISO Area Control Error (ACE) data available at https://mis.nyiso.com/public/P-38list.htm requested in [#906](https://github.com/gridstatus/gridstatus/issues/906)
+* NYISO generation maintenance forecast and hourly zonal load via `NYISO.get_generation_outages_forecast` and `NYISO.get_zonal_load_hourly` in [#889](https://github.com/gridstatus/gridstatus/pull/889)
 
 #### CAISO
 * CAISO real-time 15-minute ancillary service prices via `CAISO.get_as_prices_real_time_15_min`
+* CAISO EDAM wind and solar forecast via `CAISO.get_edam_wind_solar_forecast` in [#866](https://github.com/gridstatus/gridstatus/pull/866)
+* CAISO Imbalance Reserve and Reliability Capacity prices via `CAISO.get_ir_rc_prices` in [#868](https://github.com/gridstatus/gridstatus/pull/868)
+* CAISO Imbalance Reserve requirements and Imbalance Reserve and Reliability Capacity awards via `CAISO.get_ir_rc_requirements_awards_dam`, `CAISO.get_ir_rc_requirements_awards_2da`, and `CAISO.get_ir_rc_requirements_awards_3da` in [#887](https://github.com/gridstatus/gridstatus/pull/887)
+* CAISO aggregated generation outages by trading hub via `CAISO.get_aggregated_generation_outages` in [#894](https://github.com/gridstatus/gridstatus/pull/894) and [#902](https://github.com/gridstatus/gridstatus/pull/902)
+* CAISO price corrections via `CAISO.get_price_corrections` in [#900](https://github.com/gridstatus/gridstatus/pull/900)
+
+#### ISONE
+* ISO-NE five-minute total demand via `ISONEAPI.get_total_demand`, including estimated storage charging as `Storage Load`, in [#873](https://github.com/gridstatus/gridstatus/pull/873) and [#878](https://github.com/gridstatus/gridstatus/pull/878)
+* ISO-NE marginal fuel type flags via `ISONEAPI.get_marginal_fuel_type` in [#880](https://github.com/gridstatus/gridstatus/pull/880)
+* ISO-NE five-minute zonal load forecast via `ISONEAPI.get_load_forecast_by_zone_5_min` in [#889](https://github.com/gridstatus/gridstatus/pull/889)
+* ISO-NE morning report via `ISONEAPI.get_morning_report` in [#903](https://github.com/gridstatus/gridstatus/pull/903)
+* ISO-NE day-ahead offers and bids via `ISONEAPI.get_ancillary_services_energy_offers_day_ahead`, `ISONEAPI.get_ancillary_services_ard_offers_day_ahead`, `ISONEAPI.get_ancillary_services_drr_offers_day_ahead`, `ISONEAPI.get_drr_offers_day_ahead`, `ISONEAPI.get_ard_bids_day_ahead`, `ISONEAPI.get_import_offers_export_bids_day_ahead`, and `ISONE.get_energy_offers_day_ahead` in [#969](https://github.com/gridstatus/gridstatus/pull/969)
+
+#### SPP
+* SPP day-ahead LMP by bus via `SPP.get_lmp_day_ahead_hourly_by_bus` in [#872](https://github.com/gridstatus/gridstatus/pull/872)
 
 #### EIA
 * EIA Facility Fuel (EIA-923) dataset in [#912](https://github.com/gridstatus/gridstatus/pull/912)
@@ -27,10 +50,14 @@
 
 #### PJM
 * PJM Emergency Postings now includes `Is Drill` from the XML `pjmDrill` flag
+* `PJM.get_emergency_postings` accepts date ranges, read from PJM's public postings endpoint, in [#911](https://github.com/gridstatus/gridstatus/pull/911)
 
 #### ERCOT
 * ERCOT `get_interconnection_queue` now recovers GIS columns whose merged multi-row headers previously parsed as unnamed and were dropped: `Financial Security and Notice to Proceed Provided`, `Approval Date for Submission of Proof of Site Control`, `Meets Planning Guide QSA (Section 5.9) Prerequisites`, and `Change Indicators` in [#932](https://github.com/gridstatus/gridstatus/issues/932)
-* ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884)
+* ERCOT Available Resource Planned Outage Capacity 7 Day and Future datasets in [#884](https://github.com/gridstatus/gridstatus/pull/884), using the NPRR 1287 planned outage limit (POL) columns in [#905](https://github.com/gridstatus/gridstatus/pull/905)
+* ERCOT 3-Day Highest Price Offered in SCED via `Ercot.get_3_day_highest_price_offered_sced` in [#860](https://github.com/gridstatus/gridstatus/pull/860)
+* ERCOT load by weather zone and forecast zone via `ErcotAPI.get_load_by_weather_zone` and `ErcotAPI.get_load_by_forecast_zone` in [#876](https://github.com/gridstatus/gridstatus/pull/876) and [#877](https://github.com/gridstatus/gridstatus/pull/877)
+* `Ercot.get_interconnection_queue` now parses every project sheet in the GIS report, including small generation and inactive projects, in [#810](https://github.com/gridstatus/gridstatus/pull/810)
 * ERCOT Load Distribution Factors (NP4-159-CD) via `ErcotAPI.get_load_distribution_factors`, with reports back to December 2016
 * ERCOT SCED AS Price Corrections via `Ercot.get_mcpc_sced_price_corrections`
 * ERCOT Real Time AS, SCED Shadow Price, and Settlement Only Generator Price Corrections via `Ercot.get_mcpc_spp_real_time_price_corrections`, `Ercot.get_shadow_price_real_time_price_corrections`, and `Ercot.get_sog_price_real_time_price_corrections`
@@ -43,23 +70,33 @@
 
 #### MISO
 * MISO Area Control Error dataset via `MISO.get_area_control_error`
+* MISO real-time and day-ahead generation fuel mix by region via `MISOAPI.get_generation_fuel_mix_by_region_real_time` and `MISOAPI.get_generation_fuel_mix_by_region_day_ahead` in [#886](https://github.com/gridstatus/gridstatus/pull/886)
 
 ### Fixes
 
 #### MISO
 * `MISO.get_binding_constraints_supplemental` now tries the `.xlsx` report when the `.xls` URL returns 404, preserving support for both file formats and continuation sheets.
+* `MISO.get_binding_constraints_supplemental` reads every worksheet, including headerless continuation sheets, so large reports are no longer cut off at the first sheet in [#963](https://github.com/gridstatus/gridstatus/pull/963)
+* `MISO.get_load_forecast` and `MISO.get_zonal_load_hourly` handle the load report layout MISO began publishing on April 27, 2026 in [#865](https://github.com/gridstatus/gridstatus/pull/865)
+* MISO real-time five-minute LMP intervals are no longer five minutes late. MISO labels each interval by its end, which was previously read as the start, in [#946](https://github.com/gridstatus/gridstatus/pull/946)
 
 #### NYISO
 * `NYISO.get_lmp` with `market=REAL_TIME_15_MIN` no longer mislabels the newest 5-minute RTD interval as 15-minute RTC data when the daily realtime file updates before the latest-interval file. Mislabeled rows produced 15-minute intervals starting off the quarter-hour grid (e.g. 05:25-05:40). 15-minute rows are now required to end on a quarter-hour boundary, and the affected rows stay in the `REAL_TIME_5_MIN` output.
+* NYISO methods now read from `oasis-postings.prod.nysdi.com` instead of mis.nyiso.com, except fuel mix. NYISO stopped updating the load forecast and behind-the-meter files on mis.nyiso.com in October 2026, in [#960](https://github.com/gridstatus/gridstatus/pull/960) and [#961](https://github.com/gridstatus/gridstatus/pull/961)
 
 #### PJM
 * PJM Data Miner queries no longer follow the API's `next` links. Data Miner can keep answering a query it has served before with the result set it computed at the time, page by page, across the feed's later data loads, so a multi-page pull could mix an old result set with the current one and a query with no date filter could stay frozen indefinitely. `_get_pjm_json` now requests each page by explicit `startRow`, draws a random page size for queries without a date filter so no two pulls send the same URLs, re-requests a single-page result with a second size and requires the two copies to match, and raises `DataMinerSnapshotMismatch` after one retry when the pages disagree on `totalRows` or return fewer rows than it reports. Observed on `agg_definitions`, `sync_pri_reserves_buses_list` and `sync_pri_reserves_resources_list` after PJM's 2026-09-15 bus model update.
 * PJM LMP methods no longer drop prices for pnodes PJM has since retired. The pnode directory used to be fetched with an active-only filter and inner-merged onto the prices, so any node retired after a delivery date lost its entire history from that date's results whenever the data was fetched again. Fetching one historical day-ahead hour now returns 13,018 nodes where it previously returned 11,681. `PJM.get_pnode_ids` takes a new `include_terminated` argument for the same reason, defaulting to `False` so its existing output is unchanged.
 * `PJM.get_emergency_postings` with a date range now returns postings made on the day of `end`. The public REST endpoint leaves out postings made on its `stop` date, so a range ending today returned nothing posted today until the next day.
+* PJM real-time five-minute LMP requests make fewer Data Miner queries in [#882](https://github.com/gridstatus/gridstatus/pull/882)
+* `PJM.get_gen_outages_by_type` sets `Publish Time` to 06:00 Eastern on the forecast execution date instead of midnight in [#949](https://github.com/gridstatus/gridstatus/pull/949)
 
 #### CAISO
 * `CAISO.get_curtailment` no longer raises `AmbiguousTimeError: Cannot infer dst time from 2026-11-01 01:00:00` for reports from October 1, 2026 onward. The daily renewables report's daily and monthly charts were timestamped by stepping from midnight in UTC, which left every point past a daylight saving change an hour off local midnight, so October's monthly point ended at the repeated 1 AM hour on November 1. They now start at local midnight. The curtailment data itself is hourly and unaffected.
 * `CAISO.get_curtailment` no longer raises `Renewables report column curt_monthly_ytd_perc_mwh returned 12 values ... expected 13` for some reports published on the last day of a month, such as June 30, 2025. On those days the report's rolling monthly curtailment percentage chart covers the 12 months ending with the current month instead of 13, so its oldest month is now returned as null.
+* CAISO OASIS requests use HTTPS in [#855](https://github.com/gridstatus/gridstatus/pull/855)
+* CAISO day-ahead LMP now includes the GHG component, which was previously always 0, in [#867](https://github.com/gridstatus/gridstatus/pull/867)
+* CAISO historical outlook CSVs no longer fail SSL verification on systems missing the Sectigo Root R46 certificate in [#943](https://github.com/gridstatus/gridstatus/pull/943)
 
 #### ERCOT
 * `Ercot.get_fuel_mix_detailed` no longer raises `AttributeError: 'float' object has no attribute 'get'` when Ercot reports one interval under two timestamps a few seconds apart and splits the fuel types between them. The fuel types missing from each timestamp are now returned as null instead of failing the whole request, matching the behavior `Ercot.get_fuel_mix` already had.
@@ -69,14 +106,29 @@
 * `Ercot.get_sced_system_lambda`, `Ercot.get_lmp_by_bus`, and `Ercot.get_mcpc_sced` no longer raise `KeyError` on files published from August 27, 2026 onward. ERCOT renamed the price column in each of these reports to `CappedSystemLambda`, `CappedLMP`, and `CappedMCPC` when NPRR1290 and NPRR1323 were implemented. The capped value is the same series these methods have always returned, so it keeps its existing column name and no output changes meaning. Older files that use the original names still parse.
 * `Ercot.get_mcpc_sced_price_corrections` and `Ercot.get_lmp_by_bus_price_corrections` no longer fail on files published from September 1, 2026 onward, when ERCOT renamed the original and corrected price columns with a `Capped` prefix, and, in the bus report, renamed `ElectricBusName` to `ElectricalBus` and `DSTFlag` to `RepeatedHourFlag`. The capped values keep their existing column names. Each file is normalized before concatenation, so a fetch that spans the cutover no longer raises `Buffer has wrong number of dimensions` from the duplicated flag column.
 * `Ercot.get_60_day_sced_disclosure` no longer raises `ValueError: Unknown curve type found` on Resource AS Offers files starting with Operating Day June 25, 2026. These files carry an explicit `Offer Type` column (`ONRES`/`OFFNS`/`REGDN`), which is now mapped directly to the curve type instead of inferring it from which price columns hold values. The explicit column is also required to classify the ECRS-only rows these files contain under both `ONRES` and `OFFNS`. Padding rows holding no price or quantity values are dropped to keep the output consistent with earlier files.
+* `Ercot.get_60_day_sced_disclosure` uses ERCOT's April 10, 2026 supplemental Resource AS Offers file for data dates from December 5, 2025 to February 2, 2026, which corrects the data in the regular disclosures, in [#863](https://github.com/gridstatus/gridstatus/pull/863)
+* `Ercot.get_60_day_sced_disclosure` handles the Resource AS Offers column renames from late March 2026, which previously labeled every offer as `Online`, in [#885](https://github.com/gridstatus/gridstatus/pull/885)
 
 #### SPP
 
 * `SPP.get_load_by_baa_hourly` returns the 23:00 hour again for past dates. Since September 25, 2026, SPP's 23:00 mid-term load forecast file ends at the hour ending 23:00, and the 23:00 hour's averaged actual first appears in the next day's 00:00 file, so past-date requests now read that file. The day boundary is now calendar-aware, so DST fall-back days return all 25 hours.
+* SPP real-time five-minute binding constraints read interval files for recent data and daily files only for complete days, so recent queries return current data, in [#869](https://github.com/gridstatus/gridstatus/pull/869)
+* SPP fuel mix combines `Energy Storage Market` and `Energy Storage Self` into a single `Energy Storage` column in [#931](https://github.com/gridstatus/gridstatus/pull/931)
 
 #### EIA
 
 * `EIA.get_dataset` now raises `NoDataFoundException` when the API returns no rows for the requested window, instead of `KeyError: 'period'`. Requesting a window past the end of published data is a normal condition — EIA's hourly datasets each have their own ragged reporting edge — and callers can now distinguish it from a genuine failure. `EIA.get_facility_fuel` already behaved this way.
+* EIA-860M generator data drops rows whose `Plant ID` is blank in [#950](https://github.com/gridstatus/gridstatus/pull/950)
+
+#### ISONE
+
+* ISO-NE historical real-time five-minute LMP requests raise `NoDataFoundException` when every interval download fails, instead of `AttributeError`, in [#927](https://github.com/gridstatus/gridstatus/pull/927)
+* `ISONEAPI.get_ancillary_services_strike_prices_day_ahead` handles the API returning strike prices as a list, which made every call fail from October 20, 2026, in [#971](https://github.com/gridstatus/gridstatus/pull/971)
+
+#### IESO
+
+* IESO shadow price `Publish Time` now comes from the file's last modified time, matching the `last_modified` filter, in [#874](https://github.com/gridstatus/gridstatus/pull/874)
+* `IESO.get_fuel_mix` ignores the new `control_actions` column in [#920](https://github.com/gridstatus/gridstatus/pull/920)
 
 #### AESO
 * `AESO` now uses `America/Edmonton` instead of `US/Mountain`. Alberta stays on UTC-6 year round from November 1, 2026, while `US/Mountain` falls back to UTC-7, so local timestamps from that date would have been an hour behind Alberta's clocks every winter. The two zones agree on every timestamp before November 1, 2026, but timezone-aware columns now have the dtype `datetime64[ns, America/Edmonton]`. `pytz` is now a direct dependency with a floor of 2026.3, the first release with the new rule, because pandas 2 converts time zone names through it.
@@ -85,6 +137,8 @@
 
 * Removed unused runtime dependencies (`setuptools`, `virtualenv`, `h11`, `zipp`, `filelock`) — none are imported and nothing in the runtime tree requires them, so they no longer ship to consumers. Resolves the `setuptools <79` cap reported in [#901](https://github.com/gridstatus/gridstatus/issues/901).
 * Bumped dependencies to patched versions to clear open Dependabot security alerts: runtime `cryptography` (>=48.0.1), `urllib3` (>=2.7.0), `lxml` (>=6.1.0), and `idna` (>=3.15); and dev tooling `jupyterlab`, `jupyter-server`, `notebook`, `nbconvert`, `bleach`, `mistune`, `pillow`, `tornado`, `vcrpy`, and `pytest`.
+* Relaxed the `certifi` upper bound so installs can pick up 2026 releases, which drop the distrusted eMudhra emSign roots, in [#973](https://github.com/gridstatus/gridstatus/pull/973)
+* Fixed a `timedelta64[ns]` to `timedelta64[h]` conversion error on newer pandas in [#812](https://github.com/gridstatus/gridstatus/pull/812)
 
 ## v0.36.0 - April 20, 2026
 
