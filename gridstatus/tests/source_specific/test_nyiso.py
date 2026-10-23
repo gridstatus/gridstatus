@@ -1386,9 +1386,37 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_limiting_constraints_real_time(start=start, end=end)
         self._check_limiting_constraints(df, expected_duration_minutes=5)
         assert df["Interval Start"].dt.tz is not None
-        assert df["Interval Start"].dt.date.min() >= pd.Timestamp(start).date()
+        # Each daily file holds stamps 00:00 through 23:55, which are interval ends
+        assert df["Interval End"].dt.date.min() >= pd.Timestamp(start).date()
         assert df["Interval End"].dt.date.max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
+        )
+
+    def test_limiting_constraints_real_time_time_stamp_is_interval_end(self):
+        # A row from the 2026-09-01 file. NYISO stamps real-time constraints at
+        # interval end, the same as the real-time LBMP file.
+        raw = pd.DataFrame(
+            {
+                "Time Stamp": ["09/01/2026 00:00:00"],
+                "Time Zone": ["EDT"],
+                "Limiting Facility": ["HILLSIDE 230 E.TWANDA 230 1"],
+                "Facility PTID": [25014],
+                "Contingency": ["HOPATCON-LACKAWAN_500_5063"],
+                "Constraint Cost($)": [-45.61],
+            },
+        )
+        df = self.iso._handle_time(
+            raw,
+            gridstatus.nyiso.LIMITING_CONSTRAINTS_REAL_TIME_DATASET,
+            groupby="Limiting Facility",
+        )
+        assert df["Interval Start"].iloc[0] == pd.Timestamp(
+            "2026-08-31 23:55",
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval End"].iloc[0] == pd.Timestamp(
+            "2026-09-01 00:00",
+            tz=self.iso.default_timezone,
         )
 
     @pytest.mark.parametrize(
