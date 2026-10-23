@@ -865,31 +865,34 @@ class TestNYISO(BaseTestISO):
             )
             assert df["Time"].dt.date.nunique() == 3
 
+    # December 20 and 21, 2025 are only on mis.nyiso.com
     def test_get_btm_installed_capacity_across_oasis_postings_switch(self):
         with nyiso_vcr.use_cassette(
-            "test_get_btm_installed_capacity_across_oasis_postings_switch_2026-10-08_2026-10-11.yaml",
+            "test_get_btm_installed_capacity_across_oasis_postings_switch_2025-12-20_2025-12-24.yaml",
         ):
             df = self.iso.get_btm_installed_capacity(
-                start="2026-10-08",
-                end="2026-10-11",
+                start="2025-12-20",
+                end="2025-12-24",
             )
 
         assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
-            "2026-10-08",
-            "2026-10-09",
-            "2026-10-10",
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
         ]
 
     def test_get_btm_solar_across_oasis_postings_switch(self):
         with nyiso_vcr.use_cassette(
-            "test_get_btm_solar_across_oasis_postings_switch_2026-10-08_2026-10-10.yaml",
+            "test_get_btm_solar_across_oasis_postings_switch_2025-12-20_2025-12-23.yaml",
         ):
-            df = self.iso.get_btm_solar(start="2026-10-08", end="2026-10-10")
+            df = self.iso.get_btm_solar(start="2025-12-20", end="2025-12-23")
 
         assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
-            "2026-10-08",
-            "2026-10-09",
-            "2026-10-10",
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
         ]
 
     def test_get_btm_installed_capacity_not_posted(self):
@@ -1328,6 +1331,23 @@ class TestNYISO(BaseTestISO):
                 end=end,
             )
 
+    # March 27 and 28, 2026 are only on mis.nyiso.com
+    def test_get_as_prices_day_ahead_hourly_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_as_prices_day_ahead_hourly_across_oasis_postings_switch_2026-03-27_2026-03-31.yaml",
+        ):
+            df = self.iso.get_as_prices_day_ahead_hourly(
+                start="2026-03-27",
+                end="2026-03-31",
+            )
+
+        assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
+            "2026-03-27",
+            "2026-03-28",
+            "2026-03-29",
+            "2026-03-30",
+        ]
+
     """get_as_prices_real_time_5_min"""
 
     @pytest.mark.parametrize(
@@ -1462,6 +1482,19 @@ class TestNYISO(BaseTestISO):
         assert df["Time"].min() >= pd.Timestamp(start, tz=self.iso.default_timezone)
         assert df["Time"].max() < pd.Timestamp(end, tz=self.iso.default_timezone)
         assert set(df["Time"].dt.month.unique()) == {5, 6}
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_area_control_error_across_oasis_postings_switch(self):
+        # August 2026 comes from mis.nyiso.com and September 2026 from oasis-postings
+        start = "2026-08-31"
+        end = "2026-09-02"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=start, end=end)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert set(df["Time"].dt.month.unique()) == {8, 9}
         assert df["Time"].is_monotonic_increasing
 
     def test_get_area_control_error_dst_fall_back(self):
