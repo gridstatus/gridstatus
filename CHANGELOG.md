@@ -6,6 +6,7 @@
 
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
+* `MISOAPI` requests verify again. On October 22, 2026, MISO moved `apim.misoenergy.org` to a certificate issued by GlobalSign GCC R46 OV TLS CA 2025 (GlobalSign Root R46), which the bundled certificate chain didn't include, so every request failed with `SSLCertVerificationError`. The bundle now has both the new and the previous GlobalSign chains.
 
 ## v0.37.0 - October 22, 2026
 
