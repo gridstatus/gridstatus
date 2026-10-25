@@ -4,6 +4,10 @@
 
 ### Fixes
 
+#### ERCOT
+* `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
+* `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
+
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
 * `MISOAPI` requests verify again. On October 22, 2026, MISO moved `apim.misoenergy.org` to a certificate issued by GlobalSign GCC R46 OV TLS CA 2025 (GlobalSign Root R46), which the bundled certificate chain didn't include, so every request failed with `SSLCertVerificationError`. The bundle now has both the new and the previous GlobalSign chains.
