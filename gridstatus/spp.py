@@ -676,15 +676,13 @@ class SPP(ISOBase):
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
 
-        # NOTE: this needs to be updated for DST every year
-        # 0105d through 0155d have a "d" on 2025-11-02
-        add_d = (
-            floored_date.year == 2025
-            and floored_date.month == 11
-            and floored_date.day == 2
-            and floored_date.hour == 1
-            and floored_date.minute != 0
+        # On fall-back days SPP uses 0105d through 0155d. The unsuffixed
+        # files were absent in 2025, including requests for the first 1am hour.
+        day_start = floored_date.normalize()
+        is_fall_back = (
+            day_start.utcoffset() > (day_start + pd.DateOffset(days=1)).utcoffset()
         )
+        add_d = is_fall_back and floored_date.hour == 1 and floored_date.minute != 0
 
         # The first hour in the URL is 1 after the hour in the filename.
         url = base_url + floored_date.strftime(
@@ -723,14 +721,12 @@ class SPP(ISOBase):
 
         floored_date = self._handle_dst_floor_date(date, "h")
 
-        # For mid-term hourly forecasts during 2025 DST end there is a 0200d file.
-        # Special case for DST end on 2025-11-02
-        add_d = (
-            floored_date.year == 2025
-            and floored_date.month == 11
-            and floored_date.day == 2
-            and floored_date.hour == 2
+        # SPP's first 2am file on fall-back days has a "d" suffix.
+        day_start = floored_date.normalize()
+        is_fall_back = (
+            day_start.utcoffset() > (day_start + pd.DateOffset(days=1)).utcoffset()
         )
+        add_d = is_fall_back and floored_date.hour == 2
 
         # Explicitly set the minutes to 00 in the URL
         url = base_url + floored_date.strftime(
