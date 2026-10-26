@@ -2369,6 +2369,109 @@ class TestSPP(BaseTestISO):
         assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
         assert len(df) == 0
 
+    def _hourly_baa_source_df(self, interval_starts: list[pd.Timestamp]):
+        return pd.DataFrame(
+            {
+                "Interval Start": interval_starts,
+                "Interval End": [ts + pd.Timedelta(hours=1) for ts in interval_starts],
+                "Averaged Actual": [1000.0 + i for i in range(len(interval_starts))],
+                "BAA": ["SPP"] * len(interval_starts),
+            },
+        )
+
+    def test_get_load_by_baa_hourly_past_date_keeps_2300_hour(self):
+        day = pd.Timestamp("2026-10-10", tz="US/Central")
+        source_df = self._hourly_baa_source_df(
+            [day + pd.Timedelta(hours=h) for h in (22, 23, 24)],
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-10-12 09:00", tz="US/Central"),
+            ),
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ) as mock_fetch,
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=day, verbose=False)
+
+        assert mock_fetch.call_args.kwargs["date"] == pd.Timestamp(
+            "2026-10-11 00:00",
+            tz="US/Central",
+        )
+        assert df["Interval Start"].tolist() == [
+            day + pd.Timedelta(hours=22),
+            day + pd.Timedelta(hours=23),
+        ]
+
+    def test_get_load_by_baa_hourly_yesterday_before_midnight_file_is_due(self):
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-10-11 00:05", tz="US/Central"),
+            ),
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=None,
+            ) as mock_fetch,
+        ):
+            self.iso.get_load_by_baa_hourly(
+                date=pd.Timestamp("2026-10-10", tz="US/Central"),
+                verbose=False,
+            )
+
+        assert mock_fetch.call_args.kwargs["date"] == pd.Timestamp(
+            "2026-10-10 23:55",
+            tz="US/Central",
+        )
+
+    def test_get_load_by_baa_hourly_dst_fall_back_day_keeps_all_25_hours(self):
+        day = pd.Timestamp("2026-11-01", tz="US/Central")
+        interval_starts = list(
+            pd.date_range(day, periods=26, freq="h"),
+        )
+        source_df = self._hourly_baa_source_df(interval_starts)
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-11-03 09:00", tz="US/Central"),
+            ),
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ) as mock_fetch,
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=day, verbose=False)
+
+        assert mock_fetch.call_args.kwargs["date"] == pd.Timestamp(
+            "2026-11-02 00:00",
+            tz="US/Central",
+        )
+        assert len(df) == 25
+        assert df["Interval Start"].iloc[-1] == pd.Timestamp(
+            "2026-11-01 23:00",
+            tz="US/Central",
+        )
+
     """get_status"""
 
     @pytest.mark.integration

@@ -4531,6 +4531,12 @@ class Ercot(ISOBase):
     ) -> pd.DataFrame:
         df = self.read_doc(doc, parse=False, verbose=verbose)
         df = df.rename(columns={"OperatingDate": "DeliveryDate"})
+        # On the 2026 DST end day ERCOT lists hour ending 1 four times (two distinct
+        # value sets, all RepeatedHourFlag N), so keep the first row for each hour
+        df = df.drop_duplicates(
+            subset=["DeliveryDate", "HourEnding", "RepeatedHourFlag"],
+            keep="first",
+        )
         df = self.parse_doc(df, verbose=verbose)
 
         df.insert(
@@ -6944,7 +6950,7 @@ class Ercot(ISOBase):
             ],
         )
 
-        # For the 2025 DST end transition, the raw data looks like
+        # On every DST end day the raw data looks like (2025 shown, 2026 is the same)
         # DeliveryDate,HourEnding,Coast,East,FarWest,North,NorthCentral,SouthCentral,Southern,West,DSTFlag
         # 11/02/2025,01:00,63.3, 58, 60, 57, 60, 63.5, 71.4, 59,N
         # 11/02/2025,02:00,124.3, 113, 114, 111, 116.25, 120.5, 140.6, 112.8,N
@@ -6952,14 +6958,9 @@ class Ercot(ISOBase):
         # 11/02/2025,03:00,60.9, 55, 54, 54, 56.25, 58, 68.8, 54.2,N
         # The 3:00 ending hour is duplicated when it should be the 2:00 ending hour
         # (We will not correct the obviously wrong temperature values)
-        dst_transition_date_2025 = "11/02/2025"
-        if dst_transition_date_2025 in df["DeliveryDate"].unique():
-            mask = (
-                (df["DeliveryDate"] == "11/02/2025")
-                & (df["HourEnding"] == "03:00")
-                & (df["DSTFlag"] == "Y")
-            )
-            df.loc[mask, "HourEnding"] = "2:00"
+        if "DSTFlag" in df.columns:
+            repeated_hour_mask = (df["HourEnding"] == "03:00") & (df["DSTFlag"] == "Y")
+            df.loc[repeated_hour_mask, "HourEnding"] = "2:00"
 
         df = self.parse_doc(df)
 

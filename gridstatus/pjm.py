@@ -12,7 +12,13 @@ import tqdm
 from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
+from gridstatus.base import (
+    ISOBase,
+    Markets,
+    NoDataFoundException,
+    NotSupported,
+    loggable_request_kwargs,
+)
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -1096,7 +1102,7 @@ class PJM(ISOBase):
         reason = ""
         while retries <= self.retries:
             try:
-                logger.info(f"Requesting {url} with {kwargs}")
+                logger.info(f"Requesting {url} with {loggable_request_kwargs(kwargs)}")
                 if method == "POST":
                     response = requests.post(url, timeout=REQUEST_TIMEOUT, **kwargs)
                 else:

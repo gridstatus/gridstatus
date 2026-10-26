@@ -1,3 +1,5 @@
+import socket
+import time
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -1382,6 +1384,27 @@ class TestMISOAPIRetryMechanism:
 
         assert response == mock_response
         assert mock_get.call_count == 1
+
+    def test_make_request_with_retry_times_out_when_server_stops_responding(
+        self,
+        monkeypatch,
+    ):
+        """A server that accepts the connection but never responds raises
+        requests.Timeout instead of blocking forever."""
+        monkeypatch.setattr("gridstatus.miso_api.REQUEST_TIMEOUT", (1, 1))
+        api = MISOAPI()
+
+        # The listening socket completes the TCP handshake but never answers.
+        with socket.create_server(("127.0.0.1", 0)) as server:
+            port = server.getsockname()[1]
+            started = time.monotonic()
+            with pytest.raises(requests.Timeout):
+                api._make_request_with_retry(
+                    url=f"http://127.0.0.1:{port}/",
+                    headers={},
+                )
+
+        assert time.monotonic() - started < 10
 
     @patch("time.sleep")
     def test_make_request_with_retry_5xx_then_success(self, mock_sleep):

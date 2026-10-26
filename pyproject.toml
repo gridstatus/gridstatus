@@ -1,6 +1,6 @@
 [project]
 name = "gridstatus"
-version = "0.36.0"
+version = "0.37.0"
 readme = "README.md"
 description = "Access electricity grid data (load, fuel mix, prices, forecasts) from North American ISOs through one consistent Python API"
 requires-python = ">=3.10,<3.15"
@@ -46,6 +46,9 @@ license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.34.2,<3",
     "pandas ~=2.2",
+    # pandas 2 resolves time zone names through pytz; 2026.3 is the first
+    # release with Alberta's year-round UTC-6 from November 1, 2026
+    "pytz >=2026.3",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
     "tqdm ~=4.67",
@@ -56,7 +59,7 @@ dependencies = [
     "termcolor ~=3.0",
     "xlrd ~=2.0",
     "xmltodict ~=0.14",
-    "certifi ~=2025.1",
+    "certifi >=2025.1",
     "cryptography>=50.0.0,<51",
     "urllib3 >=2.7.0,<3",
     "idna >=3.15,<4",
