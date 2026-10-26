@@ -3940,6 +3940,127 @@ class TestErcot(BaseTestISO):
     """get_as_deployment_factors_weekly_ruc"""
 
     # Check for weekly, daily, and hourly RUC
+    @pytest.mark.parametrize("kind", ["deployment_factors", "demand_curves"])
+    @pytest.mark.parametrize("period", ["hourly", "daily", "weekly"])
+    @pytest.mark.parametrize(
+        "run,published,expected",
+        [
+            (
+                "2026-11-01 01:03:03",
+                "2026-11-01T01:28:00-05:00",
+                "2026-11-01T06:03:03Z",
+            ),
+            (
+                "2026-11-01 01:03:03",
+                "2026-11-01T01:28:00-06:00",
+                "2026-11-01T07:03:03Z",
+            ),
+            (
+                "2026-11-01 01:45:00",
+                "2026-11-01T01:10:00-06:00",
+                "2026-11-01T06:45:00Z",
+            ),
+            (
+                "2026-11-02 01:03:03",
+                "2026-11-02T01:28:00-06:00",
+                "2026-11-02T07:03:03Z",
+            ),
+        ],
+    )
+    def test_ruc_run_timestamp_uses_document_context(
+        self,
+        kind,
+        period,
+        run,
+        published,
+        expected,
+    ):
+        column = "RUCTimestamp" if kind == "deployment_factors" else "RUCTimeStamp"
+        frame = pd.DataFrame(
+            {
+                column: [run, run],
+                "DeliveryDate": ["11/01/2026"] * 2,
+                "HourEnding": ["02:00", "02:00"],
+                "RepeatedHourFlag": ["N", "Y"],
+                "ASType": ["ECRS"] * 2,
+            },
+        )
+        if kind == "deployment_factors":
+            frame["ASDeploymentFactors"] = [0.1, 0.2]
+        else:
+            frame["DemandCurvePoint"] = [1, 1]
+            frame["Quantity"] = [10, 20]
+            frame["Price"] = [30, 40]
+        doc = Document(
+            "https://example.com/report",
+            pd.Timestamp(published),
+            "report",
+            "report",
+            None,
+        )
+        with (
+            mock.patch.object(self.iso, "_get_documents", return_value=[doc]),
+            mock.patch.object(self.iso, "read_doc", return_value=frame),
+        ):
+            result = getattr(self.iso, f"get_as_{kind}_{period}_ruc")(
+                "2026-11-01",
+                "2026-11-03",
+            )
+        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01T06:00:00Z"),
+            pd.Timestamp("2026-11-01T07:00:00Z"),
+        ]
+
+    @pytest.mark.parametrize(
+        "published",
+        ["2026-11-01T00:50:00-05:00", "2026-11-01T02:28:00-06:00"],
+    )
+    def test_ruc_ambiguous_run_outside_publication_window(self, published):
+        doc = Document(
+            "https://example.com/report",
+            pd.Timestamp(published),
+            "report",
+            "report",
+            None,
+        )
+        frame = pd.DataFrame({"RUCTimestamp": ["2026-11-01 01:03:03"]})
+        with mock.patch.object(self.iso, "read_doc", return_value=frame):
+            with pytest.raises(ValueError, match="Cannot resolve RUC timestamp"):
+                self.iso._read_ruc_docs([doc], "RUCTimestamp")
+
+    def test_ruc_repeated_runs_remain_distinct(self):
+        docs = [
+            Document(
+                "https://example.com/report",
+                pd.Timestamp(f"2026-11-01T01:28:00{offset}"),
+                "report",
+                "report",
+                None,
+            )
+            for offset in ["-05:00", "-06:00"]
+        ]
+        frame = pd.DataFrame(
+            {
+                "RUCTimestamp": ["2026-11-01 01:03:03"],
+                "DeliveryDate": ["11/01/2026"],
+                "HourEnding": ["03:00"],
+                "RepeatedHourFlag": ["N"],
+                "ASType": ["ECRS"],
+                "ASDeploymentFactors": [0.1],
+            },
+        )
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[frame.copy(), frame.copy()],
+        ):
+            result = self.iso._handle_as_deployment_factors_ruc(docs)
+        assert result["RUC Timestamp"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01T06:03:03Z"),
+            pd.Timestamp("2026-11-01T07:03:03Z"),
+        ]
+
     def _check_as_deployment_factors_ruc(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",
