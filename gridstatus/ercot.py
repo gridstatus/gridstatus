@@ -587,24 +587,27 @@ class Ercot(ISOBase):
 
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
-        # TODO(kanter): fix this for future DST dates
-        for timestamp in ["2024-11-03 02:00:00-0600", "2025-11-02 02:00:00-0600"]:
-            if timestamp in df["timestamp"].values:
-                # ERCOT publishes two intervals with 2am timestamp
-                # during CDT to CST transition
-                # but skips the repeated 1am timestamp
-                # let's manually fix this before further timestamp parsing
-                df.loc[
-                    (df["timestamp"] == timestamp) & (df["dstFlag"] == "N"),
-                    "timestamp",
-                ] = timestamp.replace("02:00:00", "01:00:00")
-
-        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
-
-        # Parse in UTC to avoid issues with DST transition
-        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
+        timestamps = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
+        # ERCOT has labeled the second 1am as 2am, duplicating the real 2am.
+        # Repair only that observed pattern on an actual fall-back transition;
+        # leave correctly labeled data and duplicates on other days unchanged.
+        for timestamp in timestamps[timestamps.duplicated(keep=False)].unique():
+            repeated_hour = timestamp - pd.Timedelta(hours=1)
+            if (
+                timestamp.hour == 2
+                and timestamp.minute == 0
+                and timestamp.second == 0
+                and (timestamp - pd.Timedelta(hours=2)).dst() > timestamp.dst()
+                and not timestamps.eq(repeated_hour).any()
+            ):
+                repair = timestamps.eq(timestamp) & df["dstFlag"].eq("N")
+                if repair.sum() == 1:
+                    timestamps = timestamps.mask(repair, repeated_hour)
+
+        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]].copy()
+        df["timestamp"] = timestamps
 
         df = df.rename(
             columns={

@@ -436,6 +436,71 @@ class TestErcot(BaseTestISO):
         assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
 
     @pytest.mark.integration
+    @pytest.mark.parametrize(
+        "day",
+        ["2024-11-03", "2025-11-02", "2026-11-01", "2027-11-07"],
+    )
+    @pytest.mark.parametrize("malformed", [False, True])
+    def test_energy_storage_fallback(self, day, malformed):
+        start = pd.Timestamp(day, tz=self.iso.default_timezone)
+        times = pd.date_range(
+            start,
+            start + pd.DateOffset(days=1),
+            freq="h",
+            inclusive="left",
+        )
+        records = []
+        for i, timestamp in enumerate(times):
+            second_one = timestamp.hour == 1 and not timestamp.dst()
+            source_time = (
+                timestamp + pd.Timedelta(hours=1)
+                if malformed and second_one
+                else timestamp
+            )
+            records.append(
+                {
+                    "timestamp": source_time.isoformat(),
+                    "dstFlag": "N" if second_one else "Y",
+                    "totalCharging": i,
+                    "totalDischarging": i + 1,
+                    "netOutput": 1,
+                },
+            )
+        with mock.patch.object(
+            self.iso,
+            "_get_json",
+            return_value={
+                "previousDay": {"data": []},
+                "currentDay": {"data": records},
+            },
+        ):
+            result = self.iso.get_energy_storage_resources()
+        assert result["Time"].tolist() == times.tolist()
+        assert result["Total Charging"].tolist() == list(range(25))
+
+    def test_energy_storage_ordinary_day_duplicate_is_unchanged(self):
+        records = [
+            {
+                "timestamp": "2026-11-02T02:00:00-06:00",
+                "dstFlag": flag,
+                "totalCharging": 1,
+                "totalDischarging": 2,
+                "netOutput": 1,
+            }
+            for flag in ["N", "Y"]
+        ]
+        with mock.patch.object(
+            self.iso,
+            "_get_json",
+            return_value={
+                "previousDay": {"data": records},
+                "currentDay": {"data": []},
+            },
+        ):
+            result = self.iso.get_energy_storage_resources()
+        assert result["Time"].eq(pd.Timestamp("2026-11-02T02:00:00-06:00")).all()
+        assert len(result) == 2
+
     def test_get_energy_storage_resources(self):
         df = self.iso.get_energy_storage_resources()
         assert df.columns.tolist() == [
