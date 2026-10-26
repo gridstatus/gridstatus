@@ -458,75 +458,38 @@ class ErcotAPI:
         post_datetime_series: pd.Series,
         raw_data: pd.DataFrame = None,
     ) -> pd.Series:
+        """Choose each row's publication fold from its own source filename.
+
+        Call before parsing or sorting delivery intervals, while raw_data rows
+        are positionally aligned with post_datetime_series. ERCOT marks the
+        standard-time publication with "xhr"; missing filenames retain the
+        existing daylight-time default.
         """
-        Determines which ambiguous timestamps should be CDT vs CST for postDatetime values.
-
-        Rule: Find all unique ambiguous timestamps (1:xx AM).
-        - Timestamps associated with rows containing "xhr" in filename/source are CST
-        - All other ambiguous timestamps are CDT
-
-        Returns a boolean Series where True means CDT and False means CST for ambiguous times.
-        """
-        post_datetime_str = post_datetime_series.astype(str)
-        ambiguous_posts = sorted(
-            [p for p in post_datetime_str.unique() if "T01:" in str(p)],
-        )
-
-        if len(ambiguous_posts) == 0:
-            return pd.Series(
-                [True] * len(post_datetime_series),
+        result = pd.Series(True, index=post_datetime_series.index)
+        if raw_data is not None and "_source_filename" in raw_data:
+            result = pd.Series(
+                ~raw_data["_source_filename"]
+                .fillna("")
+                .astype(str)
+                .str.contains("xhr", case=False)
+                .to_numpy(),
                 index=post_datetime_series.index,
             )
-
-        result = pd.Series(
-            [True] * len(post_datetime_series),
-            index=post_datetime_series.index,
-        )
-
-        # Find CST timestamps by checking for "xhr" in filename
-        if (
-            raw_data is not None
-            and "postDatetime" in raw_data.columns
-            and "_source_filename" in raw_data.columns
-        ):
-            xhr_mask = (
-                raw_data["_source_filename"]
-                .astype(str)
-                .str.contains("xhr", case=False, na=False)
-            )
-            if xhr_mask.any():
-                raw_post_datetime_str = (
-                    raw_data.loc[xhr_mask, "postDatetime"].astype(str).unique()
-                )
-                # Mark rows in result that match these postDatetime values as CST
-                for xhr_post in raw_post_datetime_str:
-                    if "T01:" in str(xhr_post):
-                        result[post_datetime_str == xhr_post] = False
-
         return result
 
     def _handle_wind_actual_and_forecast_hourly(self, data, columns, verbose=False):
-        # Store raw data before parse_doc to check for xhr in filename
-        raw_data = data.copy()
-        data = Ercot().parse_doc(data, verbose=verbose)
-
-        data.columns = data.columns.str.replace("_", " ")
-
-        try:
-            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
-                self.default_timezone,
-            )
-        # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
-        # Timestamps with "xhr" in filename are CST, all other ambiguous timestamps are CDT
-        except pytz.exceptions.AmbiguousTimeError:
-            ambiguous_array = self._determine_ambiguous_timezone_for_publish_time(
+        # Resolve publication time before parse_doc sorts delivery intervals.
+        # Different files can have identical wall-clock publication timestamps.
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=self._determine_ambiguous_timezone_for_publish_time(
                 data["postDatetime"],
-                raw_data=raw_data,
-            )
-            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=ambiguous_array,
-            )
+                raw_data=data,
+            ),
+        )
+        data = data.drop(columns=["_source_filename"], errors="ignore")
+        data = Ercot().parse_doc(data, verbose=verbose)
+        data.columns = data.columns.str.replace("_", " ")
 
         data = (
             utils.move_cols_to_front(
@@ -619,27 +582,18 @@ class ErcotAPI:
         )
 
     def _handle_solar_actual_and_forecast_hourly(self, data, columns, verbose=False):
-        # Store raw data before parse_doc to check for xhr in filename
-        raw_data = data.copy()
-        data = Ercot().parse_doc(data, verbose=verbose)
-
-        data.columns = data.columns.str.replace("_", " ")
-
-        try:
-            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
-                self.default_timezone,
-            )
-        # NOTE: ERCOT gives ambiguous Publish Times for the DST transition
-        # Timestamps with "xhr" in filename are CST, all other ambiguous timestamps are CDT
-        except pytz.exceptions.AmbiguousTimeError:
-            ambiguous_array = self._determine_ambiguous_timezone_for_publish_time(
+        # Resolve publication time before parse_doc sorts delivery intervals.
+        # Different files can have identical wall-clock publication timestamps.
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=self._determine_ambiguous_timezone_for_publish_time(
                 data["postDatetime"],
-                raw_data=raw_data,
-            )
-            data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=ambiguous_array,
-            )
+                raw_data=data,
+            ),
+        )
+        data = data.drop(columns=["_source_filename"], errors="ignore")
+        data = Ercot().parse_doc(data, verbose=verbose)
+        data.columns = data.columns.str.replace("_", " ")
 
         data = (
             utils.move_cols_to_front(
