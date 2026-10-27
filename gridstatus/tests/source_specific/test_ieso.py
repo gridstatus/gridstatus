@@ -1,4 +1,6 @@
 import datetime
+import logging
+from unittest.mock import Mock
 from xml.etree import ElementTree
 
 import numpy as np
@@ -7,7 +9,7 @@ import pytest
 from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO, utils
-from gridstatus.base import NotSupported
+from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.ieso import _safe_find_float, _safe_find_int, _safe_find_text
 from gridstatus.ieso_constants import (
     INTERTIE_ACTUAL_SCHEDULE_FLOW_HOURLY_COLUMNS,
@@ -709,6 +711,49 @@ class TestIESO(BaseTestISO):
         for col in self.REQUIRED_RESOURCE_ADEQUACY_COLUMNS:
             assert col in df.columns
         assert (df["Last Modified"] > last_modified).all()
+
+    @pytest.mark.parametrize("by_last_modified", [False, True])
+    def test_adequacy_missing_file_warns_and_keeps_available_reports(
+        self,
+        by_last_modified,
+        monkeypatch,
+        caplog,
+    ):
+        missing = "PUB_Adequacy3_20261126_v10.xml"
+        available = "PUB_Adequacy3_20261126_v11.xml"
+        listing = "\n".join(
+            f'<a href="{file}">{file}</a> 27-Oct-2026 17:07'
+            for file in (missing, available)
+        )
+
+        def request(url):
+            if url.endswith(missing):
+                raise NoDataFoundException("File not found")
+            if url.endswith(available):
+                return Mock(text="<Document>available</Document>")
+            return Mock(text=listing)
+
+        monkeypatch.setattr(self.iso, "_request", request)
+        last_modified = pd.Timestamp("2026-10-27 17:00", tz=self.default_timezone)
+        with caplog.at_level(logging.WARNING, logger="gridstatus"):
+            if by_last_modified:
+                reports = self.iso._get_all_resource_adequacy_jsons_by_last_modified(
+                    last_modified,
+                )
+            else:
+                reports = self.iso._get_all_resource_adequacy_jsons(
+                    "2026-11-26",
+                    last_modified,
+                )
+
+        assert reports == [
+            (
+                {"Document": "available"},
+                pd.Timestamp("2026-10-27 17:07", tz=self.default_timezone),
+            ),
+        ]
+        assert [record.levelno for record in caplog.records] == [logging.WARNING]
+        assert missing in caplog.text
 
     def test_get_resource_adequacy_data_structure_map(self):
         data_map = RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP
