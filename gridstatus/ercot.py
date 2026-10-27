@@ -5996,8 +5996,11 @@ class Ercot(ISOBase):
         if is_sced_format:
             # SCED format: Parse SCED Timestamp directly
             # SCED Timestamp format is like "12/07/2025 00:00:17"
-            # TODO: this dataset doesn't have a DSTFlag so we may have issues with
-            # DST transitions
+            # TODO (2026 fall DST): the current source has no DSTFlag or UTC
+            # timestamp, so repeated-hour SCED timestamps will raise here.
+            # Inspect the November 1 operating-day file when published around
+            # November 4 before choosing how to distinguish the two hours.
+            # Close the placeholder PR if the actual source needs no change.
             df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
                 self.default_timezone,
             )
