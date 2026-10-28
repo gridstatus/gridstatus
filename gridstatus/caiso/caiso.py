@@ -39,6 +39,17 @@ from gridstatus.lmp_config import lmp_config
 # column and are dropped during parsing.
 PRICE_CORRECTION_NO_RECORDS_REASON = "No records found for report."
 
+# Every PRC_CORR_GRP data row starts with its trade date. A correction with
+# several reasons puts an unquoted newline between them, so a line break not
+# followed by a trade date (or the end of the file) continues the previous row.
+PRICE_CORRECTION_REASON_BREAK = re.compile(rb"\r?\n(?!\d{4}-\d{2}-\d{2},|$)")
+
+
+def _read_price_corrections_csv(contents: bytes) -> pd.DataFrame:
+    return pd.read_csv(
+        io.BytesIO(PRICE_CORRECTION_REASON_BREAK.sub(b"; ", contents)),
+    )
+
 
 def _determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
@@ -1812,7 +1823,7 @@ class CAISO(ISOBase):
                 contents = archive.read(archive.namelist()[0])
                 # A data response is a CSV; "no data" is an XML error document.
                 if b"ERR_CODE" not in contents[:600]:
-                    return pd.read_csv(io.BytesIO(contents))
+                    return _read_price_corrections_csv(contents)
             time.sleep(sleep)
 
         return pd.DataFrame()
