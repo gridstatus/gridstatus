@@ -11,7 +11,9 @@ from gridstatus.spp import (
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    SWPW_FUEL_MIX_START,
     BAAEnum,
+    combine_baa_fuel_mix,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -3284,3 +3286,54 @@ class TestFillBaaColumn:
         )
         result = fill_baa_column(df, "Load")
         assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
+
+
+def _by_baa_fuel_mix(rows: list[tuple[str, str, float]]) -> pd.DataFrame:
+    """Build a by-BAA fuel mix from (BAA, interval start in UTC, wind) rows."""
+    df = pd.DataFrame(rows, columns=["BAA", "Interval Start", "Wind"])
+    df["Interval Start"] = pd.to_datetime(df["Interval Start"], utc=True).dt.tz_convert(
+        SPP.default_timezone,
+    )
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+    return df
+
+
+class TestCombineBaaFuelMix:
+    """Tests for the combine_baa_fuel_mix utility function."""
+
+    def test_sums_intervals_every_baa_reports(self):
+        # Rolling windows one interval apart: SPP's newest interval and SWPW's
+        # oldest are each reported by one BAA only.
+        df = _by_baa_fuel_mix(
+            [
+                ("SPP", "2026-10-27 22:35", 15006.5),
+                ("SPP", "2026-10-27 22:40", 15010.0),
+                ("SPP", "2026-10-27 22:45", 15020.0),
+                ("SWPW", "2026-10-27 22:30", 130.0),
+                ("SWPW", "2026-10-27 22:35", 132.6),
+                ("SWPW", "2026-10-27 22:40", 135.0),
+            ],
+        )
+
+        result = combine_baa_fuel_mix(df)
+
+        assert result.columns.tolist() == ["Interval Start", "Interval End", "Wind"]
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-10-27 22:35", tz="UTC"),
+            pd.Timestamp("2026-10-27 22:40", tz="UTC"),
+        ]
+        assert result["Wind"].tolist() == pytest.approx([15139.1, 15145.0])
+
+    def test_keeps_spp_only_intervals_before_swpw_start(self):
+        before_start = SWPW_FUEL_MIX_START - pd.Timedelta(minutes=5)
+        df = _by_baa_fuel_mix(
+            [
+                ("SPP", str(before_start), 9000.0),
+                ("SPP", str(SWPW_FUEL_MIX_START), 9100.0),
+            ],
+        )
+
+        result = combine_baa_fuel_mix(df)
+
+        assert result["Interval Start"].tolist() == [before_start]
+        assert result["Wind"].tolist() == [9000.0]
