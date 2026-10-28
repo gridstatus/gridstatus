@@ -11,7 +11,9 @@ from gridstatus.spp import (
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    SWPW_FUEL_MIX_START,
     BAAEnum,
+    combine_baa_fuel_mix,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -3284,3 +3286,102 @@ class TestFillBaaColumn:
         )
         result = fill_baa_column(df, "Load")
         assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
+
+
+def _baa_fuel_mix(baa: str, interval_starts_utc: list[str], **columns) -> pd.DataFrame:
+    interval_start = pd.to_datetime(interval_starts_utc, utc=True).tz_convert(
+        SPP.default_timezone,
+    )
+    return pd.DataFrame(
+        {
+            "Interval Start": interval_start,
+            "Interval End": interval_start + pd.Timedelta(minutes=5),
+            "BAA": baa,
+            **columns,
+        },
+    )
+
+
+class TestCombineBaaFuelMix:
+    """Tests for the combine_baa_fuel_mix utility function."""
+
+    def test_sums_intervals_in_both_baas(self):
+        spp_df = _baa_fuel_mix(
+            BAAEnum.SPP.value,
+            ["2026-10-27 22:30", "2026-10-27 22:35"],
+            Wind=[15000.0, 15006.5],
+            Nuclear=[1219.0, 1217.3],
+        )
+        swpw_df = _baa_fuel_mix(
+            BAAEnum.SWPW.value,
+            ["2026-10-27 22:30", "2026-10-27 22:35"],
+            Wind=[130.0, 132.6],
+            Nuclear=[0.0, 0.0],
+        )
+
+        result = combine_baa_fuel_mix(spp_df, swpw_df)
+
+        assert result.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Wind",
+            "Nuclear",
+        ]
+        assert result["Wind"].tolist() == pytest.approx([15130.0, 15139.1])
+        assert result["Nuclear"].tolist() == pytest.approx([1219.0, 1217.3])
+
+    def test_drops_intervals_missing_from_one_baa(self):
+        # Rolling windows of equal length that are one interval apart: SPP is
+        # ahead, so SWPW's oldest interval and SPP's newest are in one file only.
+        spp_df = _baa_fuel_mix(
+            BAAEnum.SPP.value,
+            ["2026-10-27 22:35", "2026-10-27 22:40", "2026-10-27 22:45"],
+            Wind=[15006.5, 15010.0, 15020.0],
+        )
+        swpw_df = _baa_fuel_mix(
+            BAAEnum.SWPW.value,
+            ["2026-10-27 22:30", "2026-10-27 22:35", "2026-10-27 22:40"],
+            Wind=[130.0, 132.6, 135.0],
+        )
+
+        result = combine_baa_fuel_mix(spp_df, swpw_df)
+
+        assert result["Interval Start"].tolist() == list(
+            pd.to_datetime(
+                ["2026-10-27 22:35", "2026-10-27 22:40"],
+                utc=True,
+            ).tz_convert(SPP.default_timezone),
+        )
+        assert result["Wind"].tolist() == pytest.approx([15139.1, 15145.0])
+
+    def test_keeps_spp_only_intervals_before_swpw_start(self):
+        before_start = SWPW_FUEL_MIX_START - pd.Timedelta(minutes=5)
+        spp_df = _baa_fuel_mix(
+            BAAEnum.SPP.value,
+            [str(before_start), str(SWPW_FUEL_MIX_START)],
+            Wind=[9000.0, 9100.0],
+        )
+        swpw_df = _baa_fuel_mix(BAAEnum.SWPW.value, [], Wind=[])
+
+        result = combine_baa_fuel_mix(spp_df, swpw_df)
+
+        assert result["Interval Start"].tolist() == [before_start]
+        assert result["Wind"].tolist() == [9000.0]
+
+    def test_sums_detailed_columns(self):
+        spp_df = _baa_fuel_mix(
+            BAAEnum.SPP.value,
+            ["2026-10-27 17:35", "2026-10-27 17:40"],
+            **{"Wind Market": [9000.0, 9100.0], "Wind Self": [1100.0, 1136.1]},
+        )
+        swpw_df = _baa_fuel_mix(
+            BAAEnum.SWPW.value,
+            ["2026-10-27 17:40"],
+            **{"Wind Market": [300.0], "Wind Self": [19.3]},
+        )
+
+        result = combine_baa_fuel_mix(spp_df, swpw_df)
+
+        assert len(result) == 1
+        assert result["Wind Market"].tolist() == pytest.approx([9400.0])
+        assert result["Wind Self"].tolist() == pytest.approx([1155.4])

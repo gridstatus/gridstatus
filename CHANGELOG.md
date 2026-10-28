@@ -15,6 +15,9 @@
 #### NYISO
 * `NYISO.get_limiting_constraints_real_time` now reads NYISO's `Time Stamp` as the end of the interval instead of the start, so every interval was previously reported 5 minutes late. Real-time limiting constraints use the same convention as real-time LBMPs: from July to September 2026, when a single constraint bound for one isolated interval, zonal congestion appeared in the LBMP with the same timestamp in 108 of 109 cases. Each daily file holds the stamps 00:00 through 23:55, so a single day's intervals now end between 00:00 and 23:55.
 
+#### SPP
+* `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
+
 ## v0.37.0 - October 22, 2026
 
 ### Documentation & Packaging
