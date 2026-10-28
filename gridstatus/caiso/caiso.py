@@ -39,9 +39,7 @@ from gridstatus.lmp_config import lmp_config
 # column and are dropped during parsing.
 PRICE_CORRECTION_NO_RECORDS_REASON = "No records found for report."
 
-# Every PRC_CORR_GRP data row starts with its trade date. A correction with
-# several reasons puts an unquoted newline between them, so a line break not
-# followed by a trade date (or the end of the file) continues the previous row.
+# A correction with several reasons puts an unquoted newline between them.
 PRICE_CORRECTION_REASON_BREAK = re.compile(rb"\r?\n(?!\d{4}-\d{2}-\d{2},|$)")
 
 
