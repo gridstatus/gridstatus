@@ -6,7 +6,10 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException, NotSupported
-from gridstatus.caiso.caiso import _collapse_group_to_array
+from gridstatus.caiso.caiso import (
+    _collapse_group_to_array,
+    _read_price_corrections_csv,
+)
 from gridstatus.caiso.caiso_constants import (
     REAL_TIME_DISPATCH_MARKET_RUN_ID,
     get_dataframe_config_for_renewables_report,
@@ -247,6 +250,32 @@ class TestCAISO(BaseTestISO):
         ):
             with pytest.raises(NoDataFoundException):
                 self.iso.get_price_corrections(date="2026-07-01", end="2026-07-04")
+
+    def test_parse_price_corrections_multiline_reason(self):
+        # Trade date 2026-10-13 as served by OASIS: the Interval Replacement row
+        # lists two reasons separated by an unquoted newline.
+        contents = (
+            b"TRADE_DATE,HOUR_ENDING,INTERVAL,MARKET,AFFECTED_AREA,"
+            b"CORRECTION_METHOD,CORRECTION_COUNT,ENERGY_TYPECODE,"
+            b"CORRECTION_REASON,REPORT_GENERATED,GROUP\n"
+            b"2026-10-13,24,11,RTD,SYSTEM,Interval Replacement,,,Reason A.\n"
+            b"Reason B.,2026-10-23 18:49:57.0,108\n"
+            b"2026-10-13,24,11,RTD,SYSTEM,Price Fill (Non-FRP),,,,"
+            b"2026-10-21 20:52:42.0,109\n"
+        )
+
+        df = self.iso._parse_price_corrections(
+            _read_price_corrections_csv(contents),
+        )
+
+        assert df.columns.tolist() == self.PRICE_CORRECTIONS_COLUMNS
+        assert (df["Trade Date"] == pd.Timestamp("2026-10-13", tz="US/Pacific")).all()
+        replacement = df[df["Correction Method"] == "Interval Replacement"].iloc[0]
+        assert replacement["Correction Reason"] == "Reason A.; Reason B."
+        assert replacement["Report Generated"] == pd.Timestamp(
+            "2026-10-23 18:49:57",
+            tz="US/Pacific",
+        )
 
     """get_ir_rc_prices"""
 
