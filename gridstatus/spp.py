@@ -165,48 +165,30 @@ def fill_baa_column(df, load_col):
     return df
 
 
-def combine_baa_fuel_mix(spp_df: pd.DataFrame, swpw_df: pd.DataFrame) -> pd.DataFrame:
-    """Sum SPP and SWPW fuel mix at each interval.
+def combine_baa_fuel_mix(df: pd.DataFrame) -> pd.DataFrame:
+    """Sum fuel mix across BAAs at each interval.
 
     SPP publishes each BAA in its own rolling file, so one file can hold an
-    interval the other doesn't. An interval is kept only when both BAAs report
-    it, so a single BAA's values are never returned as the combined total.
-    Before SWPW_FUEL_MIX_START, SPP alone is the full system.
+    interval the other doesn't. An interval is kept only when every BAA reports
+    it, so one BAA's values are never returned as the combined total. Before
+    SWPW_FUEL_MIX_START, SPP alone is the full system.
 
     Args:
-        spp_df: fuel mix for the SPP BAA
-        swpw_df: fuel mix for the SWPW BAA
+        df: fuel mix with a BAA column and one row per BAA per interval
 
     Returns:
-        pd.DataFrame: fuel mix summed across both BAAs
+        pd.DataFrame: fuel mix summed across BAAs
     """
-    time_cols = ["Interval Start", "Interval End"]
-    spp_df = spp_df.drop(columns=["BAA"], errors="ignore")
-    swpw_df = swpw_df.drop(columns=["BAA"], errors="ignore")
-    fuel_cols = [c for c in spp_df.columns if c not in time_cols]
-
-    df = pd.merge(
-        spp_df,
-        swpw_df,
-        on=time_cols,
-        suffixes=("_spp", "_swpw"),
-        how="outer",
-        indicator=True,
-    )
-
-    in_both = df["_merge"] == "both"
-    spp_only_before_swpw = (df["_merge"] == "left_only") & (
+    baa_count = df.groupby("Interval Start")["BAA"].transform("nunique")
+    complete = (baa_count == len(BAAEnum)) | (
         df["Interval Start"] < SWPW_FUEL_MIX_START
     )
-    df = df[in_both | spp_only_before_swpw].drop(columns="_merge")
-
-    for col in fuel_cols:
-        spp_col = f"{col}_spp"
-        swpw_col = f"{col}_swpw"
-        df[col] = df[spp_col].fillna(0) + df[swpw_col].fillna(0)
-        df = df.drop(columns=[spp_col, swpw_col])
-
-    return df.sort_values("Interval Start", ignore_index=True)
+    return (
+        df[complete]
+        .drop(columns="BAA")
+        .groupby(["Interval Start", "Interval End"], as_index=False)
+        .sum()
+    )
 
 
 def _binding_constraints_real_time_5_min_frequency(args_dict: dict) -> str:
@@ -395,15 +377,10 @@ class SPP(ISOBase):
             baa=BAAEnum.SWPW,
         )
 
+        df = pd.concat([spp_df, swpw_df], ignore_index=True)
         if by_baa:
-            df = pd.concat([spp_df, swpw_df], ignore_index=True)
-            df = df.sort_values(
-                ["Interval Start", "BAA"],
-                ignore_index=True,
-            )
-            return df
-
-        return combine_baa_fuel_mix(spp_df, swpw_df)
+            return df.sort_values(["Interval Start", "BAA"], ignore_index=True)
+        return combine_baa_fuel_mix(df)
 
     def _get_fuel_mix(
         self,
