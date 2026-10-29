@@ -2,6 +2,10 @@
 
 ## v.Next
 
+### Improvements
+
+* `import gridstatus` no longer imports every ISO module. The ISO classes, `gridstatus.all_isos` and submodules such as `gridstatus.viz` are imported on first access, so `import gridstatus` doesn't load plotly, BeautifulSoup or pdfplumber, and using one ISO loads only the libraries that ISO needs. `get_iso` imports only the requested ISO.
+
 ### Fixes
 
 #### CAISO

@@ -1,5 +1,7 @@
 import io
 import struct
+import subprocess
+import sys
 import zipfile
 
 import pandas as pd
@@ -13,6 +15,59 @@ from gridstatus.utils import (
     is_yesterday,
     read_zip_member_with_local_header_fallback,
 )
+
+
+def test_import_gridstatus_does_not_import_iso_modules():
+    # A new interpreter, since other tests have already imported the ISO modules
+    modules = ["gridstatus.ercot", "gridstatus.pjm", "gridstatus.viz", "bs4", "plotly"]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"import sys, gridstatus; print([m for m in {modules} if m in sys.modules])",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout.strip() == "[]"
+
+
+def test_iso_classes_and_submodules_load_on_access():
+    assert [iso.__name__ for iso in gridstatus.all_isos] == [
+        "AESO",
+        "NYISO",
+        "CAISO",
+        "Ercot",
+        "ISONE",
+        "MISO",
+        "SPP",
+        "PJM",
+        "IESO",
+    ]
+    assert gridstatus.EIA is gridstatus.eia.EIA
+    assert gridstatus.nyiso.NYISO is gridstatus.NYISO
+    assert callable(gridstatus.viz.dam_heat_map)
+    with pytest.raises(AttributeError):
+        gridstatus.not_an_attribute  # noqa: B018
+
+
+def test_get_iso():
+    for iso in gridstatus.utils.all_isos:
+        assert gridstatus.get_iso(iso.iso_id) is iso
+    assert list(gridstatus.list_isos()["Class"]) == [
+        "MISO",
+        "CAISO",
+        "PJM",
+        "Ercot",
+        "SPP",
+        "NYISO",
+        "ISONE",
+        "IESO",
+    ]
+    with pytest.raises(KeyError):
+        gridstatus.get_iso("not_an_iso")
 
 
 def test_is_dst_end():

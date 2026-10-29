@@ -3,6 +3,7 @@ import io
 import os
 import struct
 from collections.abc import Callable
+from typing import Any
 from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
@@ -11,38 +12,51 @@ import tqdm
 
 import gridstatus
 from gridstatus.base import ISOBase, Markets, NotSupported, _interconnection_columns
-from gridstatus.caiso import CAISO
-from gridstatus.ercot import Ercot
 from gridstatus.gs_logging import log
-from gridstatus.ieso import IESO
-from gridstatus.isone import ISONE
 from gridstatus.lmp_config import lmp_config
-from gridstatus.miso import MISO
-from gridstatus.nyiso import NYISO
-from gridstatus.pjm import PJM
-from gridstatus.spp import SPP
 
 GREEN_CHECKMARK_HTML_ENTITY: str = "&#x2705;"
 
 RED_X_HTML_ENTITY: str = "&#10060;"
-all_isos: list[ISOBase] = [MISO, CAISO, PJM, Ercot, SPP, NYISO, ISONE, IESO]
+
+# The class name of each ISO in `all_isos`, by `iso_id`. The classes are imported
+# on first access through `gridstatus`, so using one ISO doesn't import the others.
+_ISO_CLASS_NAMES: dict[str, str] = {
+    "miso": "MISO",
+    "caiso": "CAISO",
+    "pjm": "PJM",
+    "ercot": "Ercot",
+    "spp": "SPP",
+    "nyiso": "NYISO",
+    "isone": "ISONE",
+    "ieso": "IESO",
+}
+
+
+def _get_all_isos() -> list[type[ISOBase]]:
+    return [getattr(gridstatus, class_name) for class_name in _ISO_CLASS_NAMES.values()]
+
+
+def __getattr__(name: str) -> Any:
+    if name == "all_isos":
+        return _get_all_isos()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def list_isos() -> pd.DataFrame:
     """List available ISOs"""
 
-    isos = [[i.name, i.iso_id, i.__name__] for i in all_isos]
+    isos = [[i.name, i.iso_id, i.__name__] for i in _get_all_isos()]
 
     return pd.DataFrame(isos, columns=["Name", "Id", "Class"])
 
 
 def get_iso(iso_id: str) -> ISOBase:
     """Get an ISO by its id"""
-    for i in all_isos:
-        if i.iso_id == iso_id:
-            return i
+    if iso_id not in _ISO_CLASS_NAMES:
+        raise KeyError
 
-    raise KeyError
+    return getattr(gridstatus, _ISO_CLASS_NAMES[iso_id])
 
 
 def make_availability_df() -> dict[str, pd.DataFrame]:
@@ -84,7 +98,7 @@ def make_availability_df() -> dict[str, pd.DataFrame]:
                 availability[i.__name__][method][date] = is_defined
 
     availability_dfs = {}
-    for i in all_isos:
+    for i in _get_all_isos():
         availability_dfs[i.__name__] = pd.DataFrame(availability[i.__name__])
 
     return availability_dfs
@@ -396,7 +410,7 @@ def load_folder(
 def get_interconnection_queues() -> pd.DataFrame:
     """Get interconnection queue data for all ISOs"""
     all_queues = []
-    for iso in tqdm.tqdm(all_isos):
+    for iso in tqdm.tqdm(_get_all_isos()):
         iso = iso()
         # only shared columns
         # add error handling for IESO
