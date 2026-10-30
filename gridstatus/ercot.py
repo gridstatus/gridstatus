@@ -8228,12 +8228,46 @@ class Ercot(ISOBase):
 
         return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
+    def _read_ruc_docs(
+        self,
+        docs: list[Document],
+        timestamp_column: str,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        frames = []
+        for doc in docs:
+            frame = self.read_doc(doc, parse=False, verbose=verbose)
+            times = pd.to_datetime(frame[timestamp_column])
+            daylight = times.dt.tz_localize(self.default_timezone, ambiguous=True)
+            standard = times.dt.tz_localize(self.default_timezone, ambiguous=False)
+            # RepeatedHourFlag describes delivery hours, not the RUC run.
+            # Use the latest occurrence no later than this report's publication.
+            # This assumes a repeated-hour run is published within an hour;
+            # keep document context until the run time has been localized.
+            ambiguous = daylight != standard
+            if (
+                ambiguous
+                & (
+                    (daylight > doc.publish_date)
+                    | (doc.publish_date - standard >= pd.Timedelta(hours=1))
+                )
+            ).any():
+                raise ValueError(
+                    "Cannot resolve RUC timestamp within an hour before publication",
+                )
+            frame[timestamp_column] = daylight.where(
+                ~ambiguous | (standard > doc.publish_date),
+                standard,
+            )
+            frames.append(frame)
+        return pd.concat(frames, ignore_index=True)
+
     def _handle_as_deployment_factors_ruc(
         self,
         docs: list[Document],
         verbose: bool = False,
     ) -> pd.DataFrame:
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(docs, "RUCTimestamp", verbose=verbose)
         df = df.rename(
             columns={
                 "RUCTimestamp": "RUC Timestamp",
@@ -8244,11 +8278,6 @@ class Ercot(ISOBase):
         )
 
         df = self.parse_doc(df)
-
-        # Parse RUC Timestamp
-        df["RUC Timestamp"] = pd.to_datetime(
-            df["RUC Timestamp"],
-        ).dt.tz_localize(self.default_timezone)
 
         df["AS Deployment Factors"] = pd.to_numeric(
             df["AS Deployment Factors"],
@@ -8289,7 +8318,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(docs, "RUCTimeStamp", verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
     # Published per DRUC run (once per day) for the next day
@@ -8312,7 +8341,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(docs, "RUCTimeStamp", verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
     # Published per WRUC run (once per day) for the next five days
@@ -8335,7 +8364,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(docs, "RUCTimeStamp", verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
     def _handle_ruc_as_demand_curves(
@@ -8352,11 +8381,6 @@ class Ercot(ISOBase):
         )
 
         df = self.parse_doc(df)
-
-        # Parse RUC Timestamp
-        df["RUC Timestamp"] = pd.to_datetime(
-            df["RUC Timestamp"],
-        ).dt.tz_localize(self.default_timezone)
 
         for col in ["Quantity", "Price", "Demand Curve Point"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
