@@ -8,6 +8,7 @@
 * `get_price_corrections` handles a correction with several reasons. OASIS separates them with an unquoted newline, so the second reason was read as a new row whose `Trade Date` failed to parse. Since October 23, 2026, every range that included trade date October 13, 2026 raised `ValueError`. The reasons are now joined with `; ` in `Correction Reason`.
 
 #### ERCOT
+* Preserve distinct wind and solar forecast publication hours when archive files share a wall-clock timestamp during fall DST.
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
 
