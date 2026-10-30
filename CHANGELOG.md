@@ -43,6 +43,9 @@
 
 ### Additions (New Features/Datasets)
 
+#### EPA
+* Hourly CAMPD emissions and generation via `EPA.get_power_plant_emissions_generation` in [#917](https://github.com/gridstatus/gridstatus/pull/917)
+
 #### NYISO
 * NYISO Area Control Error (ACE) data available at https://mis.nyiso.com/public/P-38list.htm requested in [#906](https://github.com/gridstatus/gridstatus/issues/906)
 * NYISO generation maintenance forecast and hourly zonal load via `NYISO.get_generation_outages_forecast` and `NYISO.get_zonal_load_hourly` in [#889](https://github.com/gridstatus/gridstatus/pull/889)

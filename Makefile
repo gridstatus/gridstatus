@@ -70,7 +70,7 @@ test-ieso:
 
 .PHONY: test-misc
 test-misc:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py gridstatus/tests/source_specific/test_epa.py
 
 .PHONY: test-cov
 test-cov:

@@ -51,6 +51,7 @@ dependencies = [
     "pytz >=2026.3",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
+    "tzfpy >=1.0,<3",
     "tqdm ~=4.67",
     "openpyxl ~=3.1",
     "pdfplumber ~=0.11",
