@@ -1,5 +1,4 @@
 import io
-import math
 import os
 import random
 import time
@@ -13,7 +12,13 @@ import tqdm
 from bs4 import BeautifulSoup
 
 from gridstatus import utils
-from gridstatus.base import ISOBase, Markets, NoDataFoundException, NotSupported
+from gridstatus.base import (
+    ISOBase,
+    Markets,
+    NoDataFoundException,
+    NotSupported,
+    loggable_request_kwargs,
+)
 from gridstatus.decorators import (
     _get_pjm_archive_date,
     pjm_update_dates,
@@ -31,6 +36,27 @@ from gridstatus.pjm_constants import (
     REQUEST_TIMEOUT,
     ZONE_NODE_IDS,
 )
+
+DATA_MINER_URL = "https://api.pjm.com/api/v1/"
+DATA_MINER_MAX_ROW_COUNT = 50000
+# Smallest page size drawn for a feed requested without a date filter. Half the
+# maximum keeps a pull within twice the request count while giving 25,001
+# distinct sizes, so consecutive pulls do not repeat a page URL.
+DATA_MINER_MIN_RANDOM_ROW_COUNT = 25000
+
+
+class DataMinerSnapshotMismatch(RuntimeError):
+    """The pages of one Data Miner pull did not come from the same result set."""
+
+
+def _same_rows(first: pd.DataFrame, second: pd.DataFrame) -> bool:
+    """Whether two pages hold the same rows, in any order."""
+    if first.shape != second.shape or set(first.columns) != set(second.columns):
+        return False
+    columns = list(first.columns)
+    first_hashes = pd.util.hash_pandas_object(first[columns], index=False)
+    second_hashes = pd.util.hash_pandas_object(second[columns], index=False)
+    return sorted(first_hashes) == sorted(second_hashes)
 
 
 class PJM(ISOBase):
@@ -219,7 +245,7 @@ class PJM(ISOBase):
 
         params = {
             "fields": (
-                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"  # noqa: E501
+                "evaluated_at_datetime_utc,forecast_area,forecast_datetime_beginning_utc,forecast_datetime_ending_utc,forecast_area,forecast_load_mw"
             ),
         }
 
@@ -250,7 +276,7 @@ class PJM(ISOBase):
         # Historical data uses a different endpoint with slightly different fields.
         params = {
             "fields": (
-                "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"  # noqa: E501
+                "evaluated_at_utc,forecast_area,forecast_hour_beginning_utc,forecast_area,forecast_load_mw"
             ),
         }
 
@@ -365,16 +391,35 @@ class PJM(ISOBase):
             drop=True,
         )
 
-    def get_pnode_ids(self) -> pd.DataFrame:
+    def get_pnode_ids(self, include_terminated: bool = False) -> pd.DataFrame:
+        """Returns the pnode directory.
+
+        Arguments:
+            include_terminated: Include pnodes PJM has retired. Defaults to
+                False, which returns only pnodes that are currently active.
+                Pass True when labelling historical data, since a node that
+                has since been retired still appears in LMPs for the dates it
+                was in service.
+
+        Returns:
+            pd.DataFrame: One row per pnode id, carrying its most recent
+            effective date.
+        """
         data = {
             "fields": "effective_date,pnode_id,pnode_name,pnode_subtype,pnode_type\
                 ,termination_date,voltage_level,zone",
-            "termination_date": "12/31/9999exact",
         }
+
+        if not include_terminated:
+            data["termination_date"] = "12/31/9999exact"
+
         nodes = self._get_pjm_json("pnode", start=None, params=data)
 
-        # only keep most recent effective date for each id
-        # return sorted by pnode_id
+        # PJM publishes one row per effective-date window, so a node that has
+        # been revised carries several. Keeping the most recent window per id
+        # leaves one row each: a pnode's name never differs across its own
+        # windows, so this labels historical data the same as current data.
+        # Returned sorted by pnode_id.
         nodes = (
             nodes.sort_values("effective_date", ascending=False)
             .drop_duplicates(
@@ -532,12 +577,12 @@ class PJM(ISOBase):
             )
         except NoDataFoundException as e:
             if "No data found" not in str(e):
-                raise e
+                raise
 
             if market_endpoint == "rt_fivemin_hrl_lmps":
                 market_endpoint = "rt_unverified_fivemin_lmps"
                 params["fields"] = (
-                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"  # noqa: E501
+                    "congestion_price_rt,datetime_beginning_ept,datetime_beginning_utc,marginal_loss_price_rt,occ_check,pnode_id,pnode_name,ref_caseid_used_multi_interval,total_lmp_rt,type"
                 )
                 # remove this field because it's not supported in this endpoint
                 del params["row_is_current"]
@@ -693,11 +738,17 @@ class PJM(ISOBase):
         # will get full name by merge with pnode data later
         data = data.drop(columns=["pnode_name"])
 
-        p_nodes = self.get_pnode_ids()[
+        # Terminated pnodes are included because historical LMPs contain nodes
+        # PJM has since retired. An inner merge against the active-only list
+        # dropped their rows outright, so a backfill run after a node was
+        # retired silently lost its whole history.
+        p_nodes = self.get_pnode_ids(include_terminated=True)[
             ["pnode_id", "pnode_name", "voltage_level", "pnode_short_name"]
         ]
 
-        data = data.merge(p_nodes, on="pnode_id")
+        # Left so an id missing from the directory keeps its prices rather
+        # than vanishing; the name columns are simply null for it.
+        data = data.merge(p_nodes, on="pnode_id", how="left")
 
         return data
 
@@ -812,7 +863,7 @@ class PJM(ISOBase):
         """Get real-time unverified hourly LMPs"""
 
         params = {
-            "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",  # noqa: E501
+            "fields": "datetime_beginning_utc, datetime_beginning_ept, pnode_name, type, total_lmp_rt, congestion_price_rt, marginal_loss_price_rt",
         }
         if location_type:
             location_type = location_type.upper()
@@ -883,7 +934,7 @@ class PJM(ISOBase):
 
         params = {
             "fields": (
-                "case_approval_datetime_utc,datetime_beginning_utc,itsced_lmp,marginal_congestion,marginal_loss,pnode_id,pnode_name"  # noqa: E501
+                "case_approval_datetime_utc,datetime_beginning_utc,itsced_lmp,marginal_congestion,marginal_loss,pnode_id,pnode_name"
             ),
         }
 
@@ -948,7 +999,7 @@ class PJM(ISOBase):
             "rt_fivemin_mnt_lmps",
             start=date,
             params={
-                "fields": "congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_rt,total_lmp_rt,type,voltage,zone",  # noqa: E501
+                "fields": "congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_rt,total_lmp_rt,type,voltage,zone",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -995,7 +1046,7 @@ class PJM(ISOBase):
             "rt_da_monthly_lmps",
             start=date,
             params={
-                "fields": "congestion_price_da,congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_da,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_da,system_energy_price_rt,total_lmp_da,total_lmp_rt,type,voltage,zone",  # noqa: E501
+                "fields": "congestion_price_da,congestion_price_rt,datetime_beginning_utc,equipment,marginal_loss_price_da,marginal_loss_price_rt,pnode_id,pnode_name,system_energy_price_da,system_energy_price_rt,total_lmp_da,total_lmp_rt,type,voltage,zone",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -1051,7 +1102,7 @@ class PJM(ISOBase):
         reason = ""
         while retries <= self.retries:
             try:
-                logger.info(f"Requesting {url} with {kwargs}")
+                logger.info(f"Requesting {url} with {loggable_request_kwargs(kwargs)}")
                 if method == "POST":
                     response = requests.post(url, timeout=REQUEST_TIMEOUT, **kwargs)
                 else:
@@ -1080,6 +1131,119 @@ class PJM(ISOBase):
             time.sleep(delay + random.uniform(0, delay * 0.1))
             delay *= 2
 
+    def _data_miner_page_size(
+        self,
+        row_count: int | None,
+        vary: bool,
+        exclude: int | None = None,
+    ) -> int:
+        if row_count is not None:
+            return row_count
+        if not vary:
+            return DATA_MINER_MAX_ROW_COUNT
+        while True:
+            size = random.randint(
+                DATA_MINER_MIN_RANDOM_ROW_COUNT,
+                DATA_MINER_MAX_ROW_COUNT,
+            )
+            if size != exclude:
+                return size
+
+    def _data_miner_page(self, endpoint: str, page_params: dict) -> dict:
+        logger.info(f"Retrieving data from {endpoint} with params {page_params}")
+        r = self._make_api_call(
+            DATA_MINER_URL + endpoint,
+            params=page_params,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
+        )
+        if "errors" in r:
+            raise RuntimeError(r["errors"])
+        return r
+
+    def _fetch_data_miner_pages(
+        self,
+        endpoint: str,
+        params: dict,
+        start_row: int,
+        row_count: int | None,
+        vary_page_size: bool,
+    ) -> pd.DataFrame:
+        """Fetch every page of a Data Miner query by explicit ``startRow``.
+
+        Every page must report the same ``totalRows`` and the pages together
+        must hold that many rows; otherwise raises DataMinerSnapshotMismatch.
+        A varied-size pull that fits in one page has no second page to check
+        it against, so it is fetched again with a different size and the two
+        copies must match. Each page becomes a DataFrame as it arrives so the
+        pull never holds the whole feed as dicts.
+        """
+        pages: list[pd.DataFrame] = []
+        rows_fetched = 0
+        total_rows: int | None = None
+        next_start_row = start_row
+        progress = None
+
+        while True:
+            page_params = params | {
+                "startRow": next_start_row,
+                "rowCount": self._data_miner_page_size(row_count, vary_page_size),
+            }
+            r = self._data_miner_page(endpoint, page_params)
+
+            if total_rows is None:
+                total_rows = r["totalRows"]
+                if total_rows == 0:
+                    raise NoDataFoundException(f"No data found for {endpoint}")
+                if total_rows > page_params["rowCount"]:
+                    progress = tqdm.tqdm(total=total_rows, initial=0, unit="rows")
+            elif r["totalRows"] != total_rows:
+                raise DataMinerSnapshotMismatch(
+                    f"{endpoint}: page at startRow={next_start_row} reports "
+                    f"{r['totalRows']} total rows, first page reported {total_rows}",
+                )
+
+            pages.append(pd.DataFrame(r["items"]))
+            rows_fetched += len(r["items"])
+            if progress is not None:
+                progress.update(len(r["items"]))
+            next_start_row += page_params["rowCount"]
+            if next_start_row > total_rows:
+                break
+
+        if progress is not None:
+            progress.close()
+
+        expected_rows = total_rows - start_row + 1
+        if rows_fetched != expected_rows:
+            raise DataMinerSnapshotMismatch(
+                f"{endpoint}: pages returned {rows_fetched} rows, "
+                f"totalRows says {expected_rows}",
+            )
+
+        if vary_page_size and row_count is None and len(pages) == 1:
+            check_params = params | {
+                "startRow": start_row,
+                "rowCount": self._data_miner_page_size(
+                    row_count,
+                    vary_page_size,
+                    exclude=page_params["rowCount"],
+                ),
+            }
+            check = self._data_miner_page(endpoint, check_params)
+            if check["totalRows"] != total_rows or not _same_rows(
+                pages[0],
+                pd.DataFrame(check["items"]),
+            ):
+                raise DataMinerSnapshotMismatch(
+                    f"{endpoint}: a second request for the same page "
+                    f"(rowCount={check_params['rowCount']}) returned "
+                    f"{check['totalRows']} total rows and "
+                    f"{len(check['items'])} rows against {total_rows} and "
+                    f"{rows_fetched} on the first",
+                )
+
+        return pd.concat(pages, ignore_index=True)
+
     def _get_pjm_json(
         self,
         endpoint: str,
@@ -1087,22 +1251,25 @@ class PJM(ISOBase):
         params: dict,
         end: str | pd.Timestamp | None = None,
         start_row: int = 1,
-        row_count: int = 50000,
-        interval_duration_min: int | float | None = None,
+        row_count: int | None = None,
+        interval_duration_min: float | None = None,
         filter_timestamp_name: str = "datetime_beginning",
         verbose: bool = False,
     ):
+        """Query a Data Miner feed and return every row as a DataFrame.
+
+        Data Miner can keep answering a query it has served before with the
+        result set it computed at the time, page by page, across the feed's
+        later data loads. Pages are therefore requested by explicit ``startRow``
+        rather than the API's ``next`` links, a query without a date filter
+        (whose parameters would otherwise be identical on every run) draws a
+        random page size, and a pull whose pages disagree on ``totalRows`` is
+        retried once with new page sizes and then rejected.
+        """
         if start == "latest":
             raise NotSupported(f"{self.name} does not support 'latest'")
 
-        default_params = {
-            "startRow": start_row,
-            "rowCount": row_count,
-        }
-
-        # update final params with default params
         final_params = params.copy()
-        final_params.update(default_params)
 
         if start is not None:
             start = utils._handle_date(start)
@@ -1119,42 +1286,20 @@ class PJM(ISOBase):
                 start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
             )
 
-        # Exclude API key from logs
-        params_to_log = final_params.copy()
-
-        if "Ocp-Apim-Subscription-Key" in params_to_log:
-            params_to_log["Ocp-Apim-Subscription-Key"] = "API_KEY_HIDDEN"
-
-        logger.info(f"Retrieving data from {endpoint} with params {params_to_log}")
-        r = self._make_api_call(
-            "https://api.pjm.com/api/v1/" + endpoint,
-            params=final_params,
-            headers={"Ocp-Apim-Subscription-Key": self.api_key},
-        )
-
-        if "errors" in r:
-            raise RuntimeError(r["errors"])
-
-        # # todo should this be a warning?
-        if r["totalRows"] == 0:
-            raise NoDataFoundException(f"No data found for {endpoint}")
-
-        df = pd.DataFrame(r["items"])
-
-        num_pages = math.ceil(r["totalRows"] / row_count)
-        if num_pages > 1:
-            to_add = [df]
-            for page in tqdm.tqdm(range(1, num_pages), initial=1, total=num_pages):
-                next_url = [x for x in r["links"] if x["rel"] == "next"][0]["href"]
-                r = self._make_api_call(
-                    next_url,
-                    headers={
-                        "Ocp-Apim-Subscription-Key": self.api_key,
-                    },
+        for attempt in range(2):
+            try:
+                df = self._fetch_data_miner_pages(
+                    endpoint,
+                    final_params,
+                    start_row,
+                    row_count,
+                    vary_page_size=start is None,
                 )
-                to_add.append(pd.DataFrame(r["items"]))
-
-            df = pd.concat(to_add)
+                break
+            except DataMinerSnapshotMismatch as error:
+                if attempt:
+                    raise
+                logger.warning(f"{error}; retrying the pull with new page sizes")
 
         if "datetime_beginning_utc" in df.columns:
             df["Interval Start"] = (
@@ -1250,7 +1395,7 @@ class PJM(ISOBase):
             "Facilities Study",
             "Facilities Study Status",
             "Interim/Interconnection Service/Generation Interconnection Agreement",
-            "Interim/Interconnection Service/Generation Interconnection Agreement Status",  # noqa: E501
+            "Interim/Interconnection Service/Generation Interconnection Agreement Status",
             "Wholesale Market Participation Agreement",
             "Construction Service Agreement",
             "Construction Service Agreement Status",
@@ -1479,7 +1624,8 @@ class PJM(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """
-        Retrieves the generation outage data
+        Retrieves the generation outage data. Publish Time is 06:00 Eastern on
+        the forecast execution date; PJM provides that date at midnight.
         From: https://dataminer2.pjm.com/feed/gen_outages_by_type/definition
         """
 
@@ -1513,7 +1659,11 @@ class PJM(ISOBase):
 
         df["Interval Start"] = self.to_local_datetime(df, "Interval Start")
         df["Interval End"] = df["Interval Start"] + pd.DateOffset(days=1)
-        df["Publish Time"] = self.to_local_datetime(df, "Publish Time")
+        # Set the local wall-clock time before localizing so DST transition days
+        # also publish at 06:00 Eastern, rather than six elapsed hours after midnight.
+        df["Publish Time"] = (
+            pd.to_datetime(df["Publish Time"]).dt.normalize() + pd.Timedelta(hours=6)
+        ).dt.tz_localize(self.default_timezone)
 
         df = df[
             [
@@ -2371,7 +2521,7 @@ class PJM(ISOBase):
             "hrl_load_metered",
             start=date,
             params={
-                "fields": "datetime_beginning_ept,datetime_beginning_utc,is_verified,load_area,mkt_region,mw,nerc_region,zone",  # noqa: E501
+                "fields": "datetime_beginning_ept,datetime_beginning_utc,is_verified,load_area,mkt_region,mw,nerc_region,zone",
             },
             end=end,
             filter_timestamp_name="datetime_beginning",
@@ -2425,7 +2575,7 @@ class PJM(ISOBase):
             "frcstd_gen_outages",
             start=date,
             params={
-                "fields": "forecast_execution_date_ept,forecast_date,forecast_gen_outage_mw_rto,forecast_gen_outage_mw_west,forecast_gen_outage_mw_other",  # noqa: E501
+                "fields": "forecast_execution_date_ept,forecast_date,forecast_gen_outage_mw_rto,forecast_gen_outage_mw_west,forecast_gen_outage_mw_other",
             },
             end=end,
             filter_timestamp_name="forecast_execution_date",
@@ -3808,11 +3958,13 @@ class PJM(ISOBase):
         logger.info(
             f"GET emergency postings REST from {EMERGENCY_POSTINGS_PUBLIC_REST_URL}...",
         )
+        # The endpoint excludes postings made on the stop date, so stop the day after
+        # end to include postings made on the day of end
         response = requests.get(
             EMERGENCY_POSTINGS_PUBLIC_REST_URL,
             params={
                 "start": date.strftime("%m-%d-%Y"),
-                "stop": end.strftime("%m-%d-%Y"),
+                "stop": (end + pd.Timedelta(days=1)).strftime("%m-%d-%Y"),
             },
             headers={"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"},
             timeout=REQUEST_TIMEOUT,
@@ -3874,6 +4026,8 @@ class PJM(ISOBase):
                 [r.findtext("regionName") for r in regions] if regions else [None]
             )
 
+            is_drill = (msg.findtext("pjmDrill") or "false").strip().lower() == "true"
+
             for rn in region_names:
                 rows.append(
                     {
@@ -3888,6 +4042,7 @@ class PJM(ISOBase):
                         "Applicable End": msg.findtext("applicableEndTime"),
                         "Publish Time": msg.findtext("postedTimestamp"),
                         "Canceled Time": msg.findtext("canceledTimestamp"),
+                        "Is Drill": is_drill,
                     },
                 )
 
@@ -3905,6 +4060,7 @@ class PJM(ISOBase):
                     "Effective End",
                     "Canceled Time",
                     "Emergency Message",
+                    "Is Drill",
                 ],
             )
 
@@ -3935,6 +4091,7 @@ class PJM(ISOBase):
                     "Effective End",
                     "Canceled Time",
                     "Emergency Message",
+                    "Is Drill",
                 ]
             ]
             .sort_values(["Effective Start", "Message ID", "Region"])

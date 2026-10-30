@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import pytest
+from requests.exceptions import RequestException
 
 from gridstatus.aeso.aeso import AESO
 from gridstatus.aeso.aeso_constants import (
@@ -18,6 +19,13 @@ api_vcr = setup_vcr(
     source="aeso",
     record_mode=RECORD_MODE,
 )
+
+
+def test_default_timezone_stays_on_utc_minus_six_after_november_2026():
+    # Alberta stopped changing clocks on November 1, 2026
+    for utc in ["2026-10-31 12:00", "2026-12-15 12:00"]:
+        local = pd.Timestamp(utc, tz="UTC").tz_convert(AESO.default_timezone)
+        assert local.utcoffset() == pd.Timedelta(hours=-6)
 
 
 class TestAESO(TestHelperMixin):
@@ -1040,3 +1048,71 @@ class TestAESO(TestHelperMixin):
             assert len(df) > 0
             assert df["Interval Start"].min().date() >= start_date.date()
             assert df["Interval Start"].max().date() <= end_date.date()
+
+
+class _StopFetch(Exception):
+    pass
+
+
+@pytest.mark.parametrize(
+    "fetch",
+    [
+        pytest.param(
+            lambda iso: iso.get_transmission_outages(date="latest"),
+            id="transmission_outages_latest",
+        ),
+        pytest.param(
+            lambda iso: iso.get_transmission_outages(date="2026-01-01"),
+            id="transmission_outages_historical",
+        ),
+        pytest.param(
+            lambda iso: iso._get_wind_solar_forecast_latest_data(
+                "wind",
+                "shortterm",
+                date="latest",
+            ),
+            id="wind_solar_forecast_latest",
+        ),
+        pytest.param(
+            lambda iso: iso._get_wind_solar_forecast_historical_data(
+                "wind",
+                date="2024-01-01",
+            ),
+            id="wind_solar_forecast_historical",
+        ),
+        pytest.param(
+            lambda iso: iso._get_wind_solar_actual_latest_data("wind"),
+            id="wind_solar_actual_latest",
+        ),
+        pytest.param(
+            lambda iso: iso._get_wind_solar_actual_historical_data(
+                "wind",
+                date="2024-01-01",
+            ),
+            id="wind_solar_actual_historical",
+        ),
+    ],
+)
+def test_public_report_fetches_use_request_timeout(fetch, monkeypatch) -> None:
+    """Every ets.aeso.ca / aeso.ca file fetch must be bounded by REQUEST_TIMEOUT.
+
+    An unbounded fetch that stalls holds the AESO worker loop until gs-etl's
+    own time limit kills it, which delays every other AESO dataset.
+    """
+    calls: list[dict] = []
+
+    def fake_get(url, **kwargs):
+        calls.append({"url": url, **kwargs})
+        raise _StopFetch(url)
+
+    def unbounded_urlopen(*args, **kwargs):
+        raise AssertionError("fetched through urllib without a timeout")
+
+    monkeypatch.setattr("gridstatus.aeso.aeso.requests.get", fake_get)
+    monkeypatch.setattr("urllib.request.urlopen", unbounded_urlopen)
+
+    with pytest.raises((_StopFetch, RequestException, ValueError)):
+        fetch(AESO(api_key="unused"))
+
+    assert calls, "no request went through requests.get"
+    assert all(call.get("timeout") == AESO.REQUEST_TIMEOUT for call in calls)

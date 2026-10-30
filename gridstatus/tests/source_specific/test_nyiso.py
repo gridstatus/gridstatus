@@ -1,10 +1,12 @@
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 import pytest
 
 import gridstatus
 from gridstatus import NYISO, Markets
+from gridstatus.base import NoDataFoundException
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.decorators import with_markets
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -325,6 +327,103 @@ class TestNYISO(BaseTestISO):
                     assert (gaps_seconds == 0).all(), (
                         f"Intervals must be contiguous for location {location}"
                     )
+
+    def test_process_lmp_data_daily_file_ahead_of_latest_file(self, monkeypatch):
+        """Test 5/15-min classification when the daily file leads the latest file.
+
+        The daily realtime file mixes past 5-minute (RTD) rows with future
+        15-minute (RTC) rows, and the split is anchored to the most recent
+        interval in the standalone latest-interval file. When the daily file
+        receives a new 5-minute interval before the latest-interval file does,
+        that row falls after the anchor and was previously relabeled as 15-min
+        data with Interval Start = Interval End - 15 minutes, producing
+        intervals starting off the quarter-hour grid (e.g. 05:25-05:40).
+
+        A 15-minute interval always ends on a quarter-hour boundary, so the
+        newer 5-minute row (ending 05:40 here) must stay 5-minute data.
+        """
+        tz = self.iso.default_timezone
+
+        def timestamp(minute):
+            return pd.Timestamp("2026-06-29 05:00", tz=tz) + pd.Timedelta(
+                minutes=minute,
+            )
+
+        locations = ["CAPITL", "WEST"]
+        # Interval ends present in the daily file: 05:30 and 05:35 are past RTD
+        # rows, 05:40 is the RTD row not yet in the latest-interval file, and
+        # 05:45 and 06:00 are future RTC rows.
+        interval_end_minutes = [30, 35, 40, 45, 60]
+        daily = pd.DataFrame(
+            [
+                {
+                    "Time": timestamp(minute - 5),
+                    "Interval Start": timestamp(minute - 5),
+                    "Interval End": timestamp(minute),
+                    "Name": location,
+                    "LBMP ($/MWHr)": 30.0,
+                    "Marginal Cost Losses ($/MWHr)": 1.0,
+                    "Marginal Cost Congestion ($/MWHr)": -2.0,
+                }
+                for minute in interval_end_minutes
+                for location in locations
+            ],
+        )
+
+        # The latest-interval file still ends at 05:35, one interval behind
+        # the daily file. Values match the daily rows at the same timestamp
+        # (Congestion sign already flipped by processing).
+        latest_5_min = pd.DataFrame(
+            {
+                "Interval Start": [timestamp(30)] * 2,
+                "Interval End": [timestamp(35)] * 2,
+                "Location": locations,
+                "LMP": 30.0,
+                "Loss": 1.0,
+                "Congestion": 2.0,
+            },
+        )
+        monkeypatch.setattr(
+            self.iso,
+            "_get_lmp",
+            lambda *args, **kwargs: latest_5_min,
+        )
+
+        result_15_min = self.iso._process_lmp_data(
+            daily.copy(),
+            date="today",
+            market=Markets.REAL_TIME_15_MIN,
+            location_type=gridstatus.nyiso.NYISOLocationType.ZONE,
+            locations="ALL",
+        )
+
+        assert result_15_min["Interval Start"].dt.minute.isin([0, 15, 30, 45]).all()
+        assert result_15_min["Interval End"].dt.minute.isin([0, 15, 30, 45]).all()
+        assert (
+            result_15_min["Interval End"] - result_15_min["Interval Start"]
+            == pd.Timedelta(minutes=15)
+        ).all()
+        # Only the two future RTC rows per location are 15-min data
+        assert sorted(result_15_min["Interval End"].unique()) == [
+            timestamp(45),
+            timestamp(60),
+        ]
+
+        result_5_min = self.iso._process_lmp_data(
+            daily.copy(),
+            date="today",
+            market=Markets.REAL_TIME_5_MIN,
+            location_type=gridstatus.nyiso.NYISOLocationType.ZONE,
+            locations="ALL",
+        )
+
+        # The newer RTD row ending 05:40 stays 5-min data instead of being
+        # dropped from the 5-min output
+        assert (result_5_min["Interval End"] == timestamp(40)).any()
+        assert (
+            result_5_min["Interval End"] - result_5_min["Interval Start"]
+            == pd.Timedelta(minutes=5)
+        ).all()
 
     @pytest.mark.parametrize(
         "start,end",
@@ -766,6 +865,43 @@ class TestNYISO(BaseTestISO):
             )
             assert df["Time"].dt.date.nunique() == 3
 
+    # December 20 and 21, 2025 are only on mis.nyiso.com
+    def test_get_btm_installed_capacity_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_installed_capacity_across_oasis_postings_switch_2025-12-20_2025-12-24.yaml",
+        ):
+            df = self.iso.get_btm_installed_capacity(
+                start="2025-12-20",
+                end="2025-12-24",
+            )
+
+        assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
+        ]
+
+    def test_get_btm_solar_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_solar_across_oasis_postings_switch_2025-12-20_2025-12-23.yaml",
+        ):
+            df = self.iso.get_btm_solar(start="2025-12-20", end="2025-12-23")
+
+        assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
+            "2025-12-20",
+            "2025-12-21",
+            "2025-12-22",
+            "2025-12-23",
+        ]
+
+    def test_get_btm_installed_capacity_not_posted(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_btm_installed_capacity_not_posted_2099-01-01.yaml",
+        ):
+            with pytest.raises(NoDataFoundException):
+                self.iso.get_btm_installed_capacity(date="2099-01-01")
+
     """get_btm_solar_forecast"""
 
     def _check_btm_solar_forecast(self, df: pd.DataFrame):
@@ -866,6 +1002,28 @@ class TestNYISO(BaseTestISO):
                     "Load Forecast",
                 ],
             )
+
+    def test_load_forecast_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_load_forecast_across_oasis_postings_switch_2026-10-09_2026-10-12.yaml",
+        ):
+            forecast = self.iso.get_load_forecast(start="2026-10-09", end="2026-10-12")
+
+        first_interval_by_forecast_time = forecast.groupby("Forecast Time")[
+            "Interval Start"
+        ].min()
+        assert first_interval_by_forecast_time.dt.strftime(
+            "%Y-%m-%d",
+        ).tolist() == ["2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12"]
+        # The last mis.nyiso.com file keeps its mis.nyiso.com timestamp
+        assert first_interval_by_forecast_time.index[-2] == pd.Timestamp(
+            "2026-10-10 07:10:02",
+            tz="US/Eastern",
+        )
+        assert first_interval_by_forecast_time.index[-1] == pd.Timestamp(
+            "2026-10-11 07:00:11",
+            tz="US/Eastern",
+        )
 
     """get_zonal_load_forecast"""
 
@@ -1000,7 +1158,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.Timedelta(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_5_min_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1026,7 +1184,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_end_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_dst_end_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1052,7 +1210,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=1)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_interface_limits_and_flows_dst_start_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_interface_limits_and_flows_dst_start_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_interface_limits_and_flows_5_min(
                 start=start,
@@ -1080,7 +1238,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_lake_erie_circulation_real_time_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lake_erie_circulation_real_time(
                 start=start,
@@ -1100,7 +1258,7 @@ class TestNYISO(BaseTestISO):
         end = start + pd.DateOffset(days=2)
 
         with nyiso_vcr.use_cassette(
-            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_lake_erie_circulation_day_ahead_historical_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_lake_erie_circulation_day_ahead(
                 start=start,
@@ -1116,9 +1274,7 @@ class TestNYISO(BaseTestISO):
 
     @staticmethod
     def _check_status(df):
-        assert set(df.columns) == set(
-            ["Time", "Status", "Notes"],
-        )
+        assert set(df.columns) == {"Time", "Status", "Notes"}
 
     def _check_as_prices(
         self,
@@ -1174,6 +1330,23 @@ class TestNYISO(BaseTestISO):
                 start=start,
                 end=end,
             )
+
+    # March 27 and 28, 2026 are only on mis.nyiso.com
+    def test_get_as_prices_day_ahead_hourly_across_oasis_postings_switch(self):
+        with nyiso_vcr.use_cassette(
+            "test_get_as_prices_day_ahead_hourly_across_oasis_postings_switch_2026-03-27_2026-03-31.yaml",
+        ):
+            df = self.iso.get_as_prices_day_ahead_hourly(
+                start="2026-03-27",
+                end="2026-03-31",
+            )
+
+        assert df["Interval Start"].dt.strftime("%Y-%m-%d").unique().tolist() == [
+            "2026-03-27",
+            "2026-03-28",
+            "2026-03-29",
+            "2026-03-30",
+        ]
 
     """get_as_prices_real_time_5_min"""
 
@@ -1233,9 +1406,37 @@ class TestNYISO(BaseTestISO):
             df = self.iso.get_limiting_constraints_real_time(start=start, end=end)
         self._check_limiting_constraints(df, expected_duration_minutes=5)
         assert df["Interval Start"].dt.tz is not None
-        assert df["Interval Start"].dt.date.min() >= pd.Timestamp(start).date()
+        # Each daily file holds stamps 00:00 through 23:55, which are interval ends
+        assert df["Interval End"].dt.date.min() >= pd.Timestamp(start).date()
         assert df["Interval End"].dt.date.max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
+        )
+
+    def test_limiting_constraints_real_time_time_stamp_is_interval_end(self):
+        # A row from the 2026-09-01 file. NYISO stamps real-time constraints at
+        # interval end, the same as the real-time LBMP file.
+        raw = pd.DataFrame(
+            {
+                "Time Stamp": ["09/01/2026 00:00:00"],
+                "Time Zone": ["EDT"],
+                "Limiting Facility": ["HILLSIDE 230 E.TWANDA 230 1"],
+                "Facility PTID": [25014],
+                "Contingency": ["HOPATCON-LACKAWAN_500_5063"],
+                "Constraint Cost($)": [-45.61],
+            },
+        )
+        df = self.iso._handle_time(
+            raw,
+            gridstatus.nyiso.LIMITING_CONSTRAINTS_REAL_TIME_DATASET,
+            groupby="Limiting Facility",
+        )
+        assert df["Interval Start"].iloc[0] == pd.Timestamp(
+            "2026-08-31 23:55",
+            tz=self.iso.default_timezone,
+        )
+        assert df["Interval End"].iloc[0] == pd.Timestamp(
+            "2026-09-01 00:00",
+            tz=self.iso.default_timezone,
         )
 
     @pytest.mark.parametrize(
@@ -1257,3 +1458,87 @@ class TestNYISO(BaseTestISO):
         assert df["Interval End"].dt.date.max() <= (
             pd.Timestamp(end).date() + pd.Timedelta(days=1)
         )
+
+    """get_area_control_error"""
+
+    expected_area_control_error_cols = [
+        "Time",
+        "Area Control Error",
+    ]
+
+    def test_get_area_control_error(self):
+        date = "2025-06-01"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{date}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=date)
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert df["Area Control Error"].dtype in [np.float64, np.int64]
+        assert df["Time"].dt.tz is not None
+        assert df["Time"].min() >= pd.Timestamp(date, tz=self.iso.default_timezone)
+        assert df["Time"].max() < pd.Timestamp(
+            "2025-07-01",
+            tz=self.iso.default_timezone,
+        )
+
+    def test_get_area_control_error_date_range(self):
+        start = "2025-06-05"
+        end = "2025-06-07"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=start, end=end)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert df["Time"].min() >= pd.Timestamp(start, tz=self.iso.default_timezone)
+        assert df["Time"].max() < pd.Timestamp(end, tz=self.iso.default_timezone)
+
+    def test_get_area_control_error_range_across_months(self):
+        # A range spanning two months exercises the MONTH_START decorator
+        # splitting into two per-month archive downloads.
+        start = "2025-05-30"
+        end = "2025-06-02"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=start, end=end)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        # Data from both months is present and ordered.
+        assert df["Time"].min() >= pd.Timestamp(start, tz=self.iso.default_timezone)
+        assert df["Time"].max() < pd.Timestamp(end, tz=self.iso.default_timezone)
+        assert set(df["Time"].dt.month.unique()) == {5, 6}
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_area_control_error_across_oasis_postings_switch(self):
+        # August 2026 comes from mis.nyiso.com and September 2026 from oasis-postings
+        start = "2026-08-31"
+        end = "2026-09-02"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{start}_{end}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=start, end=end)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert set(df["Time"].dt.month.unique()) == {8, 9}
+        assert df["Time"].is_monotonic_increasing
+
+    def test_get_area_control_error_dst_fall_back(self):
+        # November 2025 contains the DST fall-back (Nov 2, 02:00 -> 01:00). The
+        # EDT/EST suffix in the source must resolve the ambiguous 1am hour.
+        date = "2025-11-01"
+        with nyiso_vcr.use_cassette(
+            f"test_get_area_control_error_{date}.yaml",
+        ):
+            df = self.iso.get_area_control_error(date=date)
+
+        assert df.columns.tolist() == self.expected_area_control_error_cols
+        assert df["Time"].dt.tz is not None
+        # The repeated 1am hour should carry both UTC offsets (EDT then EST).
+        repeat = df[
+            (df["Time"] >= pd.Timestamp("2025-11-02 00:59", tz="US/Eastern"))
+            & (df["Time"] <= pd.Timestamp("2025-11-02 02:01", tz="US/Eastern"))
+        ]
+        assert repeat["Time"].apply(lambda t: t.utcoffset()).nunique() == 2

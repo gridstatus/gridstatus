@@ -181,7 +181,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     @api_vcr.use_cassette(
-        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
+        "test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",
     )
     def test_get_wind_actual_and_forecast_by_geographical_region_hourly_date_range(
         self,
@@ -293,7 +293,7 @@ class TestErcotAPI(TestHelperMixin):
 
     @pytest.mark.integration
     @api_vcr.use_cassette(
-        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",  # noqa: E501
+        "test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range.yaml",
     )
     def test_get_solar_actual_and_forecast_by_geographical_region_hourly_date_range(
         self,
@@ -317,6 +317,100 @@ class TestErcotAPI(TestHelperMixin):
         assert df["Interval End"].max() >= self.local_start_of_day(
             date.date(),
         ) + pd.DateOffset(days=7)
+
+    """get_load_distribution_factors"""
+
+    LOAD_DISTRIBUTION_FACTORS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
+        "Publish Time",
+        "Substation",
+        "Load ID",
+        "Distribution Factor",
+        "MVAR Distribution Factor",
+        "MRID Load",
+    ]
+
+    def _check_load_distribution_factors(self, df):
+        assert df.columns.tolist() == self.LOAD_DISTRIBUTION_FACTORS_COLUMNS
+        assert df.notna().all().all()
+        assert (df["Interval End"] - df["Interval Start"]).eq(pd.Timedelta("1h")).all()
+        assert df["Interval Start"].is_monotonic_increasing
+        assert not df.duplicated(
+            subset=["Publish Time", "Interval Start", "Substation", "Load ID"],
+        ).any()
+        assert df["Distribution Factor"].dtype == float
+        assert df["MVAR Distribution Factor"].dtype == float
+
+        # Every load has a factor for every hour
+        assert df.groupby("Interval Start").size().nunique() == 1
+
+    @pytest.mark.integration
+    def test_get_load_distribution_factors_dst_end(self):
+        # This report covers the seven days after it was posted, which include the
+        # repeated hour on November 2, 2025
+        date = self.local_start_of_day(datetime.date(2025, 10, 29))
+
+        with api_vcr.use_cassette("test_get_load_distribution_factors_dst_end.yaml"):
+            df = self.iso.get_load_distribution_factors(date, verbose=True)
+
+        self._check_load_distribution_factors(df)
+
+        assert df["Publish Time"].unique().tolist() == [
+            pd.Timestamp("2025-10-29 14:21:33", tz=self.iso.default_timezone),
+        ]
+        assert df["Interval Start"].nunique() == 7 * 24 + 1
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            datetime.date(2025, 10, 30),
+        )
+        assert df["Interval End"].max() == self.local_start_of_day(
+            datetime.date(2025, 11, 6),
+        )
+
+    @pytest.mark.integration
+    def test_get_load_distribution_factors_dst_start(self):
+        # This report covers the seven days after it was posted, which include the
+        # skipped hour on March 10, 2019
+        date = self.local_start_of_day(datetime.date(2019, 3, 6))
+
+        with api_vcr.use_cassette("test_get_load_distribution_factors_dst_start.yaml"):
+            df = self.iso.get_load_distribution_factors(date, verbose=True)
+
+        self._check_load_distribution_factors(df)
+
+        assert df["Publish Time"].unique().tolist() == [
+            pd.Timestamp("2019-03-06 16:27:25.133", tz=self.iso.default_timezone),
+        ]
+        assert df["Interval Start"].nunique() == 7 * 24 - 1
+        assert df["Interval Start"].min() == self.local_start_of_day(
+            datetime.date(2019, 3, 7),
+        )
+        assert df["Interval End"].max() == self.local_start_of_day(
+            datetime.date(2019, 3, 14),
+        )
+
+    @pytest.mark.integration
+    def test_get_load_distribution_factors_substation_named_na(self):
+        # The first report in the current format has loads at a substation named NA
+        date = pd.Timestamp("2016-12-08 16:00", tz=self.iso.default_timezone)
+        end = date + pd.Timedelta(hours=1)
+
+        with api_vcr.use_cassette(
+            "test_get_load_distribution_factors_substation_named_na.yaml",
+        ):
+            df = self.iso.get_load_distribution_factors(date, end, verbose=True)
+
+        self._check_load_distribution_factors(df)
+
+        assert df["Publish Time"].unique().tolist() == [
+            pd.Timestamp("2016-12-08 16:23:19.839", tz=self.iso.default_timezone),
+        ]
+        assert sorted(df.loc[df["Substation"] == "NA", "Load ID"].unique()) == [
+            "TR1",
+            "TR2",
+            "TR4",
+            "TR5",
+        ]
 
     """get_load_forecast_by_model"""
 
@@ -727,6 +821,45 @@ class TestErcotAPI(TestHelperMixin):
 
         assert df["SCED Timestamp"].dt.date.unique() == date.date()
 
+    """get_aggregate_*_2_day"""
+
+    def test_get_aggregate_gen_summary_2_day(self):
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_aggregate_gen_summary_2_day_historical_{date.date()}.yaml",
+        ):
+            df = self.iso.get_aggregate_gen_summary_2_day(date, verbose=True)
+
+        _ErcotChecks()._check_aggregate_gen_summary_2_day(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+        assert df["Sum Base Point ESR"].isna().all()
+        assert df["Sum Base Point ESR Charging"].isna().all()
+        assert df["Sum Base Point ESR Discharging"].isna().all()
+        assert df["Sum Base Point Non IRR"].notna().any()
+
+    def test_get_aggregate_load_summary_2_day(self):
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_aggregate_load_summary_2_day_historical_{date.date()}.yaml",
+        ):
+            df = self.iso.get_aggregate_load_summary_2_day(date, verbose=True)
+
+        _ErcotChecks()._check_aggregate_load_summary_2_day(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
+    def test_get_aggregate_output_schedule_2_day(self):
+        date = pd.Timestamp("2025-11-01", tz=self.iso.default_timezone)
+
+        with api_vcr.use_cassette(
+            f"test_get_aggregate_output_schedule_2_day_historical_{date.date()}.yaml",
+        ):
+            df = self.iso.get_aggregate_output_schedule_2_day(date, verbose=True)
+
+        _ErcotChecks()._check_aggregate_output_schedule_2_day(df)
+        assert df["SCED Timestamp"].dt.date.unique() == [date.date()]
+
     """get_as_plan"""
 
     def _check_as_plan(self, df):
@@ -987,6 +1120,7 @@ class TestErcotAPI(TestHelperMixin):
             "Location",
             "Location Type",
             "LMP",
+            "Uncapped LMP",
         ]
 
         assert df.dtypes["Interval Start"] == "datetime64[ns, US/Central]"
@@ -996,6 +1130,7 @@ class TestErcotAPI(TestHelperMixin):
         assert (df["Location Type"] == ELECTRICAL_BUS_LOCATION_TYPE).all()
 
         assert df.dtypes["LMP"] == "float64"
+        assert df.dtypes["Uncapped LMP"] == "float64"
 
         assert (
             (df["Interval End"] - df["Interval Start"]) == pd.Timedelta(minutes=5)

@@ -1,8 +1,18 @@
+import io
+import struct
+import zipfile
+
 import pandas as pd
+import pytest
 import time_machine
 
 import gridstatus
-from gridstatus.utils import is_dst_end, is_today, is_yesterday
+from gridstatus.utils import (
+    is_dst_end,
+    is_today,
+    is_yesterday,
+    read_zip_member_with_local_header_fallback,
+)
 
 
 def test_is_dst_end():
@@ -154,3 +164,70 @@ def test_is_yesterday():
             start_of_utc_yesterday + pd.DateOffset(days=1) + pd.Timedelta(hours=6),
             tz=central_timezone,
         )
+
+
+ZIP_MEMBER_NAME = "Native_Load_2026.xlsx"
+ZIP_MEMBER_CONTENT = b"hour_ending,coast,east,far_west\n" * 500
+ZIP_CENTRAL_DIRECTORY_SIGNATURE = b"PK\x01\x02"
+ZIP_CENTRAL_DIRECTORY_CRC_OFFSET = 16
+ZIP_LOCAL_HEADER_CRC_OFFSET = 14
+
+
+def _build_zip_with_corrupt_central_directory() -> bytearray:
+    """Build a zip whose central directory CRC and sizes disagree with the
+    local file header, mimicking ERCOT's corrupt Native_Load archives."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr(ZIP_MEMBER_NAME, ZIP_MEMBER_CONTENT)
+    zip_bytes = bytearray(buffer.getvalue())
+    central_directory_offset = zip_bytes.find(ZIP_CENTRAL_DIRECTORY_SIGNATURE)
+    correct_crc, correct_compressed_size, correct_uncompressed_size = (
+        struct.unpack_from(
+            "<3I",
+            zip_bytes,
+            central_directory_offset + ZIP_CENTRAL_DIRECTORY_CRC_OFFSET,
+        )
+    )
+    struct.pack_into(
+        "<3I",
+        zip_bytes,
+        central_directory_offset + ZIP_CENTRAL_DIRECTORY_CRC_OFFSET,
+        correct_crc ^ 0xFFFFFFFF,
+        correct_compressed_size + 40,
+        correct_uncompressed_size + 100,
+    )
+    return zip_bytes
+
+
+def test_read_zip_member_with_local_header_fallback_recovers_member():
+    zip_bytes = bytes(_build_zip_with_corrupt_central_directory())
+
+    # Precondition: a plain read rejects the corrupt central directory
+    with pytest.raises(zipfile.BadZipFile):
+        zipfile.ZipFile(io.BytesIO(zip_bytes)).read(ZIP_MEMBER_NAME)
+
+    zip_file = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    recovered = read_zip_member_with_local_header_fallback(zip_file, ZIP_MEMBER_NAME)
+    assert recovered == ZIP_MEMBER_CONTENT
+
+
+def test_read_zip_member_with_local_header_fallback_intact_zip():
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr(ZIP_MEMBER_NAME, ZIP_MEMBER_CONTENT)
+
+    zip_file = zipfile.ZipFile(io.BytesIO(buffer.getvalue()))
+    recovered = read_zip_member_with_local_header_fallback(zip_file, ZIP_MEMBER_NAME)
+    assert recovered == ZIP_MEMBER_CONTENT
+
+
+def test_read_zip_member_with_local_header_fallback_corrupt_data_still_raises():
+    zip_bytes = _build_zip_with_corrupt_central_directory()
+    # Corrupt the local file header CRC as well so neither header matches the
+    # data and the fallback cannot validate it
+    (local_crc,) = struct.unpack_from("<I", zip_bytes, ZIP_LOCAL_HEADER_CRC_OFFSET)
+    struct.pack_into("<I", zip_bytes, ZIP_LOCAL_HEADER_CRC_OFFSET, local_crc ^ 0xFFFF)
+
+    zip_file = zipfile.ZipFile(io.BytesIO(bytes(zip_bytes)))
+    with pytest.raises(zipfile.BadZipFile):
+        read_zip_member_with_local_header_fallback(zip_file, ZIP_MEMBER_NAME)

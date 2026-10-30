@@ -11,11 +11,21 @@ from gridstatus.spp import (
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    SWPW_FUEL_MIX_START,
     BAAEnum,
+    combine_baa_fuel_mix,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
+
+# Module-level and immutable so it is not a mutable default argument. Only ever
+# consumed via set(), so a tuple is equivalent.
+DEFAULT_LOCATION_TYPES = (
+    LOCATION_TYPE_HUB,
+    LOCATION_TYPE_INTERFACE,
+    LOCATION_TYPE_SETTLEMENT_LOCATION,
+)
 
 api_vcr = setup_vcr(
     source="spp",
@@ -71,6 +81,15 @@ class TestSPP(BaseTestISO):
         "Other Self",
     ]
 
+    FUEL_MIX_OPTIONAL_COLS = [
+        "Energy Storage",
+    ]
+
+    FUEL_MIX_DETAILED_OPTIONAL_COLS = [
+        "Energy Storage Market",
+        "Energy Storage Self",
+    ]
+
     FUEL_MIX_BAA_COLS = [
         "Interval Start",
         "Interval End",
@@ -112,6 +131,15 @@ class TestSPP(BaseTestISO):
         "Other Market",
         "Other Self",
     ]
+
+    def _assert_fuel_mix_columns(
+        self,
+        df: pd.DataFrame,
+        required: list[str],
+        optional: list[str],
+    ) -> None:
+        assert all(c in df.columns for c in required)
+        assert set(df.columns) <= set(required) | set(optional)
 
     def _check_fuel_mix(self, df):
         assert isinstance(df, pd.DataFrame)
@@ -161,7 +189,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
         assert "BAA" not in fm.columns
 
@@ -170,7 +202,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix(date="today")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert "BAA" not in fm.columns
 
     def test_get_fuel_mix_detailed_latest(self):
@@ -178,7 +214,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_detailed(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_DETAILED_COLS,
+            self.FUEL_MIX_DETAILED_OPTIONAL_COLS,
+        )
         assert "BAA" not in fm.columns
 
     def test_get_fuel_mix_too_old_raises(self):
@@ -196,7 +236,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix(date=yesterday)
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert "BAA" not in fm.columns
         assert fm["Interval Start"].min() >= yesterday
 
@@ -207,7 +251,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_BAA_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert fm["Interval Start"].iloc[0].tz.zone == self.iso.default_timezone
         assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
@@ -216,7 +264,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa(date="today")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_BAA_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
     def test_get_fuel_mix_by_baa_historical_recent(self):
@@ -229,7 +281,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa(date=yesterday)
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_BAA_COLS,
+            self.FUEL_MIX_OPTIONAL_COLS,
+        )
         assert set(fm["BAA"].unique()).issubset({"SPP", "SWPW"})
         assert "SPP" in fm["BAA"].values
         assert fm["Interval Start"].min() >= yesterday
@@ -241,7 +297,11 @@ class TestSPP(BaseTestISO):
             fm = self.iso.get_fuel_mix_by_baa_detailed(date="latest")
 
         assert len(fm) > 0
-        assert fm.columns.tolist() == self.FUEL_MIX_DETAILED_BAA_COLS
+        self._assert_fuel_mix_columns(
+            fm,
+            self.FUEL_MIX_DETAILED_BAA_COLS,
+            self.FUEL_MIX_DETAILED_OPTIONAL_COLS,
+        )
         assert set(fm["BAA"].unique()) == {"SPP", "SWPW"}
 
     """get_lmp_real_time_5_min_by_location"""
@@ -249,11 +309,7 @@ class TestSPP(BaseTestISO):
     def _check_lmp_real_time_5_min_by_location(
         self,
         df,
-        location_types=[
-            LOCATION_TYPE_HUB,
-            LOCATION_TYPE_INTERFACE,
-            LOCATION_TYPE_SETTLEMENT_LOCATION,
-        ],
+        location_types=DEFAULT_LOCATION_TYPES,
     ):
         assert df.columns.tolist() == [
             "Time",
@@ -561,11 +617,7 @@ class TestSPP(BaseTestISO):
     def _check_lmp_day_ahead_hourly(
         self,
         df,
-        location_types=[
-            LOCATION_TYPE_HUB,
-            LOCATION_TYPE_INTERFACE,
-            LOCATION_TYPE_SETTLEMENT_LOCATION,
-        ],
+        location_types=DEFAULT_LOCATION_TYPES,
     ):
         assert df.columns.tolist() == [
             "Time",
@@ -770,7 +822,7 @@ class TestSPP(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
             days=1,
-        )  # noqa
+        )
         yesterday_1230am = yesterday + pd.Timedelta(minutes=30)
         with api_vcr.use_cassette(
             f"test_get_operating_reserves_{yesterday.strftime('%Y%m%d')}_{yesterday_1230am.strftime('%Y%m%d')}.yaml",
@@ -1012,7 +1064,7 @@ class TestSPP(BaseTestISO):
             tz=self.iso.default_timezone,
         ).normalize() - pd.Timedelta(
             days=3,
-        )  # noqa
+        )
         three_days_ago_0015 = three_days_ago + pd.Timedelta(minutes=15)
 
         with api_vcr.use_cassette(
@@ -1032,7 +1084,7 @@ class TestSPP(BaseTestISO):
             pd.Timestamp.now(tz=self.iso.default_timezone).normalize()
             - pd.Timedelta(days=2)
             + pd.Timedelta(hours=23, minutes=45)
-        )  # noqa
+        )
         one_day_ago_0010 = two_days_ago_2345 + pd.Timedelta(minutes=25)
 
         with api_vcr.use_cassette(
@@ -1050,7 +1102,7 @@ class TestSPP(BaseTestISO):
     def test_get_lmp_real_time_weis_single_interval(self):
         three_weeks_ago = pd.Timestamp.now(tz=self.iso.default_timezone) - pd.Timedelta(
             days=21,
-        )  # noqa
+        )
         with api_vcr.use_cassette(
             f"test_get_lmp_real_time_weis_single_interval_{three_weeks_ago.strftime('%Y%m%d')}.yaml",
         ):
@@ -2319,6 +2371,109 @@ class TestSPP(BaseTestISO):
         assert df.columns.tolist() == self.LOAD_BY_BAA_COLS
         assert len(df) == 0
 
+    def _hourly_baa_source_df(self, interval_starts: list[pd.Timestamp]):
+        return pd.DataFrame(
+            {
+                "Interval Start": interval_starts,
+                "Interval End": [ts + pd.Timedelta(hours=1) for ts in interval_starts],
+                "Averaged Actual": [1000.0 + i for i in range(len(interval_starts))],
+                "BAA": ["SPP"] * len(interval_starts),
+            },
+        )
+
+    def test_get_load_by_baa_hourly_past_date_keeps_2300_hour(self):
+        day = pd.Timestamp("2026-10-10", tz="US/Central")
+        source_df = self._hourly_baa_source_df(
+            [day + pd.Timedelta(hours=h) for h in (22, 23, 24)],
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-10-12 09:00", tz="US/Central"),
+            ),
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ) as mock_fetch,
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=day, verbose=False)
+
+        assert mock_fetch.call_args.kwargs["date"] == pd.Timestamp(
+            "2026-10-11 00:00",
+            tz="US/Central",
+        )
+        assert df["Interval Start"].tolist() == [
+            day + pd.Timedelta(hours=22),
+            day + pd.Timedelta(hours=23),
+        ]
+
+    def test_get_load_by_baa_hourly_yesterday_before_midnight_file_is_due(self):
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-10-11 00:05", tz="US/Central"),
+            ),
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=None,
+            ) as mock_fetch,
+        ):
+            self.iso.get_load_by_baa_hourly(
+                date=pd.Timestamp("2026-10-10", tz="US/Central"),
+                verbose=False,
+            )
+
+        assert mock_fetch.call_args.kwargs["date"] == pd.Timestamp(
+            "2026-10-10 23:55",
+            tz="US/Central",
+        )
+
+    def test_get_load_by_baa_hourly_dst_fall_back_day_keeps_all_25_hours(self):
+        day = pd.Timestamp("2026-11-01", tz="US/Central")
+        interval_starts = list(
+            pd.date_range(day, periods=26, freq="h"),
+        )
+        source_df = self._hourly_baa_source_df(interval_starts)
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-11-03 09:00", tz="US/Central"),
+            ),
+            patch.object(
+                self.iso,
+                "_get_mid_term_forecast_data",
+                return_value=(pd.DataFrame(), "mock-url"),
+            ) as mock_fetch,
+            patch.object(
+                self.iso,
+                "_post_process_load_forecast",
+                return_value=source_df,
+            ),
+        ):
+            df = self.iso.get_load_by_baa_hourly(date=day, verbose=False)
+
+        assert mock_fetch.call_args.kwargs["date"] == pd.Timestamp(
+            "2026-11-02 00:00",
+            tz="US/Central",
+        )
+        assert len(df) == 25
+        assert df["Interval Start"].iloc[-1] == pd.Timestamp(
+            "2026-11-01 23:00",
+            tz="US/Central",
+        )
+
     """get_status"""
 
     @pytest.mark.integration
@@ -3131,3 +3286,54 @@ class TestFillBaaColumn:
         )
         result = fill_baa_column(df, "Load")
         assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
+
+
+def _by_baa_fuel_mix(rows: list[tuple[str, str, float]]) -> pd.DataFrame:
+    """Build a by-BAA fuel mix from (BAA, interval start in UTC, wind) rows."""
+    df = pd.DataFrame(rows, columns=["BAA", "Interval Start", "Wind"])
+    df["Interval Start"] = pd.to_datetime(df["Interval Start"], utc=True).dt.tz_convert(
+        SPP.default_timezone,
+    )
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+    return df
+
+
+class TestCombineBaaFuelMix:
+    """Tests for the combine_baa_fuel_mix utility function."""
+
+    def test_sums_intervals_every_baa_reports(self):
+        # Rolling windows one interval apart: SPP's newest interval and SWPW's
+        # oldest are each reported by one BAA only.
+        df = _by_baa_fuel_mix(
+            [
+                ("SPP", "2026-10-27 22:35", 15006.5),
+                ("SPP", "2026-10-27 22:40", 15010.0),
+                ("SPP", "2026-10-27 22:45", 15020.0),
+                ("SWPW", "2026-10-27 22:30", 130.0),
+                ("SWPW", "2026-10-27 22:35", 132.6),
+                ("SWPW", "2026-10-27 22:40", 135.0),
+            ],
+        )
+
+        result = combine_baa_fuel_mix(df)
+
+        assert result.columns.tolist() == ["Interval Start", "Interval End", "Wind"]
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-10-27 22:35", tz="UTC"),
+            pd.Timestamp("2026-10-27 22:40", tz="UTC"),
+        ]
+        assert result["Wind"].tolist() == pytest.approx([15139.1, 15145.0])
+
+    def test_keeps_spp_only_intervals_before_swpw_start(self):
+        before_start = SWPW_FUEL_MIX_START - pd.Timedelta(minutes=5)
+        df = _by_baa_fuel_mix(
+            [
+                ("SPP", str(before_start), 9000.0),
+                ("SPP", str(SWPW_FUEL_MIX_START), 9100.0),
+            ],
+        )
+
+        result = combine_baa_fuel_mix(df)
+
+        assert result["Interval Start"].tolist() == [before_start]
+        assert result["Wind"].tolist() == [9000.0]

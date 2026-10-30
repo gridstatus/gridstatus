@@ -4,19 +4,19 @@ import os
 import random
 import time
 from enum import StrEnum
-from typing import Dict
 from zipfile import ZipFile
 
 import pandas as pd
 import pytz
 import requests
-import requests.status_codes as status_codes
+from requests import status_codes
 from tqdm import tqdm
 
 from gridstatus import utils
 from gridstatus.base import Markets, NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.ercot import (
+    CAPPED_TO_LEGACY_COLUMNS,
     ELECTRICAL_BUS_LOCATION_TYPE,
     Ercot,
 )
@@ -32,7 +32,7 @@ from gridstatus.ercot_constants import (
 from gridstatus.gs_logging import logger
 
 # API to hit with subscription key to get token
-TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"  # noqa
+TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"
 
 PUBLIC_BASE_URL = "https://api.ercot.com/api/public-reports"
 ESR_BASE_URL = "https://api.ercot.com/api/public-data"
@@ -82,6 +82,9 @@ AS_REPORTS_DAM_EMIL_ID = "np3-911-er"
 # https://data.ercot.com/data-product-archive/NP3-906-EX
 AS_REPORTS_SCED_EMIL_ID = "np3-906-ex"
 
+# https://data.ercot.com/data-product-archive/NP3-910-ER
+TWO_DAY_RT_GEN_LOAD_REPORTS_EMIL_ID = "np3-910-er"
+
 # https://data.ercot.com/data-product-archive/NP4-33-CD
 AS_PLAN_ENDPOINT = "/np4-33-cd/dam_as_plan"
 
@@ -108,7 +111,7 @@ SHADOW_PRICES_SCED_ENDPOINT = "/np6-86-cd/shdw_prices_bnd_trns_const"
 HOURLY_WIND_POWER_PRODUCTION_ENDPOINT = "/np4-732-cd/wpp_hrly_avrg_actl_fcast"
 
 
-# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# Wind Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region
 # https://data.ercot.com/data-product-archive/NP4-742-CD
 HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-742-cd/wpp_hrly_actual_fcast_geo"
@@ -119,11 +122,15 @@ HOURLY_WIND_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
 HOURLY_SOLAR_POWER_PRODUCTION_ENDPOINT = "/np4-737-cd/spp_hrly_avrg_actl_fcast"
 
 
-# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region # noqa
+# Solar Power Production - Hourly Averaged Actual and Forecasted Values by Geographical Region
 # https://data.ercot.com/data-product-archive/NP4-745-CD
 HOURLY_SOLAR_POWER_PRODUCTION_BY_GEOGRAPHICAL_REGION_ENDPOINT = (
     "/np4-745-cd/spp_hrly_actual_fcast_geo"
 )
+
+# Load Distribution Factors
+# https://data.ercot.com/data-product-archive/NP4-159-CD
+LOAD_DISTRIBUTION_FACTORS_ENDPOINT = "/np4-159-cd/load_distribution_factors"
 
 # Seven-Day Load Forecast by Model and Weather Zone
 # https://data.ercot.com/data-product-archive/NP3-565-CD
@@ -138,7 +145,7 @@ ACTUAL_SYSTEM_LOAD_BY_WEATHER_ZONE_ENDPOINT = "/np6-345-cd/act_sys_load_by_wzn"
 ACTUAL_SYSTEM_LOAD_BY_FORECAST_ZONE_ENDPOINT = "/np6-346-cd/act_sys_load_by_fzn"
 
 
-# Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes. # noqa
+# Settlement Point Price for each Settlement Point, produced from SCED LMPs every 15 minutes.
 # https://data.ercot.com/data-product-archive/NP6-905-CD
 SETTLEMENT_POINT_PRICE_REAL_TIME_15_MIN = "/np6-905-cd/spp_node_zone_hub"
 
@@ -187,16 +194,16 @@ class ErcotAPI:
 
     To register, create an account here: https://apiexplorer.ercot.com/
     To obtain a subscription key, follow the instructions here: https://developer.ercot.com/applications/pubapi/ERCOT%20Public%20API%20Registration%20and%20Authentication/
-    """  # noqa
+    """
 
     default_timezone = "US/Central"
 
     def __init__(
         self,
-        username: str = None,
-        password: str = None,
-        public_subscription_key: str = None,
-        esr_subscription_key: str = None,
+        username: str | None = None,
+        password: str | None = None,
+        public_subscription_key: str | None = None,
+        esr_subscription_key: str | None = None,
         sleep_seconds: float = 0.2,
         max_retries: int = 3,
         batch_size: int = 1000,
@@ -218,7 +225,7 @@ class ErcotAPI:
             ],
         ):
             raise ValueError(
-                "Username, password, and subscription key must be provided or set as environment variables",  # noqa
+                "Username, password, and subscription key must be provided or set as environment variables",
             )
 
         self.client_id = "fec253ea-0d06-4272-a5e6-b478baeecd70"  # From the docs
@@ -290,7 +297,7 @@ class ErcotAPI:
         if not self.token or time.time() >= self.token_expiry:
             self.get_token()
 
-    def headers(self, api: APITypeEnum = APITypeEnum.PUBLIC_API) -> Dict[str, str]:
+    def headers(self, api: APITypeEnum = APITypeEnum.PUBLIC_API) -> dict[str, str]:
         self.refresh_token_if_needed()
 
         # Both forms of authentication are required
@@ -306,7 +313,7 @@ class ErcotAPI:
     def make_api_call(
         self,
         url: str,
-        api_params: dict = None,
+        api_params: dict | None = None,
         parse_json: bool = True,
         method: str = "GET",
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
@@ -477,21 +484,24 @@ class ErcotAPI:
         )
 
         # Find CST timestamps by checking for "xhr" in filename
-        if raw_data is not None and "postDatetime" in raw_data.columns:
-            if "_source_filename" in raw_data.columns:
-                xhr_mask = (
-                    raw_data["_source_filename"]
-                    .astype(str)
-                    .str.contains("xhr", case=False, na=False)
+        if (
+            raw_data is not None
+            and "postDatetime" in raw_data.columns
+            and "_source_filename" in raw_data.columns
+        ):
+            xhr_mask = (
+                raw_data["_source_filename"]
+                .astype(str)
+                .str.contains("xhr", case=False, na=False)
+            )
+            if xhr_mask.any():
+                raw_post_datetime_str = (
+                    raw_data.loc[xhr_mask, "postDatetime"].astype(str).unique()
                 )
-                if xhr_mask.any():
-                    raw_post_datetime_str = (
-                        raw_data.loc[xhr_mask, "postDatetime"].astype(str).unique()
-                    )
-                    # Mark rows in result that match these postDatetime values as CST
-                    for xhr_post in raw_post_datetime_str:
-                        if "T01:" in str(xhr_post):
-                            result[post_datetime_str == xhr_post] = False
+                # Mark rows in result that match these postDatetime values as CST
+                for xhr_post in raw_post_datetime_str:
+                    if "T01:" in str(xhr_post):
+                        result[post_datetime_str == xhr_post] = False
 
         return result
 
@@ -644,6 +654,103 @@ class ErcotAPI:
         data = Ercot()._rename_hourly_wind_or_solar_report(data)
 
         return data[columns]
+
+    @support_date_range(frequency=None)
+    def get_load_distribution_factors(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Get Load Distribution Factors.
+
+        Hourly load forecast distribution factors for each load at each
+        substation, from which Load at the Electrical Bus level can be calculated.
+        ERCOT posts a new report only when the values change (seasonally or
+        manually), and each report covers the seven days after it is posted.
+
+        Arguments:
+            date: the start of the publish time range to fetch reports for.
+            end: the end of the publish time range to fetch reports for.
+                Defaults to the start of the day after date.
+            verbose: print verbose output. Defaults to False.
+
+        Returns:
+            A DataFrame with load distribution factors
+
+        Source:
+            https://www.ercot.com/mp/data-products/data-product-details?id=NP4-159-CD
+        """
+        end = self._handle_end_date(date, end, days_to_add_if_no_end=1)
+
+        data = self.get_historical_data(
+            endpoint=LOAD_DISTRIBUTION_FACTORS_ENDPOINT,
+            start_date=date,
+            end_date=end,
+            verbose=verbose,
+            add_post_datetime=True,
+            # Only empty fields are missing. Older reports have a substation named NA,
+            # which pandas would otherwise read as missing.
+            read_csv_kwargs={"keep_default_na": False, "na_values": [""]},
+        )
+
+        # A report has about 1.5 million rows but only 169 distinct hours, so parse
+        # each distinct hour once and map the results back to the rows
+        hour_index = pd.MultiIndex.from_frame(data[["LdfDate", "LdfHour", "DSTFlag"]])
+        distinct_hours = hour_index.unique()
+        parsed_hours = self.ercot.parse_doc(
+            distinct_hours.to_frame(index=False).rename(
+                columns={"LdfDate": "DeliveryDate", "LdfHour": "HourEnding"},
+            ),
+            verbose=verbose,
+        ).sort_index()
+        hour_positions = distinct_hours.get_indexer(hour_index)
+        data["Interval Start"] = parsed_hours["Interval Start"].array.take(
+            hour_positions,
+        )
+        data["Interval End"] = parsed_hours["Interval End"].array.take(hour_positions)
+
+        # Assume daylight time for a report posted during the repeated hour
+        data["Publish Time"] = pd.to_datetime(data["postDatetime"]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=True,
+        )
+
+        # Reports posted before December 2016 name the factor LoadDistributionFactor,
+        # so a range spanning the rename has both columns, each null for the other
+        if "LoadDistributionFactor" in data.columns:
+            data["DistributionFactor"] = (
+                data["DistributionFactor"].fillna(data["LoadDistributionFactor"])
+                if "DistributionFactor" in data.columns
+                else data["LoadDistributionFactor"]
+            )
+
+        data = data.rename(
+            columns={
+                "SubStation": "Substation",
+                "LoadID": "Load ID",
+                "DistributionFactor": "Distribution Factor",
+                "MVARDistributionFactor": "MVAR Distribution Factor",
+                "MRIDLoad": "MRID Load",
+            },
+        )
+
+        return (
+            data[
+                [
+                    "Interval Start",
+                    "Interval End",
+                    "Publish Time",
+                    "Substation",
+                    "Load ID",
+                    "Distribution Factor",
+                    "MVAR Distribution Factor",
+                    "MRID Load",
+                ]
+            ]
+            .sort_values(["Interval Start", "Publish Time", "Substation", "Load ID"])
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency=None)
     def get_load_forecast_by_model(
@@ -1183,6 +1290,93 @@ class ErcotAPI:
 
         return pd.concat(dfs).reset_index(drop=True).sort_values("SCED Timestamp")
 
+    def _get_2_day_rt_gen_load_reports(
+        self,
+        date,
+        end=None,
+        product: str = "gen",
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        offset = pd.DateOffset(days=2)
+
+        report_date = date.normalize() + offset
+
+        if end:
+            end = end + offset
+        else:
+            end = self._handle_end_date(report_date, end, days_to_add_if_no_end=1)
+
+        links_and_posted_datetimes = self._get_historical_data_links(
+            emil_id=TWO_DAY_RT_GEN_LOAD_REPORTS_EMIL_ID,
+            start_date=report_date,
+            end_date=end,
+            verbose=verbose,
+        )
+
+        urls = [tup[0] for tup in links_and_posted_datetimes]
+
+        dfs = []
+        for url in urls:
+            content = self.make_api_call(url, parse_json=False)
+            dfs.append(
+                self.ercot._handle_2_day_rt_gen_load_reports_file(
+                    content,
+                    product=product,
+                    verbose=verbose,
+                ),
+            )
+            time.sleep(self.sleep_seconds)
+
+        if not dfs:
+            raise NoDataFoundException(
+                f"No NP3-910-ER archives found for {report_date} to {end}",
+            )
+
+        return (
+            pd.concat(dfs)
+            .reset_index(drop=True)
+            .sort_values(["SCED Timestamp", "Area"])
+        )
+
+    @support_date_range(frequency=None)
+    def get_aggregate_gen_summary_2_day(self, date, end=None, verbose=False):
+        """Get 2-Day Aggregate Generation Summary by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            end=end,
+            product="gen",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_aggregate_load_summary_2_day(self, date, end=None, verbose=False):
+        """Get 2-Day Aggregate Load Summary by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            end=end,
+            product="load",
+            verbose=verbose,
+        )
+
+    @support_date_range(frequency=None)
+    def get_aggregate_output_schedule_2_day(self, date, end=None, verbose=False):
+        """Get 2-Day Aggregate Output Schedules by disclosure area.
+
+        Published with a 2 day delay around 3-4am central from NP3-910-ER.
+        """
+        return self._get_2_day_rt_gen_load_reports(
+            date=date,
+            end=end,
+            product="output_schedule",
+            verbose=verbose,
+        )
+
     @support_date_range(frequency=None)
     def get_as_plan(self, date, end=None, verbose=False):
         """Get Ancillary Service requirements by type and quantity for each hour of the
@@ -1378,11 +1572,27 @@ class ErcotAPI:
         return self._handle_lmp_by_bus(data, verbose=verbose)
 
     def _handle_lmp_by_bus(self, data, verbose=False):
+        data = data.rename(columns=CAPPED_TO_LEGACY_COLUMNS)
+
         data = self.ercot._handle_sced_timestamp(data, verbose=verbose)
 
-        data = data.rename(columns={"ElectricalBus": "Location"})
+        data = data.rename(
+            columns={
+                "ElectricalBus": "Location",
+                "UncappedLMP": "Uncapped LMP",
+            },
+        )
         data["Location Type"] = ELECTRICAL_BUS_LOCATION_TYPE
         data["Market"] = Markets.REAL_TIME_SCED.value
+
+        # Only published from 2026-08-27 onward. Older data has no uncapped value.
+        if "Uncapped LMP" not in data.columns:
+            data["Uncapped LMP"] = pd.NA
+
+        data["Uncapped LMP"] = pd.to_numeric(
+            data["Uncapped LMP"],
+            errors="coerce",
+        ).astype("float64")
 
         data = utils.move_cols_to_front(
             data,
@@ -1394,6 +1604,7 @@ class ErcotAPI:
                 "Location",
                 "Location Type",
                 "LMP",
+                "Uncapped LMP",
             ],
         )
 
@@ -1432,11 +1643,11 @@ class ErcotAPI:
     def parse_dam_doc(self, data: pd.DataFrame) -> pd.DataFrame:
         data = self.ercot.parse_doc(
             data.rename(
-                columns=dict(
-                    deliveryDate="DeliveryDate",
-                    hourEnding="HourEnding",
-                    busName="BusName",
-                ),
+                columns={
+                    "deliveryDate": "DeliveryDate",
+                    "hourEnding": "HourEnding",
+                    "busName": "BusName",
+                },
             ),
         )
 
@@ -1454,7 +1665,7 @@ class ErcotAPI:
 
         Returns:
             pandas.DataFrame: A DataFrame with day-ahead market shadow prices
-        """  # noqa
+        """
         if date == "latest":
             return self.get_shadow_prices_dam("today", verbose=verbose)
 
@@ -1504,7 +1715,7 @@ class ErcotAPI:
 
         Returns:
             pandas.DataFrame: A DataFrame with real-time market shadow prices
-        """  # noqa
+        """
         if date == "latest":
             return self.get_shadow_prices_sced("today", verbose=verbose)
 
@@ -1649,7 +1860,7 @@ class ErcotAPI:
         end: str | pd.Timestamp = None,
         verbose: bool = False,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Get the 60-day DAM disclosure reports from ERCOT.
 
@@ -1719,7 +1930,7 @@ class ErcotAPI:
             df_list.append(processed_files)
 
         # Take the list of dictionaries and concat the dataframes for each key
-        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
+        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0]}
 
     @support_date_range(frequency=None)
     def get_60_day_sced_disclosure(
@@ -1729,7 +1940,7 @@ class ErcotAPI:
         verbose: bool = False,
         process: bool = True,
         output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
-    ) -> Dict[str, pd.DataFrame]:
+    ) -> dict[str, pd.DataFrame]:
         """
         Get the 60-day SCED disclosure reports from ERCOT.
 
@@ -1787,7 +1998,7 @@ class ErcotAPI:
             df_list.append(processed_files)
 
         # Take the list of dictionaries and concat the dataframes for each key
-        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0].keys()}
+        return {key: pd.concat([d[key] for d in df_list]) for key in df_list[0]}
 
     @support_date_range(frequency=None)
     def get_cop_adjustment_period_snapshot_60_day(
@@ -1889,6 +2100,7 @@ class ErcotAPI:
         bulk_download: bool = True,
         include_source_filename: bool = False,
         api: APITypeEnum = APITypeEnum.PUBLIC_API,
+        read_csv_kwargs: dict | None = None,
     ) -> pd.DataFrame | bytes:
         """Retrieves historical data from the given emil_id from start to end date.
         The historical data endpoint only allows filtering by the postDatetimeTo and
@@ -1917,6 +2129,8 @@ class ErcotAPI:
             include_source_filename [bool]: if True, the returned dataframe will
                 include a column with the filename each row came from. Defaults to
                 False.
+            read_csv_kwargs [dict]: extra keyword arguments passed to pd.read_csv
+                for each file. Defaults to None.
 
         Returns:
             [pandas.DataFrame]: a dataframe of historical data when read_as_csv is
@@ -1967,7 +2181,7 @@ class ErcotAPI:
                 bytes_data = file_data
                 filename = None
 
-            df = pd.read_csv(bytes_data, compression="zip")
+            df = pd.read_csv(bytes_data, compression="zip", **(read_csv_kwargs or {}))
             if add_post_datetime:
                 df["postDatetime"] = posted_datetime
             if include_source_filename:
@@ -2019,7 +2233,7 @@ class ErcotAPI:
 
             if retries == max_retries:
                 logger.error(
-                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",  # noqa
+                    f"Max retries reached. Link: {link} failed after {max_retries} attempts.",
                 )
 
         return documents
@@ -2317,13 +2531,15 @@ class ErcotAPI:
         return parsed_api_params
 
     def _get_public_endpoints_map(self) -> dict:
-        endpoints = json.load(open(PUBLIC_ENDPOINTS_MAP_FILE))
+        with open(PUBLIC_ENDPOINTS_MAP_FILE) as endpoints_file:
+            endpoints = json.load(endpoints_file)
         endpoints = parse_all_endpoints(apijson=endpoints)
 
         return endpoints
 
     def _get_esr_endpoints_map(self) -> dict:
-        esr_endpoints = json.load(open(ESR_ENDPOINTS_MAP_FILE))
+        with open(ESR_ENDPOINTS_MAP_FILE) as esr_endpoints_file:
+            esr_endpoints = json.load(esr_endpoints_file)
         esr_endpoints = parse_all_endpoints(apijson=esr_endpoints)
 
         return esr_endpoints

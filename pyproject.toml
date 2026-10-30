@@ -1,8 +1,8 @@
 [project]
 name = "gridstatus"
-version = "0.36.0"
+version = "0.37.0"
 readme = "README.md"
-description = "API to access energy data"
+description = "Access electricity grid data (load, fuel mix, prices, forecasts) from North American ISOs through one consistent Python API"
 requires-python = ">=3.10,<3.15"
 authors = [
     { name = "Max Kanter", email = "kmax12@gmail.com" },
@@ -10,11 +10,45 @@ authors = [
     { name = "Ryan Kladar", email = "ryan@gridstatus.com"},
 ]
 
-keywords = ["energy", "independent system operator"]
+keywords = [
+    "energy",
+    "electricity",
+    "power grid",
+    "independent system operator",
+    "ISO",
+    "RTO",
+    "CAISO",
+    "ERCOT",
+    "PJM",
+    "MISO",
+    "SPP",
+    "NYISO",
+    "ISO-NE",
+    "IESO",
+    "AESO",
+    "EIA",
+    "LMP",
+    "electricity prices",
+    "energy markets",
+    "time series",
+    "grid data",
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
 license = { file = "LICENSE" }
 dependencies = [
-    "requests >=2.33,<3",
+    "requests>=2.34.2,<3",
     "pandas ~=2.2",
+    # pandas 2 resolves time zone names through pytz; 2026.3 is the first
+    # release with Alberta's year-round UTC-6 from November 1, 2026
+    "pytz >=2026.3",
     "beautifulsoup4 ~=4.13",
     "tabulate ~=0.9",
     "tqdm ~=4.67",
@@ -25,8 +59,8 @@ dependencies = [
     "termcolor ~=3.0",
     "xlrd ~=2.0",
     "xmltodict ~=0.14",
-    "certifi ~=2025.1",
-    "cryptography >=48.0.1,<49",
+    "certifi >=2025.1",
+    "cryptography>=50.0.0,<51",
     "urllib3 >=2.7.0,<3",
     "idna >=3.15,<4",
     "frozendict ~=2.4",
@@ -36,15 +70,15 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest >=9.0.3,<10",
-    "pytest-xdist ~=3.6",
+    "pytest-xdist ~=3.8",
     "pytest-rerunfailures ~=15.0",
     "pytest-cov ~=6.1",
-    "ruff==0.11.5",
-    "pre-commit ~=4.2",
+    "ruff==0.16.0",
+    "pre-commit ~=4.6",
     "ipython >=8.4.0,<10",
     "jupyter ~=1.1",
     "matplotlib ~=3.10",
-    "myst-nb ~=1.2",
+    "myst-nb ~=1.4",
     "sphinx >=6.2.1,<9",
     "sphinx-book-theme ~=1.1",
     "sphinx-copybutton ~=0.5",
@@ -53,28 +87,32 @@ dev = [
     "sphinxext-opengraph ~=0.10",
     "sphinx-thebe ~=0.3",
     "sphinx-togglebutton ~=0.3",
-    "sphinx-favicon ~=1.0",
-    "sphinx-autoapi ~=3.6",
-    "notebook >=7.5.6,<8",
-    "jupyterlab >=4.5.9,<5",
+    "sphinx-favicon ~=1.1",
+    "sphinx-autoapi ~=3.8",
+    "notebook ~=7.6",
+    "jupyterlab>=4.6.2,<5",
     "jupyter-server >=2.20.0,<3",
     "mypy ~=1.15",
     "types-requests ~=2.32",
     "time-machine ~=2.16",
-    "tornado >=6.5.7,<7",
+    "tornado>=6.5.8,<7",
     "jinja2 ~=3.1",
-    "pillow >=12.2.0,<13",
+    "pillow>=12.3.0,<13",
     "nbconvert >=7.17.1,<8",
     "bleach >=6.4.0,<7",
     "mistune >=3.2.1,<4",
-    "wheel >=0.46.2,<1",
-    "fonttools >=4.60.2,<5",
+    "wheel >=0.47.0,<1",
+    "fonttools >=4.63.0,<5",
     "Pygments >=2.20.0,<3",
     "vcrpy >=8.2.1,<9",
 ]
 
 
 [project.urls]
+"Homepage" = "https://www.gridstatus.io/"
+"Documentation" = "https://opensource.gridstatus.io/"
+"Data Catalog" = "https://www.gridstatus.io/datasets"
+"Hosted API" = "https://www.gridstatus.io/api"
 "Source Code" = "https://github.com/gridstatus/gridstatus/"
 "Changes" = "https://github.com/gridstatus/gridstatus/blob/main/CHANGELOG.md"
 "Issue Tracker" = "https://github.com/gridstatus/gridstatus/issues"
@@ -98,14 +136,40 @@ line-length = 88
 src = ["gridstatus"]
 
 [tool.ruff.lint]
-ignore = ["E501"]
-select = ["F", "E", "W", "Q", "I001"]
+# ruff >=0.16 ships a broad curated default rule set
+# (https://docs.astral.sh/ruff/default-rules/). We inherit it and use
+# extend-select for the families enforced here that are not part of it, rather
+# than pinning our own select and missing future default additions.
+extend-select = [
+    "F",    # Pyflakes in full (the default set carries only a subset)
+    "E",    # pycodestyle errors (the default set carries only E722/E902)
+    "W",    # pycodestyle warnings
+    "Q",    # flake8-quotes
+    "I001", # unsorted-imports
+]
+ignore = [
+    "E501",   # line length: the formatter wraps code; long strings/URLs are deliberate
+    "RUF012", # class-level mutable defaults here are declarative dataset config
+    "SIM117", # nested `with` blocks read better than one merged statement
+    "TRY002", # raising builtin exceptions directly is the established style here
+    "TRY003", # long messages at the raise site are fine; custom exceptions are noise
+    "TRY004", # swapping ValueError for TypeError on a type check changes what callers catch
+    # This library scrapes HTML, CSV, XML and PDFs from a dozen ISOs, where any
+    # source can fail in an unpredictable way. Nearly every broad handler either
+    # logs and moves to the next document or re-raises as RequestException on
+    # purpose, so keeping this on would mean ~20 inline noqas rather than a signal.
+    "BLE001", # blind-except
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["gridstatus"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402", "F403", "F405", "E501", "I001"]
+# Example notebooks pass naive datetimes on purpose, to show that the API accepts
+# them. Anchored with `**/` so the pattern matches from any working directory,
+# since `make lint` runs from the repo root but the hook may not.
+"**/docs/**/*.ipynb" = ["DTZ001"]
 
 [tool.ruff.format]
 quote-style = "double"

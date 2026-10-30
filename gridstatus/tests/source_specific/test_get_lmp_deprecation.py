@@ -31,12 +31,12 @@ def _stub_get_lmp(*args, **kwargs):
 
 
 DEPRECATED_GET_LMP_CALLS = [
-    (gridstatus.ISONE, dict(date="2024-01-02", market=Markets.DAY_AHEAD_HOURLY)),
-    (gridstatus.Ercot, dict(date="2024-01-02")),
-    (gridstatus.CAISO, dict(date="2024-01-02", market=Markets.DAY_AHEAD_HOURLY)),
-    (gridstatus.PJM, dict(date="2024-01-02", market=Markets.DAY_AHEAD_HOURLY)),
-    (gridstatus.MISO, dict(date="2024-01-02", market=Markets.DAY_AHEAD_HOURLY)),
-    (gridstatus.NYISO, dict(date="2024-01-02", market=Markets.DAY_AHEAD_HOURLY)),
+    (gridstatus.ISONE, {"date": "2024-01-02", "market": Markets.DAY_AHEAD_HOURLY}),
+    (gridstatus.Ercot, {"date": "2024-01-02"}),
+    (gridstatus.CAISO, {"date": "2024-01-02", "market": Markets.DAY_AHEAD_HOURLY}),
+    (gridstatus.PJM, {"date": "2024-01-02", "market": Markets.DAY_AHEAD_HOURLY}),
+    (gridstatus.MISO, {"date": "2024-01-02", "market": Markets.DAY_AHEAD_HOURLY}),
+    (gridstatus.NYISO, {"date": "2024-01-02", "market": Markets.DAY_AHEAD_HOURLY}),
 ]
 
 NEW_LMP_METHOD_CALLS = [

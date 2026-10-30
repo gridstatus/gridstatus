@@ -1,6 +1,5 @@
 import types
 from datetime import date, datetime
-from typing import Union
 
 META_ENDPOINTS = {
     "/",
@@ -57,26 +56,26 @@ its structure is as follows:
 _endpoints_map: dict = None
 
 
-def _timestamp_parser(timestamp: Union[str, datetime]) -> str:
+def _timestamp_parser(timestamp: str | datetime) -> str:
     if isinstance(timestamp, str):
         timestamp = datetime.fromisoformat(timestamp)
     return timestamp.strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def _date_parser(datevalue: Union[str, datetime]) -> str:
+def _date_parser(datevalue: str | datetime) -> str:
     if isinstance(datevalue, str):
         datevalue = date.fromisoformat(datevalue)
     return datevalue.strftime("%Y-%m-%d")
 
 
-def _minute_second_parser(timestamp: Union[str, datetime]) -> str:
+def _minute_second_parser(timestamp: str | datetime) -> str:
     if isinstance(timestamp, str):
         # assumes string is in correct mm:ss format
         return timestamp
     return timestamp.strftime("%M:%S")
 
 
-def _bool_parser(boolvalue: Union[str, bool]) -> str:
+def _bool_parser(boolvalue: str | bool) -> str:
     if isinstance(boolvalue, bool):
         return "true" if boolvalue else "false"
     else:

@@ -60,11 +60,11 @@ def load_over_time(df, iso=None):
     )
     # show legend
     fig.update_layout(
-        legend=dict(
-            orientation="h",
-            title_text=None,
-            y=-0.2,
-        ),
+        legend={
+            "orientation": "h",
+            "title_text": None,
+            "y": -0.2,
+        },
     )
     fig.update_yaxes(title_text="MW")
 

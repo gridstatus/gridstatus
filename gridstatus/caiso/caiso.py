@@ -3,8 +3,8 @@ import io
 import re
 import time
 import warnings
-import xml.etree.ElementTree as ElementTree
 from typing import Literal
+from xml.etree import ElementTree
 from zipfile import ZipFile
 
 import numpy as np
@@ -24,6 +24,7 @@ from gridstatus.base import (
 )
 from gridstatus.caiso import caiso_utils, daily_energy_storage
 from gridstatus.caiso.caiso_constants import (
+    AS_TYPE_MAP,
     CURRENT_BASE,
     HISTORY_BASE,
     OASIS_DATASET_CONFIG,
@@ -38,6 +39,15 @@ from gridstatus.lmp_config import lmp_config
 # column and are dropped during parsing.
 PRICE_CORRECTION_NO_RECORDS_REASON = "No records found for report."
 
+# A correction with several reasons puts an unquoted newline between them.
+PRICE_CORRECTION_REASON_BREAK = re.compile(rb"\r?\n(?!\d{4}-\d{2}-\d{2},|$)")
+
+
+def _read_price_corrections_csv(contents: bytes) -> pd.DataFrame:
+    return pd.read_csv(
+        io.BytesIO(PRICE_CORRECTION_REASON_BREAK.sub(b"; ", contents)),
+    )
+
 
 def _determine_lmp_frequency(args: dict) -> str:
     """if querying all must use 1d frequency"""
@@ -45,9 +55,7 @@ def _determine_lmp_frequency(args: dict) -> str:
     market = args.get("market", "")
     # due to limitations of OASIS api
     if isinstance(locations, str) and locations.lower() in ["all", "all_ap_nodes"]:
-        if market == Markets.REAL_TIME_5_MIN:
-            return "1h"
-        elif market == Markets.REAL_TIME_15_MIN:
+        if market == Markets.REAL_TIME_5_MIN or market == Markets.REAL_TIME_15_MIN:
             return "1h"
         elif market == Markets.DAY_AHEAD_HOURLY:
             return "1D"
@@ -108,7 +116,10 @@ def _get_historical(
         url: str = f"{HISTORY_BASE}/{date_str}/{file}.csv?_={cache_buster}"
         latest = False
     logger.info(f"Fetching URL: {url}")
-    df = pd.read_csv(url)
+    # NOTE: Use requests instead of pd.read_csv(url); urllib fails SSL verify on CAISO's Sectigo R46 chain with macOS system CAs.
+    r = requests.get(url, timeout=120)
+    r.raise_for_status()
+    df = pd.read_csv(io.StringIO(r.text))
 
     # sometimes there are extra rows at the end, so this lets us ignore them
     df = df.dropna(subset=["Time"])
@@ -154,7 +165,6 @@ def _caiso_handle_start_end(
     start = date.tz_convert("UTC")
 
     if end:
-        end = end
         end = end.tz_convert("UTC")
     else:
         end = start + pd.DateOffset(1)
@@ -360,7 +370,7 @@ class CAISO(ISOBase):
         config["startdatetime"] = start
         config["enddatetime"] = end
 
-        base_url = f"http://oasis.caiso.com/oasisapi/{config.pop('path')}?"
+        base_url = f"https://oasis.caiso.com/oasisapi/{config.pop('path')}?"
 
         url = base_url + "&".join(
             [f"{k}={v}" for k, v in config.items()],
@@ -515,7 +525,7 @@ class CAISO(ISOBase):
         # maybe better way to do this in case there are other cases
         # where there are all na rows
         # ignore Time, Interval Start, Interval End columns
-        subset = set(df.columns) - set(["Time", "Interval Start", "Interval End"])
+        subset = set(df.columns) - {"Time", "Interval Start", "Interval End"}
         df = df.dropna(axis=0, how="all", subset=subset)
 
         return df
@@ -1483,7 +1493,7 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         market: str,
-        locations: list = None,
+        locations: list | None = None,
         sleep: int = 5,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
@@ -1554,7 +1564,6 @@ class CAISO(ISOBase):
             warnings.warn(
                 "Only 1 hour of data will be returned for real time markets if end is "
                 "not specified and all nodes are requested",
-                # noqa
             )
 
         df = self.get_oasis_dataset(
@@ -1646,7 +1655,7 @@ class CAISO(ISOBase):
         self,
         date: str | pd.Timestamp,
         market: str,
-        locations: list = None,
+        locations: list | None = None,
         sleep: int = 5,
         end: str | pd.Timestamp = None,
         verbose: bool = False,
@@ -1812,7 +1821,7 @@ class CAISO(ISOBase):
                 contents = archive.read(archive.namelist()[0])
                 # A data response is a CSV; "no data" is an XML error document.
                 if b"ERR_CODE" not in contents[:600]:
-                    return pd.read_csv(io.BytesIO(contents))
+                    return _read_price_corrections_csv(contents)
             time.sleep(sleep)
 
         return pd.DataFrame()
@@ -1967,7 +1976,7 @@ class CAISO(ISOBase):
         """Retrieves the (mostly static) list of fuel regions with associated data.
         This file can be joined to the gas prices on Fuel Region Id"""
         url = (
-            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"  # noqa
+            "https://www.caiso.com/documents/fuelregion_electricregiondefinitions.xlsx"
         )
 
         logger.info(f"Fetching {url}")
@@ -2422,15 +2431,7 @@ class CAISO(ISOBase):
             },
         )
 
-        as_type_map = {
-            "NR": "Non-Spinning Reserves",
-            "RD": "Regulation Down",
-            "RMD": "Regulation Mileage Down",
-            "RMU": "Regulation Mileage Up",
-            "RU": "Regulation Up",
-            "SR": "Spinning Reserves",
-        }
-        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(AS_TYPE_MAP)
 
         df = df.pivot_table(
             index=[
@@ -2447,6 +2448,83 @@ class CAISO(ISOBase):
         df = df.fillna(0)
 
         df.columns.name = None
+
+        return df
+
+    def get_as_prices_real_time_15_min(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        sleep: int = 5,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Return real-time 15-minute AS prices for each region.
+
+        Arguments:
+            date (datetime.date, str): date to return data
+
+            end (datetime.date, str): last date of range to return data.
+                If None, returns only date. Defaults to None.
+
+            verbose (bool, optional): print out url being fetched. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame of real-time 15-minute AS prices
+        """
+        if end is None and not isinstance(date, tuple):
+            date_ts = utils._handle_date(date, self.default_timezone)
+            end = date_ts + pd.DateOffset(days=1)
+
+        df = self.get_oasis_dataset(
+            dataset="as_clearing_prices_real_time_15_min",
+            date=date,
+            end=end,
+            sleep=sleep,
+            verbose=verbose,
+            raw_data=False,
+        )
+
+        columns = [
+            "Interval Start",
+            "Interval End",
+            "Region",
+            "Non-Spinning Reserves",
+            "Regulation Down",
+            "Regulation Mileage Down",
+            "Regulation Mileage Up",
+            "Regulation Up",
+            "Spinning Reserves",
+        ]
+
+        if df.empty:
+            return pd.DataFrame(columns=columns)
+
+        df = df.rename(
+            columns={
+                "ANC_REGION": "Region",
+            },
+        )
+
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(AS_TYPE_MAP)
+
+        df = df.pivot_table(
+            index=[
+                "Interval Start",
+                "Interval End",
+                "Region",
+            ],
+            columns="ANC_TYPE",
+            values="MW",
+        ).reset_index()
+
+        df = df.fillna(0)
+
+        df.columns.name = None
+
+        df = df.reindex(
+            columns=columns,
+            fill_value=0,
+        )
 
         return df
 
@@ -2718,11 +2796,11 @@ class CAISO(ISOBase):
         ):
             date_str = date.strftime("%Y%m%d")
 
-        url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
+        url = f"https://www.caiso.com/documents/curtailed-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"
 
         # Jun 1, 2024 has an extra "and" in the url
         if date.date() == pd.Timestamp("2024-06-01").date():
-            url = f"https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"  # noqa
+            url = f"https://www.caiso.com/documents/curtailed-and-non-operational-generator-prior-trade-date-report-{date_str}.xlsx"
 
         logger.info(f"Fetching {url}")
         # fetch this way to avoid having to
@@ -2890,10 +2968,9 @@ class CAISO(ISOBase):
         )
 
         df.columns = df.columns.map(
-            lambda x: x.title()
-            .replace("_", " ")
-            .replace("Baa", "BAA")
-            .replace("Mw", "MW"),
+            lambda x: (
+                x.title().replace("_", " ").replace("Baa", "BAA").replace("Mw", "MW")
+            ),
         )
 
         # Create an identifier column (separated by hyphens because some of the tie
@@ -2962,15 +3039,7 @@ class CAISO(ISOBase):
             },
         )
 
-        as_type_map = {
-            "NR": "Non-Spinning Reserves",
-            "RD": "Regulation Down",
-            "RMD": "Regulation Mileage Down",
-            "RMU": "Regulation Mileage Up",
-            "RU": "Regulation Up",
-            "SR": "Spinning Reserves",
-        }
-        df["ANC_TYPE"] = df["ANC_TYPE"].map(as_type_map)
+        df["ANC_TYPE"] = df["ANC_TYPE"].map(AS_TYPE_MAP)
 
         result_type_map = {
             "AS_BUY_MW": "Procured (MW)",
@@ -3716,6 +3785,10 @@ class CAISO(ISOBase):
                 values = extract_array(html_content, var_name)
                 if len(values) > target_length:
                     values = values[-target_length:]
+                elif len(values) < target_length and unit == "month":
+                    # On the last day of a month the rolling monthly chart drops
+                    # its oldest month. The values still end at the current month
+                    values = [np.nan] * (target_length - len(values)) + values
                 elif len(values) < target_length:
                     raise ValueError(
                         f"Renewables report column {var_name} returned {len(values)} values for {date.strftime('%Y-%m-%d')}, expected {target_length}",

@@ -1,7 +1,8 @@
 import warnings
+from email.utils import parsedate_to_datetime
 from enum import StrEnum
 from io import BytesIO
-from typing import BinaryIO, Dict, Literal, NamedTuple
+from typing import BinaryIO, Literal, NamedTuple
 
 import pandas as pd
 import requests
@@ -12,6 +13,7 @@ from gridstatus.base import (
     InterconnectionQueueStatus,
     ISOBase,
     Markets,
+    NoDataFoundException,
 )
 from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
@@ -27,10 +29,12 @@ class NYISOLocationType(StrEnum):
 
 REFERENCE_BUS_LOCATION = "NYISO_LBMP_REFERENCE"
 
+OASIS_POSTINGS_URL = "https://oasis-postings.prod.nysdi.com"
+
 LOAD_DATASET = "pal"
 ZONAL_LOAD_HOURLY_DATASET = "palIntegrated"
 GENERATION_OUTAGES_FORECAST_URL = (
-    "http://mis.nyiso.com/public/csv/genmaint/gen_maint_report.csv"
+    f"{OASIS_POSTINGS_URL}/GENERATION_MAINTENANCE_REPORT/CSV/gen_maint_report.csv"
 )
 FUEL_MIX_DATASET = "rtfuelmix"
 LOAD_FORECAST_DATASET = "isolf"
@@ -48,6 +52,65 @@ AS_PRICES_DAY_AHEAD_HOURLY_DATASET = "damasp"
 AS_PRICES_REAL_TIME_5_MIN_DATASET = "rtasp"
 LIMITING_CONSTRAINTS_REAL_TIME_DATASET = "LimitingConstraints"
 LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET = "DAMLimitingConstraints"
+AREA_CONTROL_ERROR_DATASET = "ace_data"
+# oasis-postings only has Area Control Error zips from this month onward
+AREA_CONTROL_ERROR_OASIS_FIRST_MONTH = pd.Timestamp("2026-09-01")
+
+
+class OasisPosting(NamedTuple):
+    folder: str
+    # First daily file read from oasis-postings: its first file, or the day after
+    # the last day only mis.nyiso.com has. Earlier files come from mis.nyiso.com.
+    first_date: str
+
+
+# Keyed by the mis.nyiso.com filename because the zone and generator LMP files share
+# a dataset name but live in different oasis-postings folders. The load forecast
+# switches only where mis.nyiso.com stopped, because oasis-postings timestamps the
+# same file differently and earlier publish times would change.
+OASIS_POSTINGS = {
+    LOAD_DATASET: OasisPosting("RT_ACTUAL_LOAD", "2001-05-26"),
+    ZONAL_LOAD_HOURLY_DATASET: OasisPosting("INT_RT_ACT_LOAD", "2001-06-21"),
+    LOAD_FORECAST_DATASET: OasisPosting("ISO_LF", "2026-10-12"),
+    "damlbmp_zone": OasisPosting("DAM_LBMP_ZONE", "1999-11-18"),
+    "damlbmp_gen": OasisPosting("DAM_LBMP_GEN", "1999-11-18"),
+    "realtime_zone": OasisPosting("RT_LBMP_ZONE", "2025-12-06"),
+    "realtime_gen": OasisPosting("RT_LBMP_GEN", "2007-01-01"),
+    "rtlbmp_zone": OasisPosting("RT_TW_LBMP_ZONE", "1999-11-18"),
+    "rtlbmp_gen": OasisPosting("RT_TW_LBMP_GEN", "1999-11-18"),
+    REAL_TIME_EVENTS_DATASET: OasisPosting("REAL_TIME_EVENT", "2001-06-12"),
+    "BTMEstimatedActual": OasisPosting("BTM_ACTUAL_FORECAST", "2025-12-22"),
+    BTM_SOLAR_FORECAST_DATASET: OasisPosting("BTM_DA_FORECAST", "2025-12-24"),
+    BTM_INSTALLED_CAPACITY_DATASET: OasisPosting(
+        "BTM_INSTALLED_CAPACITY_TRACKING",
+        "2025-12-22",
+    ),
+    INTERFACE_LIMITS_AND_FLOWS_DATASET: OasisPosting(
+        "INTERFACE_LIMITS_FLOWS",
+        "2002-01-01",
+    ),
+    "ErieCirculationRT": OasisPosting("ERIE_CIRCULATION_RT", "2009-04-16"),
+    "ErieCirculationDA": OasisPosting("ERIE_CIRCULATION_DA", "2009-05-02"),
+    AS_PRICES_DAY_AHEAD_HOURLY_DATASET: OasisPosting("DAM_ASP", "2026-03-29"),
+    AS_PRICES_REAL_TIME_5_MIN_DATASET: OasisPosting("RT_ASP", "2005-01-05"),
+    LIMITING_CONSTRAINTS_REAL_TIME_DATASET: OasisPosting(
+        "LIMITING_CONSTRAINTS",
+        "2002-01-01",
+    ),
+    LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET: OasisPosting(
+        "DAM_LIMITING_CONSTRAINTS",
+        "2001-08-01",
+    ),
+}
+
+
+def _read_oasis_postings_csv(url: str) -> pd.DataFrame:
+    # NB: pd.read_csv(url) goes through urllib, whose default certificate store
+    # often lacks the GlobalSign Root R46 that oasis-postings chains to
+    response = requests.get(url)
+    response.raise_for_status()
+    return pd.read_csv(BytesIO(response.content))
+
 
 """
 Pricing data:
@@ -60,7 +123,7 @@ class DatasetInterval(NamedTuple):
     interval_duration_minutes: int | None
 
 
-DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
+DATASET_INTERVAL_MAP: dict[str, DatasetInterval] = {
     LOAD_DATASET: DatasetInterval("instantaneous", None),
     ZONAL_LOAD_HOURLY_DATASET: DatasetInterval("start", 60),
     FUEL_MIX_DATASET: DatasetInterval("instantaneous", None),
@@ -77,7 +140,9 @@ DATASET_INTERVAL_MAP: Dict[str, DatasetInterval] = {
     LAKE_ERIE_CIRCULATION_DAY_AHEAD_DATASET: DatasetInterval("instantaneous", None),
     AS_PRICES_DAY_AHEAD_HOURLY_DATASET: DatasetInterval("start", 60),
     AS_PRICES_REAL_TIME_5_MIN_DATASET: DatasetInterval("start", 5),
-    LIMITING_CONSTRAINTS_REAL_TIME_DATASET: DatasetInterval("start", 5),
+    # Stamped at interval end like the real-time LBMP file, even though each daily
+    # file holds the stamps 00:00 through 23:55 rather than 00:05 through 24:00
+    LIMITING_CONSTRAINTS_REAL_TIME_DATASET: DatasetInterval("end", 5),
     LIMITING_CONSTRAINTS_DAY_AHEAD_DATASET: DatasetInterval("start", 60),
 }
 
@@ -360,7 +425,7 @@ class NYISO(ISOBase):
         """Returns NYISO's daily estimate of installed behind-the-meter solar capacity
         by zone.
 
-        Source: https://mis.nyiso.com/public/P-70Clist.htm
+        Source: https://oasis.prod.nysdi.com/BTM_INSTALLED_CAPACITY_TRACKING
         """
         if date == "latest":
             raise ValueError("Latest not supported for BTM installed capacity")
@@ -561,8 +626,8 @@ class NYISO(ISOBase):
     ) -> pd.DataFrame:
         """Get interface limits and flows for a date"""
         if date == "latest":
-            data = pd.read_csv(
-                "https://mis.nyiso.com/public/csv/ExternalLimitsFlows/currentExternalLimitsFlows.csv",  # noqa
+            data = _read_oasis_postings_csv(
+                f"{OASIS_POSTINGS_URL}/INTERFACE_LIMITS_FLOWS/CSV/current.csv",
             )
             data = self._handle_time(
                 data,
@@ -702,8 +767,10 @@ class NYISO(ISOBase):
                     verbose=verbose,
                 )
             else:
-                url = f"https://mis.nyiso.com/public/realtime/realtime_{file_location_type}_lbmp.csv"
-                df = pd.read_csv(url)
+                folder = OASIS_POSTINGS[f"{marketname}_{file_location_type}"].folder
+                df = _read_oasis_postings_csv(
+                    f"{OASIS_POSTINGS_URL}/{folder}/CSV/current.csv",
+                )
                 df = self._handle_time(df, dataset_name=marketname)
                 df["Market"] = market.value
         else:
@@ -789,6 +856,16 @@ class NYISO(ISOBase):
             else:
                 # When not equal, the data at this timestamp is 15 min data
                 mask_15_min = df["Interval Start"] >= most_recent_5_min_timestamp
+
+            # 15 min (RTC) intervals always end on a quarter-hour boundary. When
+            # the daily file receives a new 5 min interval before the
+            # latest-interval file does, that row falls after the comparison
+            # timestamp and would otherwise be relabeled as 15 min data with
+            # Interval Start = Interval End - 15 minutes, creating an interval
+            # that starts off the quarter-hour grid. A row whose interval ends
+            # off the quarter-hour is always 5 min data, so exclude it from the
+            # 15 min mask.
+            mask_15_min &= df["Interval End"].dt.minute % 15 == 0
 
             df.loc[~mask_15_min, "Market"] = Markets.REAL_TIME_5_MIN.value
             df.loc[mask_15_min, "Market"] = Markets.REAL_TIME_15_MIN.value
@@ -975,7 +1052,7 @@ class NYISO(ISOBase):
         return df.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     def get_raw_interconnection_queue(self) -> BinaryIO:
-        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"  # noqa
+        url = "https://www.nyiso.com/documents/20142/1407078/NYISO-Interconnection-Queue.xlsx"
 
         logger.info(f"Downloading interconnection queue from {url}")
         response = requests.get(url)
@@ -990,7 +1067,7 @@ class NYISO(ISOBase):
             pandas.DataFrame: Interconnection queue containing, active, withdrawn, \
                 and completed project
 
-        """  # noqa
+        """
 
         # 5 sheets - ['Interconnection Queue', 'Cluster Projects', 'Withdrawn', 'Cluster Projects-Withdrawn', 'In Service']
         # harded coded for now. perhaps this url can be parsed from the html here:
@@ -1221,15 +1298,15 @@ class NYISO(ISOBase):
             * Notes
             * Generator Type
         """
-        generator_url = "http://mis.nyiso.com/public/csv/generator/generator.csv"
+        generator_url = f"{OASIS_POSTINGS_URL}/GENERATOR_NAME/CSV/generatorname.csv"
 
         logger.info(f"Requesting {generator_url}")
 
-        df = pd.read_csv(generator_url)
+        df = _read_oasis_postings_csv(generator_url)
 
         # need to be updated once a year. approximately around end of april
         # find it here: https://www.nyiso.com/gold-book-resources
-        capacity_url_2024 = "https://www.nyiso.com/documents/20142/44474211/2024-NYCA-Generators.xlsx/41a5cba2-523a-9fe0-9830-a523839a2831"  # noqa
+        capacity_url_2024 = "https://www.nyiso.com/documents/20142/44474211/2024-NYCA-Generators.xlsx/41a5cba2-523a-9fe0-9830-a523839a2831"
 
         logger.info(f"Requesting {capacity_url_2024}")
 
@@ -1361,11 +1438,11 @@ class NYISO(ISOBase):
             pandas.DataFrame: a DataFrame of loads and locations
         """
 
-        url = "http://mis.nyiso.com/public/csv/load/load.csv"
+        url = f"{OASIS_POSTINGS_URL}/LOAD_NAME/CSV/load.csv"
 
         logger.info(f"Requesting {url}")
 
-        df = pd.read_csv(url)
+        df = _read_oasis_postings_csv(url)
 
         return df
 
@@ -1435,6 +1512,44 @@ class NYISO(ISOBase):
             end = None
             date = date.normalize()
 
+        oasis_posting = OASIS_POSTINGS.get(filename)
+        if oasis_posting is not None:
+            first_oasis_date = pd.Timestamp(
+                oasis_posting.first_date,
+                tz=self.default_timezone,
+            )
+            oasis_days = [
+                d for d in self._archive_days(date, end) if d >= first_oasis_date
+            ]
+            if oasis_days:
+                all_dfs = self._download_oasis_postings(
+                    oasis_days,
+                    oasis_posting.folder,
+                    dataset_name,
+                    filename,
+                    add_file_date,
+                    groupby,
+                )
+                if date < first_oasis_date:
+                    all_dfs.insert(
+                        0,
+                        self._download_nyiso_archive(
+                            date,
+                            # NB: end is inclusive within a month, see _archive_days
+                            end=first_oasis_date - pd.DateOffset(days=1),
+                            dataset_name=dataset_name,
+                            filename=filename,
+                            groupby=groupby,
+                            verbose=verbose,
+                        ),
+                    )
+                if not all_dfs:
+                    raise NoDataFoundException(
+                        f"No {dataset_name} files posted for "
+                        f"{oasis_days[0]:%Y-%m-%d} to {oasis_days[-1]:%Y-%m-%d}",
+                    )
+                return pd.concat(all_dfs).sort_values("Time").reset_index(drop=True)
+
         # NB: the last 7 days of file are hosted directly as csv
         # todo this can probably be optimized to a single csv in
         # a range and all files are in the last 7 days
@@ -1450,28 +1565,11 @@ class NYISO(ISOBase):
             if add_file_date:
                 df["File Date"] = self._get_load_forecast_file_date(date, verbose)
         else:
-            zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"  # noqa: E501
+            zip_url = f"http://mis.nyiso.com/public/csv/{dataset_name}/{month}{filename}_csv.zip"
             z = utils.get_zip_folder(zip_url, verbose=verbose)
 
             all_dfs = []
-            if end is None:
-                date_range = [date]
-            else:
-                date_range = pd.date_range(
-                    date.date(),
-                    end.date(),
-                    freq="1D",
-                    inclusive="left",
-                ).tolist()
-
-                # NB: this handles case where end is the first of the next month
-                # this pops up from the support_date_range decorator
-                # and that date will be handled in the next month's zip file
-                if end.month == date.month:
-                    date_range += [end]
-
-            for d in date_range:
-                d = gridstatus.utils._handle_date(d, tz=self.default_timezone)
+            for d in self._archive_days(date, end):
                 month = d.strftime("%Y%m01")
                 day = d.strftime("%Y%m%d")
 
@@ -1493,6 +1591,65 @@ class NYISO(ISOBase):
             df = pd.concat(all_dfs)
 
         return df.sort_values("Time").reset_index(drop=True)
+
+    def _archive_days(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None,
+    ) -> list[pd.Timestamp]:
+        if end is None:
+            days = [date.normalize()]
+        else:
+            days = pd.date_range(
+                date.date(),
+                end.date(),
+                freq="1D",
+                inclusive="left",
+            ).tolist()
+
+            # NB: this handles case where end is the first of the next month
+            # this pops up from the support_date_range decorator
+            # and that date will be handled in the next month's zip file
+            if end.month == date.month:
+                days += [end]
+
+        return [
+            gridstatus.utils._handle_date(d, tz=self.default_timezone) for d in days
+        ]
+
+    def _download_oasis_postings(
+        self,
+        days: list[pd.Timestamp],
+        folder: str,
+        dataset_name: str,
+        filename: str,
+        add_file_date: bool,
+        groupby: str | None,
+    ) -> list[pd.DataFrame]:
+        all_dfs = []
+        for day in days:
+            url = (
+                f"{OASIS_POSTINGS_URL}/{folder}/CSV/{day:%Y/%m/%d}/"
+                f"{filename}-{day:%Y%m%d}.csv"
+            )
+            logger.info(f"Requesting {url}")
+            response = requests.get(url)
+            if response.status_code == 404:
+                logger.info(f"{url} not found")
+                continue
+            response.raise_for_status()
+
+            df = pd.read_csv(BytesIO(response.content))
+            if add_file_date:
+                # NB: oasis-postings has no P-7list equivalent, so the post time is
+                # the file's Last-Modified, which matches nyiso.com's Last Updated
+                df["File Date"] = pd.Timestamp(
+                    parsedate_to_datetime(response.headers["Last-Modified"]),
+                ).tz_convert(self.default_timezone)
+            df = self._handle_time(df, dataset_name, groupby=groupby)
+            all_dfs.append(df)
+
+        return all_dfs
 
     def _get_load_forecast_file_date(
         self,
@@ -1667,8 +1824,8 @@ class NYISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            data = pd.read_csv(
-                "https://mis.nyiso.com/public/csv/LimitingConstraints/currentLimitingConstraints.csv",
+            data = _read_oasis_postings_csv(
+                f"{OASIS_POSTINGS_URL}/LIMITING_CONSTRAINTS/CSV/current.csv",
             )
             data = self._handle_time(
                 data,
@@ -1740,3 +1897,82 @@ class NYISO(ISOBase):
         )
 
         return df
+
+    @support_date_range(frequency="MONTH_START")
+    def get_area_control_error(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp] | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Retrieves the NYISO-wide area control error (ACE) in ~6 second
+        intervals.
+
+        Data is published as monthly archives, added after each month
+        completes. Source: https://oasis.prod.nysdi.com/AREA_CONTROL_ERROR
+
+        Arguments:
+            date (str or pandas.Timestamp): Start datetime for data. If ``end``
+                is provided, this is the start date.
+            end (str or pandas.Timestamp, optional): End datetime for data.
+                Defaults to one month past ``date`` if not specified.
+            verbose (bool, optional): print out requested url. Defaults to False.
+
+        Returns:
+            pandas.DataFrame: A DataFrame with columns ``Time`` and
+                ``Area Control Error`` (MW).
+        """
+        return self._download_area_control_error_archive(
+            date=date,
+            end=end,
+            verbose=verbose,
+        )
+
+    def _download_area_control_error_archive(
+        self,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None = None,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        # zip/csv are named ace-<YYYYMM01> rather than the usual <YYYYMMDD>.
+        date = gridstatus.utils._handle_date(date, self.default_timezone)
+        month = date.strftime("%Y%m01")
+
+        if date.tz_localize(None) >= AREA_CONTROL_ERROR_OASIS_FIRST_MONTH:
+            zip_url = (
+                f"{OASIS_POSTINGS_URL}/AREA_CONTROL_ERROR/ZIP/{date:%Y/%m}/01/"
+                f"ace-{month}.zip"
+            )
+        else:
+            zip_url = f"http://mis.nyiso.com/public/{AREA_CONTROL_ERROR_DATASET}/ace-{month}.zip"
+        z = utils.get_zip_folder(zip_url, verbose=verbose)
+
+        csv_filename = f"ace-{month}.csv"
+        df = pd.read_csv(z.open(csv_filename))
+
+        return self._handle_area_control_error(df, date=date, end=end)
+
+    def _handle_area_control_error(
+        self,
+        df: pd.DataFrame,
+        date: pd.Timestamp,
+        end: pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        df = df.rename(columns={"value": "Area Control Error"})
+
+        parsed = df["time"].str.rsplit(" ", n=1, expand=True)
+        is_dst = parsed[1] == "EDT"
+        df["Time"] = pd.to_datetime(parsed[0]).dt.tz_localize(
+            self.default_timezone,
+            ambiguous=is_dst,
+        )
+
+        df = df[["Time", "Area Control Error"]].sort_values("Time")
+
+        # trim to the requested window
+        if end is not None:
+            df = df[(df["Time"] >= date) & (df["Time"] < end)]
+        else:
+            df = df[df["Time"] >= date]
+
+        return df.reset_index(drop=True)

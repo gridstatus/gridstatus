@@ -1,3 +1,7 @@
+from io import BytesIO
+from unittest.mock import call, patch
+from urllib.error import HTTPError
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -245,11 +249,15 @@ class TestMISO(BaseTestISO):
                 date=date,
                 market=Markets.REAL_TIME_5_MIN,
             )
-            assert df["Interval Start"].min() == self.local_start_of_day(date)
-            assert df["Interval End"].max() == self.local_start_of_day(
-                date,
-            ) + pd.DateOffset(days=1)
-            assert sorted(list(df["Location Type"].unique())) == [
+            assert df["Interval Start"].min() == (
+                self.local_start_of_day(date) - pd.Timedelta(minutes=5)
+            )
+            assert df["Interval End"].max() == (
+                self.local_start_of_day(date)
+                + pd.DateOffset(days=1)
+                - pd.Timedelta(minutes=5)
+            )
+            assert sorted(df["Location Type"].unique()) == [
                 "Gennode",
                 "Hub",
                 "Interface",
@@ -676,6 +684,83 @@ class TestMISO(BaseTestISO):
             assert df["To Station"].dtype == object
             assert df["From KV"].dtype in [np.int64, np.float64]
             assert df["To KV"].dtype in [np.int64, np.float64]
+
+    def test_get_binding_constraints_supplemental_continuation_sheets(self):
+        with miso_vcr.use_cassette("test_miso_supplemental_all_sheets_20261014.yaml"):
+            df = self.iso.get_binding_constraints_supplemental(
+                "2026-10-14",
+                end="2026-10-16",
+                error="raise",
+            )
+        assert df.groupby("Date").size().tolist() == [91802, 91836]
+        assert df["Constraint ID"].dtype == np.int64
+        assert df["Direction"].dtype == np.int64
+        for _, day in df.groupby("Date"):
+            assert day.iloc[65532]["Constraint ID"] < day.iloc[65531]["Constraint ID"]
+            assert day.iloc[-1]["Constraint ID"] == 1
+        # Constraint IDs can refer to multiple equipment/flowgate rows.
+        assert len(df.loc[df["Constraint ID"] == 429810]) == 4
+
+    def test_get_binding_constraints_supplemental_xlsx_fallback(self):
+        data = pd.DataFrame(
+            [
+                {
+                    "Constraint ID": 123,
+                    "Constraint Name": "Constraint",
+                    "Contingency Name": "Contingency",
+                    "Constraint Type": "Type",
+                    "Flowgate Name": "Flowgate",
+                    "Device Type": "Line",
+                    "Key1": "A",
+                    "Key2": "B",
+                    "Key3": "C",
+                    "Direction": 1,
+                    "From Area": "Area A",
+                    "To Area": "Area B",
+                    "From Station": "Station A",
+                    "To Station": "Station B",
+                    "From KV": 138,
+                    "To KV": 138,
+                },
+            ],
+        )
+        content = BytesIO()
+        with pd.ExcelWriter(content, engine="openpyxl") as writer:
+            pd.DataFrame(
+                [
+                    "Binding Constraints Supplemental",
+                    "Market Date: 10/16/2026",
+                    "Publish Date: 10/15/2026",
+                ],
+            ).to_excel(writer, header=False, index=False)
+            data.to_excel(writer, startrow=3, index=False)
+        url = "https://docs.misoenergy.org/marketreports/20261015_da_bcsf.xls"
+        with (
+            pd.ExcelFile(content) as workbook,
+            patch(
+                "gridstatus.miso.pd.ExcelFile",
+                side_effect=[HTTPError(url, 404, "Not Found", None, None), workbook],
+            ) as read,
+        ):
+            result = self.iso.get_binding_constraints_supplemental(
+                "2026-10-16",
+                error="raise",
+            )
+        assert read.call_args_list == [call(url), call(url + "x")]
+        data.insert(0, "Date", pd.Timestamp("2026-10-16", tz="EST").as_unit("ns"))
+        pd.testing.assert_frame_equal(result, data)
+
+    @pytest.mark.parametrize("codes", [(404, 404), (403,), (500,)])
+    def test_get_binding_constraints_supplemental_http_errors(self, codes):
+        url = "https://docs.misoenergy.org/marketreports/20261015_da_bcsf.xls"
+        errors = [HTTPError(url, code, "HTTP error", None, None) for code in codes]
+        with (
+            patch("gridstatus.miso.pd.ExcelFile", side_effect=errors) as read,
+            pytest.raises(HTTPError) as caught,
+        ):
+            self.iso.get_binding_constraints_supplemental("2026-10-16", error="raise")
+        assert caught.value is errors[-1]
+        assert read.call_count == len(codes)
 
     @pytest.mark.parametrize(
         "date,end",

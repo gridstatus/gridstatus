@@ -140,7 +140,7 @@ class TestPJM(BaseTestISO):
                 with pytest.raises(
                     NoDataFoundException,
                     match="No data found for rt_hrl_lmps",
-                ):  # noqa
+                ):
                     self.iso.get_lmp("today", market=market)
             else:
                 df = self.iso.get_lmp("today", market=market)
@@ -222,6 +222,31 @@ class TestPJM(BaseTestISO):
             )
 
             assert len(df) > 0
+
+    def test_get_lmp_keeps_retired_pnodes(self):
+        """Historical LMPs cover nodes PJM has since retired.
+
+        Those rows used to be dropped by an inner merge against the
+        active-only pnode directory, so a node retired after the fact lost its
+        whole price history.
+        """
+        with pjm_vcr.use_cassette("test_get_lmp_keeps_retired_pnodes.yaml"):
+            df = self.iso.get_lmp_day_ahead_hourly(
+                date="2021-06-03",
+                end="2021-06-04",
+            )
+            active = self.iso.get_pnode_ids()
+            everything = self.iso.get_pnode_ids(include_terminated=True)
+
+        first_hour = df[df["Interval Start"] == df["Interval Start"].min()]
+        retired = set(everything["pnode_id"]) - set(active["pnode_id"])
+
+        # The day predates the retirement of some of the nodes priced on it.
+        assert len(set(first_hour["Location Id"]) & retired) > 0
+        # Every row is labelled, retired nodes included, and the merge on a
+        # unique id adds no rows.
+        assert first_hour["Location Name"].notna().all()
+        assert first_hour["Location Id"].is_unique
 
     """get_it_sced_lmp_5_min"""
 
@@ -321,7 +346,7 @@ class TestPJM(BaseTestISO):
                 "APS",
                 "ATSI",
                 "BC",
-                "COMED",  # noqa
+                "COMED",
                 "DAYTON",
                 "DEOK",
                 "DOM",
@@ -331,17 +356,17 @@ class TestPJM(BaseTestISO):
                 "JC",
                 "ME",
                 "PE",
-                "PEP",  # noqa
+                "PEP",
                 "PJM MID ATLANTIC REGION",
                 "PJM RTO",
-                "PJM SOUTHERN REGION",  # noqa
+                "PJM SOUTHERN REGION",
                 "PJM WESTERN REGION",
                 "PL",
                 "PN",
                 "PS",
                 "RECO",
                 "UG",
-            ]  # noqa
+            ]
 
     """get_load_forecast"""
 
@@ -463,6 +488,18 @@ class TestPJM(BaseTestISO):
         with pjm_vcr.use_cassette("test_get_pnode_ids.yaml"):
             df = self.iso.get_pnode_ids()
             assert len(df) > 0
+            assert df["pnode_id"].is_unique
+
+    def test_get_pnode_ids_include_terminated(self):
+        with pjm_vcr.use_cassette("test_get_pnode_ids_include_terminated.yaml"):
+            active = self.iso.get_pnode_ids()
+            everything = self.iso.get_pnode_ids(include_terminated=True)
+
+        # Retired pnodes are a superset of the active ones, and the dedup still
+        # leaves exactly one row per id so a merge on it cannot fan out.
+        assert len(everything) > len(active)
+        assert everything["pnode_id"].is_unique
+        assert set(active["pnode_id"]) <= set(everything["pnode_id"])
 
     """get_status"""
 
@@ -943,7 +980,9 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_gen_outages_by_type(date)
             self._check_gen_outages_by_type(df)
 
-            expected_date = self.to_local_datetime(start_date_local)
+            expected_date = self.to_local_datetime(start_date_local) + pd.DateOffset(
+                hour=6,
+            )
             assert (df["Publish Time"] == expected_date).all()
             assert (
                 df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
@@ -958,7 +997,9 @@ class TestPJM(BaseTestISO):
             df = self.iso.get_gen_outages_by_type(start_date_time_local)
             self._check_gen_outages_by_type(df)
 
-            expected_date = self.to_local_datetime(start_date_local)
+            expected_date = self.to_local_datetime(start_date_local) + pd.DateOffset(
+                hour=6,
+            )
             assert (df["Publish Time"] == expected_date).all()
             assert (
                 df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
@@ -974,8 +1015,8 @@ class TestPJM(BaseTestISO):
         ],
     )
     def test_get_gen_outages_by_type_with_multi_day_range(self, date, end):
-        expected_date_1 = "2024-04-30 00:00:00-04:00"
-        expected_date_2 = "2024-05-01 00:00:00-04:00"
+        expected_date_1 = "2024-04-30 06:00:00-04:00"
+        expected_date_2 = "2024-05-01 06:00:00-04:00"
         expected_dates = {expected_date_1, expected_date_2}
 
         with pjm_vcr.use_cassette(
@@ -990,6 +1031,50 @@ class TestPJM(BaseTestISO):
             assert (
                 df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
             ).all()
+
+    @pytest.mark.parametrize(
+        "execution_date, expected_publish_time",
+        [
+            ("2024-01-15", "2024-01-15 11:00:00+00:00"),
+            ("2024-07-15", "2024-07-15 10:00:00+00:00"),
+            ("2024-03-10", "2024-03-10 10:00:00+00:00"),
+            ("2024-11-03", "2024-11-03 11:00:00+00:00"),
+        ],
+    )
+    def test_parse_gen_outages_by_type_publish_time(
+        self,
+        execution_date,
+        expected_publish_time,
+    ):
+        raw = pd.DataFrame(
+            {
+                "forecast_execution_date_ept": [f"{execution_date}T00:00:00"] * 2,
+                "forecast_date": [
+                    execution_date,
+                    str(pd.Timestamp(execution_date).date() + pd.Timedelta(days=6)),
+                ],
+                "region": ["RTO", "West"],
+                "planned_outages_mw": [100.0, 200.0],
+                "maintenance_outages_mw": [10.0, 20.0],
+                "forced_outages_mw": [1.0, 2.0],
+                "total_outages_mw": [111.0, 222.0],
+            },
+        )
+
+        df = self.iso._parse_gen_outages_by_type(raw)
+
+        self._check_gen_outages_by_type(df)
+        assert (df["Publish Time"].dt.hour == 6).all()
+        assert (df["Publish Time"] == pd.Timestamp(expected_publish_time)).all()
+        assert df["Interval Start"].tolist() == [
+            pd.Timestamp(date, tz=self.iso.default_timezone)
+            for date in raw["forecast_date"]
+        ]
+        assert (
+            df["Interval End"] == df["Interval Start"] + pd.DateOffset(days=1)
+        ).all()
+        assert df["Region"].tolist() == raw["region"].tolist()
+        assert df.iloc[:, 4:].values.tolist() == raw.iloc[:, 3:].values.tolist()
 
     def to_local_datetime(self, date_local):
         return pd.to_datetime(date_local).tz_localize(
@@ -1655,7 +1740,7 @@ class TestPJM(BaseTestISO):
             assert "Ancillary Service" in df.columns
             for row in df.iterrows():
                 prefix, suffix = row[1]["Ancillary Service"].split("-")
-                assert prefix in self.iso.locale_abbreviated_to_full.keys()
+                assert prefix in self.iso.locale_abbreviated_to_full
                 assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
     expected_real_time_as_market_results_cols = [
@@ -1736,7 +1821,7 @@ class TestPJM(BaseTestISO):
             assert "Ancillary Service" in df.columns
             for row in df.iterrows():
                 prefix, suffix = row[1]["Ancillary Service"].split("-")
-                assert prefix in self.iso.locale_abbreviated_to_full.keys()
+                assert prefix in self.iso.locale_abbreviated_to_full
                 assert suffix in self.iso.service_type_abbreviated_to_full.values()
 
     def test_get_real_time_as_market_results_valid_dates_before_cutoff(self):
@@ -2603,7 +2688,7 @@ class TestPJM(BaseTestISO):
         end = start + pd.Timedelta(hours=4)
 
         with pjm_vcr.use_cassette(
-            f"test_get_instantaneous_dispatch_rates_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",  # noqa: E501
+            f"test_get_instantaneous_dispatch_rates_date_range_{start.strftime('%Y-%m-%d')}_{end.strftime('%Y-%m-%d')}.yaml",
         ):
             df = self.iso.get_instantaneous_dispatch_rates(start, end)
             self._check_instantaneous_dispatch_rates(df)
@@ -3136,6 +3221,7 @@ class TestPJM(BaseTestISO):
         "Effective End",
         "Canceled Time",
         "Emergency Message",
+        "Is Drill",
     ]
 
     SAMPLE_DASHBOARD_HTML = (
@@ -3150,6 +3236,7 @@ class TestPJM(BaseTestISO):
 <messageId>1</messageId>
 <messageType>Test</messageType>
 <postedTimestamp>2016-07-05T19:37Z</postedTimestamp>
+<pjmDrill>false</pjmDrill>
 <priority>Warning</priority>
 <message>Hello</message>
 <effectiveStartTime>2016-07-05T19:33Z</effectiveStartTime>
@@ -3191,6 +3278,7 @@ class TestPJM(BaseTestISO):
         assert df["Message ID"].iloc[0] == 1
         assert df["Region"].iloc[0] == "AEP"
         assert df["Message Type"].iloc[0] == "Test"
+        assert not bool(df["Is Drill"].iloc[0])
         assert df["Priority"].iloc[0] == "Warning"
         assert isinstance(df["Effective Start"].dtype, pd.DatetimeTZDtype)
         assert str(df["Effective Start"].dt.tz) == str(self.iso.default_timezone)
@@ -3206,6 +3294,7 @@ class TestPJM(BaseTestISO):
 <messageId>99</messageId>
 <messageType>Hot Weather Alert</messageType>
 <postedTimestamp>2026-04-13T12:00Z</postedTimestamp>
+<pjmDrill>false</pjmDrill>
 <priority>Alert</priority>
 <message>Body</message>
 <effectiveStartTime>2026-04-13T12:00Z</effectiveStartTime>
@@ -3226,6 +3315,40 @@ class TestPJM(BaseTestISO):
         assert len(df) == 2
         assert set(df["Region"]) == {"SOUTHERN", "MIDATL"}
         assert df["Message ID"].iloc[0] == 99
+        assert not df["Is Drill"].any()
+
+    def test_get_emergency_postings_is_drill(self):
+        xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns2:EmergencyProcedures xmlns:ns2="http://www.pjm.com/external/schemas/emergencyprocedures/v1">
+<EmergencyMessage>
+<messageId>103331</messageId>
+<messageType>Manual Load Dump Action - Capacity Emergency - NERC EEA 3</messageType>
+<postedTimestamp>2021-11-03T17:45Z</postedTimestamp>
+<pjmDrill>true</pjmDrill>
+<pjmCP>true</pjmCP>
+<priority>Action</priority>
+<message>A Manual Load Dump Action of 2500 MW and an EEA3 have been requested.</message>
+<effectiveStartTime>2021-11-03T17:45Z</effectiveStartTime>
+<effectiveEndTime>2021-11-03T18:45Z</effectiveEndTime>
+<applicableStartTime>2021-11-03T17:45Z</applicableStartTime>
+<applicableEndTime>2021-11-03T18:45Z</applicableEndTime>
+<Region><regionName>PJM-RTO</regionName><regionType>RTO</regionType></Region>
+</EmergencyMessage>
+</ns2:EmergencyProcedures>"""
+        mock_session = self._mock_session_for_xml_export(
+            self.SAMPLE_DASHBOARD_HTML,
+            xml,
+        )
+        with mock.patch("gridstatus.pjm.requests.Session", return_value=mock_session):
+            df = self.iso.get_emergency_postings(date="latest")
+
+        assert len(df) == 1
+        assert df["Message ID"].iloc[0] == 103331
+        assert bool(df["Is Drill"].iloc[0]) is True
+        assert (
+            df["Message Type"].iloc[0]
+            == "Manual Load Dump Action - Capacity Emergency - NERC EEA 3"
+        )
 
     def test_get_emergency_postings_posts_viewstate(self):
         mock_session = self._mock_session_for_xml_export(
@@ -3261,7 +3384,7 @@ class TestPJM(BaseTestISO):
         mock_get.assert_called_once()
         assert mock_get.call_args.kwargs["params"] == {
             "start": "01-01-2016",
-            "stop": "12-31-2016",
+            "stop": "01-01-2017",
         }
         assert len(df) == 1
         assert df["Message ID"].iloc[0] == 1
@@ -3286,6 +3409,20 @@ class TestPJM(BaseTestISO):
 
         assert df.empty
         assert df.columns.tolist() == self.expected_emergency_postings_cols
+
+    def test_get_emergency_postings_rest_includes_postings_on_end_date(self):
+        # PJM posted messages 105540 and 105541 on 2026-10-01. A range ending
+        # partway through that day still returns them
+        with pjm_vcr.use_cassette(
+            "test_get_emergency_postings_rest_includes_postings_on_end_date.yaml",
+        ):
+            df = self.iso.get_emergency_postings(
+                date="2026-09-21",
+                end=pd.Timestamp("2026-10-01 22:00", tz=self.iso.default_timezone),
+            )
+
+        assert df.columns.tolist() == self.expected_emergency_postings_cols
+        assert {105540, 105541} <= set(df["Message ID"])
 
     """get_voltage_limits"""
 
@@ -3388,3 +3525,158 @@ class TestPJM(BaseTestISO):
             self._check_marginal_emission_rates_5_min(df)
             assert df["Interval Start"].min() >= date
             assert df["Interval End"].max() <= end
+
+
+class TestPJMDataMinerPagination:
+    """_get_pjm_json pages by explicit startRow and rejects mixed snapshots."""
+
+    endpoint = "agg_definitions"
+    params = {"fields": "agg_pnode_id"}
+
+    @staticmethod
+    def _pages(total_rows: int, per_page_total_rows: dict[int, int] | None = None):
+        """Fake _make_api_call serving ``total_rows`` numbered rows.
+
+        ``per_page_total_rows`` overrides the ``totalRows`` a page reports, keyed
+        by its startRow, to simulate a page served from an older result set.
+        """
+        calls = []
+
+        def fake(url, params=None, headers=None):
+            calls.append(params)
+            start_row = params["startRow"]
+            row_count = params["rowCount"]
+            items = [
+                {"agg_pnode_id": row}
+                for row in range(start_row, min(start_row + row_count, total_rows + 1))
+            ]
+            reported = (per_page_total_rows or {}).get(start_row, total_rows)
+            return {"totalRows": reported, "items": items}
+
+        return fake, calls
+
+    def test_pages_are_requested_by_start_row_without_next_links(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=5)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            df = pjm._get_pjm_json(self.endpoint, None, self.params, row_count=2)
+
+        assert [call["startRow"] for call in calls] == [1, 3, 5]
+        assert all(call["rowCount"] == 2 for call in calls)
+        assert df["agg_pnode_id"].tolist() == [1, 2, 3, 4, 5]
+
+    def test_unfiltered_query_draws_a_random_page_size(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=1)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            for _ in range(20):
+                pjm._get_pjm_json(self.endpoint, None, self.params)
+
+        sizes = {call["rowCount"] for call in calls}
+        assert len(sizes) > 1
+        assert all(
+            gridstatus.pjm.DATA_MINER_MIN_RANDOM_ROW_COUNT
+            <= size
+            <= gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
+            for size in sizes
+        )
+
+    def test_date_filtered_query_keeps_the_maximum_page_size(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=1)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            pjm._get_pjm_json(self.endpoint, "2026-09-20", self.params)
+
+        assert calls[0]["rowCount"] == gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
+        assert calls[0]["datetime_beginning_ept"] == (
+            "09/20/2026 00:00to09/20/2026 23:59"
+        )
+
+    def test_mixed_snapshot_is_retried_once_then_rejected(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=5, per_page_total_rows={3: 4})
+        with (
+            mock.patch.object(pjm, "_make_api_call", side_effect=fake),
+            pytest.raises(
+                gridstatus.pjm.DataMinerSnapshotMismatch,
+                match="4 total rows",
+            ),
+        ):
+            pjm._get_pjm_json(self.endpoint, None, self.params, row_count=2)
+
+        # Two attempts, each stopped at the second page.
+        assert [call["startRow"] for call in calls] == [1, 3, 1, 3]
+
+    def test_mixed_snapshot_succeeds_when_the_retry_is_consistent(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=5)
+        stale_once = [True]
+
+        def flaky(url, params=None, headers=None):
+            response = fake(url, params=params, headers=headers)
+            if stale_once[0] and params["startRow"] == 3:
+                stale_once[0] = False
+                return response | {"totalRows": 4}
+            return response
+
+        with mock.patch.object(pjm, "_make_api_call", side_effect=flaky):
+            df = pjm._get_pjm_json(self.endpoint, None, self.params, row_count=2)
+
+        assert df["agg_pnode_id"].tolist() == [1, 2, 3, 4, 5]
+        assert [call["startRow"] for call in calls] == [1, 3, 1, 3, 5]
+
+    def test_short_pull_is_rejected(self):
+        pjm = PJM(api_key="test")
+
+        def short(url, params=None, headers=None):
+            return {"totalRows": 3, "items": [{"agg_pnode_id": 1}]}
+
+        with (
+            mock.patch.object(pjm, "_make_api_call", side_effect=short),
+            pytest.raises(
+                gridstatus.pjm.DataMinerSnapshotMismatch,
+                match="returned 1 rows",
+            ),
+        ):
+            pjm._get_pjm_json(self.endpoint, None, self.params, row_count=5)
+
+    def test_single_page_varied_pull_is_checked_against_a_second_size(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=3)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            df = pjm._get_pjm_json(self.endpoint, None, self.params)
+
+        assert len(calls) == 2
+        assert [call["startRow"] for call in calls] == [1, 1]
+        assert calls[0]["rowCount"] != calls[1]["rowCount"]
+        assert df["agg_pnode_id"].tolist() == [1, 2, 3]
+
+    def test_single_page_check_rejects_a_differing_copy(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=3)
+
+        def differing(url, params=None, headers=None):
+            response = fake(url, params=params, headers=headers)
+            if len(calls) % 2 == 0:
+                # Every second request is the check; serve it an older copy.
+                response["items"][0] = {"agg_pnode_id": 99}
+            return response
+
+        with (
+            mock.patch.object(pjm, "_make_api_call", side_effect=differing),
+            pytest.raises(
+                gridstatus.pjm.DataMinerSnapshotMismatch,
+                match="second request",
+            ),
+        ):
+            pjm._get_pjm_json(self.endpoint, None, self.params)
+
+        assert len(calls) == 4
+
+    def test_explicit_row_count_skips_the_single_page_check(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=3)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            pjm._get_pjm_json(self.endpoint, None, self.params, row_count=10)
+
+        assert len(calls) == 1

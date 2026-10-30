@@ -92,6 +92,24 @@ _interconnection_columns = [
 ]
 
 
+REDACTED = "<redacted>"
+
+
+def loggable_request_kwargs(kwargs: dict) -> dict:
+    """Return request kwargs that are safe to log.
+
+    Header and auth values carry credentials such as PJM's
+    Ocp-Apim-Subscription-Key, so they are replaced; header names stay
+    visible for debugging.
+    """
+    safe = dict(kwargs)
+    if safe.get("headers"):
+        safe["headers"] = {name: REDACTED for name in safe["headers"]}
+    if safe.get("auth") is not None:
+        safe["auth"] = REDACTED
+    return safe
+
+
 class ISOBase:
     markets = []
     status_homepage = None
@@ -116,6 +134,7 @@ class ISOBase:
         url: str,
         verbose: bool = False,
         retries: int | None = None,
+        session: requests.Session | None = None,
         **kwargs,
     ):
         """
@@ -127,6 +146,8 @@ class ISOBase:
             verbose (bool): Whether to print log messages
             retries (int): The number of retries to attempt if the request fails. The
                 total tries will be 1 + retries
+            session (requests.Session): Session to send the request with, for example
+                one that presents a client certificate. Defaults to requests.get
             **kwargs: Additional keyword arguments to pass to requests.get
 
         Returns:
@@ -137,8 +158,8 @@ class ISOBase:
         attempt = 0
         while attempt < max_attempts:
             try:
-                logger.info(f"Requesting {url} with {kwargs}")
-                r = requests.get(url, **kwargs)
+                logger.info(f"Requesting {url} with {loggable_request_kwargs(kwargs)}")
+                r = (session or requests).get(url, **kwargs)
                 r.raise_for_status()  # Raise an error for HTTP error codes
                 return r.json()
             except requests.RequestException as e:
@@ -191,7 +212,7 @@ class ISOBase:
         return latest_df
 
     def _latest_from_today(self, method, *args, **kwargs):
-        data = method(date="today", *args, **kwargs)
+        data = method(*args, date="today", **kwargs)
         latest = data.iloc[-1]
 
         latest.index = latest.index.str.lower()
@@ -211,19 +232,19 @@ class GridStatus:
     def __repr__(self) -> str:
         s = self.iso.name + "\n"
 
-        s += "Time: %s \n" % str(self.time)
-        s += "Status: %s \n" % self.status
+        s += f"Time: {self.time!s} \n"
+        s += f"Status: {self.status} \n"
 
         if self.iso.status_homepage:
-            s += "Status Homepage: %s \n" % self.iso.status_homepage
+            s += f"Status Homepage: {self.iso.status_homepage} \n"
 
         if self.reserves is not None:
-            s += "Reserves: %.0f %s \n" % (self.reserves, self.unit)
+            s += f"Reserves: {self.reserves:.0f} {self.unit} \n"
 
         if self.notes and len(self.notes):
             s += "Notes:\n"
             for n in self.notes:
-                s += "-  %s\n" % n
+                s += f"-  {n}\n"
 
         return s
 

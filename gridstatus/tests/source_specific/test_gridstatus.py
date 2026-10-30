@@ -37,7 +37,7 @@ def test_get_iso():
 
 
 def test_get_iso_invalid():
-    with pytest.raises(Exception):
+    with pytest.raises(KeyError):
         gridstatus.get_iso("ISO DOESNT EXIST")
 
 

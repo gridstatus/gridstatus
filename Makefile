@@ -10,6 +10,20 @@ PYTEST_CMD := uv run pytest -s -vv -n auto --reruns 5 --reruns-delay 3 --duratio
 NOT_SLOW := -m "not slow"
 UNIT_ONLY := -m "not integration"
 
+.PHONY: test
+test: test-base \
+	test-aeso \
+	test-caiso \
+	test-ercot \
+	test-isone \
+	test-miso \
+	test-nyiso \
+	test-pjm \
+	test-spp \
+	test-eia \
+	test-ieso \
+	test-misc
+
 .PHONY: test-base
 test-base:
 	$(PYTEST_CMD) gridstatus/tests/test_*.py --ignore=gridstatus/tests/source_specific/
