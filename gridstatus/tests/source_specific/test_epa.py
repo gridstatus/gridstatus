@@ -1,86 +1,109 @@
-import datetime
-import os
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
-import vcr
+import requests
 
+from gridstatus import EPA
 from gridstatus.base import NoDataFoundException
-from gridstatus.epa import EPA
 from gridstatus.epa.epa_constants import POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
-from gridstatus.tests.vcr_utils import RECORD_MODE, clean_cassettes
-
-cassette_dir = f"{os.path.dirname(__file__)}/../fixtures/epa/vcr_cassettes"
-if RECORD_MODE == "all":
-    clean_cassettes(cassette_dir)
-
-api_vcr = vcr.VCR(
-    cassette_library_dir=cassette_dir,
-    record_mode=RECORD_MODE,
-    match_on=["uri", "method"],
-    filter_query_parameters=["api_key"],
-    filter_headers=[
-        ("Authorization", "XXXXXX"),
-        ("X-Api-Key", "XXXXXX"),
-    ],
-)
 
 
-def _check_power_plant_emissions_generation(df: pd.DataFrame) -> None:
-    assert df.shape[0] > 0
+@pytest.fixture
+def epa():
+    client = EPA(api_key="test-key")
+    client.session.get = Mock()
+    return client
+
+
+def response(payload):
+    return Mock(json=lambda: payload, raise_for_status=Mock())
+
+
+def attributes(facility=591, latitude=39.7302, longitude=-75.5371):
+    return {
+        "facilityId": facility,
+        "unitId": "01",
+        "latitude": latitude,
+        "longitude": longitude,
+    }
+
+
+def hourly(day="2023-07-01", hour=0, facility=591):
+    return {
+        "facilityId": facility,
+        "unitId": "01",
+        "date": day,
+        "hour": hour,
+        "grossLoad": 22.5,
+    }
+
+
+@pytest.mark.parametrize("day", ["2023-01-01", "2023-07-01", "2023-11-05"])
+def test_utc_window_and_facility_timezones(epa, day):
+    # Two Florida facilities straddle the Eastern/Central boundary.
+    prior = str((pd.Timestamp(day) - pd.Timedelta(days=1)).date())
+    rows = [hourly(d, h, f) for d in [prior, day] for h in range(24) for f in [1, 2]]
+    attrs = [attributes(1, 30.4, -87.2), attributes(2, 25.8, -80.2)]
+    epa.session.get.side_effect = [response(rows)] + [response({"items": attrs})] * 2
+    df = epa.get_power_plant_emissions_generation(day)
+    start = pd.Timestamp(day, tz="UTC")
+    assert len(df) == 48
     assert df.columns.tolist() == POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
-    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
-    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
+    assert df["Interval Start"].min() == start
+    assert df["Interval Start"].max() == start + pd.Timedelta(hours=23)
     assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)).all()
-    assert df["Facility ID"].notna().all()
-    assert df["Unit ID"].notna().all()
-    assert df.duplicated(subset=["Interval Start", "Facility ID", "Unit ID"]).sum() == 0
+    assert not df.duplicated(["Interval Start", "Facility ID", "Unit ID"]).any()
+    assert df["Gross Load"].eq(22.5).all()
+    assert df["Unit ID"].eq("01").all()
+    # Local midnight is 06 UTC in Pensacola and 05 UTC in Miami, even in July.
+    for facility, utc_hour in [(1, 6), (2, 5)]:
+        rows = [hourly(day, 0, facility)]
+        epa.session.get.side_effect = [response(rows)]
+        result = epa.get_power_plant_emissions_generation(day)
+        assert result["Interval Start"].iloc[0] == start + pd.Timedelta(hours=utc_hour)
 
 
-def test_get_power_plant_emissions_generation_single_day() -> None:
-    with api_vcr.use_cassette(
-        "test_get_power_plant_emissions_generation_single_day_2023-07-01",
-    ):
-        df = EPA().get_power_plant_emissions_generation(
-            "2023-07-01",
-            state_codes=["DE"],
-        )
-
-    _check_power_plant_emissions_generation(df)
-    assert df["State"].eq("DE").all()
-    assert df["lat"].notna().any()
-    assert df["lon"].notna().any()
-    assert (
-        df["Interval Start"].min().date()
-        <= datetime.date(2023, 7, 1)
-        <= df["Interval Start"].max().date()
+def test_pagination_year_join_and_range(epa):
+    epa.FACILITIES_ATTRIBUTES_PAGE_SIZE = 1
+    epa.session.get.side_effect = [
+        response([hourly("2023-12-31", 23), hourly("2024-01-01")]),
+        response({"items": [{**attributes(), "ownerOperator": "old"}]}),
+        response({"items": []}),
+        response({"items": [{**attributes(), "ownerOperator": "new"}]}),
+        response({"items": []}),
+        response([hourly("2024-01-02")]),
+    ]
+    df = epa.get_power_plant_emissions_generation(
+        ("2024-01-01", "2024-01-03"),
+        state_codes=["DE"],
+        error="raise",
     )
+    assert df["Owner Operator"].tolist() == ["old", "new", "new"]
+    assert epa.session.get.call_count == 6  # Annual attributes reused on day two.
+    assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "DE"
 
 
-def test_get_power_plant_emissions_generation_date_range() -> None:
-    with api_vcr.use_cassette(
-        "test_get_power_plant_emissions_generation_date_range_2023-07-01_2023-07-02",
-    ):
-        df = EPA().get_power_plant_emissions_generation(
-            "2023-07-01",
-            end="2023-07-03",
-            state_codes=["DE"],
-        )
+@pytest.mark.parametrize("attrs", [[], [attributes(latitude=float("nan"))]])
+def test_missing_coordinates_fail(epa, attrs):
+    epa.session.get.side_effect = [response([hourly()]), response({"items": attrs})]
+    with pytest.raises(ValueError, match="coordinates"):
+        epa.get_power_plant_emissions_generation("2023-07-01")
 
-    _check_power_plant_emissions_generation(df)
-    dates = sorted(
-        df["Interval Start"].dt.tz_convert("America/New_York").dt.date.unique(),
+
+def test_no_data_and_http_failure(epa):
+    epa.session.get.return_value = response([])
+    with pytest.raises(NoDataFoundException):
+        epa.get_power_plant_emissions_generation("2023-07-01")
+    epa.session.get.return_value.raise_for_status.side_effect = requests.HTTPError(
+        "429",
     )
-    assert datetime.date(2023, 7, 1) in dates
-    assert datetime.date(2023, 7, 2) in dates
+    with pytest.raises(requests.HTTPError):
+        epa.get_power_plant_emissions_generation("2023-07-01")
 
 
-def test_get_power_plant_emissions_generation_no_data() -> None:
-    with api_vcr.use_cassette(
-        "test_get_power_plant_emissions_generation_no_data_1995-01-01",
-    ):
-        with pytest.raises(NoDataFoundException):
-            EPA().get_power_plant_emissions_generation(
-                "1995-01-01",
-                state_codes=["DE"],
-            )
+def test_requires_epa_key(monkeypatch):
+    monkeypatch.delenv("EPA_API_KEY", raising=False)
+    monkeypatch.setenv("EIA_API_KEY", "unrelated-key")
+    with pytest.raises(ValueError, match="EPA_API_KEY"):
+        EPA()

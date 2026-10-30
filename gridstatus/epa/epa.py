@@ -1,12 +1,12 @@
-from __future__ import annotations
-
-import math
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
+from functools import lru_cache
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
+from tzfpy import get_tz
 
 from gridstatus import utils
 from gridstatus.base import NoDataFoundException
@@ -16,18 +16,29 @@ from gridstatus.epa.epa_constants import (
     ATTRIBUTE_COLUMNS,
     HOURLY_COLUMN_RENAMES,
     POWER_PLANT_EMISSIONS_GENERATION_COLUMNS,
-    STATE_TIMEZONES,
 )
 from gridstatus.gs_logging import setup_gs_logger
 
 logger = setup_gs_logger()
+BASE_URL = "https://api.epa.gov/easey"
 
-STREAMING_HOURLY_URL = (
-    "https://api.epa.gov/easey/streaming-services/emissions/apportioned/hourly"
-)
-FACILITIES_ATTRIBUTES_URL = (
-    "https://api.epa.gov/easey/facilities-mgmt/facilities/attributes"
-)
+
+@lru_cache(maxsize=10000)
+def _standard_offset(latitude: float, longitude: float, year: int) -> pd.Timedelta:
+    # CAMPD reports local standard time year-round, including during DST.
+    if (
+        pd.isna(latitude)
+        or pd.isna(longitude)
+        or not (-90 <= latitude <= 90 and -180 <= longitude <= 180)
+    ):
+        raise ValueError("EPA facility coordinates are missing or invalid")
+    timezone = get_tz(longitude, latitude)
+    if not timezone:
+        raise ValueError(f"No time zone for EPA coordinates {latitude}, {longitude}")
+    local = datetime(year, 1, 1, tzinfo=ZoneInfo(timezone))
+    offset, dst = local.utcoffset(), local.dst()
+    assert offset is not None and dst is not None
+    return pd.Timedelta(offset - dst)
 
 
 class EPA:
@@ -38,153 +49,64 @@ class EPA:
     FACILITIES_ATTRIBUTES_PAGE_SIZE = 500
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or os.getenv("EPA_API_KEY") or os.getenv("EIA_API_KEY")
+        self.api_key = api_key or os.getenv("EPA_API_KEY")
         if not self.api_key:
-            raise ValueError(
-                "API key is required. Provide it directly or set EPA_API_KEY "
-                "(or EIA_API_KEY) environment variable.",
-            )
+            raise ValueError("Provide an API key or set EPA_API_KEY")
         self.session = requests.Session()
         self._facility_attributes_cache: dict[
-            tuple[int, tuple[str, ...] | None],
+            tuple[int, tuple[str, ...]],
             pd.DataFrame,
         ] = {}
-        self._standard_offsets: dict[str, timedelta] = {}
-
-    def _get_standard_offset(self, state_code: str) -> timedelta:
-        if state_code not in self._standard_offsets:
-            tz_name = STATE_TIMEZONES.get(state_code, "UTC")
-            self._standard_offsets[state_code] = datetime(
-                2020,
-                1,
-                1,
-                tzinfo=ZoneInfo(tz_name),
-            ).utcoffset() or timedelta(0)
-        return self._standard_offsets[state_code]
 
     def _request_json(
         self,
-        url: str,
+        path: str,
         params: dict[str, str | int],
-        verbose: bool = False,
-    ) -> tuple[object, requests.Response]:
-        request_params = {"api_key": self.api_key, **params}
+        verbose: bool,
+    ) -> Any:
         if verbose:
-            logger.info(f"Fetching {url} params={params}")
+            logger.info(f"Fetching {path} params={params}")
         response = self.session.get(
-            url,
-            params=request_params,
+            f"{BASE_URL}/{path}",
+            params=params,
+            headers={"X-Api-Key": self.api_key},
             timeout=self.REQUEST_TIMEOUT,
         )
-        if response.status_code >= 400:
-            try:
-                message = response.json()["error"]["message"]
-            except Exception:
-                message = response.text
-            raise requests.HTTPError(
-                f"EPA API error {response.status_code}: {message}",
-                response=response,
-            )
-        return response.json(), response
-
-    def _fetch_hourly_emissions(
-        self,
-        begin_date: str,
-        end_date: str,
-        state_codes: list[str] | None,
-        verbose: bool = False,
-    ) -> pd.DataFrame:
-        if not state_codes:
-            payload, _ = self._request_json(
-                STREAMING_HOURLY_URL,
-                {"beginDate": begin_date, "endDate": end_date},
-                verbose=verbose,
-            )
-            return pd.DataFrame(payload)
-
-        frames: list[pd.DataFrame] = []
-        for state_code in state_codes:
-            payload, _ = self._request_json(
-                STREAMING_HOURLY_URL,
-                {
-                    "beginDate": begin_date,
-                    "endDate": end_date,
-                    "stateCode": state_code,
-                },
-                verbose=verbose,
-            )
-            if payload:
-                frames.append(pd.DataFrame(payload))
-        if not frames:
-            return pd.DataFrame()
-        return pd.concat(frames, ignore_index=True)
+        response.raise_for_status()
+        return response.json()
 
     def _fetch_facility_attributes(
         self,
         year: int,
-        state_codes: list[str] | None,
-        verbose: bool = False,
+        state_codes: tuple[str, ...],
+        verbose: bool,
     ) -> pd.DataFrame:
-        cache_key = (
-            year,
-            tuple(state_codes) if state_codes is not None else None,
-        )
-        if cache_key in self._facility_attributes_cache:
-            return self._facility_attributes_cache[cache_key]
-
-        states: list[str | None] = list(state_codes) if state_codes else [None]
-        frames: list[pd.DataFrame] = []
-        for state_code in states:
+        cache_key = (year, state_codes)
+        if cache_key not in self._facility_attributes_cache:
+            params: dict[str, str | int] = {
+                "year": year,
+                "perPage": self.FACILITIES_ATTRIBUTES_PAGE_SIZE,
+            }
+            if state_codes:
+                params["stateCode"] = "|".join(state_codes)
+            rows = []
             page = 1
-            total_count: int | None = None
             while True:
-                params: dict[str, str | int] = {
-                    "year": year,
-                    "page": page,
-                    "perPage": self.FACILITIES_ATTRIBUTES_PAGE_SIZE,
-                }
-                if state_code is not None:
-                    params["stateCode"] = state_code
-                payload, response = self._request_json(
-                    FACILITIES_ATTRIBUTES_URL,
-                    params,
-                    verbose=verbose,
-                )
-                items = payload.get("items", []) if isinstance(payload, dict) else []
-                if items:
-                    frames.append(pd.DataFrame(items))
-                if total_count is None:
-                    total_count = int(response.headers.get("X-Total-Count", len(items)))
-                total_pages = max(
-                    1,
-                    math.ceil(total_count / self.FACILITIES_ATTRIBUTES_PAGE_SIZE),
-                )
-                if page >= total_pages:
+                items = self._request_json(
+                    "facilities-mgmt/facilities/attributes",
+                    {**params, "page": page},
+                    verbose,
+                )["items"]
+                rows.extend(items)
+                # The API does not consistently return a total-count header.
+                if len(items) < self.FACILITIES_ATTRIBUTES_PAGE_SIZE:
                     break
                 page += 1
-
-        if not frames:
-            attrs = pd.DataFrame(columns=ATTRIBUTE_COLUMNS)
-        else:
-            attrs = pd.concat(frames, ignore_index=True)
-            keep = [c for c in ATTRIBUTE_COLUMNS if c in attrs.columns]
-            attrs = attrs[keep].drop_duplicates(
-                subset=["facilityId", "unitId"],
-                keep="first",
-            )
-
-        self._facility_attributes_cache[cache_key] = attrs
-        return attrs
-
-    def _local_hours_to_utc(
-        self,
-        dates: pd.Series,
-        hours: pd.Series,
-        state_codes: pd.Series,
-    ) -> pd.Series:
-        naive = pd.to_datetime(dates) + pd.to_timedelta(hours.astype(int), unit="h")
-        offsets = state_codes.map(self._get_standard_offset)
-        return (naive - offsets).dt.tz_localize("UTC")
+            attrs = pd.DataFrame(rows).reindex(columns=ATTRIBUTE_COLUMNS)
+            attrs["facilityId"] = attrs["facilityId"].astype("Int64")
+            attrs["unitId"] = attrs["unitId"].astype("string")
+            self._facility_attributes_cache[cache_key] = attrs.drop_duplicates()
+        return self._facility_attributes_cache[cache_key]
 
     @support_date_range(frequency="DAY_START")
     def get_power_plant_emissions_generation(
@@ -194,65 +116,86 @@ class EPA:
         state_codes: list[str] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Hourly apportioned emissions, heat input, and gross load for EPA CAMPD
-        units, joined with facility/unit attributes.
+        """Hourly CAMPD emissions, heat input, gross load, and annual unit attributes.
+
+        Dates define a UTC interval, with an exclusive end (one day by default).
+        EPA's local standard reporting hours are converted using facility coordinates;
+        missing coordinates raise rather than silently guessing a time zone. Gross Load
+        is MW, not MWh. Reports arrive quarterly and may be revised later.
         """
-        handled_date = utils._handle_date(date, self.default_timezone)
-        if handled_date is None:
-            raise ValueError("date is required")
-        day = handled_date.strftime("%Y-%m-%d")
-        hourly = self._fetch_hourly_emissions(
-            begin_date=day,
-            end_date=day,
-            state_codes=state_codes,
-            verbose=verbose,
+        start = utils._handle_date(date, self.default_timezone)
+        end = (
+            utils._handle_date(end, self.default_timezone)
+            if end
+            else start + pd.Timedelta(days=1)
+        )
+        states = tuple(sorted(set(state_codes or [])))
+        # US local dates can precede their UTC date. Include the preceding day,
+        # then trim after conversion so successive UTC chunks neither overlap nor gap.
+        first_day = (start - pd.Timedelta(days=1)).date()
+        last_day = (end - pd.Timedelta(nanoseconds=1)).date()
+        params: dict[str, str | int] = {
+            "beginDate": str(first_day),
+            "endDate": str(last_day),
+        }
+        if states:
+            params["stateCode"] = "|".join(states)
+        hourly = pd.DataFrame(
+            self._request_json(
+                "streaming-services/emissions/apportioned/hourly",
+                params,
+                verbose,
+            ),
         )
         if hourly.empty:
-            raise NoDataFoundException(
-                f"No EPA CAMPD hourly emissions data found for {day}",
-            )
-
-        year = pd.Timestamp(day).year
-        attrs = self._fetch_facility_attributes(
-            year=year,
-            state_codes=state_codes,
-            verbose=verbose,
-        )
-
-        hourly = hourly.copy()
+            raise NoDataFoundException(f"No EPA CAMPD hourly data for {start} to {end}")
         hourly["facilityId"] = hourly["facilityId"].astype("Int64")
-        hourly["unitId"] = hourly["unitId"].astype(str)
-        if not attrs.empty:
-            attrs = attrs.copy()
-            attrs["facilityId"] = attrs["facilityId"].astype("Int64")
-            attrs["unitId"] = attrs["unitId"].astype(str)
-            hourly = hourly.merge(
-                attrs,
-                on=["facilityId", "unitId"],
-                how="left",
-                suffixes=("", "_attr"),
-            )
-
-        interval_start = self._local_hours_to_utc(
-            hourly["date"],
-            hourly["hour"],
-            hourly["stateCode"],
+        hourly["unitId"] = hourly["unitId"].astype("string")
+        hourly["year"] = pd.to_datetime(hourly["date"]).dt.year
+        attrs = pd.concat(
+            [
+                self._fetch_facility_attributes(year, states, verbose).assign(year=year)
+                for year in hourly["year"].unique()
+            ],
+            ignore_index=True,
         )
-        hourly["Interval Start"] = interval_start
-        hourly["Interval End"] = interval_start + pd.Timedelta(hours=1)
-
+        hourly = hourly.merge(
+            attrs,
+            on=["facilityId", "unitId", "year"],
+            how="left",
+            validate="many_to_one",
+        )
+        facilities = hourly[
+            ["facilityId", "latitude", "longitude", "year"]
+        ].drop_duplicates()
+        facilities["offset"] = [
+            _standard_offset(lat, lon, year)
+            for lat, lon, year in facilities[
+                ["latitude", "longitude", "year"]
+            ].itertuples(index=False, name=None)
+        ]
+        hourly = hourly.merge(facilities, how="left", validate="many_to_one")
+        local = pd.to_datetime(hourly["date"]) + pd.to_timedelta(
+            hourly["hour"],
+            unit="h",
+        )
+        hourly["Interval Start"] = (local - hourly["offset"]).dt.tz_localize("UTC")
+        hourly["Interval End"] = hourly["Interval Start"] + pd.Timedelta(hours=1)
+        hourly = hourly.loc[
+            hourly["Interval Start"].between(start, end, inclusive="left")
+        ]
+        if hourly.empty:
+            raise NoDataFoundException(f"No EPA CAMPD hourly data for {start} to {end}")
         hourly = hourly.rename(
             columns={**HOURLY_COLUMN_RENAMES, **ATTRIBUTE_COLUMN_RENAMES},
         )
-
-        if "Commercial Operation Date" in hourly.columns:
-            hourly["Commercial Operation Date"] = pd.to_datetime(
-                hourly["Commercial Operation Date"],
-                errors="coerce",
-            ).dt.date
-
-        for column in POWER_PLANT_EMISSIONS_GENERATION_COLUMNS:
-            if column not in hourly.columns:
-                hourly[column] = pd.NA
-
-        return hourly[POWER_PLANT_EMISSIONS_GENERATION_COLUMNS].reset_index(drop=True)
+        hourly["Commercial Operation Date"] = pd.to_datetime(
+            hourly["Commercial Operation Date"],
+            errors="raise",
+        ).dt.date
+        return hourly.reindex(
+            columns=POWER_PLANT_EMISSIONS_GENERATION_COLUMNS,
+        ).sort_values(
+            ["Interval Start", "Facility ID", "Unit ID"],
+            ignore_index=True,
+        )
