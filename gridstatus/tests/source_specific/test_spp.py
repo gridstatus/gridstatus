@@ -1695,6 +1695,79 @@ class TestSPP(BaseTestISO):
 
         self._check_load_forecast(df, "SHORT_TERM")
 
+    @pytest.mark.parametrize("day", ["2025-11-02", "2026-11-01", "2027-11-07"])
+    @pytest.mark.parametrize("offset", ["-05:00", "-06:00"])
+    @pytest.mark.parametrize("minute,suffix", [("00", ""), ("05", "d"), ("55", "d")])
+    def test_short_term_fallback_filename(self, day, offset, minute, suffix):
+        timestamp = pd.Timestamp(f"{day}T01:{minute}:00{offset}").tz_convert(
+            self.iso.default_timezone,
+        )
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2028-01-01", tz=self.iso.default_timezone),
+            ),
+            patch(
+                "gridstatus.spp.pd.read_csv",
+                return_value=pd.DataFrame(),
+            ) as read_csv,
+        ):
+            _, url = self.iso._get_short_term_forecast_data(
+                timestamp,
+                "https://example.com",
+                "OP-STLF",
+            )
+        assert url.endswith(f"/02/OP-STLF-{day.replace('-', '')}01{minute}{suffix}.csv")
+        read_csv.assert_called_once_with(url)
+
+    @pytest.mark.parametrize("day", ["2025-11-02", "2026-11-01", "2027-11-07"])
+    def test_mid_term_fallback_filename(self, day):
+        timestamp = pd.Timestamp(f"{day}T02:00:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2028-01-01", tz=self.iso.default_timezone),
+            ),
+            patch("gridstatus.spp.pd.read_csv", return_value=pd.DataFrame()),
+        ):
+            _, url = self.iso._get_mid_term_forecast_data(
+                timestamp,
+                "https://example.com",
+                "OP-MTLF",
+            )
+        assert url.endswith(f"OP-MTLF-{day.replace('-', '')}0200d.csv")
+
+    @pytest.mark.parametrize(
+        "timestamp",
+        ["2026-10-31 01:05", "2026-11-02 01:05", "2026-03-08 01:05"],
+    )
+    def test_forecast_filenames_other_days(self, timestamp):
+        timestamp = pd.Timestamp(timestamp, tz=self.iso.default_timezone)
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2028-01-01", tz=self.iso.default_timezone),
+            ),
+            patch("gridstatus.spp.pd.read_csv", return_value=pd.DataFrame()),
+        ):
+            _, short_url = self.iso._get_short_term_forecast_data(
+                timestamp,
+                "https://example.com",
+                "OP-STLF",
+            )
+            _, mid_url = self.iso._get_mid_term_forecast_data(
+                timestamp,
+                "https://example.com",
+                "OP-MTLF",
+            )
+        assert short_url.endswith("0105.csv")
+        assert mid_url.endswith("0100.csv")
+
     def test_get_load_forecast_short_term_dst_ending(self):
         # Test we can handle DST end with the repeated hour
         start = "2025-11-02 01:00:00-0500"
