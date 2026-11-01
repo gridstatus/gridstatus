@@ -58,7 +58,7 @@ test-pjm:
 
 .PHONY: test-spp
 test-spp:
-	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_spp.py
+	$(PYTEST_CMD) $(NOT_SLOW) gridstatus/tests/source_specific/test_spp.py gridstatus/tests/source_specific/test_spp_forecast_dst.py
 
 .PHONY: test-eia
 test-eia:
