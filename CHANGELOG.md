@@ -18,6 +18,9 @@
 #### NYISO
 * `NYISO.get_limiting_constraints_real_time` now reads NYISO's `Time Stamp` as the end of the interval instead of the start, so every interval was previously reported 5 minutes late. Real-time limiting constraints use the same convention as real-time LBMPs: from July to September 2026, when a single constraint bound for one isolated interval, zonal congestion appeared in the LBMP with the same timestamp in 108 of 109 cases. Each daily file holds the stamps 00:00 through 23:55, so a single day's intervals now end between 00:00 and 23:55.
 
+#### PJM
+* Data Miner requests with a start and end now filter on the feed's UTC timestamp instead of its EPT timestamp. Data Miner reads an EPT time in the repeated 1 AM hour as standard time, so on November 1, 2026 a request starting at 1:00 EDT (05:00 UTC) returned the 1:00 EST hour (06:00 UTC) instead. Feeds whose date filter only exists in EPT (`generated_at`, `forecast_execution_date`) still filter in EPT. Rows at the exclusive `end` are now dropped by UTC time, so the other copy of a repeated hour is kept.
+
 #### SPP
 * `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
 
