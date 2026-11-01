@@ -425,7 +425,7 @@ class SPP(ISOBase):
         if date != "latest" and isinstance(date, pd.Timestamp):
             df = df[df["Interval Start"] >= date]
             if end is None:
-                end = date.normalize() + pd.Timedelta(days=1)
+                end = date.normalize() + pd.DateOffset(days=1)
             df = df[df["Interval Start"] < end]
             df = df.reset_index(drop=True)
 
@@ -2640,7 +2640,7 @@ class SPP(ISOBase):
         if date == "latest":
             tomorrow = pd.Timestamp.now(
                 tz=self.default_timezone,
-            ).normalize() + pd.Timedelta(days=1)
+            ).normalize() + pd.DateOffset(days=1)
             try:
                 return self.get_binding_constraints_day_ahead_hourly(
                     date=tomorrow,
@@ -2780,7 +2780,7 @@ class SPP(ISOBase):
         future intervals.
         """
         if end is None:
-            end = start.normalize() + pd.Timedelta(days=1)
+            end = start.normalize() + pd.DateOffset(days=1)
             if utils.is_today(start, self.default_timezone):
                 end = min(
                     end,
