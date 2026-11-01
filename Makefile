@@ -21,6 +21,7 @@ test: test-base \
 	test-pjm \
 	test-spp \
 	test-eia \
+	test-epa \
 	test-ieso \
 	test-misc
 
@@ -64,13 +65,17 @@ test-spp:
 test-eia:
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_eia.py
 
+.PHONY: test-epa
+test-epa:
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_epa.py
+
 .PHONY: test-ieso
 test-ieso:
 	$(PYTEST_CMD) gridstatus/tests/source_specific/test_ieso.py
 
 .PHONY: test-misc
 test-misc:
-	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py gridstatus/tests/source_specific/test_epa.py
+	$(PYTEST_CMD) gridstatus/tests/source_specific/test_gridstatus.py gridstatus/tests/source_specific/test_lmp_config.py
 
 .PHONY: test-cov
 test-cov:
