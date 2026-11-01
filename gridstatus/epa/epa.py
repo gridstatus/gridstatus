@@ -107,7 +107,7 @@ class EPA:
             self._facility_attributes_cache[cache_key] = attrs.drop_duplicates()
         return self._facility_attributes_cache[cache_key]
 
-    @support_date_range(frequency="24h")
+    @support_date_range(frequency=None)
     def get_power_plant_emissions_generation(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -121,8 +121,9 @@ class EPA:
         EPA's local standard reporting hours are converted using facility coordinates;
         missing coordinates raise rather than silently guessing a time zone. Gross Load
         is MW, not MWh. Reports arrive quarterly and may be revised later.
+        Chunk large national date ranges at the caller to bound response size.
         """
-        # The decorator normalizes dates to UTC and bounds each call to 24 hours.
+        # The decorator normalizes dates to UTC without splitting the range.
         start = cast(pd.Timestamp, date)
         end = cast(pd.Timestamp, end or start + pd.Timedelta(days=1))
         states = tuple(sorted(set(state_codes or [])))

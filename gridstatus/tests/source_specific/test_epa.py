@@ -67,7 +67,9 @@ def test_utc_window_and_facility_timezones(epa, day):
 def test_pagination_year_join_and_range(epa):
     epa.FACILITIES_ATTRIBUTES_PAGE_SIZE = 1
     epa.session.get.side_effect = [
-        response([hourly("2023-12-31", 23), hourly("2024-01-01")]),
+        response(
+            [hourly("2023-12-31", 23), hourly("2024-01-01"), hourly("2024-01-02")],
+        ),
         response({"items": [{**attributes(), "ownerOperator": "old"}]}),
         response({"items": []}),
         response({"items": [{**attributes(), "ownerOperator": "new"}]}),
@@ -80,7 +82,10 @@ def test_pagination_year_join_and_range(epa):
         error="raise",
     )
     assert df["Owner Operator"].tolist() == ["old", "new", "new"]
-    assert epa.session.get.call_count == 6  # Annual attributes reused on day two.
+    assert epa.session.get.call_count == 5  # One hourly request, four attribute pages.
+    cached = epa.get_power_plant_emissions_generation("2024-01-02", state_codes=["DE"])
+    assert cached["Owner Operator"].tolist() == ["new"]
+    assert epa.session.get.call_count == 6  # Annual attributes reused across calls.
     assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "DE"
 
 
@@ -93,13 +98,13 @@ def test_partial_range_normalizes_timezone_and_preserves_end(epa):
     epa.session.get.side_effect = [
         response(rows),
         response({"items": [attributes()]}),
-        response(rows),
     ]
     df = epa.get_power_plant_emissions_generation(
         "2023-07-01T03:00:00-04:00",
         end="2023-07-02T05:00:00-04:00",
         error="raise",
     )
+    assert epa.session.get.call_count == 2  # One hourly request and one attribute page.
     assert (
         df["Interval Start"].tolist()
         == pd.date_range(
