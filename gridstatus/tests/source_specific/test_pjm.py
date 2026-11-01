@@ -3526,6 +3526,28 @@ class TestPJM(BaseTestISO):
             assert df["Interval Start"].min() >= date
             assert df["Interval End"].max() <= end
 
+    @pytest.mark.parametrize(
+        "start, end",
+        [
+            # Entirely inside the daylight copy of the repeated 1 AM hour
+            ("2026-11-01 05:00", "2026-11-01 05:30"),
+            # From the daylight copy into the standard copy of 1 AM
+            ("2026-11-01 05:00", "2026-11-01 06:05"),
+        ],
+    )
+    def test_get_marginal_emission_rates_5_min_dst_end_window(self, start, end):
+        start = pd.Timestamp(start, tz="UTC")
+        end = pd.Timestamp(end, tz="UTC")
+        with pjm_vcr.use_cassette(
+            f"test_get_marginal_emission_rates_5_min_dst_end_window_{start.strftime('%Y-%m-%dT%H%M')}_{end.strftime('%Y-%m-%dT%H%M')}.yaml",
+        ):
+            df = self.iso.get_marginal_emission_rates_5_min(start, end)
+
+        self._check_marginal_emission_rates_5_min(df)
+        interval_starts = df["Interval Start"].dt.tz_convert("UTC").drop_duplicates()
+        expected = pd.date_range(start, end, freq="5min", inclusive="left")
+        assert sorted(interval_starts) == list(expected)
+
 
 class TestPJMDataMinerPagination:
     """_get_pjm_json pages by explicit startRow and rejects mixed snapshots."""
@@ -3588,9 +3610,24 @@ class TestPJMDataMinerPagination:
             pjm._get_pjm_json(self.endpoint, "2026-09-20", self.params)
 
         assert calls[0]["rowCount"] == gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
-        assert calls[0]["datetime_beginning_ept"] == (
-            "09/20/2026 00:00to09/20/2026 23:59"
+        assert calls[0]["datetime_beginning_utc"] == (
+            "09/20/2026 04:00to09/21/2026 03:59"
         )
+        assert "datetime_beginning_ept" not in calls[0]
+
+    def test_ept_only_filter_field_keeps_the_ept_filter(self):
+        pjm = PJM(api_key="test")
+        fake, calls = self._pages(total_rows=1)
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            pjm._get_pjm_json(
+                self.endpoint,
+                "2026-09-20",
+                self.params,
+                filter_timestamp_name="generated_at",
+            )
+
+        assert calls[0]["generated_at_ept"] == "09/20/2026 00:00to09/20/2026 23:59"
+        assert "generated_at_utc" not in calls[0]
 
     def test_mixed_snapshot_is_retried_once_then_rejected(self):
         pjm = PJM(api_key="test")

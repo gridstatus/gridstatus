@@ -435,6 +435,168 @@ class TestErcot(BaseTestISO):
         assert df["Time"].is_monotonic_increasing
         assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
 
+    @pytest.mark.parametrize(
+        "day",
+        ["2024-11-03", "2025-11-02", "2026-11-01", "2027-11-07"],
+    )
+    @pytest.mark.parametrize("malformed", [False, True])
+    def test_energy_storage_fallback(self, day, malformed):
+        start = pd.Timestamp(day, tz=self.iso.default_timezone)
+        times = pd.date_range(
+            start,
+            start + pd.DateOffset(days=1),
+            freq="h",
+            inclusive="left",
+        )
+        records = []
+        for i, timestamp in enumerate(times):
+            second_one = timestamp.hour == 1 and not timestamp.dst()
+            source_time = (
+                timestamp + pd.Timedelta(hours=1)
+                if malformed and second_one
+                else timestamp
+            )
+            records.append(
+                {
+                    "timestamp": source_time.isoformat(),
+                    "dstFlag": "N" if second_one else "Y",
+                    "totalCharging": i,
+                    "totalDischarging": i + 1,
+                    "netOutput": 1,
+                },
+            )
+        with mock.patch.object(
+            self.iso,
+            "_get_json",
+            return_value={
+                "previousDay": {"data": []},
+                "currentDay": {"data": records},
+            },
+        ):
+            result = self.iso.get_energy_storage_resources()
+        assert result["Time"].tolist() == times.tolist()
+        assert result["Total Charging"].tolist() == list(range(25))
+
+    @pytest.mark.parametrize(
+        "day",
+        ["2024-11-03", "2025-11-02", "2026-11-01", "2027-11-07"],
+    )
+    @pytest.mark.parametrize("malformed", [False, True])
+    def test_energy_storage_fallback_incremental(self, day, malformed):
+        start = pd.Timestamp(day, tz=self.iso.default_timezone)
+        times = pd.date_range(
+            start,
+            start + pd.DateOffset(days=1),
+            freq="5min",
+            inclusive="left",
+        )
+        records = []
+        for i, timestamp in enumerate(times):
+            second_one = i == 24
+            source_time = (
+                timestamp + pd.Timedelta(hours=1)
+                if malformed and second_one
+                else timestamp
+            )
+            records.append(
+                {
+                    "timestamp": source_time.isoformat(),
+                    "dstFlag": "N" if second_one else "Y",
+                    "totalCharging": i,
+                    "totalDischarging": i + 1,
+                    "netOutput": 1,
+                },
+            )
+
+        # Poll through the repeated hour, then once the real 2am has arrived.
+        # Model a consumer that keeps the first value inserted for each time.
+        stored = {}
+        for count in [25, 26, 36, 37, len(records)]:
+            with mock.patch.object(
+                self.iso,
+                "_get_json",
+                return_value={
+                    "previousDay": {"data": []},
+                    "currentDay": {"data": records[:count]},
+                },
+            ):
+                result = self.iso.get_energy_storage_resources()
+            expected_indices = [
+                i for i in range(count) if not (malformed and count < 37 and i == 24)
+            ]
+            assert result["Time"].tolist() == times[expected_indices].tolist()
+            assert result["Total Charging"].tolist() == expected_indices
+            assert result["Total Discharging"].tolist() == [
+                i + 1 for i in expected_indices
+            ]
+            assert result["Net Output"].eq(1).all()
+            for timestamp, charging, discharging, net in result.itertuples(
+                index=False,
+                name=None,
+            ):
+                stored.setdefault(timestamp, (charging, discharging, net))
+
+        assert stored == {timestamp: (i, i + 1, 1) for i, timestamp in enumerate(times)}
+
+    def test_energy_storage_fallback_missing_hour_is_not_guessed(self):
+        two_am = {
+            "timestamp": "2026-11-01T02:00:00-06:00",
+            "dstFlag": "N",
+            "totalCharging": 2,
+            "totalDischarging": 3,
+            "netOutput": 1,
+        }
+        one_am = {
+            **two_am,
+            "timestamp": "2026-11-01T01:00:00-06:00",
+            "totalCharging": 1,
+        }
+        # With only this row, a real 2am after a source gap is indistinguishable
+        # from the mislabeled 1am. If 1am subsequently arrives, keep 2am intact.
+        with mock.patch.object(
+            self.iso,
+            "_get_json",
+            side_effect=[
+                {"previousDay": {"data": [two_am]}, "currentDay": {"data": []}},
+                {
+                    "previousDay": {"data": [one_am, two_am]},
+                    "currentDay": {"data": []},
+                },
+            ],
+        ):
+            unresolved = self.iso.get_energy_storage_resources()
+            resolved = self.iso.get_energy_storage_resources()
+        assert unresolved.empty
+        assert unresolved.columns.tolist() == resolved.columns.tolist()
+        assert resolved["Time"].tolist() == [
+            pd.Timestamp(one_am["timestamp"]),
+            pd.Timestamp(two_am["timestamp"]),
+        ]
+        assert resolved["Total Charging"].tolist() == [1, 2]
+
+    def test_energy_storage_ordinary_day_duplicate_is_unchanged(self):
+        records = [
+            {
+                "timestamp": "2026-11-02T02:00:00-06:00",
+                "dstFlag": flag,
+                "totalCharging": 1,
+                "totalDischarging": 2,
+                "netOutput": 1,
+            }
+            for flag in ["N", "Y"]
+        ]
+        with mock.patch.object(
+            self.iso,
+            "_get_json",
+            return_value={
+                "previousDay": {"data": records},
+                "currentDay": {"data": []},
+            },
+        ):
+            result = self.iso.get_energy_storage_resources()
+        assert result["Time"].eq(pd.Timestamp("2026-11-02T02:00:00-06:00")).all()
+        assert len(result) == 2
+
     @pytest.mark.integration
     def test_get_energy_storage_resources(self):
         df = self.iso.get_energy_storage_resources()
@@ -3940,6 +4102,127 @@ class TestErcot(BaseTestISO):
     """get_as_deployment_factors_weekly_ruc"""
 
     # Check for weekly, daily, and hourly RUC
+    @pytest.mark.parametrize("kind", ["deployment_factors", "demand_curves"])
+    @pytest.mark.parametrize("period", ["hourly", "daily", "weekly"])
+    @pytest.mark.parametrize(
+        "run,published,expected",
+        [
+            (
+                "2026-11-01 01:03:03",
+                "2026-11-01T01:28:00-05:00",
+                "2026-11-01T06:03:03Z",
+            ),
+            (
+                "2026-11-01 01:03:03",
+                "2026-11-01T01:28:00-06:00",
+                "2026-11-01T07:03:03Z",
+            ),
+            (
+                "2026-11-01 01:45:00",
+                "2026-11-01T01:10:00-06:00",
+                "2026-11-01T06:45:00Z",
+            ),
+            (
+                "2026-11-02 01:03:03",
+                "2026-11-02T01:28:00-06:00",
+                "2026-11-02T07:03:03Z",
+            ),
+        ],
+    )
+    def test_ruc_run_timestamp_uses_document_context(
+        self,
+        kind,
+        period,
+        run,
+        published,
+        expected,
+    ):
+        column = "RUCTimestamp" if kind == "deployment_factors" else "RUCTimeStamp"
+        frame = pd.DataFrame(
+            {
+                column: [run, run],
+                "DeliveryDate": ["11/01/2026"] * 2,
+                "HourEnding": ["02:00", "02:00"],
+                "RepeatedHourFlag": ["N", "Y"],
+                "ASType": ["ECRS"] * 2,
+            },
+        )
+        if kind == "deployment_factors":
+            frame["ASDeploymentFactors"] = [0.1, 0.2]
+        else:
+            frame["DemandCurvePoint"] = [1, 1]
+            frame["Quantity"] = [10, 20]
+            frame["Price"] = [30, 40]
+        doc = Document(
+            "https://example.com/report",
+            pd.Timestamp(published),
+            "report",
+            "report",
+            None,
+        )
+        with (
+            mock.patch.object(self.iso, "_get_documents", return_value=[doc]),
+            mock.patch.object(self.iso, "read_doc", return_value=frame),
+        ):
+            result = getattr(self.iso, f"get_as_{kind}_{period}_ruc")(
+                "2026-11-01",
+                "2026-11-03",
+            )
+        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01T06:00:00Z"),
+            pd.Timestamp("2026-11-01T07:00:00Z"),
+        ]
+
+    @pytest.mark.parametrize(
+        "published",
+        ["2026-11-01T00:50:00-05:00", "2026-11-01T02:28:00-06:00"],
+    )
+    def test_ruc_ambiguous_run_outside_publication_window(self, published):
+        doc = Document(
+            "https://example.com/report",
+            pd.Timestamp(published),
+            "report",
+            "report",
+            None,
+        )
+        frame = pd.DataFrame({"RUCTimestamp": ["2026-11-01 01:03:03"]})
+        with mock.patch.object(self.iso, "read_doc", return_value=frame):
+            with pytest.raises(ValueError, match="Cannot resolve RUC timestamp"):
+                self.iso._read_ruc_docs([doc], "RUCTimestamp")
+
+    def test_ruc_repeated_runs_remain_distinct(self):
+        docs = [
+            Document(
+                "https://example.com/report",
+                pd.Timestamp(f"2026-11-01T01:28:00{offset}"),
+                "report",
+                "report",
+                None,
+            )
+            for offset in ["-05:00", "-06:00"]
+        ]
+        frame = pd.DataFrame(
+            {
+                "RUCTimestamp": ["2026-11-01 01:03:03"],
+                "DeliveryDate": ["11/01/2026"],
+                "HourEnding": ["03:00"],
+                "RepeatedHourFlag": ["N"],
+                "ASType": ["ECRS"],
+                "ASDeploymentFactors": [0.1],
+            },
+        )
+        with mock.patch.object(
+            self.iso,
+            "read_doc",
+            side_effect=[frame.copy(), frame.copy()],
+        ):
+            result = self.iso._handle_as_deployment_factors_ruc(docs)
+        assert result["RUC Timestamp"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01T06:03:03Z"),
+            pd.Timestamp("2026-11-01T07:03:03Z"),
+        ]
+
     def _check_as_deployment_factors_ruc(self, df: pd.DataFrame):
         assert df.columns.tolist() == [
             "Interval Start",

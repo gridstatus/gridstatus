@@ -1,12 +1,21 @@
+import json
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
+import time_machine
 
 from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
     BAA_LOAD_THRESHOLD_MW,
+    BASE_LOAD_FORECAST_MID_TERM_URL,
+    BASE_LOAD_FORECAST_SHORT_TERM_URL,
+    BASE_RESERVE_ZONE_FORECAST_URL,
+    BASE_SOLAR_AND_WIND_MID_TERM_URL,
+    BASE_SOLAR_AND_WIND_SHORT_TERM_URL,
+    FILE_BROWSER_DOWNLOAD_URL,
     LOCATION_TYPE_BUS,
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
@@ -31,6 +40,21 @@ api_vcr = setup_vcr(
     source="spp",
     record_mode=RECORD_MODE,
 )
+
+# SPP's file browser listings of the forecast files around the repeated hour on
+# November 1, 2026, keyed by file system and folder.
+with open(
+    Path(__file__).parent.parent
+    / "fixtures"
+    / "spp"
+    / "forecast_file_listings_2026_11_01.json",
+) as listings_file:
+    FALL_BACK_FORECAST_FILE_LISTINGS = json.load(listings_file)
+
+
+def listed_file_path(url: str) -> str:
+    """The file system, folder, and file name a download URL points to."""
+    return url.removeprefix(f"{FILE_BROWSER_DOWNLOAD_URL}/").replace("?path=", "")
 
 
 class TestSPP(BaseTestISO):
@@ -1203,7 +1227,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1242,7 +1266,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1270,7 +1294,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1302,7 +1326,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1333,7 +1357,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1396,7 +1420,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1426,7 +1450,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1460,7 +1484,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1504,7 +1528,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1537,7 +1561,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1571,7 +1595,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -1694,6 +1718,167 @@ class TestSPP(BaseTestISO):
         assert df["Publish Time"].max() == three_days_ago_0345 - pd.Timedelta(minutes=5)
 
         self._check_load_forecast(df, "SHORT_TERM")
+
+    @pytest.mark.parametrize(
+        "base_url,file_prefix,folder",
+        [
+            (
+                BASE_LOAD_FORECAST_SHORT_TERM_URL,
+                "OP-STLF",
+                "stlf-vs-actual/2026/11/01/02",
+            ),
+            (
+                BASE_SOLAR_AND_WIND_SHORT_TERM_URL,
+                "OP-STRF",
+                "shortterm-resource-forecast/2026/11/01/02",
+            ),
+        ],
+        ids=["load", "solar_and_wind"],
+    )
+    def test_short_term_forecast_files_dst_end_2026(
+        self,
+        base_url,
+        file_prefix,
+        folder,
+    ):
+        # Every 5 minutes of both 1am hours, 01:00 CDT through 01:55 CST
+        request_times = pd.date_range(
+            "2026-11-01 06:00",
+            "2026-11-01 07:55",
+            freq="5min",
+            tz="UTC",
+        ).tz_convert(self.iso.default_timezone)
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-11-02", tz=self.iso.default_timezone),
+            ),
+            patch(
+                "gridstatus.spp.pd.read_csv",
+                return_value=pd.DataFrame(),
+            ) as read_csv,
+        ):
+            publish_times = [
+                self.iso._get_short_term_forecast_data(
+                    request_time,
+                    base_url=base_url,
+                    file_prefix=file_prefix,
+                )[1]
+                for request_time in request_times
+            ]
+
+        read_paths = [
+            listed_file_path(call.args[0]) for call in read_csv.call_args_list
+        ]
+        listed_paths = {
+            f"{folder}/{name}" for name in FALL_BACK_FORECAST_FILE_LISTINGS[folder]
+        }
+        assert set(read_paths) == listed_paths
+        assert len(read_paths) == 24
+        assert publish_times == list(request_times)
+
+    @pytest.mark.parametrize(
+        "base_url,file_prefix,folder",
+        [
+            (BASE_LOAD_FORECAST_MID_TERM_URL, "OP-MTLF", "mtlf-vs-actual/2026/11/01"),
+            (
+                BASE_SOLAR_AND_WIND_MID_TERM_URL,
+                "OP-MTRF",
+                "midterm-resource-forecast/2026/11/01",
+            ),
+            (
+                BASE_RESERVE_ZONE_FORECAST_URL,
+                "RF_RESERVE_ZONE",
+                "resource-forecast-by-reserve-zone/2026/11/01",
+            ),
+        ],
+        ids=["load", "solar_and_wind", "reserve_zone"],
+    )
+    def test_mid_term_forecast_files_dst_end_2026(self, base_url, file_prefix, folder):
+        # 00:00 CDT, 01:00 CDT, 01:00 CST, 02:00 CST, and 03:00 CST
+        request_times = pd.date_range(
+            "2026-11-01 05:00",
+            "2026-11-01 09:00",
+            freq="h",
+            tz="UTC",
+        ).tz_convert(self.iso.default_timezone)
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-11-02", tz=self.iso.default_timezone),
+            ),
+            patch(
+                "gridstatus.spp.pd.read_csv",
+                return_value=pd.DataFrame(),
+            ) as read_csv,
+        ):
+            publish_times = [
+                self.iso._get_mid_term_forecast_data(
+                    request_time,
+                    base_url=base_url,
+                    file_prefix=file_prefix,
+                )[1]
+                for request_time in request_times
+            ]
+
+        read_paths = [
+            listed_file_path(call.args[0]) for call in read_csv.call_args_list
+        ]
+        # The 0200 file is the one published in the second 1am hour
+        assert [path.rsplit("-", 1)[1] for path in read_paths] == [
+            "202611010000.csv",
+            "202611010100.csv",
+            "202611010200.csv",
+            "202611010200d.csv",
+            "202611010300.csv",
+        ]
+        assert set(read_paths) == {
+            f"{folder}/{name}" for name in FALL_BACK_FORECAST_FILE_LISTINGS[folder]
+        }
+        assert publish_times == list(request_times)
+
+    def test_get_load_forecast_short_term_dst_end_2026_range(self):
+        start = pd.Timestamp("2026-11-01 06:00", tz="UTC")
+        end = pd.Timestamp("2026-11-01 08:00", tz="UTC")
+        source_df = pd.DataFrame(
+            {
+                "Interval": ["11/01/2026 01:00:00"],
+                "GMTInterval": ["11/01/2026 06:00:00"],
+                "STLF": [27426],
+                "Actual": [27362],
+                "BAA": ["SPP"],
+            },
+        )
+
+        with (
+            patch.object(
+                self.iso,
+                "now",
+                return_value=pd.Timestamp("2026-11-02", tz=self.iso.default_timezone),
+            ),
+            patch(
+                "gridstatus.spp.pd.read_csv",
+                side_effect=lambda url: source_df.copy(),
+            ) as read_csv,
+        ):
+            df = self.iso.get_load_forecast_short_term(date=start, end=end)
+
+        read_names = {
+            listed_file_path(call.args[0]).rsplit("/", 1)[1]
+            for call in read_csv.call_args_list
+        }
+        assert read_names == set(
+            FALL_BACK_FORECAST_FILE_LISTINGS["stlf-vs-actual/2026/11/01/02"],
+        )
+        assert df["Publish Time"].nunique() == 24
+        assert df["Publish Time"].dt.tz_convert("UTC").min() == start
+        assert df["Publish Time"].dt.tz_convert("UTC").max() == end - pd.Timedelta(
+            minutes=5,
+        )
 
     def test_get_load_forecast_short_term_dst_ending(self):
         # Test we can handle DST end with the repeated hour
@@ -2086,7 +2271,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2117,7 +2302,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2149,7 +2334,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2181,7 +2366,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2214,7 +2399,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_short_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2245,7 +2430,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2276,7 +2461,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2308,7 +2493,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2340,7 +2525,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ),
             patch.object(
                 self.iso,
@@ -2396,7 +2581,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ) as mock_fetch,
             patch.object(
                 self.iso,
@@ -2454,7 +2639,7 @@ class TestSPP(BaseTestISO):
             patch.object(
                 self.iso,
                 "_get_mid_term_forecast_data",
-                return_value=(pd.DataFrame(), "mock-url"),
+                return_value=(pd.DataFrame(), "mock-publish-time"),
             ) as mock_fetch,
             patch.object(
                 self.iso,
@@ -3068,6 +3253,46 @@ class TestSPP(BaseTestISO):
         assert len(calls) == 6
         assert calls[0][0] == start_date
         assert calls[-1][1] == end_date
+
+    def test_get_binding_constraints_real_time_5_min_fall_back_day_end(
+        self,
+        monkeypatch,
+    ):
+        # November 1, 2026 has 25 hours, so its last chunk ends at midnight CST
+        start_date = pd.Timestamp("2026-11-01 23:45:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        midnight = pd.Timestamp("2026-11-02 00:00:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        end_date = midnight + pd.Timedelta(minutes=5)
+
+        calls = []
+
+        def fake_intervals_fetch(date, end=None, verbose=False):
+            calls.append((date, end))
+            return pd.DataFrame(
+                {
+                    "Interval Start": [date],
+                    "Interval End": [date + pd.Timedelta(minutes=5)],
+                    "Constraint Name": ["C"],
+                },
+            )
+
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_intervals",
+            fake_intervals_fetch,
+        )
+
+        with time_machine.travel("2026-11-02T06:07:00Z", tick=False):
+            self.iso.get_binding_constraints_real_time_5_min(
+                date=start_date,
+                end=end_date,
+            )
+
+        assert calls[0] == (start_date, midnight)
+        assert calls[1][0] == midnight
 
     """get_interchange_real_time"""
 
