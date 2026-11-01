@@ -435,7 +435,6 @@ class TestErcot(BaseTestISO):
         assert df["Time"].is_monotonic_increasing
         assert df.duplicated(subset=["Time", "Notice"]).sum() == 0
 
-    @pytest.mark.integration
     @pytest.mark.parametrize(
         "day",
         ["2024-11-03", "2025-11-02", "2026-11-01", "2027-11-07"],
@@ -478,6 +477,103 @@ class TestErcot(BaseTestISO):
         assert result["Time"].tolist() == times.tolist()
         assert result["Total Charging"].tolist() == list(range(25))
 
+    @pytest.mark.parametrize(
+        "day",
+        ["2024-11-03", "2025-11-02", "2026-11-01", "2027-11-07"],
+    )
+    @pytest.mark.parametrize("malformed", [False, True])
+    def test_energy_storage_fallback_incremental(self, day, malformed):
+        start = pd.Timestamp(day, tz=self.iso.default_timezone)
+        times = pd.date_range(
+            start,
+            start + pd.DateOffset(days=1),
+            freq="5min",
+            inclusive="left",
+        )
+        records = []
+        for i, timestamp in enumerate(times):
+            second_one = i == 24
+            source_time = (
+                timestamp + pd.Timedelta(hours=1)
+                if malformed and second_one
+                else timestamp
+            )
+            records.append(
+                {
+                    "timestamp": source_time.isoformat(),
+                    "dstFlag": "N" if second_one else "Y",
+                    "totalCharging": i,
+                    "totalDischarging": i + 1,
+                    "netOutput": 1,
+                },
+            )
+
+        # Poll through the repeated hour, then once the real 2am has arrived.
+        # Model a consumer that keeps the first value inserted for each time.
+        stored = {}
+        for count in [25, 26, 36, 37, len(records)]:
+            with mock.patch.object(
+                self.iso,
+                "_get_json",
+                return_value={
+                    "previousDay": {"data": []},
+                    "currentDay": {"data": records[:count]},
+                },
+            ):
+                result = self.iso.get_energy_storage_resources()
+            expected_indices = [
+                i for i in range(count) if not (malformed and count < 37 and i == 24)
+            ]
+            assert result["Time"].tolist() == times[expected_indices].tolist()
+            assert result["Total Charging"].tolist() == expected_indices
+            assert result["Total Discharging"].tolist() == [
+                i + 1 for i in expected_indices
+            ]
+            assert result["Net Output"].eq(1).all()
+            for timestamp, charging, discharging, net in result.itertuples(
+                index=False,
+                name=None,
+            ):
+                stored.setdefault(timestamp, (charging, discharging, net))
+
+        assert stored == {timestamp: (i, i + 1, 1) for i, timestamp in enumerate(times)}
+
+    def test_energy_storage_fallback_missing_hour_is_not_guessed(self):
+        two_am = {
+            "timestamp": "2026-11-01T02:00:00-06:00",
+            "dstFlag": "N",
+            "totalCharging": 2,
+            "totalDischarging": 3,
+            "netOutput": 1,
+        }
+        one_am = {
+            **two_am,
+            "timestamp": "2026-11-01T01:00:00-06:00",
+            "totalCharging": 1,
+        }
+        # With only this row, a real 2am after a source gap is indistinguishable
+        # from the mislabeled 1am. If 1am subsequently arrives, keep 2am intact.
+        with mock.patch.object(
+            self.iso,
+            "_get_json",
+            side_effect=[
+                {"previousDay": {"data": [two_am]}, "currentDay": {"data": []}},
+                {
+                    "previousDay": {"data": [one_am, two_am]},
+                    "currentDay": {"data": []},
+                },
+            ],
+        ):
+            unresolved = self.iso.get_energy_storage_resources()
+            resolved = self.iso.get_energy_storage_resources()
+        assert unresolved.empty
+        assert unresolved.columns.tolist() == resolved.columns.tolist()
+        assert resolved["Time"].tolist() == [
+            pd.Timestamp(one_am["timestamp"]),
+            pd.Timestamp(two_am["timestamp"]),
+        ]
+        assert resolved["Total Charging"].tolist() == [1, 2]
+
     def test_energy_storage_ordinary_day_duplicate_is_unchanged(self):
         records = [
             {
@@ -501,6 +597,7 @@ class TestErcot(BaseTestISO):
         assert result["Time"].eq(pd.Timestamp("2026-11-02T02:00:00-06:00")).all()
         assert len(result) == 2
 
+    @pytest.mark.integration
     def test_get_energy_storage_resources(self):
         df = self.iso.get_energy_storage_resources()
         assert df.columns.tolist() == [

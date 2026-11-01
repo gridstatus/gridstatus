@@ -581,7 +581,9 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get energy storage resources.
-        Always returns data from previous and current day"""
+        Returns previous and current day data. An ambiguous fall-back boundary
+        reading is withheld until the source provides enough data to place it.
+        """
         url = self.BASE + "/energy-storage-resources.json"
         data = self._get_json(url, verbose=verbose)
 
@@ -591,23 +593,38 @@ class Ercot(ISOBase):
             self.default_timezone,
         )
         # ERCOT has labeled the second 1am as 2am, duplicating the real 2am.
-        # Repair only that observed pattern on an actual fall-back transition;
-        # leave correctly labeled data and duplicates on other days unchanged.
-        for timestamp in timestamps[timestamps.duplicated(keep=False)].unique():
+        # Before the real 2am arrives, do not emit the lone candidate at 2am:
+        # incremental consumers may persist it and ignore later corrections.
+        # Leave correctly labeled data and duplicates on other days unchanged.
+        keep = pd.Series(True, index=df.index)
+        boundary = (
+            timestamps.dt.hour.eq(2)
+            & timestamps.dt.minute.eq(0)
+            & timestamps.dt.second.eq(0)
+        )
+        for timestamp in timestamps[boundary].unique():
             repeated_hour = timestamp - pd.Timedelta(hours=1)
+            before_fallback = timestamp - pd.Timedelta(hours=2)
             if (
-                timestamp.hour == 2
-                and timestamp.minute == 0
-                and timestamp.second == 0
-                and (timestamp - pd.Timedelta(hours=2)).dst() > timestamp.dst()
+                before_fallback.dst() > timestamp.dst()
                 and not timestamps.eq(repeated_hour).any()
             ):
-                repair = timestamps.eq(timestamp) & df["dstFlag"].eq("N")
+                at_boundary = timestamps.eq(timestamp)
+                repair = at_boundary & df["dstFlag"].eq("N")
                 if repair.sum() == 1:
-                    timestamps = timestamps.mask(repair, repeated_hour)
+                    if at_boundary.sum() > 1:
+                        timestamps = timestamps.mask(repair, repeated_hour)
+                    else:
+                        # A missing 1am could also be a source gap. Wait for
+                        # another boundary reading or the missing 1am rather
+                        # than guessing which hour this measurement belongs to.
+                        keep &= ~repair
 
-        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]].copy()
-        df["timestamp"] = timestamps
+        df = df.loc[
+            keep,
+            ["timestamp", "totalCharging", "totalDischarging", "netOutput"],
+        ].copy()
+        df["timestamp"] = timestamps.loc[keep]
 
         df = df.rename(
             columns={
