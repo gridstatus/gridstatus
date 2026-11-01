@@ -8502,8 +8502,10 @@ class Ercot(ISOBase):
         for col in price_cols:
             df[col] = df[col].astype("float64")
 
+        # Repeated-hour reports can include unchanged rows from earlier files.
         return (
             df[["Interval Start", "Interval End", "RTD Timestamp"] + price_cols]
+            .drop_duplicates()
             .sort_values(["Interval Start", "RTD Timestamp"])
             .reset_index(drop=True)
         )
