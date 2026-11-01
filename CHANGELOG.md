@@ -20,6 +20,7 @@
 
 #### SPP
 * `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
+* `get_binding_constraints_real_time_5_min`, single-date `get_fuel_mix` requests, and `get_binding_constraints_day_ahead_hourly("latest")` end a day at the next local midnight. They added 24 hours to midnight, so November 1, 2026, a 25 hour day, ended at 23:00 CST: a real-time binding constraints range crossing midnight that night skipped the intervals from 23:00 CST (after its first interval, when it started after 23:00), and on November 1 `"latest"` day-ahead binding constraints asked for November 1 instead of November 2.
 
 ## v0.37.0 - October 22, 2026
 
