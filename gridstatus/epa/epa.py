@@ -1,14 +1,13 @@
 import os
 from datetime import datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
 from tzfpy import get_tz
 
-from gridstatus import utils
 from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
 from gridstatus.epa.epa_constants import (
@@ -108,7 +107,7 @@ class EPA:
             self._facility_attributes_cache[cache_key] = attrs.drop_duplicates()
         return self._facility_attributes_cache[cache_key]
 
-    @support_date_range(frequency="DAY_START")
+    @support_date_range(frequency="24h")
     def get_power_plant_emissions_generation(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -123,12 +122,9 @@ class EPA:
         missing coordinates raise rather than silently guessing a time zone. Gross Load
         is MW, not MWh. Reports arrive quarterly and may be revised later.
         """
-        start = utils._handle_date(date, self.default_timezone)
-        end = (
-            utils._handle_date(end, self.default_timezone)
-            if end
-            else start + pd.Timedelta(days=1)
-        )
+        # The decorator normalizes dates to UTC and bounds each call to 24 hours.
+        start = cast(pd.Timestamp, date)
+        end = cast(pd.Timestamp, end or start + pd.Timedelta(days=1))
         states = tuple(sorted(set(state_codes or [])))
         # US local dates can precede their UTC date. Include the preceding day,
         # then trim after conversion so successive UTC chunks neither overlap nor gap.

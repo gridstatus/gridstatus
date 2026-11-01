@@ -84,6 +84,34 @@ def test_pagination_year_join_and_range(epa):
     assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "DE"
 
 
+def test_partial_range_normalizes_timezone_and_preserves_end(epa):
+    rows = [
+        hourly(day, hour)
+        for day in ["2023-06-30", "2023-07-01", "2023-07-02"]
+        for hour in range(24)
+    ]
+    epa.session.get.side_effect = [
+        response(rows),
+        response({"items": [attributes()]}),
+        response(rows),
+    ]
+    df = epa.get_power_plant_emissions_generation(
+        "2023-07-01T03:00:00-04:00",
+        end="2023-07-02T05:00:00-04:00",
+        error="raise",
+    )
+    assert (
+        df["Interval Start"].tolist()
+        == pd.date_range(
+            "2023-07-01 07:00",
+            "2023-07-02 09:00",
+            freq="h",
+            tz="UTC",
+            inclusive="left",
+        ).tolist()
+    )
+
+
 @pytest.mark.parametrize("attrs", [[], [attributes(latitude=float("nan"))]])
 def test_missing_coordinates_fail(epa, attrs):
     epa.session.get.side_effect = [response([hourly()]), response({"items": attrs})]
