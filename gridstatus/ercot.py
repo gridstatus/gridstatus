@@ -587,24 +587,34 @@ class Ercot(ISOBase):
 
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
-        # TODO(kanter): fix this for future DST dates
-        for timestamp in ["2024-11-03 02:00:00-0600", "2025-11-02 02:00:00-0600"]:
-            if timestamp in df["timestamp"].values:
-                # ERCOT publishes two intervals with 2am timestamp
-                # during CDT to CST transition
-                # but skips the repeated 1am timestamp
-                # let's manually fix this before further timestamp parsing
-                df.loc[
-                    (df["timestamp"] == timestamp) & (df["dstFlag"] == "N"),
-                    "timestamp",
-                ] = timestamp.replace("02:00:00", "01:00:00")
-
-        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
-
         # Parse in UTC to avoid issues with DST transition
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
+
+        # At fall-back ERCOT labels the repeated 01:00 as 02:00 with flag N,
+        # duplicating the real 02:00 (flag Y). Detect the transition each year
+        # by checking whether the preceding wall-clock hour is ambiguous.
+        wall_time = df["timestamp"].dt.tz_localize(None)
+        repeated_previous_hour = (
+            (wall_time - pd.Timedelta(hours=1))
+            .dt.tz_localize(
+                self.default_timezone,
+                ambiguous="NaT",
+                nonexistent="shift_forward",
+            )
+            .isna()
+        )
+        mislabeled_boundary = (
+            (wall_time.dt.hour == 2)
+            & (wall_time.dt.minute == 0)
+            & (wall_time.dt.second == 0)
+            & (df["dstFlag"] == "N")
+            & repeated_previous_hour
+        )
+        df.loc[mislabeled_boundary, "timestamp"] -= pd.Timedelta(hours=1)
+
+        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
 
         df = df.rename(
             columns={
