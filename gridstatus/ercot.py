@@ -7679,6 +7679,36 @@ class Ercot(ISOBase):
         df = self.read_docs(docs, parse=False, verbose=verbose)
         return self._handle_indicative_lmp_by_settlement_point(df)
 
+    def _localize_indicative_interval_start(
+        self,
+        interval_end: pd.Series,
+        ambiguous: pd.Series,
+    ) -> pd.Series:
+        interval_end = pd.to_datetime(interval_end)
+        interval_start = interval_end.dt.tz_localize(
+            self.default_timezone,
+            ambiguous=ambiguous,
+            nonexistent="shift_forward",
+        ) - pd.Timedelta(minutes=5)
+
+        # ERCOT labels both fall-back hour endings as 02:00. For intervals
+        # starting in the repeated hour, localize the start so pandas applies
+        # the interval's flag even when the ending is unambiguous.
+        wall_start = interval_end - pd.Timedelta(minutes=5)
+        repeated_start = wall_start.dt.tz_localize(
+            self.default_timezone,
+            ambiguous="NaT",
+            nonexistent="shift_forward",
+        ).isna()
+        if repeated_start.any():
+            interval_start.loc[repeated_start] = wall_start.loc[
+                repeated_start
+            ].dt.tz_localize(
+                self.default_timezone,
+                ambiguous=ambiguous.loc[repeated_start],
+            )
+        return interval_start
+
     def _handle_indicative_lmp_by_settlement_point(
         self,
         df: pd.DataFrame,
@@ -7699,13 +7729,11 @@ class Ercot(ISOBase):
             ambiguous=df["RepeatedHourFlag"] == "N",
             nonexistent="shift_forward",
         )
-        df["Interval End"] = pd.to_datetime(df["Interval End"]).dt.tz_localize(
-            self.default_timezone,
+        df["Interval Start"] = self._localize_indicative_interval_start(
+            df["Interval End"],
             ambiguous=df["IntervalRepeatedHourFlag"] == "N",
-            nonexistent="shift_forward",
         )
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
         df = df.sort_values("Interval Start").reset_index(drop=True)
         return df[
             [
@@ -8453,18 +8481,13 @@ class Ercot(ISOBase):
         return self._handle_indicative_mcpc_rtd(df)
 
     def _handle_indicative_mcpc_rtd(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Parse timestamps with DST handling. nonexistent= only applies to
-        # spring-forward (gap when 02:00 does not exist); fall-back repeated
-        # hour is handled by ambiguous= from RepeatedHourFlag.
-        df["Interval End"] = pd.to_datetime(df["IntervalEnding"]).dt.tz_localize(
-            self.default_timezone,
+        df["Interval Start"] = self._localize_indicative_interval_start(
+            df["IntervalEnding"],
             ambiguous=self.ambiguous_based_on_dstflag(
                 df.rename(columns={"IntervalEndingRepeatedHourFlag": "DSTFlag"}),
             ),
-            nonexistent="shift_forward",
         )
-
-        df["Interval Start"] = df["Interval End"] - pd.Timedelta(minutes=5)
+        df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
 
         df["RTD Timestamp"] = pd.to_datetime(df["RTDTimestamp"]).dt.tz_localize(
             self.default_timezone,
