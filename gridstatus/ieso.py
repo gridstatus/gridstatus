@@ -1164,6 +1164,14 @@ class IESO(ISOBase):
                             ),
                         )
                         break
+                    except NoDataFoundException as e:
+                        # IESO can list a report before the file is available.
+                        logger.warning(
+                            "Skipping unavailable resource adequacy file %s: %s",
+                            file,
+                            e,
+                        )
+                        break
                     except http.client.RemoteDisconnected as e:
                         retries += 1
                         if retries == max_retries:
@@ -1251,6 +1259,14 @@ class IESO(ISOBase):
                         ),
                     )
                     success = True
+                except NoDataFoundException as e:
+                    # IESO can list a report before the file is available.
+                    logger.warning(
+                        "Skipping unavailable resource adequacy file %s: %s",
+                        file,
+                        e,
+                    )
+                    break
                 except (
                     http.client.RemoteDisconnected,
                     requests.exceptions.ConnectionError,

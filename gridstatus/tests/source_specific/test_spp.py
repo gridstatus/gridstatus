@@ -3,6 +3,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+import time_machine
 
 from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
@@ -11,7 +12,9 @@ from gridstatus.spp import (
     LOCATION_TYPE_HUB,
     LOCATION_TYPE_INTERFACE,
     LOCATION_TYPE_SETTLEMENT_LOCATION,
+    SWPW_FUEL_MIX_START,
     BAAEnum,
+    combine_baa_fuel_mix,
     fill_baa_column,
 )
 from gridstatus.tests.base_test_iso import BaseTestISO
@@ -3140,6 +3143,46 @@ class TestSPP(BaseTestISO):
         assert calls[0][0] == start_date
         assert calls[-1][1] == end_date
 
+    def test_get_binding_constraints_real_time_5_min_fall_back_day_end(
+        self,
+        monkeypatch,
+    ):
+        # November 1, 2026 has 25 hours, so its last chunk ends at midnight CST
+        start_date = pd.Timestamp("2026-11-01 23:45:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        midnight = pd.Timestamp("2026-11-02 00:00:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        end_date = midnight + pd.Timedelta(minutes=5)
+
+        calls = []
+
+        def fake_intervals_fetch(date, end=None, verbose=False):
+            calls.append((date, end))
+            return pd.DataFrame(
+                {
+                    "Interval Start": [date],
+                    "Interval End": [date + pd.Timedelta(minutes=5)],
+                    "Constraint Name": ["C"],
+                },
+            )
+
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_intervals",
+            fake_intervals_fetch,
+        )
+
+        with time_machine.travel("2026-11-02T06:07:00Z", tick=False):
+            self.iso.get_binding_constraints_real_time_5_min(
+                date=start_date,
+                end=end_date,
+            )
+
+        assert calls[0] == (start_date, midnight)
+        assert calls[1][0] == midnight
+
     """get_interchange_real_time"""
 
     interchange_real_time_cols = [
@@ -3357,3 +3400,54 @@ class TestFillBaaColumn:
         )
         result = fill_baa_column(df, "Load")
         assert result["BAA"].tolist() == [BAAEnum.SPP.value, BAAEnum.SPP.value]
+
+
+def _by_baa_fuel_mix(rows: list[tuple[str, str, float]]) -> pd.DataFrame:
+    """Build a by-BAA fuel mix from (BAA, interval start in UTC, wind) rows."""
+    df = pd.DataFrame(rows, columns=["BAA", "Interval Start", "Wind"])
+    df["Interval Start"] = pd.to_datetime(df["Interval Start"], utc=True).dt.tz_convert(
+        SPP.default_timezone,
+    )
+    df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
+    return df
+
+
+class TestCombineBaaFuelMix:
+    """Tests for the combine_baa_fuel_mix utility function."""
+
+    def test_sums_intervals_every_baa_reports(self):
+        # Rolling windows one interval apart: SPP's newest interval and SWPW's
+        # oldest are each reported by one BAA only.
+        df = _by_baa_fuel_mix(
+            [
+                ("SPP", "2026-10-27 22:35", 15006.5),
+                ("SPP", "2026-10-27 22:40", 15010.0),
+                ("SPP", "2026-10-27 22:45", 15020.0),
+                ("SWPW", "2026-10-27 22:30", 130.0),
+                ("SWPW", "2026-10-27 22:35", 132.6),
+                ("SWPW", "2026-10-27 22:40", 135.0),
+            ],
+        )
+
+        result = combine_baa_fuel_mix(df)
+
+        assert result.columns.tolist() == ["Interval Start", "Interval End", "Wind"]
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-10-27 22:35", tz="UTC"),
+            pd.Timestamp("2026-10-27 22:40", tz="UTC"),
+        ]
+        assert result["Wind"].tolist() == pytest.approx([15139.1, 15145.0])
+
+    def test_keeps_spp_only_intervals_before_swpw_start(self):
+        before_start = SWPW_FUEL_MIX_START - pd.Timedelta(minutes=5)
+        df = _by_baa_fuel_mix(
+            [
+                ("SPP", str(before_start), 9000.0),
+                ("SPP", str(SWPW_FUEL_MIX_START), 9100.0),
+            ],
+        )
+
+        result = combine_baa_fuel_mix(df)
+
+        assert result["Interval Start"].tolist() == [before_start]
+        assert result["Wind"].tolist() == [9000.0]

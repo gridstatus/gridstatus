@@ -4,6 +4,9 @@
 
 ### Fixes
 
+#### CAISO
+* `get_price_corrections` handles a correction with several reasons. OASIS separates them with an unquoted newline, so the second reason was read as a new row whose `Trade Date` failed to parse. Since October 23, 2026, every range that included trade date October 13, 2026 raised `ValueError`. The reasons are now joined with `; ` in `Correction Reason`.
+
 #### ERCOT
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
@@ -11,6 +14,16 @@
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
 * `MISOAPI` requests verify again. On October 22, 2026, MISO moved `apim.misoenergy.org` to a certificate issued by GlobalSign GCC R46 OV TLS CA 2025 (GlobalSign Root R46), which the bundled certificate chain didn't include, so every request failed with `SSLCertVerificationError`. The bundle now has both the new and the previous GlobalSign chains.
+
+#### NYISO
+* `NYISO.get_limiting_constraints_real_time` now reads NYISO's `Time Stamp` as the end of the interval instead of the start, so every interval was previously reported 5 minutes late. Real-time limiting constraints use the same convention as real-time LBMPs: from July to September 2026, when a single constraint bound for one isolated interval, zonal congestion appeared in the LBMP with the same timestamp in 108 of 109 cases. Each daily file holds the stamps 00:00 through 23:55, so a single day's intervals now end between 00:00 and 23:55.
+
+#### PJM
+* Data Miner requests with a start and end now filter on the feed's UTC timestamp instead of its EPT timestamp. Data Miner reads an EPT time in the repeated 1 AM hour as standard time, so on November 1, 2026 a request starting at 1:00 EDT (05:00 UTC) returned the 1:00 EST hour (06:00 UTC) instead. Feeds whose date filter only exists in EPT (`generated_at`, `forecast_execution_date`) still filter in EPT. Rows at the exclusive `end` are now dropped by UTC time, so the other copy of a repeated hour is kept.
+
+#### SPP
+* `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
+* `get_binding_constraints_real_time_5_min`, single-date `get_fuel_mix` requests, and `get_binding_constraints_day_ahead_hourly("latest")` end a day at the next local midnight. They added 24 hours to midnight, so November 1, 2026, a 25 hour day, ended at 23:00 CST: a real-time binding constraints range crossing midnight that night skipped the intervals from 23:00 CST (after its first interval, when it started after 23:00), and on November 1 `"latest"` day-ahead binding constraints asked for November 1 instead of November 2.
 
 ## v0.37.0 - October 22, 2026
 

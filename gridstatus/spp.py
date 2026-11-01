@@ -35,6 +35,9 @@ HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
 # NOTE: Typically SWPW is ~2000-3000MW and SPP is ~20000-30000MW, so we can tell if there
 # is a load value with null BAA value, we can tell which BAA it is.
 BAA_LOAD_THRESHOLD_MW = 5000
+# First SWPW interval in SPP's generation mix files, from the RTO West expansion
+# on April 1, 2026
+SWPW_FUEL_MIX_START = pd.Timestamp("2026-04-01 06:05", tz="UTC")
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -160,6 +163,32 @@ def fill_baa_column(df, load_col):
             ),
         )
     return df
+
+
+def combine_baa_fuel_mix(df: pd.DataFrame) -> pd.DataFrame:
+    """Sum fuel mix across BAAs at each interval.
+
+    SPP publishes each BAA in its own rolling file, so one file can hold an
+    interval the other doesn't. An interval is kept only when every BAA reports
+    it, so one BAA's values are never returned as the combined total. Before
+    SWPW_FUEL_MIX_START, SPP alone is the full system.
+
+    Args:
+        df: fuel mix with a BAA column and one row per BAA per interval
+
+    Returns:
+        pd.DataFrame: fuel mix summed across BAAs
+    """
+    baa_count = df.groupby("Interval Start")["BAA"].transform("nunique")
+    complete = (baa_count == len(BAAEnum)) | (
+        df["Interval Start"] < SWPW_FUEL_MIX_START
+    )
+    return (
+        df[complete]
+        .drop(columns="BAA")
+        .groupby(["Interval Start", "Interval End"], as_index=False)
+        .sum()
+    )
 
 
 def _binding_constraints_real_time_5_min_frequency(args_dict: dict) -> str:
@@ -348,37 +377,10 @@ class SPP(ISOBase):
             baa=BAAEnum.SWPW,
         )
 
+        df = pd.concat([spp_df, swpw_df], ignore_index=True)
         if by_baa:
-            df = pd.concat([spp_df, swpw_df], ignore_index=True)
-            df = df.sort_values(
-                ["Interval Start", "BAA"],
-                ignore_index=True,
-            )
-            return df
-
-        # Sum fuel columns across BAAs for each interval
-        time_cols = ["Interval Start", "Interval End"]
-        fuel_cols = [c for c in spp_df.columns if c not in time_cols + ["BAA"]]
-
-        spp_df = spp_df.drop(columns=["BAA"], errors="ignore")
-        swpw_df = swpw_df.drop(columns=["BAA"], errors="ignore")
-
-        df = pd.merge(
-            spp_df,
-            swpw_df,
-            on=time_cols,
-            suffixes=("_spp", "_swpw"),
-            how="outer",
-        )
-
-        for col in fuel_cols:
-            spp_col = f"{col}_spp"
-            swpw_col = f"{col}_swpw"
-            df[col] = df[spp_col].fillna(0) + df[swpw_col].fillna(0)
-            df = df.drop(columns=[spp_col, swpw_col])
-
-        df = df.sort_values("Interval Start", ignore_index=True)
-        return df
+            return df.sort_values(["Interval Start", "BAA"], ignore_index=True)
+        return combine_baa_fuel_mix(df)
 
     def _get_fuel_mix(
         self,
@@ -423,7 +425,7 @@ class SPP(ISOBase):
         if date != "latest" and isinstance(date, pd.Timestamp):
             df = df[df["Interval Start"] >= date]
             if end is None:
-                end = date.normalize() + pd.Timedelta(days=1)
+                end = date.normalize() + pd.DateOffset(days=1)
             df = df[df["Interval Start"] < end]
             df = df.reset_index(drop=True)
 
@@ -2634,7 +2636,7 @@ class SPP(ISOBase):
         if date == "latest":
             tomorrow = pd.Timestamp.now(
                 tz=self.default_timezone,
-            ).normalize() + pd.Timedelta(days=1)
+            ).normalize() + pd.DateOffset(days=1)
             try:
                 return self.get_binding_constraints_day_ahead_hourly(
                     date=tomorrow,
@@ -2774,7 +2776,7 @@ class SPP(ISOBase):
         future intervals.
         """
         if end is None:
-            end = start.normalize() + pd.Timedelta(days=1)
+            end = start.normalize() + pd.DateOffset(days=1)
             if utils.is_today(start, self.default_timezone):
                 end = min(
                     end,
