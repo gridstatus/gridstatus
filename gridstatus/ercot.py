@@ -5537,13 +5537,16 @@ class Ercot(ISOBase):
             },
         )
 
+        # Report files flag the repeated hour with "Y" and the public API with True
+        repeated_hour_flags = ["Y", True]
+
         # Some files have errors with the timestamp
         df["SCED Timestamp"] = pd.to_datetime(
             df["SCED Timestamp"],
             errors="coerce",
         ).dt.tz_localize(
             self.default_timezone,
-            ambiguous=df["RepeatedHourFlag"] == "N",
+            ambiguous=~df["RepeatedHourFlag"].isin(repeated_hour_flags),
         )
 
         df = df.dropna(subset=["SCED Timestamp"])
@@ -5553,7 +5556,7 @@ class Ercot(ISOBase):
         # Round to nearest 5 minutes
         df["Interval Start"] = df["SCED Timestamp"].dt.floor(
             "5min",
-            ambiguous=df["RepeatedHourFlag"] == "N",
+            ambiguous=~df["RepeatedHourFlag"].isin(repeated_hour_flags),
         )
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
