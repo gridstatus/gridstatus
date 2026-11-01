@@ -4,6 +4,7 @@ from enum import StrEnum
 from io import BytesIO
 from typing import BinaryIO, Literal, NamedTuple
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -166,7 +167,12 @@ class NYISO(ISOBase):
         df: pd.DataFrame,
         dataset_name: str,
         groupby: str | None = None,
+        latest: bool = False,
     ) -> pd.DataFrame:
+        """Localize the file's timestamps and add interval columns.
+
+        Set latest for a latest-interval (current.csv) file.
+        """
         time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
 
         if "Time Stamp" in df.columns:
@@ -175,7 +181,10 @@ class NYISO(ISOBase):
             time_stamp_col = "Timestamp"
 
         def time_to_datetime(s: pd.Series, dst: str = "infer") -> pd.Series:
-            return pd.to_datetime(s).dt.tz_localize(
+            times = pd.to_datetime(s)
+            if isinstance(dst, str) and dst == "infer":
+                dst = self._infer_daylight_time(times, latest)
+            return times.dt.tz_localize(
                 self.default_timezone,
                 ambiguous=dst,
             )
@@ -220,6 +229,39 @@ class NYISO(ISOBase):
             )
 
         return df
+
+    def _infer_daylight_time(
+        self,
+        times: pd.Series,
+        latest: bool,
+    ) -> Literal["infer"] | np.ndarray:
+        """Whether each time on the DST end day is in the daylight-time 1 AM hour.
+
+        pandas infers this from the repeated 1 AM times, which a file posted during
+        the repeated hour doesn't have yet. A daily file then holds only the
+        daylight-time hour, which comes first. A latest-interval file holds the
+        interval just posted, which is whichever 1 AM hour is closest to now.
+        """
+        is_ambiguous = (
+            times.notna()
+            & times.dt.tz_localize(self.default_timezone, ambiguous="NaT").isna()
+        )
+        if not is_ambiguous.any() or times[is_ambiguous].duplicated().any():
+            return "infer"
+
+        if not latest:
+            return np.ones(len(times), dtype=bool)
+
+        now = pd.Timestamp.now(tz=self.default_timezone)
+        daylight = times.dt.tz_localize(
+            self.default_timezone,
+            ambiguous=np.ones(len(times), dtype=bool),
+        )
+        standard = times.dt.tz_localize(
+            self.default_timezone,
+            ambiguous=np.zeros(len(times), dtype=bool),
+        )
+        return ((daylight - now).abs() <= (standard - now).abs()).to_numpy()
 
     @support_date_range(frequency="MONTH_START")
     def get_status(
@@ -633,6 +675,7 @@ class NYISO(ISOBase):
                 data,
                 INTERFACE_LIMITS_AND_FLOWS_DATASET,
                 groupby="Interface Name",
+                latest=True,
             )
         else:
             data = self._download_nyiso_archive(
@@ -771,7 +814,7 @@ class NYISO(ISOBase):
                 df = _read_oasis_postings_csv(
                     f"{OASIS_POSTINGS_URL}/{folder}/CSV/current.csv",
                 )
-                df = self._handle_time(df, dataset_name=marketname)
+                df = self._handle_time(df, dataset_name=marketname, latest=True)
                 df["Market"] = market.value
         else:
             filename = marketname + f"_{file_location_type}"
@@ -1831,6 +1874,7 @@ class NYISO(ISOBase):
                 data,
                 LIMITING_CONSTRAINTS_REAL_TIME_DATASET,
                 groupby="Limiting Facility",
+                latest=True,
             )
         else:
             data = self._download_nyiso_archive(

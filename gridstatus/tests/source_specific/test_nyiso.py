@@ -1,8 +1,10 @@
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
 import pandas as pd
 import pytest
+import time_machine
 
 import gridstatus
 from gridstatus import NYISO, Markets
@@ -15,6 +17,8 @@ nyiso_vcr = setup_vcr(
     source="nyiso",
     record_mode=RECORD_MODE,
 )
+
+NYISO_FIXTURES_DIRECTORY = Path(__file__).parent.parent / "fixtures" / "nyiso"
 
 
 class TestNYISO(BaseTestISO):
@@ -174,6 +178,80 @@ class TestNYISO(BaseTestISO):
     def test_get_load_historical(self, lookback_days):
         # TODO: why does this not work more than 8 days in the past
         super().test_get_load_historical(lookback_days=lookback_days)
+
+    """_handle_time"""
+
+    def test_handle_time_daily_file_posted_during_daylight_one_am_hour(self):
+        # The November 1, 2026 file as posted at 1:30 EDT, before the repeated hour
+        df = pd.read_csv(
+            NYISO_FIXTURES_DIRECTORY
+            / "realtime_zone-20261101-through-0130-daylight.csv",
+        )
+
+        result = self.iso._handle_time(df, "realtime")
+
+        expected_interval_ends = pd.date_range(
+            "2026-11-01 04:05",
+            "2026-11-01 05:30",
+            freq="5min",
+            tz="UTC",
+        )
+        for _, location_result in result.groupby("Name"):
+            assert (
+                location_result["Interval End"].tolist()
+                == expected_interval_ends.tolist()
+            )
+
+    def test_handle_time_instantaneous_daily_file_posted_during_daylight_one_am_hour(
+        self,
+    ):
+        df = pd.read_csv(
+            NYISO_FIXTURES_DIRECTORY
+            / "ErieCirculationRT-20261101-through-0130-daylight.csv",
+        )
+
+        result = self.iso._handle_time(df, "eriecirculationrt")
+
+        assert (
+            result["Time"].tolist()
+            == pd.date_range(
+                "2026-11-01 04:00",
+                "2026-11-01 05:30",
+                freq="5min",
+                tz="UTC",
+            ).tolist()
+        )
+
+    @pytest.mark.parametrize(
+        "filename,now,expected_interval_end",
+        [
+            (
+                "realtime_zone-current-20261101-0130-daylight.csv",
+                "2026-11-01T05:31:00Z",
+                "2026-11-01 05:30",
+            ),
+            (
+                "realtime_zone-current-20261101-0130-standard.csv",
+                "2026-11-01T06:31:00Z",
+                "2026-11-01 06:30",
+            ),
+        ],
+    )
+    def test_handle_time_latest_file_during_repeated_hour(
+        self,
+        filename: str,
+        now: str,
+        expected_interval_end: str,
+    ):
+        # Both 1 AM hours post a latest-interval file stamped 01:30
+        df = pd.read_csv(NYISO_FIXTURES_DIRECTORY / filename)
+
+        with time_machine.travel(now, tick=False):
+            result = self.iso._handle_time(df, "realtime", latest=True)
+
+        assert (
+            result["Interval End"] == pd.Timestamp(expected_interval_end, tz="UTC")
+        ).all()
 
     """get_lmp"""
 

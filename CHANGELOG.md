@@ -16,6 +16,7 @@
 * `MISOAPI` requests verify again. On October 22, 2026, MISO moved `apim.misoenergy.org` to a certificate issued by GlobalSign GCC R46 OV TLS CA 2025 (GlobalSign Root R46), which the bundled certificate chain didn't include, so every request failed with `SSLCertVerificationError`. The bundle now has both the new and the previous GlobalSign chains.
 
 #### NYISO
+* Real-time files posted during the DST end day's repeated 1 AM hour parse. Files without a `Time Zone` column were localized by inferring the hour from the repeated times, which a file posted during that hour doesn't have yet, so on November 1, 2026 `get_lmp_real_time_5_min`, `get_lmp_real_time_15_min`, `get_interface_limits_and_flows_5_min`, and `get_lake_erie_circulation_real_time` raised `AmbiguousTimeError` or returned no rows for one to two hours. A daily file without the repeat now reads the 1 AM times as daylight time, which NYISO posts first, and a latest-interval file reads them as whichever 1 AM hour is closest to now.
 * `NYISO.get_limiting_constraints_real_time` now reads NYISO's `Time Stamp` as the end of the interval instead of the start, so every interval was previously reported 5 minutes late. Real-time limiting constraints use the same convention as real-time LBMPs: from July to September 2026, when a single constraint bound for one isolated interval, zonal congestion appeared in the LBMP with the same timestamp in 108 of 109 cases. Each daily file holds the stamps 00:00 through 23:55, so a single day's intervals now end between 00:00 and 23:55.
 
 #### SPP
