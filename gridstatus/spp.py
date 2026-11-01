@@ -678,13 +678,20 @@ class SPP(ISOBase):
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
 
-        # On fall-back days SPP uses 0105d through 0155d. The unsuffixed
-        # files were absent in 2025, including requests for the first 1am hour.
-        day_start = floored_date.normalize()
-        is_fall_back = (
-            day_start.utcoffset() > (day_start + pd.DateOffset(days=1)).utcoffset()
+        # Since 2026, the second 1am hour has its own d files, including 01:00.
+        add_d = floored_date.year >= 2026 and (
+            (floored_date - pd.Timedelta(hours=1)).utcoffset()
+            > floored_date.utcoffset()
         )
-        add_d = is_fall_back and floored_date.hour == 1 and floored_date.minute != 0
+        # Preserve the observed 2025 archive: only 0105d through 0155d
+        # survived, so both requested folds historically returned those files.
+        if floored_date.year == 2025:
+            day_start = floored_date.normalize()
+            add_d = (
+                day_start.utcoffset() > (day_start + pd.DateOffset(days=1)).utcoffset()
+                and floored_date.hour == 1
+                and floored_date.minute != 0
+            )
 
         # The first hour in the URL is 1 after the hour in the filename.
         url = base_url + floored_date.strftime(
@@ -728,17 +735,43 @@ class SPP(ISOBase):
         is_fall_back = (
             day_start.utcoffset() > (day_start + pd.DateOffset(days=1)).utcoffset()
         )
-        add_d = is_fall_back and floored_date.hour == 2
+        add_d = is_fall_back and floored_date.hour == 2 and floored_date.year >= 2025
+
+        # Hourly files label the second 1am publication as 0200, followed
+        # by 0200d at 2am. The 2025 archive lacks that unsuffixed 0200 file.
+        file_hour = floored_date.hour
+        if floored_date.year >= 2026 and (
+            (floored_date - pd.Timedelta(hours=1)).utcoffset()
+            > floored_date.utcoffset()
+        ):
+            file_hour = 2
 
         # Explicitly set the minutes to 00 in the URL
         url = base_url + floored_date.strftime(
-            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}.csv",
+            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{file_hour:02d}00{'d' if add_d else ''}.csv",
         )
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
         return df, url
+
+    def _forecast_publish_time(self, url: str, forecast_type: str) -> pd.Timestamp:
+        timestamp = pd.Timestamp(re.search(r"[0-9]{12}", url).group(0)).tz_localize(
+            self.default_timezone,
+            ambiguous=not url.endswith("d.csv"),
+        )
+        # On fall-back days, hourly 0200 is the second 1am publication;
+        # 0200d is the subsequent 2am publication. Short-term files use 01xxd.
+        if (
+            forecast_type == "MID_TERM"
+            and timestamp.year >= 2026
+            and timestamp.hour == 2
+            and not url.endswith("d.csv")
+            and (timestamp - pd.Timedelta(hours=2)).utcoffset() > timestamp.utcoffset()
+        ):
+            timestamp -= pd.Timedelta(hours=1)
+        return timestamp
 
     def _post_process_load_forecast(
         self,
@@ -754,14 +787,7 @@ class SPP(ISOBase):
 
         # Assume the publish time is in the name of the file. There are different
         # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(
-            re.search(r"[0-9]{12}", url).group(0),
-        ).tz_localize(
-            tz=self.default_timezone,
-            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
-            # during DST.
-            ambiguous=not url.endswith("d.csv"),
-        )
+        df["Publish Time"] = self._forecast_publish_time(url, forecast_type)
 
         df.columns = [col.strip() for col in df.columns]
 
@@ -1042,14 +1068,7 @@ class SPP(ISOBase):
 
         # Assume the publish time is in the name of the file. There are different
         # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(
-            re.search(r"[0-9]{12}", url).group(0),
-        ).tz_localize(
-            tz=self.default_timezone,
-            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
-            # during DST.
-            ambiguous=not url.endswith("d.csv"),
-        )
+        df["Publish Time"] = self._forecast_publish_time(url, forecast_type)
 
         df.columns = [col.strip() for col in df.columns]
 
@@ -1079,12 +1098,7 @@ class SPP(ISOBase):
 
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        df["Publish Time"] = pd.Timestamp(
-            re.search(r"[0-9]{12}", url).group(0),
-        ).tz_localize(
-            tz=self.default_timezone,
-            ambiguous=not url.endswith("d.csv"),
-        )
+        df["Publish Time"] = self._forecast_publish_time(url, "MID_TERM")
 
         df.columns = [col.strip() for col in df.columns]
 

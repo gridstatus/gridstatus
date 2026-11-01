@@ -1698,8 +1698,11 @@ class TestSPP(BaseTestISO):
 
     @pytest.mark.parametrize("day", ["2025-11-02", "2026-11-01", "2027-11-07"])
     @pytest.mark.parametrize("offset", ["-05:00", "-06:00"])
-    @pytest.mark.parametrize("minute,suffix", [("00", ""), ("05", "d"), ("55", "d")])
-    def test_short_term_fallback_filename(self, day, offset, minute, suffix):
+    @pytest.mark.parametrize("minute", ["00", "05", "55"])
+    def test_short_term_fallback_filename(self, day, offset, minute):
+        suffix = "d" if offset == "-06:00" else ""
+        if day == "2025-11-02":
+            suffix = "d" if minute != "00" else ""
         timestamp = pd.Timestamp(f"{day}T01:{minute}:00{offset}").tz_convert(
             self.iso.default_timezone,
         )
