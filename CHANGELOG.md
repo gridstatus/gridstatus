@@ -10,6 +10,7 @@
 #### ERCOT
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
+* `parse_timestamp_from_friendly_name` reads times in files from the first 1am hour on DST end days as daylight time. Only file names with `xhr` are from the repeated hour, but every 1am file was read as standard time, so methods that filter documents by file-name time, such as `get_lmp_by_settlement_point`, `get_lmp_by_bus`, `get_sced_system_lambda` and `get_spp`, did not return a first-hour file until an hour after it posted.
 
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.

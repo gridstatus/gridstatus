@@ -11,6 +11,7 @@ from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     DAM_SYSTEM_LAMBDA_RTID,
     ELECTRICAL_BUS_LOCATION_TYPE,
+    SCED_SYSTEM_LAMBDA_RTID,
     Document,
     Ercot,
     ERCOTSevenDayLoadForecastReport,
@@ -1407,6 +1408,74 @@ class TestErcot(BaseTestISO):
         assert parse_timestamp_from_friendly_name(
             "SPPHLZNP6905_20230608_1545_csv",
         ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
+
+    def test_parse_timestamp_from_friendly_name_dst_end(self):
+        # Files from both 1am hours on November 1, 2026. ERCOT adds xhr to the names
+        # of files from the repeated hour.
+        assert parse_timestamp_from_friendly_name(
+            "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+        ) == pd.Timestamp("2026-11-01 06:00:23", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv",
+        ) == pd.Timestamp("2026-11-01 07:00:23", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20261101_0115_csv",
+        ) == pd.Timestamp("2026-11-01 06:15", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20261101_0115_xhr_csv",
+        ) == pd.Timestamp("2026-11-01 07:15", tz="UTC")
+
+    def test_get_documents_friendly_name_timestamps_dst_end(self):
+        # Listing entries for SCED system lambda on November 1, 2026
+        listing = {
+            "ListDocsByRptTypeRes": {
+                "DocumentList": [
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.010026589.SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv.zip",
+                            "DocID": "1293324664",
+                            "PublishDate": "2026-11-01T01:00:26-06:00",
+                        },
+                    },
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.010026575.SCEDSYSLAMBDANP6322_20261101_010023_csv.zip",
+                            "DocID": "1293309693",
+                            "PublishDate": "2026-11-01T01:00:25-06:00",
+                        },
+                    },
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_005521_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.005523461.SCEDSYSLAMBDANP6322_20261101_005521_csv.zip",
+                            "DocID": "1293308281",
+                            "PublishDate": "2026-11-01T00:55:23-06:00",
+                        },
+                    },
+                ],
+            },
+        }
+
+        # A fetch a minute after the first 1am run posted
+        with mock.patch.object(self.iso, "_get_json", return_value=listing):
+            docs = self.iso._get_documents(
+                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+                friendly_name_timestamp_after=pd.Timestamp(
+                    "2026-11-01 05:55:21",
+                    tz="UTC",
+                ),
+                friendly_name_timestamp_before=pd.Timestamp(
+                    "2026-11-01 06:01:30",
+                    tz="UTC",
+                ),
+            )
+
+        assert [doc.friendly_name for doc in docs] == [
+            "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+        ]
+        assert docs[0].publish_date == pd.Timestamp("2026-11-01 06:00:25", tz="UTC")
 
     """get_unplanned_resource_outages"""
 
