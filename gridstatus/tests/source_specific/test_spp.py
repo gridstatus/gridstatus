@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+import time_machine
 
 from gridstatus import SPP, Markets, NoDataFoundException, NotSupported
 from gridstatus.spp import (
@@ -3252,6 +3253,46 @@ class TestSPP(BaseTestISO):
         assert len(calls) == 6
         assert calls[0][0] == start_date
         assert calls[-1][1] == end_date
+
+    def test_get_binding_constraints_real_time_5_min_fall_back_day_end(
+        self,
+        monkeypatch,
+    ):
+        # November 1, 2026 has 25 hours, so its last chunk ends at midnight CST
+        start_date = pd.Timestamp("2026-11-01 23:45:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        midnight = pd.Timestamp("2026-11-02 00:00:00-06:00").tz_convert(
+            self.iso.default_timezone,
+        )
+        end_date = midnight + pd.Timedelta(minutes=5)
+
+        calls = []
+
+        def fake_intervals_fetch(date, end=None, verbose=False):
+            calls.append((date, end))
+            return pd.DataFrame(
+                {
+                    "Interval Start": [date],
+                    "Interval End": [date + pd.Timedelta(minutes=5)],
+                    "Constraint Name": ["C"],
+                },
+            )
+
+        monkeypatch.setattr(
+            self.iso,
+            "_get_binding_constraints_real_time_5_min_from_intervals",
+            fake_intervals_fetch,
+        )
+
+        with time_machine.travel("2026-11-02T06:07:00Z", tick=False):
+            self.iso.get_binding_constraints_real_time_5_min(
+                date=start_date,
+                end=end_date,
+            )
+
+        assert calls[0] == (start_date, midnight)
+        assert calls[1][0] == midnight
 
     """get_interchange_real_time"""
 
