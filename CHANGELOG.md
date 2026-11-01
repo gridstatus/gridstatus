@@ -20,6 +20,7 @@
 
 #### SPP
 * `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
+* The short-term and mid-term load and solar and wind forecast methods, `get_solar_and_wind_forecast_by_reserve_zone`, `get_load_forecast`, `get_load_forecast_by_baa`, `get_load`, and `get_load_by_baa` read the right file for each 1am hour when DST ends, every year, not only November 2, 2025. On November 1, 2026 SPP posted the first 1am hour's 5-minute files without a suffix and the second hour's with a "d" (`0100d` through `0155d`), and named the hourly file published in the second 1am hour `0200` and the 2am one `0200d`. Both 1am hours read the same file, so ranges returned duplicate rows and missed the second hour. `Publish Time` now comes from the requested time instead of the file name.
 
 ## v0.37.0 - October 22, 2026
 
