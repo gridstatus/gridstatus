@@ -233,6 +233,13 @@ DAILY_RUC_AS_DEMAND_CURVES_RTID = 26383
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-215-cd
 WEEKLY_RUC_AS_DEMAND_CURVES_RTID = 26384
 
+# Hourly and daily RUC reports post within an hour of the run.
+RUC_MINIMUM_PUBLICATION_DELAY = pd.Timedelta(0)
+
+# WRUC reports post 1h43m to 1h49m after the run (October 2026), so a run is
+# expected between 1h15m and 2h15m before its report.
+WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY = pd.Timedelta(minutes=75)
+
 # DAM Total Ancillary Services Sold
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
 DAM_TOTAL_AS_SOLD_RTID = 24888
@@ -8201,7 +8208,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
+        return self._handle_as_deployment_factors_ruc(
+            docs,
+            minimum_publication_delay=WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
+            verbose=verbose,
+        )
 
     # Published per DRUC run (once per day) for the next day
     @support_date_range(frequency=None)
@@ -8252,6 +8263,7 @@ class Ercot(ISOBase):
         self,
         docs: list[Document],
         timestamp_column: str,
+        minimum_publication_delay: pd.Timedelta = RUC_MINIMUM_PUBLICATION_DELAY,
         verbose: bool = False,
     ) -> pd.DataFrame:
         frames = []
@@ -8261,22 +8273,21 @@ class Ercot(ISOBase):
             daylight = times.dt.tz_localize(self.default_timezone, ambiguous=True)
             standard = times.dt.tz_localize(self.default_timezone, ambiguous=False)
             # RepeatedHourFlag describes delivery hours, not the RUC run.
-            # Use the latest occurrence no later than this report's publication.
-            # This assumes a repeated-hour run is published within an hour;
-            # keep document context until the run time has been localized.
+            # A run is published between minimum_publication_delay and an hour
+            # more after it starts. The two readings of a repeated-hour run are an
+            # hour apart, so at most one falls in that window; keep document
+            # context until the run time has been localized.
+            latest_run = doc.publish_date - minimum_publication_delay
+            earliest_run = latest_run - pd.Timedelta(hours=1)
+            daylight_fits = (daylight > earliest_run) & (daylight <= latest_run)
+            standard_fits = (standard > earliest_run) & (standard <= latest_run)
             ambiguous = daylight != standard
-            if (
-                ambiguous
-                & (
-                    (daylight > doc.publish_date)
-                    | (doc.publish_date - standard >= pd.Timedelta(hours=1))
-                )
-            ).any():
+            if (ambiguous & ~daylight_fits & ~standard_fits).any():
                 raise ValueError(
-                    "Cannot resolve RUC timestamp within an hour before publication",
+                    "Cannot resolve RUC timestamp from the report's publication time",
                 )
             frame[timestamp_column] = daylight.where(
-                ~ambiguous | (standard > doc.publish_date),
+                ~ambiguous | daylight_fits,
                 standard,
             )
             frames.append(frame)
@@ -8285,9 +8296,15 @@ class Ercot(ISOBase):
     def _handle_as_deployment_factors_ruc(
         self,
         docs: list[Document],
+        minimum_publication_delay: pd.Timedelta = RUC_MINIMUM_PUBLICATION_DELAY,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        df = self._read_ruc_docs(docs, "RUCTimestamp", verbose=verbose)
+        df = self._read_ruc_docs(
+            docs,
+            "RUCTimestamp",
+            minimum_publication_delay=minimum_publication_delay,
+            verbose=verbose,
+        )
         df = df.rename(
             columns={
                 "RUCTimestamp": "RUC Timestamp",
@@ -8384,7 +8401,12 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self._read_ruc_docs(docs, "RUCTimeStamp", verbose=verbose)
+        df = self._read_ruc_docs(
+            docs,
+            "RUCTimeStamp",
+            minimum_publication_delay=WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
+            verbose=verbose,
+        )
         return self._handle_ruc_as_demand_curves(df)
 
     def _handle_ruc_as_demand_curves(
