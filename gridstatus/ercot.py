@@ -233,6 +233,13 @@ DAILY_RUC_AS_DEMAND_CURVES_RTID = 26383
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-215-cd
 WEEKLY_RUC_AS_DEMAND_CURVES_RTID = 26384
 
+# Hourly and daily RUC reports post within an hour of the run.
+RUC_MINIMUM_PUBLICATION_DELAY = pd.Timedelta(0)
+
+# WRUC reports post 1h43m to 1h49m after the run (October 2026), so a run is
+# expected between 1h15m and 2h15m before its report.
+WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY = pd.Timedelta(minutes=75)
+
 # DAM Total Ancillary Services Sold
 # https://www.ercot.com/mp/data-products/data-product-details?id=np4-532-cd
 DAM_TOTAL_AS_SOLD_RTID = 24888
@@ -581,30 +588,50 @@ class Ercot(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Get energy storage resources.
-        Always returns data from previous and current day"""
+        Returns previous and current day data. An ambiguous fall-back boundary
+        reading is withheld until the source provides enough data to place it.
+        """
         url = self.BASE + "/energy-storage-resources.json"
         data = self._get_json(url, verbose=verbose)
 
         df = pd.DataFrame(data["previousDay"]["data"] + data["currentDay"]["data"])
 
-        # TODO(kanter): fix this for future DST dates
-        for timestamp in ["2024-11-03 02:00:00-0600", "2025-11-02 02:00:00-0600"]:
-            if timestamp in df["timestamp"].values:
-                # ERCOT publishes two intervals with 2am timestamp
-                # during CDT to CST transition
-                # but skips the repeated 1am timestamp
-                # let's manually fix this before further timestamp parsing
-                df.loc[
-                    (df["timestamp"] == timestamp) & (df["dstFlag"] == "N"),
-                    "timestamp",
-                ] = timestamp.replace("02:00:00", "01:00:00")
-
-        df = df[["timestamp", "totalCharging", "totalDischarging", "netOutput"]]
-
-        # Parse in UTC to avoid issues with DST transition
-        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
+        timestamps = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert(
             self.default_timezone,
         )
+        # ERCOT has labeled the second 1am as 2am, duplicating the real 2am.
+        # Before the real 2am arrives, do not emit the lone candidate at 2am:
+        # incremental consumers may persist it and ignore later corrections.
+        # Leave correctly labeled data and duplicates on other days unchanged.
+        keep = pd.Series(True, index=df.index)
+        boundary = (
+            timestamps.dt.hour.eq(2)
+            & timestamps.dt.minute.eq(0)
+            & timestamps.dt.second.eq(0)
+        )
+        for timestamp in timestamps[boundary].unique():
+            repeated_hour = timestamp - pd.Timedelta(hours=1)
+            before_fallback = timestamp - pd.Timedelta(hours=2)
+            if (
+                before_fallback.dst() > timestamp.dst()
+                and not timestamps.eq(repeated_hour).any()
+            ):
+                at_boundary = timestamps.eq(timestamp)
+                repair = at_boundary & df["dstFlag"].eq("N")
+                if repair.sum() == 1:
+                    if at_boundary.sum() > 1:
+                        timestamps = timestamps.mask(repair, repeated_hour)
+                    else:
+                        # A missing 1am could also be a source gap. Wait for
+                        # another boundary reading or the missing 1am rather
+                        # than guessing which hour this measurement belongs to.
+                        keep &= ~repair
+
+        df = df.loc[
+            keep,
+            ["timestamp", "totalCharging", "totalDischarging", "netOutput"],
+        ].copy()
+        df["timestamp"] = timestamps.loc[keep]
 
         df = df.rename(
             columns={
@@ -8181,7 +8208,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
+        return self._handle_as_deployment_factors_ruc(
+            docs,
+            minimum_publication_delay=WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
+            verbose=verbose,
+        )
 
     # Published per DRUC run (once per day) for the next day
     @support_date_range(frequency=None)
@@ -8228,12 +8259,52 @@ class Ercot(ISOBase):
 
         return self._handle_as_deployment_factors_ruc(docs, verbose=verbose)
 
+    def _read_ruc_docs(
+        self,
+        docs: list[Document],
+        timestamp_column: str,
+        minimum_publication_delay: pd.Timedelta = RUC_MINIMUM_PUBLICATION_DELAY,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        frames = []
+        for doc in docs:
+            frame = self.read_doc(doc, parse=False, verbose=verbose)
+            times = pd.to_datetime(frame[timestamp_column])
+            daylight = times.dt.tz_localize(self.default_timezone, ambiguous=True)
+            standard = times.dt.tz_localize(self.default_timezone, ambiguous=False)
+            # RepeatedHourFlag describes delivery hours, not the RUC run.
+            # A run is published between minimum_publication_delay and an hour
+            # more after it starts. The two readings of a repeated-hour run are an
+            # hour apart, so at most one falls in that window; keep document
+            # context until the run time has been localized.
+            latest_run = doc.publish_date - minimum_publication_delay
+            earliest_run = latest_run - pd.Timedelta(hours=1)
+            daylight_fits = (daylight > earliest_run) & (daylight <= latest_run)
+            standard_fits = (standard > earliest_run) & (standard <= latest_run)
+            ambiguous = daylight != standard
+            if (ambiguous & ~daylight_fits & ~standard_fits).any():
+                raise ValueError(
+                    "Cannot resolve RUC timestamp from the report's publication time",
+                )
+            frame[timestamp_column] = daylight.where(
+                ~ambiguous | daylight_fits,
+                standard,
+            )
+            frames.append(frame)
+        return pd.concat(frames, ignore_index=True)
+
     def _handle_as_deployment_factors_ruc(
         self,
         docs: list[Document],
+        minimum_publication_delay: pd.Timedelta = RUC_MINIMUM_PUBLICATION_DELAY,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(
+            docs,
+            "RUCTimestamp",
+            minimum_publication_delay=minimum_publication_delay,
+            verbose=verbose,
+        )
         df = df.rename(
             columns={
                 "RUCTimestamp": "RUC Timestamp",
@@ -8244,11 +8315,6 @@ class Ercot(ISOBase):
         )
 
         df = self.parse_doc(df)
-
-        # Parse RUC Timestamp
-        df["RUC Timestamp"] = pd.to_datetime(
-            df["RUC Timestamp"],
-        ).dt.tz_localize(self.default_timezone)
 
         df["AS Deployment Factors"] = pd.to_numeric(
             df["AS Deployment Factors"],
@@ -8289,7 +8355,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(docs, "RUCTimeStamp", verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
     # Published per DRUC run (once per day) for the next day
@@ -8312,7 +8378,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(docs, "RUCTimeStamp", verbose=verbose)
         return self._handle_ruc_as_demand_curves(df)
 
     # Published per WRUC run (once per day) for the next five days
@@ -8335,7 +8401,12 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        df = self.read_docs(docs, parse=False, verbose=verbose)
+        df = self._read_ruc_docs(
+            docs,
+            "RUCTimeStamp",
+            minimum_publication_delay=WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
+            verbose=verbose,
+        )
         return self._handle_ruc_as_demand_curves(df)
 
     def _handle_ruc_as_demand_curves(
@@ -8352,11 +8423,6 @@ class Ercot(ISOBase):
         )
 
         df = self.parse_doc(df)
-
-        # Parse RUC Timestamp
-        df["RUC Timestamp"] = pd.to_datetime(
-            df["RUC Timestamp"],
-        ).dt.tz_localize(self.default_timezone)
 
         for col in ["Quantity", "Price", "Demand Curve Point"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")

@@ -43,6 +43,9 @@ DATA_MINER_MAX_ROW_COUNT = 50000
 # maximum keeps a pull within twice the request count while giving 25,001
 # distinct sizes, so consecutive pulls do not repeat a page URL.
 DATA_MINER_MIN_RANDOM_ROW_COUNT = 25000
+# Date filter fields that Data Miner only offers in EPT. Every other filter
+# field has a UTC counterpart.
+DATA_MINER_EPT_ONLY_FILTER_FIELDS = {"forecast_execution_date", "generated_at"}
 
 
 class DataMinerSnapshotMismatch(RuntimeError):
@@ -1272,18 +1275,29 @@ class PJM(ISOBase):
         final_params = params.copy()
 
         if start is not None:
-            start = utils._handle_date(start)
+            start = utils._handle_date(start, tz=self.default_timezone)
 
             if end:
-                end = utils._handle_date(end)
+                end = utils._handle_date(end, tz=self.default_timezone)
             else:
                 end = start + pd.DateOffset(days=1)
                 # the end is inclusive, pulls records
                 # for next day without below adjustment
                 end = end - pd.DateOffset(seconds=1)
 
-            final_params[f"{filter_timestamp_name}_ept"] = (
-                start.strftime("%m/%d/%Y %H:%M") + "to" + end.strftime("%m/%d/%Y %H:%M")
+            # Data Miner reads an EPT wall time in the repeated fall-back hour
+            # as standard time, so an EPT filter cannot select the daylight
+            # copy of that hour. Filter in UTC wherever the feed allows it.
+            if filter_timestamp_name in DATA_MINER_EPT_ONLY_FILTER_FIELDS:
+                filter_suffix, filter_start, filter_end = "ept", start, end
+            else:
+                filter_suffix = "utc"
+                filter_start = start.tz_convert("UTC")
+                filter_end = end.tz_convert("UTC")
+            final_params[f"{filter_timestamp_name}_{filter_suffix}"] = (
+                filter_start.strftime("%m/%d/%Y %H:%M")
+                + "to"
+                + filter_end.strftime("%m/%d/%Y %H:%M")
             )
 
         for attempt in range(2):
@@ -1316,13 +1330,12 @@ class PJM(ISOBase):
             df = df.drop(columns=["datetime_beginning_utc"])
 
             # PJM API is inclusive of end,
-            # so we need to drop where end timestamp is included
+            # so we need to drop where end timestamp is included.
+            # Compare in UTC so the other copy of a repeated hour is kept.
             if end is not None:
                 df = df[
-                    df["Interval Start"].dt.strftime(
-                        "%Y-%m-%d %H:%M",
-                    )
-                    != end.strftime("%Y-%m-%d %H:%M")
+                    df["Interval Start"].dt.tz_convert("UTC").dt.floor("min")
+                    != end.tz_convert("UTC").floor("min")
                 ]
 
             if "datetime_ending_utc" in df.columns:
