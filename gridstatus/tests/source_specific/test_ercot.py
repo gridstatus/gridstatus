@@ -11,6 +11,7 @@ from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     DAM_SYSTEM_LAMBDA_RTID,
     ELECTRICAL_BUS_LOCATION_TYPE,
+    WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
     Document,
     Ercot,
     ERCOTSevenDayLoadForecastReport,
@@ -4101,9 +4102,47 @@ class TestErcot(BaseTestISO):
 
     """get_as_deployment_factors_weekly_ruc"""
 
-    # Check for weekly, daily, and hourly RUC
+    def _get_ruc_report(self, kind, period, run, published):
+        column = "RUCTimestamp" if kind == "deployment_factors" else "RUCTimeStamp"
+        frame = pd.DataFrame(
+            {
+                column: [run, run],
+                "DeliveryDate": ["11/01/2026"] * 2,
+                "HourEnding": ["02:00", "02:00"],
+                "RepeatedHourFlag": ["N", "Y"],
+                "ASType": ["ECRS"] * 2,
+            },
+        )
+        if kind == "deployment_factors":
+            frame["ASDeploymentFactors"] = [0.1, 0.2]
+        else:
+            frame["DemandCurvePoint"] = [1, 1]
+            frame["Quantity"] = [10, 20]
+            frame["Price"] = [30, 40]
+        doc = Document(
+            "https://example.com/report",
+            pd.Timestamp(published),
+            "report",
+            "report",
+            None,
+        )
+        with (
+            mock.patch.object(self.iso, "_get_documents", return_value=[doc]),
+            mock.patch.object(self.iso, "read_doc", return_value=frame),
+        ):
+            result = getattr(self.iso, f"get_as_{kind}_{period}_ruc")(
+                "2026-11-01",
+                "2026-11-03",
+            )
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01T06:00:00Z"),
+            pd.Timestamp("2026-11-01T07:00:00Z"),
+        ]
+        return result
+
+    # Hourly and daily RUC reports post within an hour of the run
     @pytest.mark.parametrize("kind", ["deployment_factors", "demand_curves"])
-    @pytest.mark.parametrize("period", ["hourly", "daily", "weekly"])
+    @pytest.mark.parametrize("period", ["hourly", "daily"])
     @pytest.mark.parametrize(
         "run,published,expected",
         [
@@ -4137,42 +4176,58 @@ class TestErcot(BaseTestISO):
         published,
         expected,
     ):
-        column = "RUCTimestamp" if kind == "deployment_factors" else "RUCTimeStamp"
-        frame = pd.DataFrame(
-            {
-                column: [run, run],
-                "DeliveryDate": ["11/01/2026"] * 2,
-                "HourEnding": ["02:00", "02:00"],
-                "RepeatedHourFlag": ["N", "Y"],
-                "ASType": ["ECRS"] * 2,
-            },
-        )
-        if kind == "deployment_factors":
-            frame["ASDeploymentFactors"] = [0.1, 0.2]
-        else:
-            frame["DemandCurvePoint"] = [1, 1]
-            frame["Quantity"] = [10, 20]
-            frame["Price"] = [30, 40]
+        result = self._get_ruc_report(kind, period, run, published)
+        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
+
+    # Weekly RUC reports post about 1h45m after the run. The first case is the
+    # real 2026-11-01 report; the second is the same run had it been the first 1am.
+    @pytest.mark.parametrize("kind", ["deployment_factors", "demand_curves"])
+    @pytest.mark.parametrize(
+        "run,published,expected",
+        [
+            (
+                "2026-11-01 01:06:01",
+                "2026-11-01T02:53:03-06:00",
+                "2026-11-01T07:06:01Z",
+            ),
+            (
+                "2026-11-01 01:06:01",
+                "2026-11-01T01:53:00-06:00",
+                "2026-11-01T06:06:01Z",
+            ),
+            (
+                "2026-10-31 01:06:01",
+                "2026-10-31T02:54:45-05:00",
+                "2026-10-31T06:06:01Z",
+            ),
+        ],
+    )
+    def test_weekly_ruc_run_timestamp_uses_publication_delay(
+        self,
+        kind,
+        run,
+        published,
+        expected,
+    ):
+        result = self._get_ruc_report(kind, "weekly", run, published)
+        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
+
+    def test_weekly_ruc_ambiguous_run_outside_publication_window(self):
         doc = Document(
             "https://example.com/report",
-            pd.Timestamp(published),
+            pd.Timestamp("2026-11-01T01:20:00-06:00"),
             "report",
             "report",
             None,
         )
-        with (
-            mock.patch.object(self.iso, "_get_documents", return_value=[doc]),
-            mock.patch.object(self.iso, "read_doc", return_value=frame),
-        ):
-            result = getattr(self.iso, f"get_as_{kind}_{period}_ruc")(
-                "2026-11-01",
-                "2026-11-03",
-            )
-        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
-        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
-            pd.Timestamp("2026-11-01T06:00:00Z"),
-            pd.Timestamp("2026-11-01T07:00:00Z"),
-        ]
+        frame = pd.DataFrame({"RUCTimestamp": ["2026-11-01 01:06:01"]})
+        with mock.patch.object(self.iso, "read_doc", return_value=frame):
+            with pytest.raises(ValueError, match="Cannot resolve RUC timestamp"):
+                self.iso._read_ruc_docs(
+                    [doc],
+                    "RUCTimestamp",
+                    minimum_publication_delay=WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
+                )
 
     @pytest.mark.parametrize(
         "published",
