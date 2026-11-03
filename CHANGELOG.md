@@ -2,9 +2,16 @@
 
 ## v.Next
 
+### Additions (New Features/Datasets)
+
+#### CAISO
+* `get_price_corrections` returns `Interval Start` and `Interval End` for each corrected interval, from `Trade Date`, `Hour Ending`, `Interval` and the market's interval length (DAM and RUC 60 minutes, HASP and RTPD 15 minutes, RTD 5 minutes). Hour endings follow OASIS wall-clock numbering: when DST ends, the repeated 1am hour is hour ending 25, and when DST starts, hour ending 3 is skipped.
+
 ### Fixes
 
 #### CAISO
+* `get_price_corrections` reads `Report Generated` as UTC, which is what OASIS reports. It was localized as Pacific, so every correction appeared 7 or 8 hours later than it was issued: CAISO's October 20, 2026 day-ahead repricing, posted at 10:43 PST on November 3, showed as 18:43 PST.
+* `get_price_corrections` drops rows that OASIS repeats with a blank `Correction Reason`, keeping the row with the reason. On October 6, 2026, two RTD Interval Replacement corrections each appeared twice.
 * `get_price_corrections` handles a correction with several reasons. OASIS separates them with an unquoted newline, so the second reason was read as a new row whose `Trade Date` failed to parse. Since October 23, 2026, every range that included trade date October 13, 2026 raised `ValueError`. The reasons are now joined with `; ` in `Correction Reason`.
 
 #### ERCOT
