@@ -10,6 +10,7 @@
 #### ERCOT
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
+* Requests to www.ercot.com (dashboards, MIS document lists and downloads, and HTML pages) now send the User-Agent `Mozilla/5.0 (compatible; gridstatus)` instead of the `python-requests` or `Python-urllib` default. Starting November 3, 2026, www.ercot.com repeatedly dropped scraper connections before responding (`SSLEOFError`, `RemoteDisconnected`) while still serving browsers. The header is exported as `gridstatus.ercot.ERCOT_REQUEST_HEADERS`. Headers passed by the caller take precedence.
 
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.

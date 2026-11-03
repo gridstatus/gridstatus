@@ -11,6 +11,7 @@ from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     DAM_SYSTEM_LAMBDA_RTID,
     ELECTRICAL_BUS_LOCATION_TYPE,
+    ERCOT_REQUEST_HEADERS,
     WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
     Document,
     Ercot,
@@ -3518,6 +3519,40 @@ class TestErcot(BaseTestISO):
         assert "IceDocListJsonWS?reportTypeId=13113" in session.requested_urls[0]
         assert session.requested_urls[1] == document.url
         assert "SystemLambda" in df.columns
+
+    def test_dashboard_json_is_requested_with_ercot_user_agent(self):
+        with mock.patch("gridstatus.base.requests.get") as mock_get:
+            mock_get.return_value.json.return_value = {}
+            self.iso._get_supply_demand_json()
+
+        assert mock_get.call_args.kwargs["headers"] == ERCOT_REQUEST_HEADERS
+
+    def test_caller_headers_are_kept_alongside_ercot_user_agent(self):
+        with mock.patch("gridstatus.base.requests.get") as mock_get:
+            mock_get.return_value.json.return_value = {}
+            self.iso._get_json(
+                self.iso.BASE + "/fuel-mix.json", headers={"X-Test": "1"}
+            )
+
+        assert mock_get.call_args.kwargs["headers"] == {
+            **ERCOT_REQUEST_HEADERS,
+            "X-Test": "1",
+        }
+
+    def test_documents_read_from_url_send_ercot_user_agent(self):
+        document = Document(
+            url="https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=1",
+            publish_date=pd.Timestamp("2026-11-03", tz="US/Central"),
+            constructed_name="report.csv.zip",
+            friendly_name="report",
+            friendly_name_timestamp=pd.Timestamp("2026-11-03", tz="US/Central"),
+        )
+        with mock.patch("gridstatus.ercot.pd.read_csv") as mock_read_csv:
+            self.iso.read_doc(document, parse=False)
+
+        assert mock_read_csv.call_args.kwargs["storage_options"] == (
+            ERCOT_REQUEST_HEADERS
+        )
 
     @pytest.mark.integration
     @pytest.mark.parametrize(

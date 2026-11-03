@@ -91,6 +91,15 @@ LOCATION_TYPE_ZONE_DC_EW = "Load Zone DC Tie Energy Weighted"
 ELECTRICAL_BUS_LOCATION_TYPE = "Electrical Bus"
 SETTLEMENT_POINT_LOCATION_TYPE = "Settlement Point"
 
+# www.ercot.com has dropped connections from scrapers sending the default
+# python-requests and Python-urllib User-Agents, which bot filters commonly reject
+ERCOT_REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; gridstatus)"}
+
+
+def _with_ercot_headers(headers: dict | None = None) -> dict:
+    return {**ERCOT_REQUEST_HEADERS, **(headers or {})}
+
+
 """
 Report Type IDs
 """
@@ -550,6 +559,23 @@ class Ercot(ISOBase):
     ACTUAL_LOADS_WEATHER_ZONES_URL_FORMAT = "https://www.ercot.com/content/cdr/html/{timestamp}_actual_loads_of_weather_zones.html"
     LOAD_HISTORICAL_MAX_DAYS = 14
 
+    def _get_json(
+        self,
+        url: str,
+        verbose: bool = False,
+        retries: int | None = None,
+        session: requests.Session | None = None,
+        **kwargs,
+    ):
+        kwargs["headers"] = _with_ercot_headers(kwargs.get("headers"))
+        return super()._get_json(
+            url,
+            verbose=verbose,
+            retries=retries,
+            session=session,
+            **kwargs,
+        )
+
     def get_status(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
@@ -964,7 +990,7 @@ class Ercot(ISOBase):
     def _read_html_display(self, url: str, verbose: bool = False) -> pd.DataFrame:
         logger.info(f"Fetching {url}")
 
-        dfs = pd.read_html(url, header=0)
+        dfs = pd.read_html(url, header=0, storage_options=ERCOT_REQUEST_HEADERS)
         df = dfs[0]
 
         if df["Hour Ending"].dtype == "object":
@@ -1038,7 +1064,7 @@ class Ercot(ISOBase):
         """Download and parse ERCOT historical load data for a specific year."""
 
         page_url = "https://www.ercot.com/gridinfo/load/load_hist"
-        response = requests.get(page_url)
+        response = requests.get(page_url, headers=ERCOT_REQUEST_HEADERS)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.content, "html.parser")
@@ -1052,7 +1078,7 @@ class Ercot(ISOBase):
                 break
 
         if year_link.endswith(".zip"):
-            zip_file = utils.get_zip_folder(year_link)
+            zip_file = utils.get_zip_folder(year_link, headers=ERCOT_REQUEST_HEADERS)
             filename = zip_file.namelist()[0]
             # ERCOT has published zips whose central directory disagrees with
             # the local file header, which zipfile rejects on read
@@ -1062,7 +1088,7 @@ class Ercot(ISOBase):
             )
             df = pd.read_excel(io.BytesIO(excel_bytes))
         elif year_link.endswith((".xls", ".xlsx")):
-            response = requests.get(year_link)
+            response = requests.get(year_link, headers=ERCOT_REQUEST_HEADERS)
             response.raise_for_status()
             df = pd.read_excel(io.BytesIO(response.content))
         df = self._process_post_settlements_load_data(df)
@@ -1589,7 +1615,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        x = utils.get_zip_file(doc_info.url, verbose=verbose)
+        x = utils.get_zip_file(
+            doc_info.url,
+            verbose=verbose,
+            headers=ERCOT_REQUEST_HEADERS,
+        )
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
 
@@ -1632,7 +1662,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        x = utils.get_zip_file(doc_info.url, verbose=verbose)
+        x = utils.get_zip_file(
+            doc_info.url,
+            verbose=verbose,
+            headers=ERCOT_REQUEST_HEADERS,
+        )
         all_sheets = pd.read_excel(x, sheet_name=None)
         df = pd.concat(all_sheets.values())
         # filter where DSTFlag == 10
@@ -1650,7 +1684,7 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
         logger.info(f"Downloading interconnection queue from: {doc_info.url} ")
-        response = requests.get(doc_info.url)
+        response = requests.get(doc_info.url, headers=ERCOT_REQUEST_HEADERS)
         return utils.get_response_blob(response)
 
     _fuel_type_map = {
@@ -2968,7 +3002,11 @@ class Ercot(ISOBase):
             constructed_name_contains="60_Day_SCED_Disclosure",
             verbose=verbose,
         )
-        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
+        z = utils.get_zip_folder(
+            doc_info.url,
+            verbose=verbose,
+            headers=ERCOT_REQUEST_HEADERS,
+        )
 
         # Check if this date needs correction data
         # Compare using date() for timezone-agnostic comparison
@@ -3252,7 +3290,11 @@ class Ercot(ISOBase):
 
         # Use the most recent correction file
         doc = docs[0]
-        z = utils.get_zip_folder(doc.url, verbose=verbose)
+        z = utils.get_zip_folder(
+            doc.url,
+            verbose=verbose,
+            headers=ERCOT_REQUEST_HEADERS,
+        )
 
         # Find the correct file for the requested date
         # Files are named like: 60d_ESR_Data_in_SCED-03-FEB-26_SUPPLEMENTAL_CORRECTION.csv
@@ -3359,7 +3401,11 @@ class Ercot(ISOBase):
                 continue
 
             doc = docs[0]
-            z = utils.get_zip_folder(doc.url, verbose=verbose)
+            z = utils.get_zip_folder(
+                doc.url,
+                verbose=verbose,
+                headers=ERCOT_REQUEST_HEADERS,
+            )
 
             # Files are named like: {file_prefix}-{DD-MMM-YY}.csv
             expected_filename = f"{file_prefix}-{date_str}.csv"
@@ -3437,7 +3483,11 @@ class Ercot(ISOBase):
             return None
 
         doc = max(docs, key=lambda x: x.publish_date)
-        z = utils.get_zip_folder(doc.url, verbose=verbose)
+        z = utils.get_zip_folder(
+            doc.url,
+            verbose=verbose,
+            headers=ERCOT_REQUEST_HEADERS,
+        )
 
         # Files are named like: 60d_SCED_Resource_AS_OFFERS-03-FEB-26.csv
         report_date = date + pd.DateOffset(days=60)
@@ -3528,7 +3578,11 @@ class Ercot(ISOBase):
             verbose=verbose,
         )
 
-        z = utils.get_zip_folder(doc_info.url, verbose=verbose)
+        z = utils.get_zip_folder(
+            doc_info.url,
+            verbose=verbose,
+            headers=ERCOT_REQUEST_HEADERS,
+        )
 
         data = self._handle_60_day_dam_disclosure(
             z,
@@ -3668,7 +3722,12 @@ class Ercot(ISOBase):
         # only reading SummerCapacities right now
         # TODO: parse more sheets
         logger.info(f"Getting SARA data from {url}")
-        df = pd.read_excel(url, sheet_name="SummerCapacities", header=1)
+        df = pd.read_excel(
+            url,
+            sheet_name="SummerCapacities",
+            header=1,
+            storage_options=ERCOT_REQUEST_HEADERS,
+        )
 
         # drop cols Unnamed: 0
         df = df.drop("Unnamed: 0", axis=1)
@@ -3766,7 +3825,7 @@ class Ercot(ISOBase):
 
         url = "https://www.ercot.com/content/cdr/html/as_capacity_monitor.html"
         logger.info(f"Getting Ancillary Service Capacity Monitor from {url}")
-        html_content = requests.get(url).content
+        html_content = requests.get(url, headers=ERCOT_REQUEST_HEADERS).content
         df = self._parse_html_table(html_content)
 
         return df
@@ -3990,9 +4049,17 @@ class Ercot(ISOBase):
         logger.info(f"Getting operations messages from {url}")
 
         try:
-            dfs = pd.read_html(url, match="Date & Time")
+            dfs = pd.read_html(
+                url,
+                match="Date & Time",
+                storage_options=ERCOT_REQUEST_HEADERS,
+            )
         except ValueError:
-            dfs = pd.read_html(url, match="Date")
+            dfs = pd.read_html(
+                url,
+                match="Date",
+                storage_options=ERCOT_REQUEST_HEADERS,
+            )
         df = dfs[0]
 
         df = df.rename(
@@ -4092,7 +4159,7 @@ class Ercot(ISOBase):
 
         url = "https://www.ercot.com/content/cdr/html/real_time_system_conditions.html"
         logger.info(f"Getting Real-Time System Conditions from {url}")
-        html_content = requests.get(url).content
+        html_content = requests.get(url, headers=ERCOT_REQUEST_HEADERS).content
         df = self._parse_html_table(html_content)
         df = df.rename(
             columns={
@@ -4364,6 +4431,7 @@ class Ercot(ISOBase):
 
         json = requests.get(
             "https://www.ercot.com/api/1/services/read/dashboards/generation-outages.json",
+            headers=ERCOT_REQUEST_HEADERS,
         ).json()
 
         current = json["current"]
@@ -4716,7 +4784,11 @@ class Ercot(ISOBase):
         dfs = []
 
         for doc in docs:
-            xls = utils.get_zip_file(doc.url, verbose=verbose)
+            xls = utils.get_zip_file(
+                doc.url,
+                verbose=verbose,
+                headers=ERCOT_REQUEST_HEADERS,
+            )
             df = self._handle_unplanned_resource_outages_file(doc, xls)
             dfs.append(df)
 
@@ -4817,6 +4889,7 @@ class Ercot(ISOBase):
         verbose: bool = False,
         **kwargs,
     ) -> pd.DataFrame:
+        kwargs["headers"] = _with_ercot_headers(kwargs.get("headers"))
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         # extract the date from the file name
@@ -4996,6 +5069,7 @@ class Ercot(ISOBase):
         """Parse DAM AS reports into long format with columns:
         interval_start, interval_end, as_type, cleared, self_arranged, offer_curve
         """
+        kwargs["headers"] = _with_ercot_headers(kwargs.get("headers"))
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         # extract the date from the file name
@@ -5155,6 +5229,7 @@ class Ercot(ISOBase):
         Based on primary key: sced_timestamp, as_type, mw_offered
         But output format uses offer_curve column containing list of pairs
         """
+        kwargs["headers"] = _with_ercot_headers(kwargs.get("headers"))
         z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         all_dfs = []
@@ -5398,6 +5473,7 @@ class Ercot(ISOBase):
         elif hasattr(file_path, "read"):
             z = ZipFile(file_path)
         else:
+            kwargs["headers"] = _with_ercot_headers(kwargs.get("headers"))
             z = utils.get_zip_folder(file_path, verbose=verbose, **kwargs)
 
         if product == "gen":
@@ -5601,7 +5677,11 @@ class Ercot(ISOBase):
             disable=not verbose,
         ):
             logger.info(f"Reading {doc.url}")
-            df = pd.read_csv(doc.url, compression="zip")
+            df = pd.read_csv(
+                doc.url,
+                compression="zip",
+                storage_options=ERCOT_REQUEST_HEADERS,
+            )
             all_dfs.append(df)
 
         if len(all_dfs) == 0:
@@ -7300,7 +7380,7 @@ class Ercot(ISOBase):
         filename_contains: str,
     ) -> tuple[pd.DataFrame, pd.Timestamp]:
         logger.info(f"Fetching {doc.url}")
-        r = requests.get(doc.url)
+        r = requests.get(doc.url, headers=ERCOT_REQUEST_HEADERS)
         z = ZipFile(io.BytesIO(r.content))
         names = z.namelist()
         matching = [name for name in names if filename_contains in name]
@@ -7453,14 +7533,23 @@ class Ercot(ISOBase):
 
         if request_kwargs or session:
             requester = session or requests
-            response = requester.get(doc.url, **(request_kwargs or {})).content
+            request_kwargs = dict(request_kwargs or {})
+            request_kwargs["headers"] = _with_ercot_headers(
+                request_kwargs.get("headers"),
+            )
+            response = requester.get(doc.url, **request_kwargs).content
             df = pd.read_csv(
                 io.BytesIO(response),
                 compression="zip",
                 **(read_csv_kwargs or {}),
             )
         else:
-            df = pd.read_csv(doc.url, compression="zip", **(read_csv_kwargs or {}))
+            df = pd.read_csv(
+                doc.url,
+                compression="zip",
+                storage_options=ERCOT_REQUEST_HEADERS,
+                **(read_csv_kwargs or {}),
+            )
 
         if parse:
             df = self.parse_doc(df, verbose=verbose)

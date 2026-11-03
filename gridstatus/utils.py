@@ -208,8 +208,8 @@ def filter_lmp_locations(
     return df
 
 
-def get_zip_file(url: str, verbose: bool = False) -> ZipFile:
-    z = get_zip_folder(url, verbose=verbose)
+def get_zip_file(url: str, verbose: bool = False, **kwargs) -> ZipFile:
+    z = get_zip_folder(url, verbose=verbose, **kwargs)
     return z.open(z.namelist()[0])
 
 
