@@ -3549,6 +3549,120 @@ class TestPJM(BaseTestISO):
         assert sorted(interval_starts) == list(expected)
 
 
+class TestPJMDataMinerWindowEnd:
+    """_get_pjm_json returns the rows before ``end``, even when ``end`` is within a
+    minute, and a window ending about now is never answered from the query cache."""
+
+    endpoint = "area_control_error"
+    params = {"fields": "datetime_beginning_utc,ace_mw"}
+    rows_through_filter_end = [
+        "2026-09-20T12:00:46",
+        "2026-09-20T12:01:01",
+        "2026-09-20T12:02:31",
+        "2026-09-20T12:03:00",
+    ]
+
+    def _call(self, start, end, rows=None, **kwargs):
+        pjm = PJM(api_key="test")
+        calls = []
+
+        def fake(url, params=None, headers=None):
+            calls.append(params)
+            items = [
+                {"datetime_beginning_utc": row, "ace_mw": 1.0}
+                for row in (rows or self.rows_through_filter_end)
+            ]
+            return {"totalRows": len(items), "items": items}
+
+        with mock.patch.object(pjm, "_make_api_call", side_effect=fake):
+            df = pjm._get_pjm_json(
+                self.endpoint,
+                pd.Timestamp(start, tz="UTC"),
+                self.params,
+                end=pd.Timestamp(end, tz="UTC"),
+                **kwargs,
+            )
+        return df, calls
+
+    def test_end_within_a_minute_keeps_the_rows_before_it(self):
+        df, calls = self._call("2026-09-20 12:00:46", "2026-09-20 12:02:40")
+
+        assert calls[0]["datetime_beginning_utc"] == (
+            "09/20/2026 12:00to09/20/2026 12:03"
+        )
+        assert df["Interval Start"].max() == pd.Timestamp(
+            "2026-09-20 12:02:31",
+            tz="UTC",
+        )
+        assert (
+            df["Interval Start"]
+            .dt.tz_convert("UTC")
+            .lt(
+                pd.Timestamp("2026-09-20 12:02:40", tz="UTC"),
+            )
+            .all()
+        )
+
+    def test_end_on_a_minute_drops_the_row_at_that_minute(self):
+        df, calls = self._call("2026-09-20 12:00:46", "2026-09-20 12:03:00")
+
+        assert calls[0]["datetime_beginning_utc"] == (
+            "09/20/2026 12:00to09/20/2026 12:03"
+        )
+        assert df["Interval Start"].max() == pd.Timestamp(
+            "2026-09-20 12:02:31",
+            tz="UTC",
+        )
+
+    def test_end_in_the_repeated_hour_is_rounded_in_utc(self):
+        df, calls = self._call(
+            "2026-11-01 05:30:00",
+            "2026-11-01 05:30:40",
+            rows=["2026-11-01T05:30:16", "2026-11-01T06:30:16"],
+        )
+
+        assert calls[0]["datetime_beginning_utc"] == (
+            "11/01/2026 05:30to11/01/2026 05:31"
+        )
+        assert df["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01 05:30:16", tz="UTC"),
+        ]
+
+    def test_other_filter_fields_keep_the_minute_filter_and_row_drop(self):
+        df, calls = self._call(
+            "2026-09-20 12:00:00",
+            "2026-09-20 12:02:40",
+            rows=["2026-09-20T12:02:00", "2026-09-20T18:00:00"],
+            filter_timestamp_name="evaluated_at",
+        )
+
+        assert calls[0]["evaluated_at_utc"] == "09/20/2026 12:00to09/20/2026 12:02"
+        assert df["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-09-20 18:00:00", tz="UTC"),
+        ]
+
+    def test_live_window_varies_the_query_with_one_request_per_pull(self):
+        now = pd.Timestamp.now(tz="UTC").tz_localize(None)
+        row_counts = set()
+        for _ in range(20):
+            _, calls = self._call(now - pd.Timedelta(minutes=2), now)
+            assert len(calls) == 1
+            row_counts.add(calls[0]["rowCount"])
+
+        assert len(row_counts) > 1
+        assert all(
+            gridstatus.pjm.DATA_MINER_MIN_RANDOM_ROW_COUNT
+            <= row_count
+            <= gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
+            for row_count in row_counts
+        )
+
+    def test_past_window_keeps_the_maximum_page_size(self):
+        _, calls = self._call("2026-09-20 12:00:00", "2026-09-20 12:03:00")
+
+        assert calls[0]["rowCount"] == gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
+
+
 class TestPJMDataMinerPagination:
     """_get_pjm_json pages by explicit startRow and rejects mixed snapshots."""
 
