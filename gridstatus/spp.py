@@ -1,4 +1,3 @@
-import re
 import urllib
 from collections.abc import Callable
 from enum import StrEnum
@@ -35,6 +34,9 @@ HOURLY_LOAD_WIDE_FORMAT_END_DATE = pd.Timestamp("2026-03-24", tz="US/Central")
 # NOTE: Typically SWPW is ~2000-3000MW and SPP is ~20000-30000MW, so we can tell if there
 # is a load value with null BAA value, we can tell which BAA it is.
 BAA_LOAD_THRESHOLD_MW = 5000
+# First SWPW interval in SPP's generation mix files, from the RTO West expansion
+# on April 1, 2026
+SWPW_FUEL_MIX_START = pd.Timestamp("2026-04-01 06:05", tz="UTC")
 
 MARKETPLACE_BASE_URL = "https://portal.spp.org"
 FILE_BROWSER_API_URL = "https://portal.spp.org/file-browser-api/"
@@ -160,6 +162,32 @@ def fill_baa_column(df, load_col):
             ),
         )
     return df
+
+
+def combine_baa_fuel_mix(df: pd.DataFrame) -> pd.DataFrame:
+    """Sum fuel mix across BAAs at each interval.
+
+    SPP publishes each BAA in its own rolling file, so one file can hold an
+    interval the other doesn't. An interval is kept only when every BAA reports
+    it, so one BAA's values are never returned as the combined total. Before
+    SWPW_FUEL_MIX_START, SPP alone is the full system.
+
+    Args:
+        df: fuel mix with a BAA column and one row per BAA per interval
+
+    Returns:
+        pd.DataFrame: fuel mix summed across BAAs
+    """
+    baa_count = df.groupby("Interval Start")["BAA"].transform("nunique")
+    complete = (baa_count == len(BAAEnum)) | (
+        df["Interval Start"] < SWPW_FUEL_MIX_START
+    )
+    return (
+        df[complete]
+        .drop(columns="BAA")
+        .groupby(["Interval Start", "Interval End"], as_index=False)
+        .sum()
+    )
 
 
 def _binding_constraints_real_time_5_min_frequency(args_dict: dict) -> str:
@@ -348,37 +376,10 @@ class SPP(ISOBase):
             baa=BAAEnum.SWPW,
         )
 
+        df = pd.concat([spp_df, swpw_df], ignore_index=True)
         if by_baa:
-            df = pd.concat([spp_df, swpw_df], ignore_index=True)
-            df = df.sort_values(
-                ["Interval Start", "BAA"],
-                ignore_index=True,
-            )
-            return df
-
-        # Sum fuel columns across BAAs for each interval
-        time_cols = ["Interval Start", "Interval End"]
-        fuel_cols = [c for c in spp_df.columns if c not in time_cols + ["BAA"]]
-
-        spp_df = spp_df.drop(columns=["BAA"], errors="ignore")
-        swpw_df = swpw_df.drop(columns=["BAA"], errors="ignore")
-
-        df = pd.merge(
-            spp_df,
-            swpw_df,
-            on=time_cols,
-            suffixes=("_spp", "_swpw"),
-            how="outer",
-        )
-
-        for col in fuel_cols:
-            spp_col = f"{col}_spp"
-            swpw_col = f"{col}_swpw"
-            df[col] = df[spp_col].fillna(0) + df[swpw_col].fillna(0)
-            df = df.drop(columns=[spp_col, swpw_col])
-
-        df = df.sort_values("Interval Start", ignore_index=True)
-        return df
+            return df.sort_values(["Interval Start", "BAA"], ignore_index=True)
+        return combine_baa_fuel_mix(df)
 
     def _get_fuel_mix(
         self,
@@ -423,7 +424,7 @@ class SPP(ISOBase):
         if date != "latest" and isinstance(date, pd.Timestamp):
             df = df[df["Interval Start"] >= date]
             if end is None:
-                end = date.normalize() + pd.Timedelta(days=1)
+                end = date.normalize() + pd.DateOffset(days=1)
             df = df[df["Interval Start"] < end]
             df = df.reset_index(drop=True)
 
@@ -507,13 +508,13 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
         # only GMTInterval in the data
         df = self._post_process_load_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="SHORT_TERM",
             forecast_col="STLF",
             end_time_col="GMTInterval",
@@ -553,11 +554,11 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         df = self._post_process_load_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="MID_TERM",
             forecast_col="MTLF",
             end_time_col="GMTIntervalEnd",
@@ -607,11 +608,11 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         df = self._post_process_load_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="MID_TERM",
             forecast_col="MTLF",
             end_time_col="GMTIntervalEnd",
@@ -645,13 +646,18 @@ class SPP(ISOBase):
 
         return floored_date
 
+    def _is_repeated_hour(self, timestamp: pd.Timestamp) -> bool:
+        """Whether a time is in the second occurrence of the hour repeated when DST
+        ends, so its UTC offset is lower than an hour earlier."""
+        return timestamp.utcoffset() < (timestamp - pd.Timedelta(hours=1)).utcoffset()
+
     def _get_short_term_forecast_data(
         self,
         date: str | pd.Timestamp,
         base_url: str,
         file_prefix: str,
         buffer_minutes: int = 2,
-    ) -> tuple[pd.DataFrame, str] | None:
+    ) -> tuple[pd.DataFrame, pd.Timestamp] | None:
         """Get short-term forecast data with common DST handling logic.
 
         Args:
@@ -661,7 +667,7 @@ class SPP(ISOBase):
             buffer_minutes: Buffer minutes for "latest" date
 
         Returns:
-            tuple: (dataframe, url) or None if date is in the future
+            tuple: (dataframe, publish time) or None if date is in the future
         """
         if date == "latest":
             date = self.now() - pd.Timedelta(minutes=buffer_minutes)
@@ -676,25 +682,19 @@ class SPP(ISOBase):
         padded_hour = str(hour).zfill(2)
         padded_hour_plus_one = str((hour + 1) % 24).zfill(2)
 
-        # NOTE: this needs to be updated for DST every year
-        # 0105d through 0155d have a "d" on 2025-11-02
-        add_d = (
-            floored_date.year == 2025
-            and floored_date.month == 11
-            and floored_date.day == 2
-            and floored_date.hour == 1
-            and floored_date.minute != 0
-        )
+        # Files published in the second 1am hour when DST ends have a "d" suffix,
+        # 0100d through 0155d. In the 2025 archive only these "d" files remain.
+        suffix = "d" if self._is_repeated_hour(floored_date) else ""
 
         # The first hour in the URL is 1 after the hour in the filename.
         url = base_url + floored_date.strftime(
-            f"/%Y/%m/%d/{padded_hour_plus_one}/{file_prefix}-%Y%m%d{padded_hour}%M{'d' if add_d else ''}.csv",
+            f"/%Y/%m/%d/{padded_hour_plus_one}/{file_prefix}-%Y%m%d{padded_hour}%M{suffix}.csv",
         )
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
-        return df, url
+        return df, floored_date
 
     def _get_mid_term_forecast_data(
         self,
@@ -702,7 +702,7 @@ class SPP(ISOBase):
         base_url: str,
         file_prefix: str,
         buffer_minutes: int = 10,
-    ) -> tuple[pd.DataFrame, str] | None:
+    ) -> tuple[pd.DataFrame, pd.Timestamp] | None:
         """Get mid-term forecast data with common DST handling logic.
 
         Args:
@@ -712,7 +712,7 @@ class SPP(ISOBase):
             buffer_minutes: Buffer minutes for "latest" date
 
         Returns:
-            tuple: (dataframe, url) or None if date is in the future
+            tuple: (dataframe, publish time) or None if date is in the future
         """
         if date == "latest":
             date = self.now() - pd.Timedelta(minutes=buffer_minutes)
@@ -723,29 +723,29 @@ class SPP(ISOBase):
 
         floored_date = self._handle_dst_floor_date(date, "h")
 
-        # For mid-term hourly forecasts during 2025 DST end there is a 0200d file.
-        # Special case for DST end on 2025-11-02
-        add_d = (
-            floored_date.year == 2025
-            and floored_date.month == 11
-            and floored_date.day == 2
-            and floored_date.hour == 2
-        )
+        # When DST ends, the file published in the second 1am hour is named 0200 and
+        # the one published at 2am is named 0200d. The 2025 archive has no 0200 file.
+        file_hour = floored_date.hour
+        suffix = ""
+        if self._is_repeated_hour(floored_date):
+            file_hour += 1
+        elif self._is_repeated_hour(floored_date - pd.Timedelta(hours=1)):
+            suffix = "d"
 
         # Explicitly set the minutes to 00 in the URL
         url = base_url + floored_date.strftime(
-            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(floored_date.hour).zfill(2)}00{'d' if add_d else ''}.csv",
+            f"/%Y/%m/%d/{file_prefix}-%Y%m%d{str(file_hour).zfill(2)}00{suffix}.csv",
         )
 
         logger.info(f"Downloading {url}")
         df = pd.read_csv(url)
 
-        return df, url
+        return df, floored_date
 
     def _post_process_load_forecast(
         self,
         df: pd.DataFrame,
-        url: str,
+        publish_time: pd.Timestamp,
         forecast_type: str,
         forecast_col: str,
         end_time_col: str,
@@ -754,16 +754,9 @@ class SPP(ISOBase):
     ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        # Assume the publish time is in the name of the file. There are different
-        # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(
-            re.search(r"[0-9]{12}", url).group(0),
-        ).tz_localize(
-            tz=self.default_timezone,
-            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
-            # during DST.
-            ambiguous=not url.endswith("d.csv"),
-        )
+        # The publish time is the requested hour or 5 minutes, which the file name
+        # matches except when DST ends. The webpage's times may be posting times.
+        df["Publish Time"] = publish_time
 
         df.columns = [col.strip() for col in df.columns]
 
@@ -813,13 +806,13 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         # According to the docs, the end time col should be GMTIntervalEnd, but it's
         # only GMTInterval in the data
         df = self._post_process_solar_and_wind_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="SHORT_TERM",
             end_time_col="GMTInterval",
             interval_duration=pd.Timedelta(minutes=5),
@@ -856,11 +849,11 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         df = self._post_process_solar_and_wind_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="MID_TERM",
             end_time_col="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
@@ -890,11 +883,11 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         return self._post_process_solar_and_wind_forecast_by_reserve_zone(
             df,
-            url,
+            publish_time,
             end_time_col="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
         )
@@ -940,11 +933,11 @@ class SPP(ISOBase):
         if result is None:
             return None
 
-        df, url = result
+        df, publish_time = result
 
         df = self._post_process_load_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="SHORT_TERM",
             end_time_col="GMTInterval",
             interval_duration=pd.Timedelta(minutes=5),
@@ -997,11 +990,11 @@ class SPP(ISOBase):
                 columns=["Interval Start", "Interval End", "BAA", "Load"],
             )
 
-        df, url = result
+        df, publish_time = result
 
         df = self._post_process_load_forecast(
             df,
-            url,
+            publish_time,
             forecast_type="MID_TERM",
             end_time_col="GMTIntervalEnd",
             interval_duration=pd.Timedelta(hours=1),
@@ -1035,23 +1028,16 @@ class SPP(ISOBase):
     def _post_process_solar_and_wind_forecast(
         self,
         df: pd.DataFrame,
-        url: str,
+        publish_time: pd.Timestamp,
         forecast_type: str,
         end_time_col: str,
         interval_duration: pd.Timedelta,
     ) -> pd.DataFrame:
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        # Assume the publish time is in the name of the file. There are different
-        # times on the webpage, but these could be the posting time.
-        df["Publish Time"] = pd.Timestamp(
-            re.search(r"[0-9]{12}", url).group(0),
-        ).tz_localize(
-            tz=self.default_timezone,
-            # Assume the "d" file occurs during CST and Pandas wants ambiguous=True
-            # during DST.
-            ambiguous=not url.endswith("d.csv"),
-        )
+        # The publish time is the requested hour or 5 minutes, which the file name
+        # matches except when DST ends. The webpage's times may be posting times.
+        df["Publish Time"] = publish_time
 
         df.columns = [col.strip() for col in df.columns]
 
@@ -1073,7 +1059,7 @@ class SPP(ISOBase):
     def _post_process_solar_and_wind_forecast_by_reserve_zone(
         self,
         df: pd.DataFrame,
-        url: str,
+        publish_time: pd.Timestamp,
         end_time_col: str,
         interval_duration: pd.Timedelta,
     ) -> pd.DataFrame:
@@ -1081,12 +1067,7 @@ class SPP(ISOBase):
 
         df = self._handle_market_end_to_interval(df, end_time_col, interval_duration)
 
-        df["Publish Time"] = pd.Timestamp(
-            re.search(r"[0-9]{12}", url).group(0),
-        ).tz_localize(
-            tz=self.default_timezone,
-            ambiguous=not url.endswith("d.csv"),
-        )
+        df["Publish Time"] = publish_time
 
         df.columns = [col.strip() for col in df.columns]
 
@@ -2638,7 +2619,7 @@ class SPP(ISOBase):
         if date == "latest":
             tomorrow = pd.Timestamp.now(
                 tz=self.default_timezone,
-            ).normalize() + pd.Timedelta(days=1)
+            ).normalize() + pd.DateOffset(days=1)
             try:
                 return self.get_binding_constraints_day_ahead_hourly(
                     date=tomorrow,
@@ -2778,7 +2759,7 @@ class SPP(ISOBase):
         future intervals.
         """
         if end is None:
-            end = start.normalize() + pd.Timedelta(days=1)
+            end = start.normalize() + pd.DateOffset(days=1)
             if utils.is_today(start, self.default_timezone):
                 end = min(
                     end,

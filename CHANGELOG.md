@@ -2,7 +2,17 @@
 
 ## v.Next
 
+### Additions (New Features/Datasets)
+
+#### CAISO
+* `get_price_corrections` returns `Interval Start` and `Interval End` for each corrected interval, from `Trade Date`, `Hour Ending`, `Interval` and the market's interval length (DAM and RUC 60 minutes, HASP and RTPD 15 minutes, RTD 5 minutes). Hour endings follow OASIS wall-clock numbering: when DST ends, the repeated 1am hour is hour ending 25, and when DST starts, hour ending 3 is skipped.
+
 ### Fixes
+
+#### CAISO
+* `get_price_corrections` reads `Report Generated` as UTC, which is what OASIS reports. It was localized as Pacific, so every correction appeared 7 or 8 hours later than it was issued: CAISO's October 20, 2026 day-ahead repricing, posted at 10:43 PST on November 3, showed as 18:43 PST.
+* `get_price_corrections` drops rows that OASIS repeats with a blank `Correction Reason`, keeping the row with the reason. On October 6, 2026, two RTD Interval Replacement corrections each appeared twice.
+* `get_price_corrections` handles a correction with several reasons. OASIS separates them with an unquoted newline, so the second reason was read as a new row whose `Trade Date` failed to parse. Since October 23, 2026, every range that included trade date October 13, 2026 raised `ValueError`. The reasons are now joined with `; ` in `Correction Reason`.
 
 #### ERCOT
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
@@ -14,6 +24,14 @@
 
 #### NYISO
 * `NYISO.get_limiting_constraints_real_time` now reads NYISO's `Time Stamp` as the end of the interval instead of the start, so every interval was previously reported 5 minutes late. Real-time limiting constraints use the same convention as real-time LBMPs: from July to September 2026, when a single constraint bound for one isolated interval, zonal congestion appeared in the LBMP with the same timestamp in 108 of 109 cases. Each daily file holds the stamps 00:00 through 23:55, so a single day's intervals now end between 00:00 and 23:55.
+
+#### PJM
+* Data Miner requests with a start and end now filter on the feed's UTC timestamp instead of its EPT timestamp. Data Miner reads an EPT time in the repeated 1 AM hour as standard time, so on November 1, 2026 a request starting at 1:00 EDT (05:00 UTC) returned the 1:00 EST hour (06:00 UTC) instead. Feeds whose date filter only exists in EPT (`generated_at`, `forecast_execution_date`) still filter in EPT. Rows at the exclusive `end` are now dropped by UTC time, so the other copy of a repeated hour is kept.
+
+#### SPP
+* `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
+* `get_binding_constraints_real_time_5_min`, single-date `get_fuel_mix` requests, and `get_binding_constraints_day_ahead_hourly("latest")` end a day at the next local midnight. They added 24 hours to midnight, so November 1, 2026, a 25 hour day, ended at 23:00 CST: a real-time binding constraints range crossing midnight that night skipped the intervals from 23:00 CST (after its first interval, when it started after 23:00), and on November 1 `"latest"` day-ahead binding constraints asked for November 1 instead of November 2.
+* The short-term and mid-term load and solar and wind forecast methods, `get_solar_and_wind_forecast_by_reserve_zone`, `get_load_forecast`, `get_load_forecast_by_baa`, `get_load`, and `get_load_by_baa` read the right file for each 1am hour when DST ends, every year, not only November 2, 2025. On November 1, 2026 SPP posted the first 1am hour's 5-minute files without a suffix and the second hour's with a "d" (`0100d` through `0155d`), and named the hourly file published in the second 1am hour `0200` and the 2am one `0200d`. Both 1am hours read the same file, so ranges returned duplicate rows and missed the second hour. `Publish Time` now comes from the requested time instead of the file name.
 
 ## v0.37.0 - October 22, 2026
 
