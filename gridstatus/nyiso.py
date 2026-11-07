@@ -105,12 +105,27 @@ OASIS_POSTINGS = {
 }
 
 
-def _read_oasis_postings_csv(url: str) -> pd.DataFrame:
+def _get_oasis_postings_file(url: str) -> requests.Response:
     # NB: pd.read_csv(url) goes through urllib, whose default certificate store
     # often lacks the GlobalSign Root R46 that oasis-postings chains to
     response = requests.get(url)
     response.raise_for_status()
-    return pd.read_csv(BytesIO(response.content))
+    return response
+
+
+def _read_oasis_postings_csv(url: str) -> pd.DataFrame:
+    return pd.read_csv(BytesIO(_get_oasis_postings_file(url).content))
+
+
+def _read_latest_oasis_postings_csv(folder: str) -> tuple[pd.DataFrame, pd.Timestamp]:
+    """A folder's latest-interval file and when it was last modified."""
+    response = _get_oasis_postings_file(
+        f"{OASIS_POSTINGS_URL}/{folder}/CSV/current.csv",
+    )
+    last_modified = pd.Timestamp(
+        parsedate_to_datetime(response.headers["Last-Modified"]),
+    )
+    return pd.read_csv(BytesIO(response.content)), last_modified
 
 
 """
@@ -167,11 +182,11 @@ class NYISO(ISOBase):
         df: pd.DataFrame,
         dataset_name: str,
         groupby: str | None = None,
-        latest: bool = False,
+        last_modified: pd.Timestamp | None = None,
     ) -> pd.DataFrame:
         """Localize the file's timestamps and add interval columns.
 
-        Set latest for a latest-interval (current.csv) file.
+        Pass last_modified for a latest-interval (current.csv) file.
         """
         time_type, interval_duration_minutes = DATASET_INTERVAL_MAP[dataset_name]
 
@@ -183,7 +198,7 @@ class NYISO(ISOBase):
         def time_to_datetime(s: pd.Series, dst: str = "infer") -> pd.Series:
             times = pd.to_datetime(s)
             if isinstance(dst, str) and dst == "infer":
-                dst = self._infer_daylight_time(times, latest)
+                dst = self._infer_daylight_time(times, last_modified)
             return times.dt.tz_localize(
                 self.default_timezone,
                 ambiguous=dst,
@@ -233,14 +248,15 @@ class NYISO(ISOBase):
     def _infer_daylight_time(
         self,
         times: pd.Series,
-        latest: bool,
+        last_modified: pd.Timestamp | None,
     ) -> Literal["infer"] | np.ndarray:
         """Whether each time on the DST end day is in the daylight-time 1 AM hour.
 
         pandas infers this from the repeated 1 AM times, which a file posted during
         the repeated hour doesn't have yet. A daily file then holds only the
         daylight-time hour, which comes first. A latest-interval file holds the
-        interval just posted, which is whichever 1 AM hour is closest to now.
+        interval last posted, which is whichever 1 AM hour is closest to when the file
+        was last modified, so a file keeps its hour if publication stalls.
         """
         is_ambiguous = (
             times.notna()
@@ -249,10 +265,9 @@ class NYISO(ISOBase):
         if not is_ambiguous.any() or times[is_ambiguous].duplicated().any():
             return "infer"
 
-        if not latest:
+        if last_modified is None:
             return np.ones(len(times), dtype=bool)
 
-        now = pd.Timestamp.now(tz=self.default_timezone)
         daylight = times.dt.tz_localize(
             self.default_timezone,
             ambiguous=np.ones(len(times), dtype=bool),
@@ -261,7 +276,9 @@ class NYISO(ISOBase):
             self.default_timezone,
             ambiguous=np.zeros(len(times), dtype=bool),
         )
-        return ((daylight - now).abs() <= (standard - now).abs()).to_numpy()
+        return (
+            (daylight - last_modified).abs() <= (standard - last_modified).abs()
+        ).to_numpy()
 
     @support_date_range(frequency="MONTH_START")
     def get_status(
@@ -668,14 +685,14 @@ class NYISO(ISOBase):
     ) -> pd.DataFrame:
         """Get interface limits and flows for a date"""
         if date == "latest":
-            data = _read_oasis_postings_csv(
-                f"{OASIS_POSTINGS_URL}/INTERFACE_LIMITS_FLOWS/CSV/current.csv",
+            data, last_modified = _read_latest_oasis_postings_csv(
+                "INTERFACE_LIMITS_FLOWS",
             )
             data = self._handle_time(
                 data,
                 INTERFACE_LIMITS_AND_FLOWS_DATASET,
                 groupby="Interface Name",
-                latest=True,
+                last_modified=last_modified,
             )
         else:
             data = self._download_nyiso_archive(
@@ -811,10 +828,12 @@ class NYISO(ISOBase):
                 )
             else:
                 folder = OASIS_POSTINGS[f"{marketname}_{file_location_type}"].folder
-                df = _read_oasis_postings_csv(
-                    f"{OASIS_POSTINGS_URL}/{folder}/CSV/current.csv",
+                df, last_modified = _read_latest_oasis_postings_csv(folder)
+                df = self._handle_time(
+                    df,
+                    dataset_name=marketname,
+                    last_modified=last_modified,
                 )
-                df = self._handle_time(df, dataset_name=marketname, latest=True)
                 df["Market"] = market.value
         else:
             filename = marketname + f"_{file_location_type}"
@@ -1867,14 +1886,14 @@ class NYISO(ISOBase):
         verbose: bool = False,
     ) -> pd.DataFrame:
         if date == "latest":
-            data = _read_oasis_postings_csv(
-                f"{OASIS_POSTINGS_URL}/LIMITING_CONSTRAINTS/CSV/current.csv",
+            data, last_modified = _read_latest_oasis_postings_csv(
+                "LIMITING_CONSTRAINTS",
             )
             data = self._handle_time(
                 data,
                 LIMITING_CONSTRAINTS_REAL_TIME_DATASET,
                 groupby="Limiting Facility",
-                latest=True,
+                last_modified=last_modified,
             )
         else:
             data = self._download_nyiso_archive(
