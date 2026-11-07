@@ -42,6 +42,20 @@ PRICE_CORRECTION_NO_RECORDS_REASON = "No records found for report."
 # A correction with several reasons puts an unquoted newline between them.
 PRICE_CORRECTION_REASON_BREAK = re.compile(rb"\r?\n(?!\d{4}-\d{2}-\d{2},|$)")
 
+# Length of one PRC_CORR_GRP interval for each market. INTERVAL counts these
+# within the hour ending (1 for hourly markets, 1-4 for RTPD, 1-12 for RTD).
+PRICE_CORRECTION_INTERVAL_LENGTHS = {
+    "DAM": pd.Timedelta(hours=1),
+    "RUC": pd.Timedelta(hours=1),
+    "HASP": pd.Timedelta(minutes=15),
+    "RTPD": pd.Timedelta(minutes=15),
+    "RTD": pd.Timedelta(minutes=5),
+}
+
+# OASIS numbers the repeated hour on the fall-back day as hour ending 25: it is
+# the second 01:00-02:00, after hour ending 2 and before hour ending 3.
+REPEATED_HOUR_ENDING = 25
+
 
 def _read_price_corrections_csv(contents: bytes) -> pd.DataFrame:
     return pd.read_csv(
@@ -1766,12 +1780,14 @@ class CAISO(ISOBase):
 
         Returns:
             pandas.DataFrame: one row per corrected interval with columns
+            ``Interval Start`` and ``Interval End`` (the corrected interval),
             ``Trade Date`` (the corrected operating day), ``Hour Ending``,
             ``Interval``, ``Market`` (e.g. ``DAM``, ``RTD``, ``RTPD``),
             ``Affected Area``, ``Correction Method``, ``Correction Count``,
             ``Energy Type``, ``Correction Reason`` and ``Report Generated``
-            (when the correction was issued). ``Trade Date`` and
-            ``Report Generated`` are Pacific-localized timestamps.
+            (when the correction was issued). All timestamps are
+            Pacific-localized. An interval corrected more than once has one
+            row per correction.
 
         Raises:
             NoDataFoundException: if no corrections were issued for the range.
@@ -1833,20 +1849,42 @@ class CAISO(ISOBase):
         if df.empty:
             return df
 
+        reason = df["CORRECTION_REASON"].fillna("").astype(str).str.strip()
+        df = df.assign(CORRECTION_REASON=reason.where(reason != ""))
         df = df[df["CORRECTION_REASON"] != PRICE_CORRECTION_NO_RECORDS_REASON]
         if df.empty:
             return df
 
-        def to_pacific(column: pd.Series) -> pd.Series:
-            return pd.to_datetime(column).dt.tz_localize(
-                self.default_timezone,
-                ambiguous=True,
-                nonexistent="shift_forward",
+        unknown_markets = set(df["MARKET"]) - set(PRICE_CORRECTION_INTERVAL_LENGTHS)
+        if unknown_markets:
+            raise ValueError(
+                f"Unknown CAISO price correction markets: {sorted(unknown_markets)}",
             )
+
+        trade_date = pd.to_datetime(df["TRADE_DATE"])
+        hour_ending = df["HOUR_ENDING"].astype(int)
+        is_repeated_hour = hour_ending == REPEATED_HOUR_ENDING
+        # Hour ending H starts at wall-clock H-1:00, except the repeated hour,
+        # which is the standard-time 01:00. Hour ending 2 on the fall-back day is
+        # the daylight-time 01:00, so only the repeated hour is not daylight time.
+        hour_start = trade_date + pd.to_timedelta(
+            hour_ending.where(~is_repeated_hour, 2) - 1,
+            unit="h",
+        )
+        interval_length = df["MARKET"].map(PRICE_CORRECTION_INTERVAL_LENGTHS)
+        interval_start = (
+            hour_start.dt.tz_localize(
+                self.default_timezone,
+                ambiguous=(~is_repeated_hour).to_numpy(),
+            )
+            + (df["INTERVAL"].astype(int) - 1) * interval_length
+        )
 
         result = pd.DataFrame(
             {
-                "Trade Date": to_pacific(df["TRADE_DATE"]),
+                "Interval Start": interval_start,
+                "Interval End": interval_start + interval_length,
+                "Trade Date": trade_date.dt.tz_localize(self.default_timezone),
                 "Hour Ending": df["HOUR_ENDING"].astype("Int64"),
                 "Interval": df["INTERVAL"].astype("Int64"),
                 "Market": df["MARKET"],
@@ -1855,12 +1893,29 @@ class CAISO(ISOBase):
                 "Correction Count": df["CORRECTION_COUNT"].astype("Int64"),
                 "Energy Type": df["ENERGY_TYPECODE"],
                 "Correction Reason": df["CORRECTION_REASON"],
-                "Report Generated": to_pacific(df["REPORT_GENERATED"]),
+                # REPORT_GENERATED is UTC, unlike the Pacific trade date.
+                "Report Generated": pd.to_datetime(df["REPORT_GENERATED"])
+                .dt.tz_localize("UTC")
+                .dt.tz_convert(self.default_timezone),
             },
         )
-        return result.sort_values(
-            ["Trade Date", "Market", "Hour Ending", "Interval"],
-        ).reset_index(drop=True)
+
+        # OASIS sometimes repeats a correction row with a blank reason; keep the
+        # row that has the reason.
+        correction_columns = [
+            "Interval Start",
+            "Market",
+            "Affected Area",
+            "Correction Method",
+            "Energy Type",
+            "Report Generated",
+        ]
+        return (
+            result.sort_values("Correction Reason", na_position="last", kind="stable")
+            .drop_duplicates(subset=correction_columns)
+            .sort_values(correction_columns)
+            .reset_index(drop=True)
+        )
 
     @support_date_range(frequency="DAY_START")
     def get_storage(
