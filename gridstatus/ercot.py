@@ -5802,6 +5802,9 @@ class Ercot(ISOBase):
 
         Published with 3 day delay
 
+        On fall-back days, warns and omits both ambiguous 1 AM hours. The source
+        sorts the two hours together without a UTC offset or repeated-hour flag.
+
         Arguments:
             date (str, datetime): date to get data for
             end (str, datetime, optional): end date for date range
@@ -6026,13 +6029,32 @@ class Ercot(ISOBase):
             )
 
         if is_sced_format:
-            # SCED format: Parse SCED Timestamp directly
-            # SCED Timestamp format is like "12/07/2025 00:00:17"
-            # TODO: this dataset doesn't have a DSTFlag so we may have issues with
-            # DST transitions
-            df["SCED Timestamp"] = pd.to_datetime(df["SCED Timestamp"]).dt.tz_localize(
+            # The source sorts both 1 AM hours together with no fold flag; even
+            # identical SCED timestamps can belong to different runs. Do not infer
+            # a fold from row order or combine offers from those runs.
+            timestamps = pd.to_datetime(df["SCED Timestamp"])
+            df["SCED Timestamp"] = timestamps.dt.tz_localize(
                 self.default_timezone,
+                ambiguous="NaT",
             )
+            ambiguous = timestamps.notna() & df["SCED Timestamp"].isna()
+            if ambiguous.any():
+                dates = ", ".join(
+                    timestamps[ambiguous].dt.strftime("%Y-%m-%d").unique(),
+                )
+                warnings.warn(
+                    f"Omitting {ambiguous.sum()} SCED highest-price AS offer rows "
+                    f"with ambiguous fall-back timestamps on {dates}. ERCOT provides "
+                    "no UTC offset or repeated-hour flag; both 1 AM hours are omitted.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                df = df.loc[~ambiguous].copy()
+
+            if df.empty:
+                df["Total Offered Quantity"] = pd.Series(dtype="float64")
+                df["Offered Quantities"] = pd.Series(dtype="object")
+                return df.drop(columns="Offered Quantity")
 
             # Group by SCED Timestamp and resource identifiers only
             df = (

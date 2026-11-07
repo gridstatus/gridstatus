@@ -1,4 +1,5 @@
 import datetime
+import warnings
 from io import StringIO
 from unittest import mock
 
@@ -6593,3 +6594,109 @@ class TestErcotGISMergedHeaders:
         assert (
             large["Approval Date for Submission of Proof of Site Control"].notna().any()
         )
+
+
+def highest_price_sced_source_rows(timestamps):
+    return pd.DataFrame(
+        {
+            "SCED Timestamp": timestamps,
+            "QSE": "QTEST",
+            "DME": "DTEST",
+            "Resource Name with Highest - Priced AS Offer Selected in SCED": "TEST_ESR1",
+            "AS Type": "ECRS",
+            "Offered Price": [float(i + 10) for i in range(len(timestamps))],
+            "Offered Quantity": [float(i + 1) for i in range(len(timestamps))],
+        },
+    )
+
+
+@pytest.mark.parametrize("day", ["2026-11-01", "2027-11-07"])
+def test_highest_price_sced_omits_ambiguous_rows_before_aggregation(day):
+    # November 1 source order: both hours are sorted together. 01:00:23 is
+    # shared by both runs; 01:05:20 and 01:05:21 differ but lack fold labels.
+    data = highest_price_sced_source_rows(
+        [
+            f"{day} {time}"
+            for time in [
+                "00:55:21",
+                "00:55:21",
+                "01:00:23",
+                "01:00:23",
+                "01:05:20",
+                "01:05:21",
+                "02:00:23",
+            ]
+        ],
+    )
+    data.loc[1, "Offered Price"] = data.loc[0, "Offered Price"]
+    iso = Ercot()
+    with (
+        mock.patch.object(iso, "_get_document", return_value=None),
+        mock.patch.object(iso, "read_doc", return_value=data),
+        pytest.warns(UserWarning, match=f"Omitting 4 .* on {day}.*both 1 AM hours"),
+    ):
+        result = iso.get_highest_price_as_offer_selected_sced(day)
+
+    assert result["SCED Timestamp"].dt.tz_convert("UTC").tolist() == [
+        pd.Timestamp(f"{day} 05:55:21Z"),
+        pd.Timestamp(f"{day} 08:00:23Z"),
+    ]
+    assert result["Offered Price"].tolist() == [10.0, 16.0]
+    assert result["Total Offered Quantity"].tolist() == [3.0, 7.0]
+    assert result["Offered Quantities"].tolist() == [[1.0, 2.0], [7.0]]
+
+
+@pytest.mark.parametrize(
+    "times,expected_utc",
+    [
+        (
+            ["2026-11-02 01:00:23", "2026-11-02 02:00:23"],
+            ["2026-11-02 07:00:23Z", "2026-11-02 08:00:23Z"],
+        ),
+        (
+            ["2026-03-08 01:55:20", "2026-03-08 03:00:23"],
+            ["2026-03-08 07:55:20Z", "2026-03-08 08:00:23Z"],
+        ),
+    ],
+)
+def test_highest_price_sced_unambiguous_rows_unchanged(times, expected_utc):
+    iso = Ercot()
+    with mock.patch.object(
+        iso,
+        "read_doc",
+        return_value=highest_price_sced_source_rows(times),
+    ):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = iso._handle_highest_price_as_offer_selected_file(None, "sced")
+    assert not caught
+    assert result["SCED Timestamp"].tolist() == pd.to_datetime(expected_utc).tolist()
+    assert result["Offered Price"].tolist() == [10.0, 11.0]
+    assert result["Total Offered Quantity"].tolist() == [1.0, 2.0]
+    assert result["Offered Quantities"].tolist() == [[1.0], [2.0]]
+
+
+def test_highest_price_sced_all_ambiguous_returns_empty_schema():
+    iso = Ercot()
+    with (
+        mock.patch.object(iso, "_get_document", return_value=None),
+        mock.patch.object(
+            iso,
+            "read_doc",
+            return_value=highest_price_sced_source_rows(["2026-11-01 01:00:23"]),
+        ),
+        pytest.warns(UserWarning, match="Omitting 1 SCED"),
+    ):
+        result = iso.get_highest_price_as_offer_selected_sced("2026-11-01")
+    assert result.empty
+    assert result.columns.tolist() == [
+        "SCED Timestamp",
+        "QSE",
+        "DME",
+        "Resource Name",
+        "AS Type",
+        "Offered Price",
+        "Total Offered Quantity",
+        "Offered Quantities",
+    ]
+    assert str(result["SCED Timestamp"].dtype) == "datetime64[ns, US/Central]"
