@@ -1636,10 +1636,9 @@ class ISONEAPI:
 
         if date == "latest":
             url = f"{self.base_url}/fiveminutelmp/prelim/current/all"
-        else:
-            url = f"{self.base_url}/fiveminutelmp/prelim/day/{date.strftime('%Y%m%d')}/starthour/{date.hour:02d}"
+            return self._handle_lmp_real_time(url, verbose, interval_minutes=5)
 
-        return self._handle_lmp_real_time(url, verbose, interval_minutes=5)
+        return self._get_lmp_real_time_5_min_hour("prelim", date, verbose)
 
     @support_date_range("HOUR_START")
     def get_lmp_real_time_5_min_final(
@@ -1675,8 +1674,38 @@ class ISONEAPI:
                         pd.Timestamp.now(self.default_timezone) - pd.DateOffset(days=2),
                     )
 
-        url = f"{self.base_url}/fiveminutelmp/final/day/{date.strftime('%Y%m%d')}/starthour/{date.hour:02d}"
-        return self._handle_lmp_real_time(url, verbose, interval_minutes=5)
+        return self._get_lmp_real_time_5_min_hour("final", date, verbose)
+
+    def _get_lmp_real_time_5_min_hour(
+        self,
+        market_run: Literal["prelim", "final"],
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Five-minute LMPs for the hour containing date.
+
+        The API's starthour is a local clock hour. On the fall-back day, starthour 00
+        returns midnight and the daylight-time 1 AM hour, and starthour 01 returns only
+        the standard-time 1 AM hour.
+        """
+        # Floor in UTC since the local 1 AM hour is ambiguous on the fall-back day
+        hour_start = date.tz_convert("UTC").floor("h").tz_convert(self.default_timezone)
+        hour_end = hour_start + pd.Timedelta(hours=1)
+
+        request_hour = hour_start
+        # The daylight-time 1 AM hour is followed by another 1 AM hour
+        if hour_end.hour == hour_start.hour:
+            request_hour = hour_start - pd.Timedelta(hours=1)
+
+        url = (
+            f"{self.base_url}/fiveminutelmp/{market_run}/day/"
+            f"{request_hour.strftime('%Y%m%d')}/starthour/{request_hour.hour:02d}"
+        )
+        df = self._handle_lmp_real_time(url, verbose, interval_minutes=5)
+
+        return df[
+            (df["Interval Start"] >= hour_start) & (df["Interval Start"] < hour_end)
+        ]
 
     @support_date_range("DAY_START")
     def get_lmp_real_time_hourly_prelim(

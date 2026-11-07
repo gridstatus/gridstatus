@@ -17,6 +17,11 @@
 #### ERCOT
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
+* `parse_timestamp_from_friendly_name` reads times in files from the first 1am hour on DST end days as daylight time. Only file names with `xhr` are from the repeated hour, but every 1am file was read as standard time, so methods that filter documents by file-name time, such as `get_lmp_by_settlement_point`, `get_lmp_by_bus`, `get_sced_system_lambda` and `get_spp`, did not return a first-hour file until an hour after it posted.
+* `ErcotAPI.get_shadow_prices_sced`, `get_lmp_by_settlement_point` and `get_lmp_by_bus` place SCED runs from the first 1am hour on DST end days in daylight time. The public API returns `RepeatedHourFlag` as a boolean rather than `Y`/`N`, so every run from 1:00 to 1:59 was localized to standard time, an hour late, and runs from both hours could share a timestamp.
+
+#### ISONE
+* `ISONEAPI.get_lmp_real_time_5_min_prelim` and `get_lmp_real_time_5_min_final` return both 1 AM hours on the DST end day. The API serves the daylight-time 1 AM hour under `starthour/00` and the standard-time one under `starthour/01`, so a request for the daylight-time hour returned the standard-time hour instead, and a range covering both hours returned the standard-time hour twice. On November 1, 2026, real-time runs that started after 1:00 EDT never received 1:05 to 1:55 EDT. Each request now returns only its own hour.
 
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
@@ -33,6 +38,9 @@
 * `get_fuel_mix` and `get_fuel_mix_detailed` only return intervals that both the SPP and SWPW BAAs report. Each BAA's rolling 2-hour file holds 24 intervals, so when one file was an interval ahead, the oldest interval of the other came back as a single-BAA total, for example West-only wind of 132.6 MW instead of 15,139.1 MW. Intervals before SWPW joined on April 1, 2026 still come from SPP alone. The summing logic is now available as `gridstatus.spp.combine_baa_fuel_mix`.
 * `get_binding_constraints_real_time_5_min`, single-date `get_fuel_mix` requests, and `get_binding_constraints_day_ahead_hourly("latest")` end a day at the next local midnight. They added 24 hours to midnight, so November 1, 2026, a 25 hour day, ended at 23:00 CST: a real-time binding constraints range crossing midnight that night skipped the intervals from 23:00 CST (after its first interval, when it started after 23:00), and on November 1 `"latest"` day-ahead binding constraints asked for November 1 instead of November 2.
 * The short-term and mid-term load and solar and wind forecast methods, `get_solar_and_wind_forecast_by_reserve_zone`, `get_load_forecast`, `get_load_forecast_by_baa`, `get_load`, and `get_load_by_baa` read the right file for each 1am hour when DST ends, every year, not only November 2, 2025. On November 1, 2026 SPP posted the first 1am hour's 5-minute files without a suffix and the second hour's with a "d" (`0100d` through `0155d`), and named the hourly file published in the second 1am hour `0200` and the 2am one `0200d`. Both 1am hours read the same file, so ranges returned duplicate rows and missed the second hour. `Publish Time` now comes from the requested time instead of the file name.
+
+#### All ISOs
+* Methods that split requests by hour or 5 minutes return the whole day for `"today"` on DST days. The range was 24 hours, so it stopped at 23:00 on the 25 hour fall-back day and ran into the next day on the 23 hour spring-forward day.
 
 ## v0.37.0 - October 22, 2026
 

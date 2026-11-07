@@ -854,6 +854,51 @@ class TestISONEAPI(TestHelperMixin):
                 == pd.Timedelta(minutes=5)
             ).all()
 
+    @pytest.mark.parametrize(
+        "method_name,day",
+        [
+            ("get_lmp_real_time_5_min_prelim", "2026-11-01"),
+            ("get_lmp_real_time_5_min_final", "2025-11-02"),
+        ],
+    )
+    def test_get_lmp_real_time_5_min_dst_end_both_one_am_hours(
+        self,
+        method_name: str,
+        day: str,
+    ):
+        # Midnight through the standard-time 1 AM hour on the fall-back day
+        start = pd.Timestamp(day).tz_localize(self.iso.default_timezone)
+        end = start + pd.Timedelta(hours=3)
+        cassette_name = f"test_{method_name}_dst_end_{start.strftime('%Y%m%d')}.yaml"
+        with api_vcr.use_cassette(cassette_name):
+            result = getattr(self.iso, method_name)(date=start, end=end)
+
+        expected_interval_starts = pd.date_range(
+            start,
+            end,
+            freq="5min",
+            inclusive="left",
+        )
+        assert len(expected_interval_starts) == 36
+        assert (
+            result["Interval Start"].drop_duplicates().tolist()
+            == expected_interval_starts.tolist()
+        )
+        assert not result.duplicated(["Interval Start", "Location"]).any()
+
+        # Requesting only the daylight-time 1 AM hour returns that hour
+        daylight_one_am = start + pd.Timedelta(hours=1)
+        with api_vcr.use_cassette(cassette_name):
+            result = getattr(self.iso, method_name)(
+                date=daylight_one_am,
+                end=daylight_one_am + pd.Timedelta(minutes=5),
+            )
+
+        assert (
+            result["Interval Start"].drop_duplicates().tolist()
+            == expected_interval_starts[12:24].tolist()
+        )
+
     def test_get_lmp_real_time_5_min_final_latest(self):
         with api_vcr.use_cassette("test_get_lmp_real_time_5_min_final_latest.yaml"):
             result = self.iso.get_lmp_real_time_5_min_final(date="latest")
