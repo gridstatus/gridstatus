@@ -38,6 +38,9 @@
 * `get_binding_constraints_real_time_5_min`, single-date `get_fuel_mix` requests, and `get_binding_constraints_day_ahead_hourly("latest")` end a day at the next local midnight. They added 24 hours to midnight, so November 1, 2026, a 25 hour day, ended at 23:00 CST: a real-time binding constraints range crossing midnight that night skipped the intervals from 23:00 CST (after its first interval, when it started after 23:00), and on November 1 `"latest"` day-ahead binding constraints asked for November 1 instead of November 2.
 * The short-term and mid-term load and solar and wind forecast methods, `get_solar_and_wind_forecast_by_reserve_zone`, `get_load_forecast`, `get_load_forecast_by_baa`, `get_load`, and `get_load_by_baa` read the right file for each 1am hour when DST ends, every year, not only November 2, 2025. On November 1, 2026 SPP posted the first 1am hour's 5-minute files without a suffix and the second hour's with a "d" (`0100d` through `0155d`), and named the hourly file published in the second 1am hour `0200` and the 2am one `0200d`. Both 1am hours read the same file, so ranges returned duplicate rows and missed the second hour. `Publish Time` now comes from the requested time instead of the file name.
 
+#### All ISOs
+* Methods that split requests by hour or 5 minutes return the whole day for `"today"` on DST days. The range was 24 hours, so it stopped at 23:00 on the 25 hour fall-back day and ran into the next day on the 23 hour spring-forward day.
+
 ## v0.37.0 - October 22, 2026
 
 ### Documentation & Packaging
