@@ -515,7 +515,9 @@ def parse_timestamp_from_friendly_name(friendly_name: str) -> pd.Timestamp:
     try:
         timestamp = pd.to_datetime(datetime_str, format="%Y%m%d %H:%M:%S").tz_localize(
             Ercot.default_timezone,
-            ambiguous=False,
+            # On DST end days ERCOT adds xhr to the names of files from the repeated
+            # hour. Files from the first 1am hour have no marker and are daylight time.
+            ambiguous="xhr" not in parts,
         )
     except:  # noqa
         raise
