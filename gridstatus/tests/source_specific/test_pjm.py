@@ -3651,11 +3651,19 @@ class TestPJMDataMinerWindowEnd:
 
         assert len(row_counts) > 1
         assert all(
-            gridstatus.pjm.DATA_MINER_MIN_RANDOM_ROW_COUNT
+            gridstatus.pjm.DATA_MINER_MIN_LIVE_ROW_COUNT
             <= row_count
             <= gridstatus.pjm.DATA_MINER_MAX_ROW_COUNT
             for row_count in row_counts
         )
+
+    def test_live_window_that_fits_in_one_page_stays_in_one_page(self):
+        now = pd.Timestamp.now(tz="UTC").tz_localize(None)
+        rows = ["2026-09-20T12:00:00"] * gridstatus.pjm.DATA_MINER_MIN_LIVE_ROW_COUNT
+
+        _, calls = self._call(now - pd.Timedelta(minutes=2), now, rows=rows)
+
+        assert len(calls) == 1
 
     def test_past_window_keeps_the_maximum_page_size(self):
         _, calls = self._call("2026-09-20 12:00:00", "2026-09-20 12:03:00")

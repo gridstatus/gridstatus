@@ -39,14 +39,17 @@ from gridstatus.pjm_constants import (
 
 DATA_MINER_URL = "https://api.pjm.com/api/v1/"
 DATA_MINER_MAX_ROW_COUNT = 50000
-# Smallest page size drawn for a query that must not repeat a page URL. Half the
+# Smallest page size drawn for a feed requested without a date filter. Half the
 # maximum keeps a pull within twice the request count while giving 25,001
 # distinct sizes, so consecutive pulls do not repeat a page URL.
 DATA_MINER_MIN_RANDOM_ROW_COUNT = 25000
 # Data Miner answers an identical query from its cache for 20 seconds, which hides
 # rows posted since. A window ending after this long ago can still gain rows, so it
-# draws a random page size to make each pull a new query.
+# draws a random page size to make each pull a new query. The sizes stay near the
+# maximum so a pull that fits in one page is not split across two, where a posting
+# between the pages would make them disagree.
 DATA_MINER_LIVE_WINDOW = pd.Timedelta(minutes=1)
+DATA_MINER_MIN_LIVE_ROW_COUNT = 49000
 # Date filter fields that Data Miner only offers in EPT. Every other filter
 # field has a UTC counterpart.
 DATA_MINER_EPT_ONLY_FILTER_FIELDS = {"forecast_execution_date", "generated_at"}
@@ -1174,16 +1177,15 @@ class PJM(ISOBase):
         start_row: int,
         row_count: int | None,
         vary_page_size: bool,
-        check_single_page: bool,
     ) -> pd.DataFrame:
         """Fetch every page of a Data Miner query by explicit ``startRow``.
 
         Every page must report the same ``totalRows`` and the pages together
         must hold that many rows; otherwise raises DataMinerSnapshotMismatch.
-        With ``check_single_page``, a pull that fits in one page has no second
-        page to check it against, so it is fetched again with a different size
-        and the two copies must match. Each page becomes a DataFrame as it
-        arrives so the pull never holds the whole feed as dicts.
+        A varied-size pull that fits in one page has no second page to check
+        it against, so it is fetched again with a different size and the two
+        copies must match. Each page becomes a DataFrame as it arrives so the
+        pull never holds the whole feed as dicts.
         """
         pages: list[pd.DataFrame] = []
         rows_fetched = 0
@@ -1228,7 +1230,7 @@ class PJM(ISOBase):
                 f"totalRows says {expected_rows}",
             )
 
-        if check_single_page and row_count is None and len(pages) == 1:
+        if vary_page_size and row_count is None and len(pages) == 1:
             check_params = params | {
                 "startRow": start_row,
                 "rowCount": self._data_miner_page_size(
@@ -1330,9 +1332,13 @@ class PJM(ISOBase):
                     endpoint,
                     final_params,
                     start_row,
-                    row_count,
-                    vary_page_size=start is None or window_is_live,
-                    check_single_page=start is None,
+                    random.randint(
+                        DATA_MINER_MIN_LIVE_ROW_COUNT,
+                        DATA_MINER_MAX_ROW_COUNT,
+                    )
+                    if window_is_live and row_count is None
+                    else row_count,
+                    vary_page_size=start is None,
                 )
                 break
             except DataMinerSnapshotMismatch as error:
