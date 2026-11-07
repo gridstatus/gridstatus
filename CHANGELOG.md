@@ -20,6 +20,9 @@
 * `parse_timestamp_from_friendly_name` reads times in files from the first 1am hour on DST end days as daylight time. Only file names with `xhr` are from the repeated hour, but every 1am file was read as standard time, so methods that filter documents by file-name time, such as `get_lmp_by_settlement_point`, `get_lmp_by_bus`, `get_sced_system_lambda` and `get_spp`, did not return a first-hour file until an hour after it posted.
 * `ErcotAPI.get_shadow_prices_sced`, `get_lmp_by_settlement_point` and `get_lmp_by_bus` place SCED runs from the first 1am hour on DST end days in daylight time. The public API returns `RepeatedHourFlag` as a boolean rather than `Y`/`N`, so every run from 1:00 to 1:59 was localized to standard time, an hour late, and runs from both hours could share a timestamp.
 
+#### ISONE
+* `ISONEAPI.get_lmp_real_time_5_min_prelim` and `get_lmp_real_time_5_min_final` return both 1 AM hours on the DST end day. The API serves the daylight-time 1 AM hour under `starthour/00` and the standard-time one under `starthour/01`, so a request for the daylight-time hour returned the standard-time hour instead, and a range covering both hours returned the standard-time hour twice. On November 1, 2026, real-time runs that started after 1:00 EDT never received 1:05 to 1:55 EDT. Each request now returns only its own hour.
+
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
 * `MISOAPI` requests verify again. On October 22, 2026, MISO moved `apim.misoenergy.org` to a certificate issued by GlobalSign GCC R46 OV TLS CA 2025 (GlobalSign Root R46), which the bundled certificate chain didn't include, so every request failed with `SSLCertVerificationError`. The bundle now has both the new and the previous GlobalSign chains.
