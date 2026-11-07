@@ -2,14 +2,26 @@
 
 ## v.Next
 
+### Additions (New Features/Datasets)
+
+#### CAISO
+* `get_price_corrections` returns `Interval Start` and `Interval End` for each corrected interval, from `Trade Date`, `Hour Ending`, `Interval` and the market's interval length (DAM and RUC 60 minutes, HASP and RTPD 15 minutes, RTD 5 minutes). Hour endings follow OASIS wall-clock numbering: when DST ends, the repeated 1am hour is hour ending 25, and when DST starts, hour ending 3 is skipped.
+
 ### Fixes
 
 #### CAISO
+* `get_price_corrections` reads `Report Generated` as UTC, which is what OASIS reports. It was localized as Pacific, so every correction appeared 7 or 8 hours later than it was issued: CAISO's October 20, 2026 day-ahead repricing, posted at 10:43 PST on November 3, showed as 18:43 PST.
+* `get_price_corrections` drops rows that OASIS repeats with a blank `Correction Reason`, keeping the row with the reason. On October 6, 2026, two RTD Interval Replacement corrections each appeared twice.
 * `get_price_corrections` handles a correction with several reasons. OASIS separates them with an unquoted newline, so the second reason was read as a new row whose `Trade Date` failed to parse. Since October 23, 2026, every range that included trade date October 13, 2026 raised `ValueError`. The reasons are now joined with `; ` in `Correction Reason`.
 
 #### ERCOT
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.
+* `parse_timestamp_from_friendly_name` reads times in files from the first 1am hour on DST end days as daylight time. Only file names with `xhr` are from the repeated hour, but every 1am file was read as standard time, so methods that filter documents by file-name time, such as `get_lmp_by_settlement_point`, `get_lmp_by_bus`, `get_sced_system_lambda` and `get_spp`, did not return a first-hour file until an hour after it posted.
+* `ErcotAPI.get_shadow_prices_sced`, `get_lmp_by_settlement_point` and `get_lmp_by_bus` place SCED runs from the first 1am hour on DST end days in daylight time. The public API returns `RepeatedHourFlag` as a boolean rather than `Y`/`N`, so every run from 1:00 to 1:59 was localized to standard time, an hour late, and runs from both hours could share a timestamp.
+
+#### ISONE
+* `ISONEAPI.get_lmp_real_time_5_min_prelim` and `get_lmp_real_time_5_min_final` return both 1 AM hours on the DST end day. The API serves the daylight-time 1 AM hour under `starthour/00` and the standard-time one under `starthour/01`, so a request for the daylight-time hour returned the standard-time hour instead, and a range covering both hours returned the standard-time hour twice. On November 1, 2026, real-time runs that started after 1:00 EDT never received 1:05 to 1:55 EDT. Each request now returns only its own hour.
 
 #### MISO
 * `MISOAPI` requests now time out (10 seconds to connect, 120 seconds without a response) and raise `requests.Timeout`. They previously had no timeout, so a connection the API stopped answering could block a call indefinitely.
