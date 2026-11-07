@@ -515,7 +515,9 @@ def parse_timestamp_from_friendly_name(friendly_name: str) -> pd.Timestamp:
     try:
         timestamp = pd.to_datetime(datetime_str, format="%Y%m%d %H:%M:%S").tz_localize(
             Ercot.default_timezone,
-            ambiguous=False,
+            # On DST end days ERCOT adds xhr to the names of files from the repeated
+            # hour. Files from the first 1am hour have no marker and are daylight time.
+            ambiguous="xhr" not in parts,
         )
     except:  # noqa
         raise
@@ -5564,13 +5566,16 @@ class Ercot(ISOBase):
             },
         )
 
+        # Report files flag the repeated hour with "Y" and the public API with True
+        repeated_hour_flags = ["Y", True]
+
         # Some files have errors with the timestamp
         df["SCED Timestamp"] = pd.to_datetime(
             df["SCED Timestamp"],
             errors="coerce",
         ).dt.tz_localize(
             self.default_timezone,
-            ambiguous=df["RepeatedHourFlag"] == "N",
+            ambiguous=~df["RepeatedHourFlag"].isin(repeated_hour_flags),
         )
 
         df = df.dropna(subset=["SCED Timestamp"])
@@ -5580,7 +5585,7 @@ class Ercot(ISOBase):
         # Round to nearest 5 minutes
         df["Interval Start"] = df["SCED Timestamp"].dt.floor(
             "5min",
-            ambiguous=df["RepeatedHourFlag"] == "N",
+            ambiguous=~df["RepeatedHourFlag"].isin(repeated_hour_flags),
         )
 
         df["Interval End"] = df["Interval Start"] + pd.Timedelta(minutes=5)
