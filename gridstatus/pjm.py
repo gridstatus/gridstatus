@@ -43,6 +43,13 @@ DATA_MINER_MAX_ROW_COUNT = 50000
 # maximum keeps a pull within twice the request count while giving 25,001
 # distinct sizes, so consecutive pulls do not repeat a page URL.
 DATA_MINER_MIN_RANDOM_ROW_COUNT = 25000
+# Data Miner answers an identical query from its cache for 20 seconds, which hides
+# rows posted since. A window ending after this long ago can still gain rows, so it
+# draws a random page size to make each pull a new query. The sizes stay near the
+# maximum so a pull that fits in one page is not split across two, where a posting
+# between the pages would make them disagree.
+DATA_MINER_LIVE_WINDOW = pd.Timedelta(minutes=1)
+DATA_MINER_MIN_LIVE_ROW_COUNT = 49000
 # Date filter fields that Data Miner only offers in EPT. Every other filter
 # field has a UTC counterpart.
 DATA_MINER_EPT_ONLY_FILTER_FIELDS = {"forecast_execution_date", "generated_at"}
@@ -1267,7 +1274,13 @@ class PJM(ISOBase):
         rather than the API's ``next`` links, a query without a date filter
         (whose parameters would otherwise be identical on every run) draws a
         random page size, and a pull whose pages disagree on ``totalRows`` is
-        retried once with new page sizes and then rejected.
+        retried once with new page sizes and then rejected. A window that ends
+        about now also draws a random page size, since Data Miner would answer a
+        repeat of it from its short-lived query cache.
+
+        ``end`` is exclusive and may fall within a minute, even though Data Miner
+        filters to the minute: rows filtered on ``datetime_beginning`` are returned
+        up to, and not including, that exact time.
         """
         if start == "latest":
             raise NotSupported(f"{self.name} does not support 'latest'")
@@ -1279,34 +1292,52 @@ class PJM(ISOBase):
 
             if end:
                 end = utils._handle_date(end, tz=self.default_timezone)
+                # Data Miner reads an end of 12:00 as 12:00:00, so an end within a
+                # minute must be rounded up to reach the rows earlier in that minute.
+                # Round in UTC, since a local time in the repeated hour is ambiguous.
+                last_filter_time = (
+                    end.tz_convert("UTC").ceil("min")
+                    if filter_timestamp_name == "datetime_beginning"
+                    else end
+                )
             else:
                 end = start + pd.DateOffset(days=1)
                 # the end is inclusive, pulls records
                 # for next day without below adjustment
                 end = end - pd.DateOffset(seconds=1)
+                last_filter_time = end
 
             # Data Miner reads an EPT wall time in the repeated fall-back hour
             # as standard time, so an EPT filter cannot select the daylight
             # copy of that hour. Filter in UTC wherever the feed allows it.
             if filter_timestamp_name in DATA_MINER_EPT_ONLY_FILTER_FIELDS:
-                filter_suffix, filter_start, filter_end = "ept", start, end
+                filter_suffix, filter_start, filter_end = "ept", start, last_filter_time
             else:
                 filter_suffix = "utc"
                 filter_start = start.tz_convert("UTC")
-                filter_end = end.tz_convert("UTC")
+                filter_end = last_filter_time.tz_convert("UTC")
             final_params[f"{filter_timestamp_name}_{filter_suffix}"] = (
                 filter_start.strftime("%m/%d/%Y %H:%M")
                 + "to"
                 + filter_end.strftime("%m/%d/%Y %H:%M")
             )
 
+        window_is_live = (
+            start is not None
+            and end >= pd.Timestamp.now(tz="UTC") - DATA_MINER_LIVE_WINDOW
+        )
         for attempt in range(2):
             try:
                 df = self._fetch_data_miner_pages(
                     endpoint,
                     final_params,
                     start_row,
-                    row_count,
+                    random.randint(
+                        DATA_MINER_MIN_LIVE_ROW_COUNT,
+                        DATA_MINER_MAX_ROW_COUNT,
+                    )
+                    if window_is_live and row_count is None
+                    else row_count,
                     vary_page_size=start is None,
                 )
                 break
@@ -1333,10 +1364,12 @@ class PJM(ISOBase):
             # so we need to drop where end timestamp is included.
             # Compare in UTC so the other copy of a repeated hour is kept.
             if end is not None:
-                df = df[
-                    df["Interval Start"].dt.tz_convert("UTC").dt.floor("min")
-                    != end.tz_convert("UTC").floor("min")
-                ]
+                interval_start_utc = df["Interval Start"].dt.tz_convert("UTC")
+                end_utc = end.tz_convert("UTC")
+                if filter_timestamp_name == "datetime_beginning":
+                    df = df[interval_start_utc < end_utc]
+                else:
+                    df = df[interval_start_utc.dt.floor("min") != end_utc.floor("min")]
 
             if "datetime_ending_utc" in df.columns:
                 df["Interval End"] = (

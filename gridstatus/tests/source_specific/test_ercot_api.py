@@ -1481,6 +1481,59 @@ class TestErcotAPI(TestHelperMixin):
             < self.local_start_of_day(past_end_date.date())
         )
 
+    @pytest.mark.parametrize(
+        "first_hour_flag, repeated_hour_flag",
+        [(False, True), ("N", "Y")],
+    )
+    def test_handle_shadow_prices_sced_dst_end(
+        self,
+        first_hour_flag,
+        repeated_hour_flag,
+    ):
+        # Both 1am SCED runs on November 1, 2026. The public API returns the flag as
+        # a boolean and the report files return Y or N.
+        data = pd.DataFrame(
+            {
+                "SCEDTimestamp": ["2026-11-01T01:00:23"] * 4,
+                "RepeatedHourFlag": [first_hour_flag] * 2 + [repeated_hour_flag] * 2,
+                "ConstraintID": [2, 1, 1, 2],
+                "ConstraintName": [
+                    "6437__F",
+                    "BLESSING_1382",
+                    "BLESSING_1382",
+                    "6437__F",
+                ],
+                "ContingencyName": ["DMTSCOS5", "DSTPSTA5", "DSTPSTA5", "DMTSCOS5"],
+                "ShadowPrice": [112.10159, 0.0, 55.03714, 0.0],
+                "MaxShadowPrice": [3500.0, 4500.0, 4500.0, 3500.0],
+                "Limit": [233.5, 425.6, 425.4, 235.8],
+                "Value": [233.5, 415.6, 425.4, 228.0],
+                "ViolatedMW": [0.0, -10.0, 0.0, -7.8],
+                "FromStation": ["SCRCV", "BLESSING", "BLESSING", "SCRCV"],
+                "ToStation": ["KNAPP", "BLESSING", "BLESSING", "KNAPP"],
+                "FromStationkV": [138.0, 345.0, 345.0, 138.0],
+                "ToStationkV": [138.0, 138.0, 138.0, 138.0],
+                "CCTStatus": ["COMP"] * 4,
+            },
+        )
+
+        df = self.iso._handle_shadow_prices_sced(data)
+
+        self._check_shadow_prices_sced(df)
+        first_hour = pd.Timestamp("2026-11-01 06:00", tz="UTC")
+        repeated_hour = pd.Timestamp("2026-11-01 07:00", tz="UTC")
+        run_offset = pd.Timedelta(seconds=23)
+        expected_sced_timestamps = [first_hour + run_offset] * 2 + [
+            repeated_hour + run_offset,
+        ] * 2
+        expected_interval_starts = [first_hour] * 2 + [repeated_hour] * 2
+        sced_timestamps = df["SCED Timestamp"].dt.tz_convert("UTC").tolist()
+        interval_starts = df["Interval Start"].dt.tz_convert("UTC").tolist()
+        assert sced_timestamps == expected_sced_timestamps
+        assert interval_starts == expected_interval_starts
+        shadow_prices = df.loc[df["Constraint Name"] == "6437__F", "Shadow Price"]
+        assert shadow_prices.tolist() == [112.10159, 0.0]
+
     """get_spp_real_time_15_min"""
 
     def _check_spp_real_time_15_min(self, df):

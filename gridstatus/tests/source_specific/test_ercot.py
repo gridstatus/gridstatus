@@ -1,4 +1,5 @@
 import datetime
+import warnings
 from io import StringIO
 from unittest import mock
 
@@ -11,6 +12,8 @@ from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     DAM_SYSTEM_LAMBDA_RTID,
     ELECTRICAL_BUS_LOCATION_TYPE,
+    SCED_SYSTEM_LAMBDA_RTID,
+    WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
     Document,
     Ercot,
     ERCOTSevenDayLoadForecastReport,
@@ -1569,6 +1572,74 @@ class TestErcot(BaseTestISO):
         assert parse_timestamp_from_friendly_name(
             "SPPHLZNP6905_20230608_1545_csv",
         ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
+
+    def test_parse_timestamp_from_friendly_name_dst_end(self):
+        # Files from both 1am hours on November 1, 2026. ERCOT adds xhr to the names
+        # of files from the repeated hour.
+        assert parse_timestamp_from_friendly_name(
+            "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+        ) == pd.Timestamp("2026-11-01 06:00:23", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv",
+        ) == pd.Timestamp("2026-11-01 07:00:23", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20261101_0115_csv",
+        ) == pd.Timestamp("2026-11-01 06:15", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20261101_0115_xhr_csv",
+        ) == pd.Timestamp("2026-11-01 07:15", tz="UTC")
+
+    def test_get_documents_friendly_name_timestamps_dst_end(self):
+        # Listing entries for SCED system lambda on November 1, 2026
+        listing = {
+            "ListDocsByRptTypeRes": {
+                "DocumentList": [
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.010026589.SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv.zip",
+                            "DocID": "1293324664",
+                            "PublishDate": "2026-11-01T01:00:26-06:00",
+                        },
+                    },
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.010026575.SCEDSYSLAMBDANP6322_20261101_010023_csv.zip",
+                            "DocID": "1293309693",
+                            "PublishDate": "2026-11-01T01:00:25-06:00",
+                        },
+                    },
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_005521_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.005523461.SCEDSYSLAMBDANP6322_20261101_005521_csv.zip",
+                            "DocID": "1293308281",
+                            "PublishDate": "2026-11-01T00:55:23-06:00",
+                        },
+                    },
+                ],
+            },
+        }
+
+        # A fetch a minute after the first 1am run posted
+        with mock.patch.object(self.iso, "_get_json", return_value=listing):
+            docs = self.iso._get_documents(
+                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+                friendly_name_timestamp_after=pd.Timestamp(
+                    "2026-11-01 05:55:21",
+                    tz="UTC",
+                ),
+                friendly_name_timestamp_before=pd.Timestamp(
+                    "2026-11-01 06:01:30",
+                    tz="UTC",
+                ),
+            )
+
+        assert [doc.friendly_name for doc in docs] == [
+            "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+        ]
+        assert docs[0].publish_date == pd.Timestamp("2026-11-01 06:00:25", tz="UTC")
 
     """get_unplanned_resource_outages"""
 
@@ -4101,9 +4172,47 @@ class TestErcot(BaseTestISO):
 
     """get_as_deployment_factors_weekly_ruc"""
 
-    # Check for weekly, daily, and hourly RUC
+    def _get_ruc_report(self, kind, period, run, published):
+        column = "RUCTimestamp" if kind == "deployment_factors" else "RUCTimeStamp"
+        frame = pd.DataFrame(
+            {
+                column: [run, run],
+                "DeliveryDate": ["11/01/2026"] * 2,
+                "HourEnding": ["02:00", "02:00"],
+                "RepeatedHourFlag": ["N", "Y"],
+                "ASType": ["ECRS"] * 2,
+            },
+        )
+        if kind == "deployment_factors":
+            frame["ASDeploymentFactors"] = [0.1, 0.2]
+        else:
+            frame["DemandCurvePoint"] = [1, 1]
+            frame["Quantity"] = [10, 20]
+            frame["Price"] = [30, 40]
+        doc = Document(
+            "https://example.com/report",
+            pd.Timestamp(published),
+            "report",
+            "report",
+            None,
+        )
+        with (
+            mock.patch.object(self.iso, "_get_documents", return_value=[doc]),
+            mock.patch.object(self.iso, "read_doc", return_value=frame),
+        ):
+            result = getattr(self.iso, f"get_as_{kind}_{period}_ruc")(
+                "2026-11-01",
+                "2026-11-03",
+            )
+        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
+            pd.Timestamp("2026-11-01T06:00:00Z"),
+            pd.Timestamp("2026-11-01T07:00:00Z"),
+        ]
+        return result
+
+    # Hourly and daily RUC reports post within an hour of the run
     @pytest.mark.parametrize("kind", ["deployment_factors", "demand_curves"])
-    @pytest.mark.parametrize("period", ["hourly", "daily", "weekly"])
+    @pytest.mark.parametrize("period", ["hourly", "daily"])
     @pytest.mark.parametrize(
         "run,published,expected",
         [
@@ -4137,42 +4246,58 @@ class TestErcot(BaseTestISO):
         published,
         expected,
     ):
-        column = "RUCTimestamp" if kind == "deployment_factors" else "RUCTimeStamp"
-        frame = pd.DataFrame(
-            {
-                column: [run, run],
-                "DeliveryDate": ["11/01/2026"] * 2,
-                "HourEnding": ["02:00", "02:00"],
-                "RepeatedHourFlag": ["N", "Y"],
-                "ASType": ["ECRS"] * 2,
-            },
-        )
-        if kind == "deployment_factors":
-            frame["ASDeploymentFactors"] = [0.1, 0.2]
-        else:
-            frame["DemandCurvePoint"] = [1, 1]
-            frame["Quantity"] = [10, 20]
-            frame["Price"] = [30, 40]
+        result = self._get_ruc_report(kind, period, run, published)
+        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
+
+    # Weekly RUC reports post about 1h45m after the run. The first case is the
+    # real 2026-11-01 report; the second is the same run had it been the first 1am.
+    @pytest.mark.parametrize("kind", ["deployment_factors", "demand_curves"])
+    @pytest.mark.parametrize(
+        "run,published,expected",
+        [
+            (
+                "2026-11-01 01:06:01",
+                "2026-11-01T02:53:03-06:00",
+                "2026-11-01T07:06:01Z",
+            ),
+            (
+                "2026-11-01 01:06:01",
+                "2026-11-01T01:53:00-06:00",
+                "2026-11-01T06:06:01Z",
+            ),
+            (
+                "2026-10-31 01:06:01",
+                "2026-10-31T02:54:45-05:00",
+                "2026-10-31T06:06:01Z",
+            ),
+        ],
+    )
+    def test_weekly_ruc_run_timestamp_uses_publication_delay(
+        self,
+        kind,
+        run,
+        published,
+        expected,
+    ):
+        result = self._get_ruc_report(kind, "weekly", run, published)
+        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
+
+    def test_weekly_ruc_ambiguous_run_outside_publication_window(self):
         doc = Document(
             "https://example.com/report",
-            pd.Timestamp(published),
+            pd.Timestamp("2026-11-01T01:20:00-06:00"),
             "report",
             "report",
             None,
         )
-        with (
-            mock.patch.object(self.iso, "_get_documents", return_value=[doc]),
-            mock.patch.object(self.iso, "read_doc", return_value=frame),
-        ):
-            result = getattr(self.iso, f"get_as_{kind}_{period}_ruc")(
-                "2026-11-01",
-                "2026-11-03",
-            )
-        assert result["RUC Timestamp"].eq(pd.Timestamp(expected)).all()
-        assert result["Interval Start"].dt.tz_convert("UTC").tolist() == [
-            pd.Timestamp("2026-11-01T06:00:00Z"),
-            pd.Timestamp("2026-11-01T07:00:00Z"),
-        ]
+        frame = pd.DataFrame({"RUCTimestamp": ["2026-11-01 01:06:01"]})
+        with mock.patch.object(self.iso, "read_doc", return_value=frame):
+            with pytest.raises(ValueError, match="Cannot resolve RUC timestamp"):
+                self.iso._read_ruc_docs(
+                    [doc],
+                    "RUCTimestamp",
+                    minimum_publication_delay=WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
+                )
 
     @pytest.mark.parametrize(
         "published",
@@ -6469,3 +6594,109 @@ class TestErcotGISMergedHeaders:
         assert (
             large["Approval Date for Submission of Proof of Site Control"].notna().any()
         )
+
+
+def highest_price_sced_source_rows(timestamps):
+    return pd.DataFrame(
+        {
+            "SCED Timestamp": timestamps,
+            "QSE": "QTEST",
+            "DME": "DTEST",
+            "Resource Name with Highest - Priced AS Offer Selected in SCED": "TEST_ESR1",
+            "AS Type": "ECRS",
+            "Offered Price": [float(i + 10) for i in range(len(timestamps))],
+            "Offered Quantity": [float(i + 1) for i in range(len(timestamps))],
+        },
+    )
+
+
+@pytest.mark.parametrize("day", ["2026-11-01", "2027-11-07"])
+def test_highest_price_sced_omits_ambiguous_rows_before_aggregation(day):
+    # November 1 source order: both hours are sorted together. 01:00:23 is
+    # shared by both runs; 01:05:20 and 01:05:21 differ but lack fold labels.
+    data = highest_price_sced_source_rows(
+        [
+            f"{day} {time}"
+            for time in [
+                "00:55:21",
+                "00:55:21",
+                "01:00:23",
+                "01:00:23",
+                "01:05:20",
+                "01:05:21",
+                "02:00:23",
+            ]
+        ],
+    )
+    data.loc[1, "Offered Price"] = data.loc[0, "Offered Price"]
+    iso = Ercot()
+    with (
+        mock.patch.object(iso, "_get_document", return_value=None),
+        mock.patch.object(iso, "read_doc", return_value=data),
+        pytest.warns(UserWarning, match=f"Omitting 4 .* on {day}.*both 1 AM hours"),
+    ):
+        result = iso.get_highest_price_as_offer_selected_sced(day)
+
+    assert result["SCED Timestamp"].dt.tz_convert("UTC").tolist() == [
+        pd.Timestamp(f"{day} 05:55:21Z"),
+        pd.Timestamp(f"{day} 08:00:23Z"),
+    ]
+    assert result["Offered Price"].tolist() == [10.0, 16.0]
+    assert result["Total Offered Quantity"].tolist() == [3.0, 7.0]
+    assert result["Offered Quantities"].tolist() == [[1.0, 2.0], [7.0]]
+
+
+@pytest.mark.parametrize(
+    "times,expected_utc",
+    [
+        (
+            ["2026-11-02 01:00:23", "2026-11-02 02:00:23"],
+            ["2026-11-02 07:00:23Z", "2026-11-02 08:00:23Z"],
+        ),
+        (
+            ["2026-03-08 01:55:20", "2026-03-08 03:00:23"],
+            ["2026-03-08 07:55:20Z", "2026-03-08 08:00:23Z"],
+        ),
+    ],
+)
+def test_highest_price_sced_unambiguous_rows_unchanged(times, expected_utc):
+    iso = Ercot()
+    with mock.patch.object(
+        iso,
+        "read_doc",
+        return_value=highest_price_sced_source_rows(times),
+    ):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = iso._handle_highest_price_as_offer_selected_file(None, "sced")
+    assert not caught
+    assert result["SCED Timestamp"].tolist() == pd.to_datetime(expected_utc).tolist()
+    assert result["Offered Price"].tolist() == [10.0, 11.0]
+    assert result["Total Offered Quantity"].tolist() == [1.0, 2.0]
+    assert result["Offered Quantities"].tolist() == [[1.0], [2.0]]
+
+
+def test_highest_price_sced_all_ambiguous_returns_empty_schema():
+    iso = Ercot()
+    with (
+        mock.patch.object(iso, "_get_document", return_value=None),
+        mock.patch.object(
+            iso,
+            "read_doc",
+            return_value=highest_price_sced_source_rows(["2026-11-01 01:00:23"]),
+        ),
+        pytest.warns(UserWarning, match="Omitting 1 SCED"),
+    ):
+        result = iso.get_highest_price_as_offer_selected_sced("2026-11-01")
+    assert result.empty
+    assert result.columns.tolist() == [
+        "SCED Timestamp",
+        "QSE",
+        "DME",
+        "Resource Name",
+        "AS Type",
+        "Offered Price",
+        "Total Offered Quantity",
+        "Offered Quantities",
+    ]
+    assert str(result["SCED Timestamp"].dtype) == "datetime64[ns, US/Central]"
