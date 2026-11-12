@@ -56,11 +56,29 @@ PRICE_CORRECTION_INTERVAL_LENGTHS = {
 # the second 01:00-02:00, after hour ending 2 and before hour ending 3.
 REPEATED_HOUR_ENDING = 25
 
+PRICE_CORRECTION_ATTEMPTS = 4
+
+# OASIS answers a request it can't serve with an XML document holding an error code
+# and description, such as 1000 (no data) or 1015 (the group file is still being
+# built).
+OASIS_ERROR = re.compile(
+    rb"<m:ERR_CODE>(.*?)</m:ERR_CODE>\s*<m:ERR_DESC>(.*?)</m:ERR_DESC>",
+    re.DOTALL,
+)
+
 
 def _read_price_corrections_csv(contents: bytes) -> pd.DataFrame:
     return pd.read_csv(
         io.BytesIO(PRICE_CORRECTION_REASON_BREAK.sub(b"; ", contents)),
     )
+
+
+def _oasis_error_message(contents: bytes) -> str:
+    match = OASIS_ERROR.search(contents)
+    if match is None:
+        return f"unrecognized OASIS response: {contents[:300]!r}"
+    code, description = (group.decode() for group in match.groups())
+    return f"OASIS error {code}: {description}"
 
 
 def _determine_lmp_frequency(args: dict) -> str:
@@ -1830,14 +1848,21 @@ class CAISO(ISOBase):
             print(f"Fetching URL: {url}")
         logger.info(f"Fetching URL: {url}")
 
-        for _ in range(4):
+        for attempt in range(1, PRICE_CORRECTION_ATTEMPTS + 1):
             response = requests.get(url, verify=True)
-            if response.status_code == 200:
+            if response.status_code != 200:
+                failure = f"HTTP {response.status_code}"
+            else:
                 archive = ZipFile(io.BytesIO(response.content))
                 contents = archive.read(archive.namelist()[0])
                 # A data response is a CSV; "no data" is an XML error document.
                 if b"ERR_CODE" not in contents[:600]:
                     return _read_price_corrections_csv(contents)
+                failure = _oasis_error_message(contents)
+            logger.info(
+                f"PRC_CORR_GRP for {start} failed on attempt {attempt} of "
+                f"{PRICE_CORRECTION_ATTEMPTS}: {failure}",
+            )
             time.sleep(sleep)
 
         return pd.DataFrame()
