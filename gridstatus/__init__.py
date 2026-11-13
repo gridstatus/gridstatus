@@ -27,6 +27,7 @@ from gridstatus.miso import MISO
 from gridstatus.spp import SPP
 from gridstatus.pjm import PJM
 from gridstatus.eia import EIA
+from gridstatus.epa import EPA
 from gridstatus.ieso import IESO
 
 all_isos = [AESO, NYISO, CAISO, Ercot, ISONE, MISO, SPP, PJM, IESO]
