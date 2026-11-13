@@ -16,6 +16,7 @@
 * `get_price_corrections` logs why each failed attempt failed: the HTTP status, or the OASIS error code and description, such as `1015` while OASIS is still building the summary. Failed attempts were retried without a log, so a trade date that returned nothing gave no reason.
 
 #### ERCOT
+* `get_as_reports_sced` and `ErcotAPI.get_as_reports_sced` return DST end days. The report's `Repeated Hour Flag` column was ignored, so the report for November 1, 2026 raised `AmbiguousTimeError`. Runs flagged `N` in the 1 AM hour are now placed in daylight time and runs flagged `Y` in standard time, and runs from the two hours that share a wall-clock timestamp keep separate offer curves.
 * `get_highest_price_as_offer_selected_sced` returns the unambiguous rows on fall-back days instead of failing the entire report. It warns and omits both 1 AM hours because the source sorts their rows together without a UTC offset or repeated-hour flag. These hours remain missing; their timestamps are not guessed.
 * `get_temperature_forecast_by_weather_zone` handles every DST end day, not only November 2, 2025. ERCOT labels the repeated hour on November 1, 2026 the same way, so files covering it returned two rows for 2:00 CST and none for 1:00 CST.
 * `get_planned_outage_capacity_7_day` no longer returns duplicate rows for November 1, 2026. ERCOT lists hour ending 1 four times on that day, so the first row for each hour is kept.

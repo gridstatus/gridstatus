@@ -5207,8 +5207,13 @@ class Ercot(ISOBase):
                     )
                 ]
 
+            if "Repeated Hour Flag" not in df.columns:
+                df["Repeated Hour Flag"] = "N"
+
+            # On DST end days, runs from the two 1 AM hours can share a wall-clock
+            # timestamp. Group by the flag too so their curves stay separate.
             df_grouped = (
-                df.groupby(["SCED Timestamp", "AS Type"])
+                df.groupby(["SCED Timestamp", "Repeated Hour Flag", "AS Type"])
                 .apply(_make_offer_curve, include_groups=False)
                 .reset_index(name="Offer Curve")
             )
@@ -5225,8 +5230,10 @@ class Ercot(ISOBase):
 
         # Convert to local timezone
         if df["SCED Timestamp"].dt.tz is None:
+            # "Y" marks the repeated (standard time) 1 AM hour on DST end days
             df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_localize(
                 self.default_timezone,
+                ambiguous=df["Repeated Hour Flag"] != "Y",
             )
         else:
             df["SCED Timestamp"] = df["SCED Timestamp"].dt.tz_convert(
