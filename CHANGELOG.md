@@ -13,6 +13,7 @@
 * `get_price_corrections` reads `Report Generated` as UTC, which is what OASIS reports. It was localized as Pacific, so every correction appeared 7 or 8 hours later than it was issued: CAISO's October 20, 2026 day-ahead repricing, posted at 10:43 PST on November 3, showed as 18:43 PST.
 * `get_price_corrections` drops rows that OASIS repeats with a blank `Correction Reason`, keeping the row with the reason. On October 6, 2026, two RTD Interval Replacement corrections each appeared twice.
 * `get_price_corrections` handles a correction with several reasons. OASIS separates them with an unquoted newline, so the second reason was read as a new row whose `Trade Date` failed to parse. Since October 23, 2026, every range that included trade date October 13, 2026 raised `ValueError`. The reasons are now joined with `; ` in `Correction Reason`.
+* `get_price_corrections` logs why each failed attempt failed: the HTTP status, or the OASIS error code and description, such as `1015` while OASIS is still building the summary. Failed attempts were retried without a log, so a trade date that returned nothing gave no reason.
 
 #### ERCOT
 * `get_highest_price_as_offer_selected_sced` returns the unambiguous rows on fall-back days instead of failing the entire report. It warns and omits both 1 AM hours because the source sorts their rows together without a UTC offset or repeated-hour flag. These hours remain missing; their timestamps are not guessed.

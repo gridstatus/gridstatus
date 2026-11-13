@@ -8,6 +8,7 @@ from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.caiso.caiso import (
     _collapse_group_to_array,
+    _oasis_error_message,
     _read_price_corrections_csv,
 )
 from gridstatus.caiso.caiso_constants import (
@@ -315,15 +316,36 @@ class TestCAISO(BaseTestISO):
         assert len(replacements) == 4
         assert replacements["Correction Reason"].notna().all()
 
-    def test_get_price_corrections_raises_when_empty(self):
+    @pytest.mark.caiso_oasis
+    @pytest.mark.real_sleep
+    def test_get_price_corrections_raises_when_empty(self, caplog):
         # Future trade dates have no issued corrections, so the method raises
         # rather than returning an empty frame, letting callers distinguish
-        # "no corrections" explicitly.
+        # "no corrections" explicitly. Real sleeps keep OASIS from answering 429.
         with caiso_vcr.use_cassette(
-            "test_get_price_corrections_empty.yaml",
+            "test_get_price_corrections_empty_2030-07-01.yaml",
         ):
             with pytest.raises(NoDataFoundException):
-                self.iso.get_price_corrections(date="2026-07-01", end="2026-07-04")
+                self.iso.get_price_corrections(date="2030-07-01")
+
+        assert "OASIS error" in caplog.text
+
+    def test_oasis_error_message(self):
+        # As OASIS served a PRC_CORR_GRP request for a summary still being built.
+        contents = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<m:OASISReport xmlns:m="http://www.caiso.com/soa/OASISReport_v1.xsd">\n'
+            b"<m:MessagePayload>\n<m:RTO>\n<m:name>CAISO</m:name>\n<m:ERROR>\n"
+            b"<m:ERR_CODE>1015</m:ERR_CODE>\n"
+            b"<m:ERR_DESC>GroupZip DownLoad is in Processing, Please Submit request "
+            b"after Sometime</m:ERR_DESC>\n"
+            b"</m:ERROR>\n</m:RTO>\n</m:MessagePayload>\n</m:OASISReport>"
+        )
+
+        assert _oasis_error_message(contents) == (
+            "OASIS error 1015: GroupZip DownLoad is in Processing, Please Submit "
+            "request after Sometime"
+        )
 
     def test_parse_price_corrections_multiline_reason(self):
         # Trade date 2026-10-13 as served by OASIS: the Interval Replacement row
