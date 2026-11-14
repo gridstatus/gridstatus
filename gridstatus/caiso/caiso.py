@@ -3875,7 +3875,13 @@ class CAISO(ISOBase):
                     )
                 data[col_name] = values
 
-            dataframes[df_name] = pd.DataFrame(data)
+            # The 2 AM hour of a DST start day has slots in the report but does
+            # not exist
+            dataframes[df_name] = (
+                pd.DataFrame(data)
+                .dropna(subset=["Interval Start"])
+                .reset_index(drop=True)
+            )
 
         return dataframes
 
