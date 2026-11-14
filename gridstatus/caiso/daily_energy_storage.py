@@ -2,8 +2,9 @@
 
 Each report embeds chart series as JavaScript array literals assigned to named
 variables (for example ``tot_energy_rtd``). The arrays contain numeric values
-only; they do not include timestamps. We align values to clock time by index
-from the report operating day start in Pacific time; see ``_interval_index``.
+only; they do not include timestamps. We align values to wall-clock time by
+index from the report operating day start in Pacific time; see
+``_interval_index``.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import pandas as pd
 import requests
 
 from gridstatus import utils
+from gridstatus.caiso.caiso_utils import wall_clock_interval_starts
 from gridstatus.gs_logging import logger
 
 
@@ -177,14 +179,19 @@ def _interval_index(
             pd.Series(dtype="datetime64[ns, US/Pacific]"),
             pd.Series(dtype="datetime64[ns, US/Pacific]"),
         )
-    starts = pd.date_range(
-        start=report_start,
-        periods=n,
-        freq=f"{minutes}min",
-        tz=report_start.tz,
+    starts = wall_clock_interval_starts(
+        report_start,
+        n,
+        f"{minutes}min",
+        str(report_start.tz),
     )
     ends = starts + pd.Timedelta(minutes=minutes)
     return starts, ends
+
+
+def _drop_slots_that_do_not_exist(df: pd.DataFrame) -> pd.DataFrame:
+    # The 2 AM hour of a DST start day has slots in the report but does not exist
+    return df.dropna(subset=["Interval Start"]).reset_index(drop=True)
 
 
 def _long_energy_awards(
@@ -243,7 +250,9 @@ def _long_energy_awards(
                 "MW": values_hybrid[:n],
             },
         )
-    return pd.concat([standalone_rows, hybrid_rows], ignore_index=True)
+    return _drop_slots_that_do_not_exist(
+        pd.concat([standalone_rows, hybrid_rows], ignore_index=True),
+    )
 
 
 def _long_as_awards(
@@ -280,7 +289,7 @@ def _long_as_awards(
                 "MW",
             ],
         )
-    return pd.concat(parts, ignore_index=True)
+    return _drop_slots_that_do_not_exist(pd.concat(parts, ignore_index=True))
 
 
 def _hybrid_bid_var_names(order: list[tuple[str, str]]) -> list[tuple[str, str]]:
@@ -407,7 +416,7 @@ def _bid_stack_to_df(
                 "MW",
             ],
         )
-    return pd.concat(rows, ignore_index=True)
+    return _drop_slots_that_do_not_exist(pd.concat(rows, ignore_index=True))
 
 
 def _downsample_5min_to_15min(values: list[float]) -> list[float]:
@@ -591,9 +600,9 @@ def build_storage_soc_hourly(
             "Schedule": "RUC",
         },
     )
-    return pd.concat([df_ifm, df_ruc], ignore_index=True).sort_values(
-        ["Interval Start", "Schedule"],
-    )
+    return _drop_slots_that_do_not_exist(
+        pd.concat([df_ifm, df_ruc], ignore_index=True),
+    ).sort_values(["Interval Start", "Schedule"])
 
 
 def build_storage_soc_fmm(
@@ -611,12 +620,14 @@ def build_storage_soc_fmm(
             ],
         )
     starts, ends = _interval_index(report_start, n, 5)
-    return pd.DataFrame(
-        {
-            "Interval Start": starts,
-            "Interval End": ends,
-            "SOC": standalone_soc_series,
-        },
+    return _drop_slots_that_do_not_exist(
+        pd.DataFrame(
+            {
+                "Interval Start": starts,
+                "Interval End": ends,
+                "SOC": standalone_soc_series,
+            },
+        ),
     ).sort_values(["Interval Start"])
 
 
@@ -635,12 +646,14 @@ def build_storage_soc_rtd(
             ],
         )
     starts, ends = _interval_index(report_start, n, 5)
-    return pd.DataFrame(
-        {
-            "Interval Start": starts,
-            "Interval End": ends,
-            "SOC": standalone_soc_series,
-        },
+    return _drop_slots_that_do_not_exist(
+        pd.DataFrame(
+            {
+                "Interval Start": starts,
+                "Interval End": ends,
+                "SOC": standalone_soc_series,
+            },
+        ),
     ).sort_values(["Interval Start"])
 
 

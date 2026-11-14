@@ -5809,8 +5809,10 @@ class Ercot(ISOBase):
 
         Published with 3 day delay
 
-        On fall-back days, warns and omits both ambiguous 1 AM hours. The source
-        sorts the two hours together without a UTC offset or repeated-hour flag.
+        The source has no UTC offset or repeated-hour flag, so on fall-back days
+        the 1 AM SCED runs are placed with the flags in the 2-day SCED AS reports,
+        which cover the same runs. A timestamp shared by a run in each 1 AM hour
+        cannot be split and is omitted with a warning.
 
         Arguments:
             date (str, datetime): date to get data for
@@ -5839,6 +5841,10 @@ class Ercot(ISOBase):
         df = self._handle_highest_price_as_offer_selected_file(
             doc,
             market="sced",
+            get_repeated_hour_flags=lambda: self._get_sced_repeated_hour_flags(
+                date,
+                verbose=verbose,
+            ),
             verbose=verbose,
         )
 
@@ -5996,10 +6002,71 @@ class Ercot(ISOBase):
             .reset_index(drop=True)
         )
 
+    def _get_sced_repeated_hour_flags(
+        self,
+        date: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """SCED timestamps of an operating day with ERCOT's repeated-hour flag.
+
+        Read from the 2-day SCED AS reports, which flag the SCED runs in the
+        repeated (standard time) 1 AM hour of a DST end day. Empty when that
+        report is not available.
+        """
+        columns = ["SCED Timestamp", "Repeated Hour Flag"]
+        try:
+            doc = self._get_as_report_document(
+                date=date,
+                report_type_id=TWO_DAY_SCED_ANCILLARY_SERVICES_REPORTS_RTID,
+                verbose=verbose,
+            )
+        except NoDataFoundException:
+            return pd.DataFrame(columns=columns)
+
+        z = utils.get_zip_folder(doc.url, verbose=verbose)
+        frames = []
+        for file_name in z.namelist():
+            if not file_name.endswith(".csv"):
+                continue
+            frame = pd.read_csv(z.open(file_name), usecols=lambda name: name in columns)
+            if set(columns) <= set(frame.columns):
+                frames.append(frame)
+        if not frames:
+            return pd.DataFrame(columns=columns)
+
+        flags = pd.concat(frames).drop_duplicates()
+        flags["SCED Timestamp"] = pd.to_datetime(flags["SCED Timestamp"])
+        return flags
+
+    def _localize_with_repeated_hour_flags(
+        self,
+        timestamps: pd.Series,
+        flags: pd.DataFrame,
+    ) -> pd.Series:
+        """Localize ambiguous 1 AM timestamps that occur in only one 1 AM hour.
+
+        Timestamps that occur in both hours, or that have no flag, come back NaT.
+        """
+        flags_per_timestamp = flags.groupby("SCED Timestamp")["Repeated Hour Flag"].agg(
+            lambda values: "".join(sorted(set(values))),
+        )
+        flag = timestamps.map(flags_per_timestamp)
+        in_one_hour = flag.isin(["N", "Y"])
+        return (
+            timestamps[in_one_hour]
+            .dt.tz_localize(
+                self.default_timezone,
+                # "Y" marks the repeated (standard time) 1 AM hour
+                ambiguous=(flag[in_one_hour] != "Y").to_numpy(),
+            )
+            .reindex(timestamps.index)
+        )
+
     def _handle_highest_price_as_offer_selected_file(
         self,
         doc: Document,
         market: str,
+        get_repeated_hour_flags: Callable[[], pd.DataFrame] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
         """Handle the new 3-day highest price AS offer selected files
@@ -6038,13 +6105,22 @@ class Ercot(ISOBase):
         if is_sced_format:
             # The source sorts both 1 AM hours together with no fold flag; even
             # identical SCED timestamps can belong to different runs. Do not infer
-            # a fold from row order or combine offers from those runs.
+            # a fold from row order or combine offers from those runs. Place only
+            # the timestamps that the SCED AS reports flag in a single 1 AM hour.
             timestamps = pd.to_datetime(df["SCED Timestamp"])
             df["SCED Timestamp"] = timestamps.dt.tz_localize(
                 self.default_timezone,
                 ambiguous="NaT",
             )
             ambiguous = timestamps.notna() & df["SCED Timestamp"].isna()
+            if ambiguous.any() and get_repeated_hour_flags is not None:
+                df.loc[ambiguous, "SCED Timestamp"] = (
+                    self._localize_with_repeated_hour_flags(
+                        timestamps[ambiguous],
+                        get_repeated_hour_flags(),
+                    )
+                )
+                ambiguous = timestamps.notna() & df["SCED Timestamp"].isna()
             if ambiguous.any():
                 dates = ", ".join(
                     timestamps[ambiguous].dt.strftime("%Y-%m-%d").unique(),
@@ -6052,7 +6128,8 @@ class Ercot(ISOBase):
                 warnings.warn(
                     f"Omitting {ambiguous.sum()} SCED highest-price AS offer rows "
                     f"with ambiguous fall-back timestamps on {dates}. ERCOT provides "
-                    "no UTC offset or repeated-hour flag; both 1 AM hours are omitted.",
+                    "no UTC offset or repeated-hour flag, and these timestamps are "
+                    "not flagged in a single 1 AM hour by the SCED AS reports.",
                     UserWarning,
                     stacklevel=2,
                 )

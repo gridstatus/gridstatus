@@ -2077,6 +2077,58 @@ class TestErcot(BaseTestISO):
 
         assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
 
+    def test_highest_price_as_offer_selected_sced_dst_end(self):
+        """SCED runs whose timestamp occurs in only one 1 AM hour are placed with
+        the SCED AS reports' flags. A timestamp shared by both hours is omitted."""
+        raw = pd.DataFrame(
+            {
+                "SCED Timestamp": [
+                    "11/01/2026 00:55:20",
+                    "11/01/2026 01:00:23",
+                    "11/01/2026 01:05:20",
+                    "11/01/2026 01:05:21",
+                    "11/01/2026 02:00:19",
+                ],
+                "QSE": "QSE1",
+                "DME": "DME1",
+                "Resource Name with Highest - Priced AS Offer Selected in SCED": "R1",
+                "AS Type": "ECRS",
+                "Offered Quantity": [1.0, 2.0, 3.0, 4.0, 5.0],
+                "Offered Price": 10.0,
+            },
+        )
+        flags = pd.DataFrame(
+            {
+                "SCED Timestamp": pd.to_datetime(
+                    [
+                        "2026-11-01 01:00:23",
+                        "2026-11-01 01:00:23",
+                        "2026-11-01 01:05:20",
+                        "2026-11-01 01:05:21",
+                    ],
+                ),
+                "Repeated Hour Flag": ["N", "Y", "Y", "N"],
+            },
+        )
+
+        with (
+            mock.patch.object(self.iso, "read_doc", return_value=raw),
+            pytest.warns(UserWarning, match="Omitting 1 SCED"),
+        ):
+            df = self.iso._handle_highest_price_as_offer_selected_file(
+                doc=None,
+                market="sced",
+                get_repeated_hour_flags=lambda: flags,
+            )
+
+        assert df["SCED Timestamp"].tolist() == [
+            pd.Timestamp("2026-11-01 00:55:20", tz="-05:00"),
+            pd.Timestamp("2026-11-01 01:05:21", tz="-05:00"),
+            pd.Timestamp("2026-11-01 01:05:20", tz="-06:00"),
+            pd.Timestamp("2026-11-01 02:00:19", tz="-06:00"),
+        ]
+        assert df["Total Offered Quantity"].tolist() == [1.0, 4.0, 3.0, 5.0]
+
     def test_handle_as_reports_sced_file_dst_end(self):
         """Runs in the two 1 AM hours on a DST end day stay separate, even when
         they share a wall-clock timestamp."""
