@@ -2,6 +2,10 @@
 
 ## v.Next
 
+### Breaking Changes
+
+* Drop support for Python 3.10, which reached end of life in October 2026. The releases of Pillow, soupsieve and tornado that fix their known vulnerabilities require Python 3.11.
+
 ### Additions (New Features/Datasets)
 
 #### CAISO
