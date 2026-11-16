@@ -6,7 +6,9 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
 from tzfpy import get_tz
+from urllib3.util.retry import Retry
 
 from gridstatus.base import NoDataFoundException
 from gridstatus.decorators import support_date_range
@@ -40,7 +42,7 @@ def _standard_offset(latitude: float, longitude: float, year: int) -> pd.Timedel
     return pd.Timedelta(offset - dst)
 
 
-class EPA:
+class EPACAM:
     """EPA Clean Air Markets Program Data (CAMPD) API client."""
 
     default_timezone = "UTC"
@@ -52,6 +54,21 @@ class EPA:
         if not self.api_key:
             raise ValueError("Provide an API key or set EPA_API_KEY")
         self.session = requests.Session()
+        self.session.mount(
+            f"{BASE_URL}/",
+            HTTPAdapter(
+                max_retries=Retry(
+                    total=3,
+                    connect=0,
+                    read=0,
+                    status_forcelist=[429, 500, 502, 503, 504],
+                    allowed_methods=["GET"],
+                    backoff_factor=1,
+                    respect_retry_after_header=True,
+                    raise_on_status=False,
+                ),
+            ),
+        )
         self._facility_attributes_cache: dict[
             tuple[int, tuple[str, ...]],
             pd.DataFrame,
@@ -71,6 +88,9 @@ class EPA:
             headers={"X-Api-Key": self.api_key},
             timeout=self.REQUEST_TIMEOUT,
         )
+        if response.status_code == 400:
+            # EPA's validation includes its current reporting-quarter cutoff.
+            raise ValueError(f"EPA rejected the request: {response.text}")
         response.raise_for_status()
         return response.json()
 
@@ -120,16 +140,22 @@ class EPA:
         Dates define a UTC interval, with an exclusive end (one day by default).
         EPA's local standard reporting hours are converted using facility coordinates;
         missing coordinates raise rather than silently guessing a time zone. Gross Load
-        is MW, not MWh. Reports arrive quarterly and may be revised later.
+        is MW, not MWh. Local reporting dates begin on 1995-01-01. EPA validates
+        the latest supported reporting quarter; its validation errors are preserved.
+        Reports are due within 30 days of quarter-end and may be revised later;
+        an accepted date does not guarantee complete submissions.
         Chunk large national date ranges at the caller to bound response size.
         """
         # The decorator normalizes dates to UTC without splitting the range.
         start = cast(pd.Timestamp, date)
         end = cast(pd.Timestamp, end or start + pd.Timedelta(days=1))
+        first_available = pd.Timestamp("1995-01-01", tz="UTC")
+        if start < first_available:
+            raise ValueError("EPA CAMPD hourly data begins on 1995-01-01")
         states = tuple(sorted(set(state_codes or [])))
         # US local dates can precede their UTC date. Include the preceding day,
         # then trim after conversion so successive UTC chunks neither overlap nor gap.
-        first_day = (start - pd.Timedelta(days=1)).date()
+        first_day = max(start - pd.Timedelta(days=1), first_available).date()
         last_day = (end - pd.Timedelta(nanoseconds=1)).date()
         params: dict[str, str | int] = {
             "beginDate": str(first_day),

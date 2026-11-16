@@ -1,23 +1,26 @@
+from io import BytesIO
 from unittest.mock import Mock
 
 import pandas as pd
 import pytest
 import requests
+from urllib3 import HTTPResponse
+from urllib3.connectionpool import HTTPSConnectionPool
 
-from gridstatus import EPA
+from gridstatus import EPACAM
 from gridstatus.base import NoDataFoundException
 from gridstatus.epa.epa_constants import POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
 
 
 @pytest.fixture
 def epa():
-    client = EPA(api_key="test-key")
+    client = EPACAM(api_key="test-key")
     client.session.get = Mock()
     return client
 
 
 def response(payload):
-    return Mock(json=lambda: payload, raise_for_status=Mock())
+    return Mock(status_code=200, json=lambda: payload, raise_for_status=Mock())
 
 
 def attributes(facility=591, latitude=39.7302, longitude=-75.5371):
@@ -33,9 +36,12 @@ def hourly(day="2023-07-01", hour=0, facility=591):
     return {
         "facilityId": facility,
         "unitId": "01",
+        "unit_id": 123,
         "date": day,
         "hour": hour,
         "grossLoad": 22.5,
+        "so2MassMeasureFlg": "Measured",
+        "so2RateMeasureFlg": "Calculated",
     }
 
 
@@ -56,6 +62,9 @@ def test_utc_window_and_facility_timezones(epa, day):
     assert not df.duplicated(["Interval Start", "Facility ID", "Unit ID"]).any()
     assert df["Gross Load"].eq(22.5).all()
     assert df["Unit ID"].eq("01").all()
+    assert "Unit ID 2" not in df.columns
+    assert df["SO2 Mass Measure Flag"].eq("Measured").all()
+    assert df["SO2 Rate Measure Flag"].eq("Calculated").all()
     # Local midnight is 06 UTC in Pensacola and 05 UTC in Miami, even in July.
     for facility, utc_hour in [(1, 6), (2, 5)]:
         rows = [hourly(day, 0, facility)]
@@ -139,4 +148,63 @@ def test_requires_epa_key(monkeypatch):
     monkeypatch.delenv("EPA_API_KEY", raising=False)
     monkeypatch.setenv("EIA_API_KEY", "unrelated-key")
     with pytest.raises(ValueError, match="EPA_API_KEY"):
-        EPA()
+        EPACAM()
+
+
+def test_first_available_day_and_earlier_dates(epa):
+    with pytest.raises(ValueError, match="1995-01-01"):
+        epa.get_power_plant_emissions_generation("1994-12-31")
+    epa.session.get.assert_not_called()
+    epa.session.get.side_effect = [
+        response([hourly("1995-01-01")]),
+        response({"items": [attributes()]}),
+    ]
+    result = epa.get_power_plant_emissions_generation("1995-01-01")
+    assert (
+        epa.session.get.call_args_list[0].kwargs["params"]["beginDate"] == "1995-01-01"
+    )
+    assert result["Interval Start"].tolist() == [pd.Timestamp("1995-01-01 05:00Z")]
+
+
+@pytest.mark.parametrize(
+    "statuses, retry_after, delays",
+    [
+        ([429, 429, 200], "3", [3, 2]),
+        ([503, 200], None, []),
+        ([429] * 4, None, [2, 4]),
+        ([400], None, []),
+    ],
+)
+def test_http_retries_and_validation(monkeypatch, statuses, retry_after, delays):
+    # Exercise the real requests/urllib3 retry path without network calls or sleeps.
+    message = b'{"message":"endDate must be on or before 2026-09-30"}'
+    send = Mock(
+        side_effect=[
+            HTTPResponse(
+                status=status,
+                body=BytesIO(b"[]" if status == 200 else message),
+                headers={"Retry-After": retry_after} if i == 0 and retry_after else {},
+                preload_content=False,
+            )
+            for i, status in enumerate(statuses)
+        ],
+    )
+    sleep = Mock()
+    monkeypatch.setattr(HTTPSConnectionPool, "_make_request", send)
+    monkeypatch.setattr("urllib3.util.retry.time.sleep", sleep)
+    client = EPACAM(api_key="test-key")
+    client.session.trust_env = False
+    try:
+        if statuses[-1] == 400:
+            with pytest.raises(ValueError, match="2026-09-30"):
+                client.get_power_plant_emissions_generation("2026-10-01")
+        elif statuses[-1] == 429:
+            with pytest.raises(requests.HTTPError, match="429"):
+                client.get_power_plant_emissions_generation("2023-07-01")
+        else:
+            with pytest.raises(NoDataFoundException):
+                client.get_power_plant_emissions_generation("2023-07-01")
+        assert send.call_count == len(statuses)
+        assert [call.args[0] for call in sleep.call_args_list] == delays
+    finally:
+        client.session.close()
