@@ -11,6 +11,9 @@
 #### CAISO
 * `get_price_corrections` returns `Interval Start` and `Interval End` for each corrected interval, from `Trade Date`, `Hour Ending`, `Interval` and the market's interval length (DAM and RUC 60 minutes, HASP and RTPD 15 minutes, RTD 5 minutes). Hour endings follow OASIS wall-clock numbering: when DST ends, the repeated 1am hour is hour ending 25, and when DST starts, hour ending 3 is skipped.
 
+#### MISO
+* Add `MISO.get_lmp_day_ahead_hourly_ex_ante` and `MISO.get_lmp_day_ahead_hourly_ex_post`, which read day-ahead LMPs from MISO's public daily market report files (`YYYYMMDD_da_exante_lmp.csv` and `YYYYMMDD_da_expost_lmp.csv`) and need no API key. They return the same columns, types, `Market` and `Location Type` values, and row order as the `MISOAPI` methods of the same name, with `Energy` computed as `LMP` minus `Congestion` minus `Loss`. A single date returns the whole market day, a date range returns the hours from `date` up to `end`, and a market day whose file MISO does not serve raises `NoDataFoundException`.
+
 ### Fixes
 
 #### CAISO
