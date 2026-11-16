@@ -142,6 +142,8 @@ class EPACAM:
         missing coordinates raise rather than silently guessing a time zone. Gross Load
         is MW, not MWh. Local reporting dates begin on 1995-01-01. EPA validates
         the latest supported reporting quarter; its validation errors are preserved.
+        Ranges are not clamped to EPA's latest supported date. Pass error="raise"
+        to propagate validation errors for date ranges.
         Reports are due within 30 days of quarter-end and may be revised later;
         an accepted date does not guarantee complete submissions.
         Use an explicit date; "latest" is not supported.

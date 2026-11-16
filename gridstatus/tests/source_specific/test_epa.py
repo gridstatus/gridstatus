@@ -205,7 +205,12 @@ def test_http_retries_and_validation(monkeypatch, statuses, retry_after, delays)
     try:
         if statuses[-1] == 400:
             with pytest.raises(ValueError, match="2026-09-30"):
-                client.get_power_plant_emissions_generation("2026-10-01")
+                client.get_power_plant_emissions_generation(
+                    "2026-09-25",
+                    end="2026-10-02",
+                    error="raise",
+                )
+            assert "endDate=2026-10-01" in send.call_args.args[2]
         elif statuses[-1] == 429:
             with pytest.raises(requests.HTTPError, match="429"):
                 client.get_power_plant_emissions_generation("2023-07-01")

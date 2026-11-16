@@ -8,6 +8,9 @@
 
 ### Additions (New Features/Datasets)
 
+#### EPA
+* Hourly CAMPD emissions and generation via `EPACAM.get_power_plant_emissions_generation` in [#917](https://github.com/gridstatus/gridstatus/pull/917)
+
 #### CAISO
 * `get_price_corrections` returns `Interval Start` and `Interval End` for each corrected interval, from `Trade Date`, `Hour Ending`, `Interval` and the market's interval length (DAM and RUC 60 minutes, HASP and RTPD 15 minutes, RTD 5 minutes). Hour endings follow OASIS wall-clock numbering: when DST ends, the repeated 1am hour is hour ending 25, and when DST starts, hour ending 3 is skipped.
 
@@ -77,9 +80,6 @@
 * `get_lmp` on CAISO, ERCOT, MISO, PJM, NYISO, and ISONE now emits a `DeprecationWarning`. Use the per-dataset methods instead, which take only `date`, `end`, and `verbose` and return all locations, such as `CAISO.get_lmp_day_ahead_hourly`, `Ercot.get_lmp_by_settlement_point`, `MISO.get_lmp_real_time_5_min`, `PJM.get_lmp_real_time_hourly`, `NYISO.get_lmp_real_time_15_min`, and `ISONE.get_lmp_day_ahead_hourly`, in [#890](https://github.com/gridstatus/gridstatus/pull/890)
 
 ### Additions (New Features/Datasets)
-
-#### EPA
-* Hourly CAMPD emissions and generation via `EPACAM.get_power_plant_emissions_generation` in [#917](https://github.com/gridstatus/gridstatus/pull/917)
 
 #### NYISO
 * NYISO Area Control Error (ACE) data available at https://mis.nyiso.com/public/P-38list.htm requested in [#906](https://github.com/gridstatus/gridstatus/issues/906)
