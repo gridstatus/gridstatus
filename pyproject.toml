@@ -3,7 +3,7 @@ name = "gridstatus"
 version = "0.37.0"
 readme = "README.md"
 description = "Access electricity grid data (load, fuel mix, prices, forecasts) from North American ISOs through one consistent Python API"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.11,<3.15"
 authors = [
     { name = "Max Kanter", email = "kmax12@gmail.com" },
     { name = "Will Koehrsen", email = "will@gridstatus.com"},
@@ -98,7 +98,7 @@ dev = [
     "time-machine ~=2.16",
     "tornado>=6.5.8,<7",
     "jinja2 ~=3.1",
-    "pillow>=12.3.0,<13",
+    "pillow>=13.0.0,<14",
     "nbconvert >=7.17.1,<8",
     "bleach >=6.4.0,<7",
     "mistune >=3.2.1,<4",
@@ -117,6 +117,10 @@ dev = [
 "Source Code" = "https://github.com/gridstatus/gridstatus/"
 "Changes" = "https://github.com/gridstatus/gridstatus/blob/main/CHANGELOG.md"
 "Issue Tracker" = "https://github.com/gridstatus/gridstatus/issues"
+
+[tool.uv]
+# soupsieve releases with security fixes need Python 3.11.5+; resolving the lock for older 3.11 patch releases keeps a vulnerable version.
+environments = ["python_full_version >= '3.11.5'"]
 
 [build-system]
 requires = ["hatchling"]

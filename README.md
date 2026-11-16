@@ -48,7 +48,7 @@ Choose between the open source library and the hosted Grid Status API based on h
 
 ## Installation
 
-`gridstatus` supports Python 3.10+. Install with uv or pip:
+`gridstatus` supports Python 3.11+. Install with uv or pip:
 
 ```bash
 uv pip install gridstatus

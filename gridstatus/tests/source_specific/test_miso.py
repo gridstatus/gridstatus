@@ -197,6 +197,129 @@ class TestMISO(BaseTestISO):
             with pytest.raises(NoDataFoundException):
                 self.iso.get_lmp_real_time_5_min_final(date)
 
+    """get_lmp_day_ahead_hourly_ex_ante and get_lmp_day_ahead_hourly_ex_post"""
+
+    day_ahead_hourly_market_report_methods = pytest.mark.parametrize(
+        "method_name, market",
+        [
+            ("get_lmp_day_ahead_hourly_ex_ante", Markets.DAY_AHEAD_HOURLY_EX_ANTE),
+            ("get_lmp_day_ahead_hourly_ex_post", Markets.DAY_AHEAD_HOURLY_EX_POST),
+        ],
+    )
+
+    def _check_lmp_day_ahead_hourly_market_report(self, data, market):
+        assert data.columns.tolist() == [
+            "Interval Start",
+            "Interval End",
+            "Market",
+            "Location",
+            "Location Type",
+            "LMP",
+            "Energy",
+            "Congestion",
+            "Loss",
+        ]
+        assert data.columns.name is None
+        assert isinstance(data.index, pd.RangeIndex)
+
+        for column in ["Interval Start", "Interval End"]:
+            assert str(data[column].dt.tz) == self.iso.default_timezone
+        for column in ["LMP", "Energy", "Congestion", "Loss"]:
+            assert data[column].dtype == "float64"
+
+        assert (data["Interval End"] - data["Interval Start"]).unique() == pd.Timedelta(
+            hours=1,
+        )
+        assert data["Market"].unique().tolist() == [market.value]
+        assert sorted(data["Location Type"].unique()) == [
+            "Gennode",
+            "Hub",
+            "Interface",
+            "Loadzone",
+        ]
+
+        assert not data.duplicated(["Interval Start", "Location"]).any()
+        pd.testing.assert_frame_equal(
+            data,
+            data.sort_values(["Interval Start", "Location"]).reset_index(drop=True),
+        )
+        pd.testing.assert_series_equal(
+            data["Energy"],
+            (data["LMP"] - data["Congestion"] - data["Loss"]).round(2),
+            check_names=False,
+        )
+
+    @day_ahead_hourly_market_report_methods
+    def test_get_lmp_day_ahead_hourly_market_report_date(self, method_name, market):
+        date = self.local_today() - pd.Timedelta(days=2)
+        cassette_name = f"test_{method_name}_date_{date.strftime('%Y-%m-%d')}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            data = getattr(self.iso, method_name)(date)
+
+        self._check_lmp_day_ahead_hourly_market_report(data, market)
+        assert data["Interval Start"].min() == self.local_start_of_day(date)
+        assert data["Interval End"].max() == self.local_start_of_day(
+            date,
+        ) + pd.Timedelta(days=1)
+        assert data["Interval Start"].nunique() == 24
+        assert (data.groupby("Interval Start")["Location"].nunique() > 2000).all()
+
+    @day_ahead_hourly_market_report_methods
+    def test_get_lmp_day_ahead_hourly_market_report_date_range(
+        self,
+        method_name,
+        market,
+    ):
+        # Starts partway through an hour and ends inside the next market day to
+        # check only the requested hours are returned
+        start = self.local_start_of_day(
+            self.local_today() - pd.Timedelta(days=3),
+        ) + pd.Timedelta(hours=22, minutes=30)
+        end = start + pd.Timedelta(hours=3, minutes=30)
+        cassette_name = (
+            f"test_{method_name}_date_range_{start.strftime('%Y-%m-%d')}.yaml"
+        )
+        with miso_vcr.use_cassette(cassette_name):
+            data = getattr(self.iso, method_name)(start, end)
+            data_from_tuple = getattr(self.iso, method_name)(date=(start, end))
+
+        self._check_lmp_day_ahead_hourly_market_report(data, market)
+        assert data["Interval Start"].min() == start.floor("h")
+        assert data["Interval Start"].max() == end - pd.Timedelta(hours=1)
+        assert data["Interval Start"].nunique() == 4
+        pd.testing.assert_frame_equal(data, data_from_tuple)
+
+    @day_ahead_hourly_market_report_methods
+    def test_get_lmp_day_ahead_hourly_market_report_raises_error_if_no_data(
+        self,
+        method_name,
+        market,
+    ):
+        # MISO no longer serves the files for this market day
+        date = "2022-11-15"
+        cassette_name = f"test_{method_name}_raises_error_if_no_data_{date}.yaml"
+        with miso_vcr.use_cassette(cassette_name):
+            with pytest.raises(NoDataFoundException):
+                getattr(self.iso, method_name)(date)
+
+            with pytest.raises(NoDataFoundException):
+                getattr(self.iso, method_name)(
+                    date=(
+                        pd.Timestamp(date),
+                        pd.Timestamp(date) + pd.Timedelta(days=1),
+                    ),
+                    error="raise",
+                )
+
+    @day_ahead_hourly_market_report_methods
+    def test_get_lmp_day_ahead_hourly_market_report_latest_raises(
+        self,
+        method_name,
+        market,
+    ):
+        with pytest.raises(NotSupported):
+            getattr(self.iso, method_name)("latest")
+
     """get_lmp"""
 
     @with_markets(Markets.REAL_TIME_HOURLY_FINAL, Markets.REAL_TIME_HOURLY_PRELIM)

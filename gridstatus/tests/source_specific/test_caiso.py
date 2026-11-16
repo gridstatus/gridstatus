@@ -6,8 +6,10 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException, NotSupported
+from gridstatus.caiso import daily_energy_storage
 from gridstatus.caiso.caiso import (
     _collapse_group_to_array,
+    _oasis_error_message,
     _read_price_corrections_csv,
 )
 from gridstatus.caiso.caiso_constants import (
@@ -315,15 +317,36 @@ class TestCAISO(BaseTestISO):
         assert len(replacements) == 4
         assert replacements["Correction Reason"].notna().all()
 
-    def test_get_price_corrections_raises_when_empty(self):
+    @pytest.mark.caiso_oasis
+    @pytest.mark.real_sleep
+    def test_get_price_corrections_raises_when_empty(self, caplog):
         # Future trade dates have no issued corrections, so the method raises
         # rather than returning an empty frame, letting callers distinguish
-        # "no corrections" explicitly.
+        # "no corrections" explicitly. Real sleeps keep OASIS from answering 429.
         with caiso_vcr.use_cassette(
-            "test_get_price_corrections_empty.yaml",
+            "test_get_price_corrections_empty_2030-07-01.yaml",
         ):
             with pytest.raises(NoDataFoundException):
-                self.iso.get_price_corrections(date="2026-07-01", end="2026-07-04")
+                self.iso.get_price_corrections(date="2030-07-01")
+
+        assert "OASIS error" in caplog.text
+
+    def test_oasis_error_message(self):
+        # As OASIS served a PRC_CORR_GRP request for a summary still being built.
+        contents = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<m:OASISReport xmlns:m="http://www.caiso.com/soa/OASISReport_v1.xsd">\n'
+            b"<m:MessagePayload>\n<m:RTO>\n<m:name>CAISO</m:name>\n<m:ERROR>\n"
+            b"<m:ERR_CODE>1015</m:ERR_CODE>\n"
+            b"<m:ERR_DESC>GroupZip DownLoad is in Processing, Please Submit request "
+            b"after Sometime</m:ERR_DESC>\n"
+            b"</m:ERROR>\n</m:RTO>\n</m:MessagePayload>\n</m:OASISReport>"
+        )
+
+        assert _oasis_error_message(contents) == (
+            "OASIS error 1015: GroupZip DownLoad is in Processing, Please Submit "
+            "request after Sometime"
+        )
 
     def test_parse_price_corrections_multiline_reason(self):
         # Trade date 2026-10-13 as served by OASIS: the Interval Replacement row
@@ -1257,6 +1280,79 @@ class TestCAISO(BaseTestISO):
         ):
             if unit in ("day", "month"):
                 assert (timestamps == timestamps.normalize()).all()
+
+    def test_renewables_report_slots_follow_the_wall_clock_when_dst_ends(self):
+        """The report has one 1 AM hour on a 25-hour day. It is the first one,
+        and every later value keeps its wall-clock hour."""
+        configs = get_dataframe_config_for_renewables_report(
+            pd.Timestamp("2026-11-01", tz=self.iso.default_timezone),
+            self.iso.default_timezone,
+        )
+        hourly = next(
+            timestamps
+            for name, timestamps, _, _, _ in configs
+            if name == "solar_curtailment_total_hourly"
+        )
+
+        assert len(hourly) == 24
+        assert hourly[1] == pd.Timestamp("2026-11-01 01:00", tz="-07:00")
+        assert hourly[2] == pd.Timestamp("2026-11-01 02:00", tz="-08:00")
+        assert hourly[-1] == pd.Timestamp("2026-11-01 23:00", tz="-08:00")
+
+    def test_renewables_report_has_no_2_am_hour_when_dst_starts(self):
+        configs = get_dataframe_config_for_renewables_report(
+            pd.Timestamp("2026-03-08", tz=self.iso.default_timezone),
+            self.iso.default_timezone,
+        )
+        five_minute = next(
+            timestamps
+            for name, timestamps, _, _, _ in configs
+            if name == "solar_generation_caiso_5_min"
+        )
+
+        assert len(five_minute) == 288
+        assert five_minute.isna().sum() == 12
+        assert five_minute[23] == pd.Timestamp("2026-03-08 01:55", tz="-08:00")
+        assert five_minute[36] == pd.Timestamp("2026-03-08 03:00", tz="-07:00")
+        assert five_minute[-1] == pd.Timestamp("2026-03-08 23:55", tz="-07:00")
+
+    @pytest.mark.parametrize(
+        "date, expected_rows, second_hour_start, last_start",
+        [
+            (
+                "2026-11-01",
+                288,
+                pd.Timestamp("2026-11-01 02:00", tz="-08:00"),
+                pd.Timestamp("2026-11-01 23:55", tz="-08:00"),
+            ),
+            (
+                "2026-03-08",
+                276,
+                pd.Timestamp("2026-03-08 03:00", tz="-07:00"),
+                pd.Timestamp("2026-03-08 23:55", tz="-07:00"),
+            ),
+        ],
+    )
+    def test_daily_energy_storage_slots_follow_the_wall_clock_on_dst_days(
+        self,
+        date,
+        expected_rows,
+        second_hour_start,
+        last_start,
+    ):
+        """The report always has 288 five-minute values. Value 24 belongs to the
+        hour after 1 AM on the wall clock, and the day ends at 23:55."""
+        html = f"var tot_charge_rtd = {list(range(288))};"
+        report_start = pd.Timestamp(date, tz=self.iso.default_timezone)
+
+        df = daily_energy_storage.build_storage_soc_rtd(html, report_start)
+
+        assert len(df) == expected_rows
+        assert df["Interval Start"].notna().all()
+        slot = 36 if date == "2026-03-08" else 24
+        assert df.loc[df["SOC"] == slot, "Interval Start"].iloc[0] == second_hour_start
+        assert df["Interval Start"].iloc[-1] == last_start
+        assert df["SOC"].iloc[-1] == 287
 
     """get_gas_prices"""
 

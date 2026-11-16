@@ -1,7 +1,8 @@
 import datetime
 import warnings
-from io import StringIO
+from io import BytesIO, StringIO
 from unittest import mock
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
@@ -2075,6 +2076,99 @@ class TestErcot(BaseTestISO):
         self._check_as_reports_sced(df)
 
         assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
+
+    def test_highest_price_as_offer_selected_sced_dst_end(self):
+        """SCED runs whose timestamp occurs in only one 1 AM hour are placed with
+        the SCED AS reports' flags. A timestamp shared by both hours is omitted."""
+        raw = pd.DataFrame(
+            {
+                "SCED Timestamp": [
+                    "11/01/2026 00:55:20",
+                    "11/01/2026 01:00:23",
+                    "11/01/2026 01:05:20",
+                    "11/01/2026 01:05:21",
+                    "11/01/2026 02:00:19",
+                ],
+                "QSE": "QSE1",
+                "DME": "DME1",
+                "Resource Name with Highest - Priced AS Offer Selected in SCED": "R1",
+                "AS Type": "ECRS",
+                "Offered Quantity": [1.0, 2.0, 3.0, 4.0, 5.0],
+                "Offered Price": 10.0,
+            },
+        )
+        flags = pd.DataFrame(
+            {
+                "SCED Timestamp": pd.to_datetime(
+                    [
+                        "2026-11-01 01:00:23",
+                        "2026-11-01 01:00:23",
+                        "2026-11-01 01:05:20",
+                        "2026-11-01 01:05:21",
+                    ],
+                ),
+                "Repeated Hour Flag": ["N", "Y", "Y", "N"],
+            },
+        )
+
+        with (
+            mock.patch.object(self.iso, "read_doc", return_value=raw),
+            pytest.warns(UserWarning, match="Omitting 1 SCED"),
+        ):
+            df = self.iso._handle_highest_price_as_offer_selected_file(
+                doc=None,
+                market="sced",
+                get_repeated_hour_flags=lambda: flags,
+            )
+
+        assert df["SCED Timestamp"].tolist() == [
+            pd.Timestamp("2026-11-01 00:55:20", tz="-05:00"),
+            pd.Timestamp("2026-11-01 01:05:21", tz="-05:00"),
+            pd.Timestamp("2026-11-01 01:05:20", tz="-06:00"),
+            pd.Timestamp("2026-11-01 02:00:19", tz="-06:00"),
+        ]
+        assert df["Total Offered Quantity"].tolist() == [1.0, 4.0, 3.0, 5.0]
+
+    def test_handle_as_reports_sced_file_dst_end(self):
+        """Runs in the two 1 AM hours on a DST end day stay separate, even when
+        they share a wall-clock timestamp."""
+        csv = (
+            "SCED Timestamp,Repeated Hour Flag,MW Offered,REGUP Offer Price\n"
+            "11/01/2026 00:55:20,N,10,1.5\n"
+            "11/01/2026 01:00:23,N,10,2.5\n"
+            "11/01/2026 01:00:23,N,20,3.5\n"
+            "11/01/2026 01:05:21,N,10,4.5\n"
+            "11/01/2026 01:00:23,Y,30,5.5\n"
+            "11/01/2026 01:05:20,Y,30,6.5\n"
+            "11/01/2026 02:00:19,N,40,7.5\n"
+        )
+        buffer = BytesIO()
+        with ZipFile(buffer, "w") as archive:
+            archive.writestr("2day_Agg_SCED_AS_Offers_REGUP-03-NOV-26.csv", csv)
+
+        with mock.patch(
+            "gridstatus.ercot.utils.get_zip_folder",
+            return_value=ZipFile(buffer),
+        ):
+            df = self.iso._handle_as_reports_sced_file("unused")
+
+        assert df.columns.tolist() == ["SCED Timestamp", "AS Type", "Offer Curve"]
+        assert df["SCED Timestamp"].astype(str).tolist() == [
+            "2026-11-01 00:55:20-05:00",
+            "2026-11-01 01:00:23-05:00",
+            "2026-11-01 01:05:21-05:00",
+            "2026-11-01 01:00:23-06:00",
+            "2026-11-01 01:05:20-06:00",
+            "2026-11-01 02:00:19-06:00",
+        ]
+        assert df["Offer Curve"].tolist() == [
+            [[10, 1.5]],
+            [[10, 2.5], [20, 3.5]],
+            [[10, 4.5]],
+            [[30, 5.5]],
+            [[30, 6.5]],
+            [[40, 7.5]],
+        ]
 
     """get_aggregate_*_2_day"""
 

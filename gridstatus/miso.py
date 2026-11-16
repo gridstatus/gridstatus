@@ -15,6 +15,11 @@ from gridstatus.decorators import support_date_range
 from gridstatus.gs_logging import logger
 from gridstatus.lmp_config import lmp_config
 
+DAY_AHEAD_LMP_MARKET_REPORT_FILE_NAMES = {
+    Markets.DAY_AHEAD_HOURLY_EX_ANTE: "da_exante_lmp",
+    Markets.DAY_AHEAD_HOURLY_EX_POST: "da_expost_lmp",
+}
+
 
 def add_interval_end(df: pd.DataFrame, duration_min: int) -> pd.DataFrame:
     """Add an interval end column to a dataframe
@@ -795,6 +800,155 @@ class MISO(ISOBase):
             locations="ALL",
             verbose=verbose,
         )
+
+    def get_lmp_day_ahead_hourly_ex_ante(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """Get ExAnte day-ahead hourly LMPs for all nodes from MISO's public
+        daily market report files.
+
+        Returns the same columns, types, and row order as
+        :meth:`gridstatus.miso_api.MISOAPI.get_lmp_day_ahead_hourly_ex_ante`
+        without needing an API key. A single date returns the whole market day
+        and a date range returns the hours from date up to but not including
+        end. Raises :class:`NoDataFoundException` when MISO does not serve the
+        file for a market day.
+
+        Data from: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3AHistorical%20LMP%2FMarketReportName%3ADay-Ahead%20Market%20ExAnte%20LMPs%20(csv)&t=10&p=0&s=MarketReportPublished&sd=desc
+        """
+        return self._get_lmp_day_ahead_hourly_from_market_reports(
+            date,
+            end=end,
+            market=Markets.DAY_AHEAD_HOURLY_EX_ANTE,
+            verbose=verbose,
+            **kwargs,
+        )
+
+    def get_lmp_day_ahead_hourly_ex_post(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None = None,
+        verbose: bool = False,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """Get ExPost day-ahead hourly LMPs for all nodes from MISO's public
+        daily market report files.
+
+        Returns the same columns, types, and row order as
+        :meth:`gridstatus.miso_api.MISOAPI.get_lmp_day_ahead_hourly_ex_post`
+        without needing an API key. A single date returns the whole market day
+        and a date range returns the hours from date up to but not including
+        end. Raises :class:`NoDataFoundException` when MISO does not serve the
+        file for a market day.
+
+        Data from: https://www.misoenergy.org/markets-and-operations/real-time--market-data/market-reports/#nt=%2FMarketReportType%3AHistorical%20LMP%2FMarketReportName%3ADay-Ahead%20Market%20ExPost%20LMPs%20(csv)&t=10&p=0&s=MarketReportPublished&sd=desc
+        """
+        return self._get_lmp_day_ahead_hourly_from_market_reports(
+            date,
+            end=end,
+            market=Markets.DAY_AHEAD_HOURLY_EX_POST,
+            verbose=verbose,
+            **kwargs,
+        )
+
+    def _get_lmp_day_ahead_hourly_from_market_reports(
+        self,
+        date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
+        end: str | pd.Timestamp | None,
+        market: Markets,
+        verbose: bool = False,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        if date == "latest":
+            raise NotSupported("Day-ahead LMP market reports need a market day")
+
+        data = self._get_lmp_day_ahead_hourly_market_report(
+            date,
+            end=end,
+            market=market,
+            verbose=verbose,
+            **kwargs,
+        )
+
+        if isinstance(date, tuple):
+            date, end = date
+        if end is None:
+            return data
+
+        # The files hold whole market days, so keep only the requested hours.
+        if isinstance(end, str) and end.lower() == "today":
+            end = pd.Timestamp.now(tz=self.default_timezone).normalize() + (
+                pd.DateOffset(days=1)
+            )
+        range_start = utils._handle_date(date, self.default_timezone).floor("h")
+        range_end = utils._handle_date(end, self.default_timezone)
+
+        return data[
+            (data["Interval Start"] >= range_start)
+            & (data["Interval Start"] < range_end)
+        ].reset_index(drop=True)
+
+    @support_date_range(frequency="DAY_START")
+    def _get_lmp_day_ahead_hourly_market_report(
+        self,
+        date: str | pd.Timestamp,
+        end: str | pd.Timestamp | None = None,
+        market: Markets = Markets.DAY_AHEAD_HOURLY_EX_POST,
+        verbose: bool = False,
+    ) -> pd.DataFrame:
+        """Read one market day of day-ahead LMPs from a public market report file."""
+        file_name = DAY_AHEAD_LMP_MARKET_REPORT_FILE_NAMES[market]
+        url = f"https://docs.misoenergy.org/marketreports/{date.strftime('%Y%m%d')}_{file_name}.csv"
+
+        logger.info(f"Downloading LMP data from {url}")
+        try:
+            raw_data = pd.read_csv(url, skiprows=4)
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                raise NoDataFoundException(
+                    f"No {market.value} LMP file found for {date.strftime('%Y-%m-%d')} at {url}",
+                ) from error
+            raise
+
+        # A range can start partway through an hour, and the parser keeps the
+        # minutes of the date it is given.
+        data = self._handle_hourly_lmp(date.normalize(), raw_data)
+        data.columns.name = None
+        data["Interval End"] = data["Interval Start"] + pd.Timedelta(hours=1)
+        data["Market"] = market.value
+
+        data = data.rename(
+            columns={
+                "Node": "Location",
+                "Type": "Location Type",
+                "MCC": "Congestion",
+                "MLC": "Loss",
+            },
+        )
+
+        # The files have no energy component. They publish prices to the cent, so
+        # round away floating point error from the subtraction.
+        data["Energy"] = (data["LMP"] - data["Congestion"] - data["Loss"]).round(2)
+
+        data = data[
+            [
+                "Interval Start",
+                "Interval End",
+                "Market",
+                "Location",
+                "Location Type",
+                "LMP",
+                "Energy",
+                "Congestion",
+                "Loss",
+            ]
+        ]
+
+        return data.sort_values(["Interval Start", "Location"]).reset_index(drop=True)
 
     def get_lmp_real_time_hourly_prelim(
         self,
