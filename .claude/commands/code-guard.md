@@ -23,7 +23,7 @@ Follow the steps below and only output the final Report Out section.
    - Map what's touched: ISO parser (`gridstatus/<iso>.py`), base classes, HTTP helpers, tests, fixtures
    - Flag risk zones:
      - **VCR cassettes**: new tests must use fixed recent dates (not `today`/`latest`), cassettes must not contain 4xx/5xx responses, and must be uploaded via `make fixtures-upload iso=<iso>` — they are NOT committed to git
-     - **Python version compat**: library supports Python 3.10–3.12; no 3.13-only syntax (no `type` statement aliases, etc.)
+     - **Python version compat**: library supports Python 3.11–3.12; no 3.13-only syntax (no `type` statement aliases, etc.)
      - **ISO API breakage**: parsers that silently return empty DataFrames on schema changes
      - **Timezone handling**: every ISO has its own local tz; confirm tz-aware timestamps
      - **Network retries and rate limits**
