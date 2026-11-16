@@ -8,7 +8,7 @@ from urllib3 import HTTPResponse
 from urllib3.connectionpool import HTTPSConnectionPool
 
 from gridstatus import EPACAM
-from gridstatus.base import NoDataFoundException
+from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.epa.epa_constants import POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
 
 
@@ -65,6 +65,8 @@ def test_utc_window_and_facility_timezones(epa, day):
     assert "Unit ID 2" not in df.columns
     assert df["SO2 Mass Measure Flag"].eq("Measured").all()
     assert df["SO2 Rate Measure Flag"].eq("Calculated").all()
+    assert df.loc[df["Facility ID"].eq(1), "Latitude"].eq(30.4).all()
+    assert df.loc[df["Facility ID"].eq(1), "Longitude"].eq(-87.2).all()
     # Local midnight is 06 UTC in Pensacola and 05 UTC in Miami, even in July.
     for facility, utc_hour in [(1, 6), (2, 5)]:
         rows = [hourly(day, 0, facility)]
@@ -149,6 +151,12 @@ def test_requires_epa_key(monkeypatch):
     monkeypatch.setenv("EIA_API_KEY", "unrelated-key")
     with pytest.raises(ValueError, match="EPA_API_KEY"):
         EPACAM()
+
+
+def test_latest_requires_explicit_date(epa):
+    with pytest.raises(NotSupported, match="explicit date"):
+        epa.get_power_plant_emissions_generation("latest")
+    epa.session.get.assert_not_called()
 
 
 def test_first_available_day_and_earlier_dates(epa):

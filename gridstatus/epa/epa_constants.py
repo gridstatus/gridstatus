@@ -32,8 +32,8 @@ HOURLY_COLUMN_RENAMES = {
 }
 
 ATTRIBUTE_COLUMN_RENAMES = {
-    "latitude": "lat",
-    "longitude": "lon",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
     "county": "County",
     "countyCode": "County Code",
     "fipsCode": "FIPS Code",

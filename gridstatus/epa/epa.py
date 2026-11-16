@@ -10,7 +10,7 @@ from requests.adapters import HTTPAdapter
 from tzfpy import get_tz
 from urllib3.util.retry import Retry
 
-from gridstatus.base import NoDataFoundException
+from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.decorators import support_date_range
 from gridstatus.epa.epa_constants import (
     ATTRIBUTE_COLUMN_RENAMES,
@@ -144,8 +144,13 @@ class EPACAM:
         the latest supported reporting quarter; its validation errors are preserved.
         Reports are due within 30 days of quarter-end and may be revised later;
         an accepted date does not guarantee complete submissions.
+        Use an explicit date; "latest" is not supported.
         Chunk large national date ranges at the caller to bound response size.
         """
+        if date == "latest":
+            raise NotSupported(
+                "EPA CAMPD requires an explicit date; latest is not supported",
+            )
         # The decorator normalizes dates to UTC without splitting the range.
         start = cast(pd.Timestamp, date)
         end = cast(pd.Timestamp, end or start + pd.Timedelta(days=1))
