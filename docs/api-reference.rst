@@ -40,7 +40,7 @@ Other Data Sources
 .. autoapisummary::
 
     gridstatus.eia.EIA
-    gridstatus.epa.epa.EPACAM
+    gridstatus.epa.epa.EPA
 
 Utilities
 ~~~~~~~~~

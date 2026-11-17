@@ -47,8 +47,8 @@ def _standard_offset(
     return pd.Timedelta(offset - dst)
 
 
-class EPACAM:
-    """EPA Clean Air Markets Program Data (CAMPD) API client."""
+class EPA:
+    """EPA data client."""
 
     default_timezone = "UTC"
     REQUEST_TIMEOUT = (10, 180)
@@ -140,7 +140,9 @@ class EPACAM:
         state_codes: list[str] | None = None,
         verbose: bool = False,
     ) -> pd.DataFrame:
-        """Hourly CAMPD emissions, heat input, gross load, and annual unit attributes.
+        """Hourly Clean Air Markets Program Data (CAMPD).
+
+        Includes emissions, heat input, gross load, and annual unit attributes.
 
         Dates define a UTC interval, with an exclusive end (one day by default).
         EPA's local standard reporting hours are converted using facility coordinates;

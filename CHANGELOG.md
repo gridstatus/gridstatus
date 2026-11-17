@@ -9,7 +9,7 @@
 ### Additions (New Features/Datasets)
 
 #### EPA
-* Hourly CAMPD emissions and generation via `EPACAM.get_power_plant_emissions_generation` in [#917](https://github.com/gridstatus/gridstatus/pull/917)
+* Hourly CAMPD emissions and generation via `EPA.get_power_plant_emissions_generation` in [#917](https://github.com/gridstatus/gridstatus/pull/917)
 
 #### CAISO
 * `get_price_corrections` returns `Interval Start` and `Interval End` for each corrected interval, from `Trade Date`, `Hour Ending`, `Interval` and the market's interval length (DAM and RUC 60 minutes, HASP and RTPD 15 minutes, RTD 5 minutes). Hour endings follow OASIS wall-clock numbering: when DST ends, the repeated 1am hour is hour ending 25, and when DST starts, hour ending 3 is skipped.

@@ -1,3 +1,3 @@
-from gridstatus.epa.epa import EPACAM
+from gridstatus.epa.epa import EPA
 
-__all__ = ["EPACAM"]
+__all__ = ["EPA"]

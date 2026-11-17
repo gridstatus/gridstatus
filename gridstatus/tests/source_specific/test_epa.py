@@ -8,14 +8,14 @@ import requests
 from urllib3 import HTTPResponse
 from urllib3.connectionpool import HTTPSConnectionPool
 
-from gridstatus import EPACAM
+from gridstatus import EPA
 from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.epa.epa_constants import POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
 
 
 @pytest.fixture
 def epa():
-    client = EPACAM(api_key="test-key")
+    client = EPA(api_key="test-key")
     client.session.get = Mock()
     return client
 
@@ -112,7 +112,7 @@ def test_pagination_year_join_and_range(epa):
 @pytest.mark.integration
 @pytest.mark.skipif(not os.getenv("EPA_API_KEY"), reason="EPA_API_KEY is required")
 def test_power_plant_emissions_generation_live():
-    df = EPACAM().get_power_plant_emissions_generation("2011-01-01", state_codes=["ND"])
+    df = EPA().get_power_plant_emissions_generation("2011-01-01", state_codes=["ND"])
     assert not df.empty
     assert df.columns.tolist() == POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
@@ -180,7 +180,7 @@ def test_requires_epa_key(monkeypatch):
     monkeypatch.delenv("EPA_API_KEY", raising=False)
     monkeypatch.setenv("EIA_API_KEY", "unrelated-key")
     with pytest.raises(ValueError, match="EPA_API_KEY"):
-        EPACAM()
+        EPA()
 
 
 def test_latest_requires_explicit_date(epa):
@@ -230,7 +230,7 @@ def test_http_retries_and_validation(monkeypatch, statuses, retry_after, delays)
     sleep = Mock()
     monkeypatch.setattr(HTTPSConnectionPool, "_make_request", send)
     monkeypatch.setattr("urllib3.util.retry.time.sleep", sleep)
-    client = EPACAM(api_key="test-key")
+    client = EPA(api_key="test-key")
     client.session.trust_env = False
     try:
         if statuses[-1] == 400:
