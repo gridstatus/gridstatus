@@ -15,7 +15,7 @@
     </a>
 </p>
 
-`gridstatus` is an open source Python library, maintained by [Grid Status](https://www.gridstatus.io/), that fetches electricity market data directly from North American independent system operators (ISOs), regional transmission organizations (RTOs), and the U.S. EIA.
+`gridstatus` is an open source Python library, maintained by [Grid Status](https://www.gridstatus.io/), that fetches electricity market data directly from North American independent system operators (ISOs), regional transmission organizations (RTOs), and the U.S. EIA and EPA.
 
 <table>
   <tr>
@@ -40,7 +40,7 @@ Choose between the open source library and the hosted Grid Status API based on h
 
 | Open source `gridstatus` | Hosted [Grid Status API](https://www.gridstatus.io/api) and [`gridstatusio`](https://github.com/gridstatus/gridstatusio) |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| Minimally processed data fetched directly from ISO and EIA sources | Hosted data with consistent column names, timestamp formats, and DST handling |
+| Minimally processed data fetched directly from ISO, EIA, and EPA sources | Hosted data with consistent column names, timestamp formats, and DST handling |
 | Python library with source-specific integrations and fields | Single REST API with a Python client |
 | No Grid Status account; most datasets require no API key | Grid Status API key with free and paid plans |
 | Historical availability depends on each source's retention policy | Historical data queryable immediately |
@@ -85,7 +85,7 @@ Most dataset methods return pandas DataFrames, with timezone-aware columns for t
 
 Available data includes load, fuel mix, forecasts, locational marginal prices (LMPs), storage, ancillary services, interconnection queues, and more. Coverage and historical availability vary by source.
 
-- **ISOs / RTOs / grids:** CAISO, ERCOT, PJM, MISO, SPP, NYISO, ISO-NE, IESO, and AESO, plus the U.S. EIA.
+- **ISOs / RTOs / grids:** CAISO, ERCOT, PJM, MISO, SPP, NYISO, ISO-NE, IESO, and AESO, plus the U.S. EIA and EPA.
 - **Datasets (vary by ISO):** fuel mix, load (demand), load forecasts, locational marginal prices (LMP, day-ahead & real-time), storage, ancillary-service prices, interconnection queues, and more.
 
 The exact dataset coverage per ISO is documented in the [API reference](https://opensource.gridstatus.io/).

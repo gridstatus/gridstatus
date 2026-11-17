@@ -66,7 +66,7 @@ The best way to ensure everything is installed correctly is by running the tests
 ## Environment Variables
 
 * Copy `.env.template` into a new file called `.env` and fill in the appropriate values for the environment variables. `.env` should not be committed to the repository.
-* Fill out these variables if you want to use the EIA or ERCOT APIs. To make sure your .env is accessible to the uv runtime environment, you can set the `UV_ENV_FILE` environment variable to the path of your .env file. `export UV_ENV_FILE=path/to/.env`
+* Fill out these variables for sources that require credentials, including EIA, EPA, and ERCOT. To make sure your .env is accessible to the uv runtime environment, you can set the `UV_ENV_FILE` environment variable to the path of your .env file. `export UV_ENV_FILE=path/to/.env`
 
 
 ## Running Tests and Linting
