@@ -3723,6 +3723,44 @@ class TestErcot(BaseTestISO):
                 self.iso.default_timezone,
             ) + pd.Timedelta(minutes=50)
 
+    def test_handle_indicative_lmp_by_settlement_point_dst_end(self):
+        """ERCOT labels both fall-back hour boundaries 02:00 and tells them apart with
+        IntervalRepeatedHourFlag. Rows are HB_NORTH from the 2026-11-01 01:55 runs.
+        """
+        data_string = """RTDTimestamp,RepeatedHourFlag,IntervalId,IntervalEnding,IntervalRepeatedHourFlag,SettlementPoint,SettlementPointType,LMP
+11/01/2026 01:55:03,N,1,11/01/2026 02:00:00,N,HB_NORTH,HU,53.63
+11/01/2026 01:55:03,N,2,11/01/2026 01:05:00,Y,HB_NORTH,HU,44.82
+11/01/2026 01:55:03,N,12,11/01/2026 01:55:00,Y,HB_NORTH,HU,38.76
+11/01/2026 01:55:03,N,13,11/01/2026 02:00:00,Y,HB_NORTH,HU,38.73
+11/01/2026 01:55:03,N,14,11/01/2026 02:05:00,N,HB_NORTH,HU,33.12
+11/01/2026 01:55:03,Y,1,11/01/2026 02:00:00,Y,HB_NORTH,HU,57.62
+11/01/2026 01:55:03,Y,2,11/01/2026 02:05:00,N,HB_NORTH,HU,36.35
+"""
+        df = self.iso._handle_indicative_lmp_by_settlement_point(
+            pd.read_csv(StringIO(data_string)),
+        )
+
+        assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta("5min")).all()
+        df = df.sort_values(["RTD Timestamp", "Interval Start"])
+        result = list(
+            zip(
+                df["RTD Timestamp"].dt.tz_convert("UTC"),
+                df["Interval Start"].dt.tz_convert("UTC"),
+                df["LMP"],
+            ),
+        )
+        first_run = pd.Timestamp("2026-11-01 06:55:03", tz="UTC")
+        second_run = pd.Timestamp("2026-11-01 07:55:03", tz="UTC")
+        assert result == [
+            (first_run, pd.Timestamp("2026-11-01 06:55", tz="UTC"), 53.63),
+            (first_run, pd.Timestamp("2026-11-01 07:00", tz="UTC"), 44.82),
+            (first_run, pd.Timestamp("2026-11-01 07:50", tz="UTC"), 38.76),
+            (first_run, pd.Timestamp("2026-11-01 07:55", tz="UTC"), 38.73),
+            (first_run, pd.Timestamp("2026-11-01 08:00", tz="UTC"), 33.12),
+            (second_run, pd.Timestamp("2026-11-01 07:55", tz="UTC"), 57.62),
+            (second_run, pd.Timestamp("2026-11-01 08:00", tz="UTC"), 36.35),
+        ]
+
     """get_dam_total_energy_purchased"""
 
     def _check_dam_total_energy_purchased(self, df):
@@ -4707,6 +4745,53 @@ class TestErcot(BaseTestISO):
 
         # 2 hours / 5 minutes/interval = 24 RTD Timestamps
         assert df["RTD Timestamp"].nunique() == 24
+
+    # Rows of the 2026-11-01 01:55 runs in ERCOT's format, with the prices stored
+    # for those intervals. ERCOT no longer serves the raw files for that day.
+    INDICATIVE_MCPC_DST_END_CSV = """RTDTimestamp,RepeatedHourFlag,IntervalID,IntervalEnding,IntervalEndingRepeatedHourFlag,REGUP,REGDN,RRS,ECRS,NSPIN
+11/01/2026 01:55:03,N,1,11/01/2026 02:00,N,9.39,1.42,4.39,8.79,35.11
+11/01/2026 01:55:03,N,2,11/01/2026 01:05,Y,9.77,1.04,8.3,12.52,26.27
+11/01/2026 01:55:03,N,12,11/01/2026 01:55,Y,6.13,1.04,5.55,7.67,20.38
+11/01/2026 01:55:03,N,13,11/01/2026 02:00,Y,6.13,1.04,5.54,7.65,20.33
+11/01/2026 01:55:03,N,14,11/01/2026 02:05,N,7.05,2.6,2.06,4.1,16.39
+11/01/2026 01:55:03,Y,1,11/01/2026 02:00,Y,10.04,1.04,9.53,15.68,38.92
+11/01/2026 01:55:03,Y,2,11/01/2026 02:05,N,7.53,2.1,2.54,5.06,20.18
+"""
+
+    def test_handle_indicative_mcpc_rtd_dst_end(self):
+        df = self.iso._handle_indicative_mcpc_rtd(
+            pd.read_csv(StringIO(self.INDICATIVE_MCPC_DST_END_CSV)),
+        )
+
+        self._check_get_indicative_mcpc_rtd(df)
+        assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta("5min")).all()
+        df = df.sort_values(["RTD Timestamp", "Interval Start"])
+        result = list(
+            zip(
+                df["RTD Timestamp"].dt.tz_convert("UTC"),
+                df["Interval Start"].dt.tz_convert("UTC"),
+                df["REGUP"],
+            ),
+        )
+        first_run = pd.Timestamp("2026-11-01 06:55:03", tz="UTC")
+        second_run = pd.Timestamp("2026-11-01 07:55:03", tz="UTC")
+        assert result == [
+            (first_run, pd.Timestamp("2026-11-01 06:55", tz="UTC"), 9.39),
+            (first_run, pd.Timestamp("2026-11-01 07:00", tz="UTC"), 9.77),
+            (first_run, pd.Timestamp("2026-11-01 07:50", tz="UTC"), 6.13),
+            (first_run, pd.Timestamp("2026-11-01 07:55", tz="UTC"), 6.13),
+            (first_run, pd.Timestamp("2026-11-01 08:00", tz="UTC"), 7.05),
+            (second_run, pd.Timestamp("2026-11-01 07:55", tz="UTC"), 10.04),
+            (second_run, pd.Timestamp("2026-11-01 08:00", tz="UTC"), 7.53),
+        ]
+
+    def test_handle_indicative_mcpc_rtd_drops_rows_repeated_across_files(self):
+        """Reports in the repeated hour can carry unchanged rows from earlier files."""
+        raw = pd.read_csv(StringIO(self.INDICATIVE_MCPC_DST_END_CSV))
+        df = self.iso._handle_indicative_mcpc_rtd(pd.concat([raw, raw.iloc[[5, 6]]]))
+
+        assert len(df) == len(raw)
+        assert not df.duplicated(["Interval Start", "RTD Timestamp"]).any()
 
     """get_as_total_capability"""
 
