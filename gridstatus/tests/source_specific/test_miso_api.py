@@ -7,6 +7,7 @@ import pytest
 import requests
 
 from gridstatus.base import Markets, NotSupported
+from gridstatus.miso import MISO
 from gridstatus.miso_api import MISOAPI
 from gridstatus.tests.base_test_iso import TestHelperMixin
 from gridstatus.tests.vcr_utils import RECORD_MODE, setup_vcr
@@ -69,6 +70,26 @@ class TestMISOAPI(TestHelperMixin):
 
         assert df["Interval Start"].min() == start
         assert df["Interval Start"].max() == end - pd.Timedelta(hours=1)
+
+    """Day-ahead LMPs match the public market report files"""
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize(
+        "method_name",
+        ["get_lmp_day_ahead_hourly_ex_ante", "get_lmp_day_ahead_hourly_ex_post"],
+    )
+    def test_get_lmp_day_ahead_hourly_matches_market_report(self, method_name):
+        start = (self.local_now() - pd.DateOffset(days=2)).floor("h")
+        end = start + pd.Timedelta(hours=2)
+        with api_vcr.use_cassette(f"test_{method_name}_matches_market_report"):
+            data_from_api = getattr(self.iso, method_name)(start, end)
+            data_from_market_report = getattr(MISO(), method_name)(start, end)
+
+        pd.testing.assert_frame_equal(
+            data_from_api,
+            data_from_market_report,
+            check_exact=True,
+        )
 
     """get_lmp_real_time_hourly_ex_post_prelim"""
 

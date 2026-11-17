@@ -1,5 +1,7 @@
 import pandas as pd
 
+from gridstatus.caiso.caiso_utils import wall_clock_interval_starts
+
 CURRENT_BASE = "https://www.caiso.com/outlook/current"
 HISTORY_BASE = "https://www.caiso.com/outlook/history"
 
@@ -552,14 +554,9 @@ def get_dataframe_config_for_renewables_report(
                 periods=periods,
                 freq=freq,
             ).tz_localize(timezone)
-        start_utc = start_date.tz_convert("UTC")
-        timestamps_utc = pd.date_range(
-            start=start_utc,
-            periods=periods,
-            freq=freq,
-            tz="UTC",
-        )
-        return timestamps_utc.tz_convert(timezone)
+        # The report lists one value per wall-clock slot, so the slots of an hour
+        # that does not exist on a DST start day come back as NaT
+        return wall_clock_interval_starts(start_date, periods, freq, timezone)
 
     # 5-minute timestamps for the day
     rtd_timestamps = generate_timestamps(base_date, 288, "5min")

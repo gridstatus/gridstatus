@@ -1,6 +1,8 @@
 import datetime
-from io import StringIO
+import warnings
+from io import BytesIO, StringIO
 from unittest import mock
+from zipfile import ZipFile
 
 import numpy as np
 import pandas as pd
@@ -11,6 +13,7 @@ from gridstatus import Markets, NoDataFoundException, NotSupported
 from gridstatus.ercot import (
     DAM_SYSTEM_LAMBDA_RTID,
     ELECTRICAL_BUS_LOCATION_TYPE,
+    SCED_SYSTEM_LAMBDA_RTID,
     WEEKLY_RUC_MINIMUM_PUBLICATION_DELAY,
     Document,
     Ercot,
@@ -1571,6 +1574,74 @@ class TestErcot(BaseTestISO):
             "SPPHLZNP6905_20230608_1545_csv",
         ) == pd.Timestamp("2023-06-08 15:45:00-0500", tz="US/Central")
 
+    def test_parse_timestamp_from_friendly_name_dst_end(self):
+        # Files from both 1am hours on November 1, 2026. ERCOT adds xhr to the names
+        # of files from the repeated hour.
+        assert parse_timestamp_from_friendly_name(
+            "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+        ) == pd.Timestamp("2026-11-01 06:00:23", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv",
+        ) == pd.Timestamp("2026-11-01 07:00:23", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20261101_0115_csv",
+        ) == pd.Timestamp("2026-11-01 06:15", tz="UTC")
+        assert parse_timestamp_from_friendly_name(
+            "SPPHLZNP6905_20261101_0115_xhr_csv",
+        ) == pd.Timestamp("2026-11-01 07:15", tz="UTC")
+
+    def test_get_documents_friendly_name_timestamps_dst_end(self):
+        # Listing entries for SCED system lambda on November 1, 2026
+        listing = {
+            "ListDocsByRptTypeRes": {
+                "DocumentList": [
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.010026589.SCEDSYSLAMBDANP6322_20261101_010023_xhr_csv.zip",
+                            "DocID": "1293324664",
+                            "PublishDate": "2026-11-01T01:00:26-06:00",
+                        },
+                    },
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.010026575.SCEDSYSLAMBDANP6322_20261101_010023_csv.zip",
+                            "DocID": "1293309693",
+                            "PublishDate": "2026-11-01T01:00:25-06:00",
+                        },
+                    },
+                    {
+                        "Document": {
+                            "FriendlyName": "SCEDSYSLAMBDANP6322_20261101_005521_csv",
+                            "ConstructedName": "cdr.00013114.0000000000000000.20261101.005523461.SCEDSYSLAMBDANP6322_20261101_005521_csv.zip",
+                            "DocID": "1293308281",
+                            "PublishDate": "2026-11-01T00:55:23-06:00",
+                        },
+                    },
+                ],
+            },
+        }
+
+        # A fetch a minute after the first 1am run posted
+        with mock.patch.object(self.iso, "_get_json", return_value=listing):
+            docs = self.iso._get_documents(
+                report_type_id=SCED_SYSTEM_LAMBDA_RTID,
+                friendly_name_timestamp_after=pd.Timestamp(
+                    "2026-11-01 05:55:21",
+                    tz="UTC",
+                ),
+                friendly_name_timestamp_before=pd.Timestamp(
+                    "2026-11-01 06:01:30",
+                    tz="UTC",
+                ),
+            )
+
+        assert [doc.friendly_name for doc in docs] == [
+            "SCEDSYSLAMBDANP6322_20261101_010023_csv",
+        ]
+        assert docs[0].publish_date == pd.Timestamp("2026-11-01 06:00:25", tz="UTC")
+
     """get_unplanned_resource_outages"""
 
     def _check_unplanned_resource_outages(self, df):
@@ -2005,6 +2076,99 @@ class TestErcot(BaseTestISO):
         self._check_as_reports_sced(df)
 
         assert df["SCED Timestamp"].dt.date.unique() == test_date.date()
+
+    def test_highest_price_as_offer_selected_sced_dst_end(self):
+        """SCED runs whose timestamp occurs in only one 1 AM hour are placed with
+        the SCED AS reports' flags. A timestamp shared by both hours is omitted."""
+        raw = pd.DataFrame(
+            {
+                "SCED Timestamp": [
+                    "11/01/2026 00:55:20",
+                    "11/01/2026 01:00:23",
+                    "11/01/2026 01:05:20",
+                    "11/01/2026 01:05:21",
+                    "11/01/2026 02:00:19",
+                ],
+                "QSE": "QSE1",
+                "DME": "DME1",
+                "Resource Name with Highest - Priced AS Offer Selected in SCED": "R1",
+                "AS Type": "ECRS",
+                "Offered Quantity": [1.0, 2.0, 3.0, 4.0, 5.0],
+                "Offered Price": 10.0,
+            },
+        )
+        flags = pd.DataFrame(
+            {
+                "SCED Timestamp": pd.to_datetime(
+                    [
+                        "2026-11-01 01:00:23",
+                        "2026-11-01 01:00:23",
+                        "2026-11-01 01:05:20",
+                        "2026-11-01 01:05:21",
+                    ],
+                ),
+                "Repeated Hour Flag": ["N", "Y", "Y", "N"],
+            },
+        )
+
+        with (
+            mock.patch.object(self.iso, "read_doc", return_value=raw),
+            pytest.warns(UserWarning, match="Omitting 1 SCED"),
+        ):
+            df = self.iso._handle_highest_price_as_offer_selected_file(
+                doc=None,
+                market="sced",
+                get_repeated_hour_flags=lambda: flags,
+            )
+
+        assert df["SCED Timestamp"].tolist() == [
+            pd.Timestamp("2026-11-01 00:55:20", tz="-05:00"),
+            pd.Timestamp("2026-11-01 01:05:21", tz="-05:00"),
+            pd.Timestamp("2026-11-01 01:05:20", tz="-06:00"),
+            pd.Timestamp("2026-11-01 02:00:19", tz="-06:00"),
+        ]
+        assert df["Total Offered Quantity"].tolist() == [1.0, 4.0, 3.0, 5.0]
+
+    def test_handle_as_reports_sced_file_dst_end(self):
+        """Runs in the two 1 AM hours on a DST end day stay separate, even when
+        they share a wall-clock timestamp."""
+        csv = (
+            "SCED Timestamp,Repeated Hour Flag,MW Offered,REGUP Offer Price\n"
+            "11/01/2026 00:55:20,N,10,1.5\n"
+            "11/01/2026 01:00:23,N,10,2.5\n"
+            "11/01/2026 01:00:23,N,20,3.5\n"
+            "11/01/2026 01:05:21,N,10,4.5\n"
+            "11/01/2026 01:00:23,Y,30,5.5\n"
+            "11/01/2026 01:05:20,Y,30,6.5\n"
+            "11/01/2026 02:00:19,N,40,7.5\n"
+        )
+        buffer = BytesIO()
+        with ZipFile(buffer, "w") as archive:
+            archive.writestr("2day_Agg_SCED_AS_Offers_REGUP-03-NOV-26.csv", csv)
+
+        with mock.patch(
+            "gridstatus.ercot.utils.get_zip_folder",
+            return_value=ZipFile(buffer),
+        ):
+            df = self.iso._handle_as_reports_sced_file("unused")
+
+        assert df.columns.tolist() == ["SCED Timestamp", "AS Type", "Offer Curve"]
+        assert df["SCED Timestamp"].astype(str).tolist() == [
+            "2026-11-01 00:55:20-05:00",
+            "2026-11-01 01:00:23-05:00",
+            "2026-11-01 01:05:21-05:00",
+            "2026-11-01 01:00:23-06:00",
+            "2026-11-01 01:05:20-06:00",
+            "2026-11-01 02:00:19-06:00",
+        ]
+        assert df["Offer Curve"].tolist() == [
+            [[10, 1.5]],
+            [[10, 2.5], [20, 3.5]],
+            [[10, 4.5]],
+            [[30, 5.5]],
+            [[30, 6.5]],
+            [[40, 7.5]],
+        ]
 
     """get_aggregate_*_2_day"""
 
@@ -6524,3 +6688,109 @@ class TestErcotGISMergedHeaders:
         assert (
             large["Approval Date for Submission of Proof of Site Control"].notna().any()
         )
+
+
+def highest_price_sced_source_rows(timestamps):
+    return pd.DataFrame(
+        {
+            "SCED Timestamp": timestamps,
+            "QSE": "QTEST",
+            "DME": "DTEST",
+            "Resource Name with Highest - Priced AS Offer Selected in SCED": "TEST_ESR1",
+            "AS Type": "ECRS",
+            "Offered Price": [float(i + 10) for i in range(len(timestamps))],
+            "Offered Quantity": [float(i + 1) for i in range(len(timestamps))],
+        },
+    )
+
+
+@pytest.mark.parametrize("day", ["2026-11-01", "2027-11-07"])
+def test_highest_price_sced_omits_ambiguous_rows_before_aggregation(day):
+    # November 1 source order: both hours are sorted together. 01:00:23 is
+    # shared by both runs; 01:05:20 and 01:05:21 differ but lack fold labels.
+    data = highest_price_sced_source_rows(
+        [
+            f"{day} {time}"
+            for time in [
+                "00:55:21",
+                "00:55:21",
+                "01:00:23",
+                "01:00:23",
+                "01:05:20",
+                "01:05:21",
+                "02:00:23",
+            ]
+        ],
+    )
+    data.loc[1, "Offered Price"] = data.loc[0, "Offered Price"]
+    iso = Ercot()
+    with (
+        mock.patch.object(iso, "_get_document", return_value=None),
+        mock.patch.object(iso, "read_doc", return_value=data),
+        pytest.warns(UserWarning, match=f"Omitting 4 .* on {day}.*both 1 AM hours"),
+    ):
+        result = iso.get_highest_price_as_offer_selected_sced(day)
+
+    assert result["SCED Timestamp"].dt.tz_convert("UTC").tolist() == [
+        pd.Timestamp(f"{day} 05:55:21Z"),
+        pd.Timestamp(f"{day} 08:00:23Z"),
+    ]
+    assert result["Offered Price"].tolist() == [10.0, 16.0]
+    assert result["Total Offered Quantity"].tolist() == [3.0, 7.0]
+    assert result["Offered Quantities"].tolist() == [[1.0, 2.0], [7.0]]
+
+
+@pytest.mark.parametrize(
+    "times,expected_utc",
+    [
+        (
+            ["2026-11-02 01:00:23", "2026-11-02 02:00:23"],
+            ["2026-11-02 07:00:23Z", "2026-11-02 08:00:23Z"],
+        ),
+        (
+            ["2026-03-08 01:55:20", "2026-03-08 03:00:23"],
+            ["2026-03-08 07:55:20Z", "2026-03-08 08:00:23Z"],
+        ),
+    ],
+)
+def test_highest_price_sced_unambiguous_rows_unchanged(times, expected_utc):
+    iso = Ercot()
+    with mock.patch.object(
+        iso,
+        "read_doc",
+        return_value=highest_price_sced_source_rows(times),
+    ):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = iso._handle_highest_price_as_offer_selected_file(None, "sced")
+    assert not caught
+    assert result["SCED Timestamp"].tolist() == pd.to_datetime(expected_utc).tolist()
+    assert result["Offered Price"].tolist() == [10.0, 11.0]
+    assert result["Total Offered Quantity"].tolist() == [1.0, 2.0]
+    assert result["Offered Quantities"].tolist() == [[1.0], [2.0]]
+
+
+def test_highest_price_sced_all_ambiguous_returns_empty_schema():
+    iso = Ercot()
+    with (
+        mock.patch.object(iso, "_get_document", return_value=None),
+        mock.patch.object(
+            iso,
+            "read_doc",
+            return_value=highest_price_sced_source_rows(["2026-11-01 01:00:23"]),
+        ),
+        pytest.warns(UserWarning, match="Omitting 1 SCED"),
+    ):
+        result = iso.get_highest_price_as_offer_selected_sced("2026-11-01")
+    assert result.empty
+    assert result.columns.tolist() == [
+        "SCED Timestamp",
+        "QSE",
+        "DME",
+        "Resource Name",
+        "AS Type",
+        "Offered Price",
+        "Total Offered Quantity",
+        "Offered Quantities",
+    ]
+    assert str(result["SCED Timestamp"].dtype) == "datetime64[ns, US/Central]"

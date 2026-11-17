@@ -6,8 +6,10 @@ import pytest
 
 from gridstatus import CAISO, Markets
 from gridstatus.base import NoDataFoundException, NotSupported
+from gridstatus.caiso import daily_energy_storage
 from gridstatus.caiso.caiso import (
     _collapse_group_to_array,
+    _oasis_error_message,
     _read_price_corrections_csv,
 )
 from gridstatus.caiso.caiso_constants import (
@@ -199,6 +201,8 @@ class TestCAISO(BaseTestISO):
     """get_price_corrections"""
 
     PRICE_CORRECTIONS_COLUMNS = [
+        "Interval Start",
+        "Interval End",
         "Trade Date",
         "Hour Ending",
         "Interval",
@@ -213,6 +217,7 @@ class TestCAISO(BaseTestISO):
 
     # PRC_CORR_GRP serves one trade date per request, so the range exercises the
     # per-day fetch and concatenation.
+    @pytest.mark.caiso_oasis
     @pytest.mark.real_sleep
     @pytest.mark.parametrize("start, end", [("2026-06-01", "2026-06-13")])
     def test_get_price_corrections(self, start, end):
@@ -241,15 +246,107 @@ class TestCAISO(BaseTestISO):
             assert "No records found for report." not in set(df["Correction Reason"])
             assert (df["Report Generated"] >= df["Trade Date"]).all()
 
-    def test_get_price_corrections_raises_when_empty(self):
+            # Every interval falls within its trade date and has its market's
+            # interval length.
+            assert (df["Interval Start"] >= df["Trade Date"]).all()
+            assert (
+                df["Interval Start"] < df["Trade Date"] + pd.DateOffset(days=1)
+            ).all()
+            interval_minutes = (
+                df["Interval End"] - df["Interval Start"]
+            ).dt.total_seconds() / 60
+            expected_minutes = df["Market"].map(
+                {"DAM": 60, "RUC": 60, "HASP": 15, "RTPD": 15, "RTD": 5},
+            )
+            assert (interval_minutes == expected_minutes).all()
+
+            # One row per correction of an interval.
+            assert not df.duplicated(
+                subset=[
+                    "Interval Start",
+                    "Market",
+                    "Affected Area",
+                    "Correction Method",
+                    "Energy Type",
+                    "Report Generated",
+                ],
+            ).any()
+
+    @pytest.mark.caiso_oasis
+    @pytest.mark.real_sleep
+    def test_get_price_corrections_day_ahead_repricing(self):
+        # CAISO repriced day-ahead congestion for 2026-10-20 on 2026-11-03 at
+        # 10:43 PST (shown as 18:43:03 in OASIS, which reports UTC).
+        with caiso_vcr.use_cassette(
+            "test_get_price_corrections_day_ahead_repricing_2026-10-20.yaml",
+        ):
+            df = self.iso.get_price_corrections(date="2026-10-20")
+
+        day_ahead = df[df["Market"] == "DAM"]
+        assert day_ahead["Hour Ending"].tolist() == [
+            *range(1, 8),
+            *range(9, 18),
+            19,
+            24,
+        ]
+        assert (
+            day_ahead["Report Generated"]
+            == pd.Timestamp("2026-11-03 10:43:03", tz="US/Pacific")
+        ).all()
+        hour_ending_7 = day_ahead[day_ahead["Hour Ending"] == 7].iloc[0]
+        assert hour_ending_7["Interval Start"] == pd.Timestamp(
+            "2026-10-20 06:00",
+            tz="US/Pacific",
+        )
+        assert hour_ending_7["Interval End"] == pd.Timestamp(
+            "2026-10-20 07:00",
+            tz="US/Pacific",
+        )
+
+    @pytest.mark.caiso_oasis
+    @pytest.mark.real_sleep
+    def test_get_price_corrections_drops_blank_reason_repeats(self):
+        # On 2026-10-06 OASIS repeats two RTD Interval Replacement rows with a
+        # blank reason.
+        with caiso_vcr.use_cassette(
+            "test_get_price_corrections_blank_reason_repeats_2026-10-06.yaml",
+        ):
+            df = self.iso.get_price_corrections(date="2026-10-06")
+
+        replacements = df[df["Correction Method"] == "Interval Replacement"]
+        assert len(replacements) == 4
+        assert replacements["Correction Reason"].notna().all()
+
+    @pytest.mark.caiso_oasis
+    @pytest.mark.real_sleep
+    def test_get_price_corrections_raises_when_empty(self, caplog):
         # Future trade dates have no issued corrections, so the method raises
         # rather than returning an empty frame, letting callers distinguish
-        # "no corrections" explicitly.
+        # "no corrections" explicitly. Real sleeps keep OASIS from answering 429.
         with caiso_vcr.use_cassette(
-            "test_get_price_corrections_empty.yaml",
+            "test_get_price_corrections_empty_2030-07-01.yaml",
         ):
             with pytest.raises(NoDataFoundException):
-                self.iso.get_price_corrections(date="2026-07-01", end="2026-07-04")
+                self.iso.get_price_corrections(date="2030-07-01")
+
+        assert "OASIS error" in caplog.text
+
+    def test_oasis_error_message(self):
+        # As OASIS served a PRC_CORR_GRP request for a summary still being built.
+        contents = (
+            b'<?xml version="1.0" encoding="UTF-8"?>\n'
+            b'<m:OASISReport xmlns:m="http://www.caiso.com/soa/OASISReport_v1.xsd">\n'
+            b"<m:MessagePayload>\n<m:RTO>\n<m:name>CAISO</m:name>\n<m:ERROR>\n"
+            b"<m:ERR_CODE>1015</m:ERR_CODE>\n"
+            b"<m:ERR_DESC>GroupZip DownLoad is in Processing, Please Submit request "
+            b"after Sometime</m:ERR_DESC>\n"
+            b"</m:ERROR>\n</m:RTO>\n</m:MessagePayload>\n</m:OASISReport>"
+        )
+
+        assert _oasis_error_message(contents) == (
+            "OASIS error 1015: GroupZip DownLoad is in Processing, Please Submit "
+            "request after Sometime"
+        )
 
     def test_parse_price_corrections_multiline_reason(self):
         # Trade date 2026-10-13 as served by OASIS: the Interval Replacement row
@@ -272,10 +369,54 @@ class TestCAISO(BaseTestISO):
         assert (df["Trade Date"] == pd.Timestamp("2026-10-13", tz="US/Pacific")).all()
         replacement = df[df["Correction Method"] == "Interval Replacement"].iloc[0]
         assert replacement["Correction Reason"] == "Reason A.; Reason B."
+        # REPORT_GENERATED is UTC.
         assert replacement["Report Generated"] == pd.Timestamp(
             "2026-10-23 18:49:57",
+            tz="UTC",
+        )
+        assert replacement["Interval Start"] == pd.Timestamp(
+            "2026-10-13 23:50",
             tz="US/Pacific",
         )
+
+    def test_parse_price_corrections_daylight_saving_hours(self):
+        # OASIS hour endings follow wall-clock time: on the fall-back day the
+        # repeated 01:00 hour is hour ending 25, and on the spring-forward day
+        # hour ending 3 is skipped.
+        contents = (
+            b"TRADE_DATE,HOUR_ENDING,INTERVAL,MARKET,AFFECTED_AREA,"
+            b"CORRECTION_METHOD,CORRECTION_COUNT,ENERGY_TYPECODE,"
+            b"CORRECTION_REASON,REPORT_GENERATED,GROUP\n"
+            b"2025-11-02,2,1,DAM,LOCAL,Selective Recalculation,1,EN,Reason.,"
+            b"2025-11-10 18:00:00.0,1\n"
+            b"2025-11-02,25,1,DAM,LOCAL,Selective Recalculation,1,EN,Reason.,"
+            b"2025-11-10 18:00:00.0,2\n"
+            b"2025-11-02,3,1,DAM,LOCAL,Selective Recalculation,1,EN,Reason.,"
+            b"2025-11-10 18:00:00.0,3\n"
+            b"2026-03-08,2,12,RTD,LOCAL,Selective Recalculation,1,EN,Reason.,"
+            b"2026-03-16 18:00:00.0,4\n"
+            b"2026-03-08,4,1,RTD,LOCAL,Selective Recalculation,1,EN,Reason.,"
+            b"2026-03-16 18:00:00.0,5\n"
+        )
+
+        df = self.iso._parse_price_corrections(
+            _read_price_corrections_csv(contents),
+        )
+
+        interval_start_utc = (
+            df.set_index(["Trade Date", "Hour Ending", "Interval"])["Interval Start"]
+            .dt.tz_convert("UTC")
+            .to_dict()
+        )
+        fall_back = pd.Timestamp("2025-11-02", tz="US/Pacific")
+        spring_forward = pd.Timestamp("2026-03-08", tz="US/Pacific")
+        assert interval_start_utc == {
+            (fall_back, 2, 1): pd.Timestamp("2025-11-02 08:00", tz="UTC"),
+            (fall_back, 25, 1): pd.Timestamp("2025-11-02 09:00", tz="UTC"),
+            (fall_back, 3, 1): pd.Timestamp("2025-11-02 10:00", tz="UTC"),
+            (spring_forward, 2, 12): pd.Timestamp("2026-03-08 09:55", tz="UTC"),
+            (spring_forward, 4, 1): pd.Timestamp("2026-03-08 10:00", tz="UTC"),
+        }
 
     """get_ir_rc_prices"""
 
@@ -1139,6 +1280,79 @@ class TestCAISO(BaseTestISO):
         ):
             if unit in ("day", "month"):
                 assert (timestamps == timestamps.normalize()).all()
+
+    def test_renewables_report_slots_follow_the_wall_clock_when_dst_ends(self):
+        """The report has one 1 AM hour on a 25-hour day. It is the first one,
+        and every later value keeps its wall-clock hour."""
+        configs = get_dataframe_config_for_renewables_report(
+            pd.Timestamp("2026-11-01", tz=self.iso.default_timezone),
+            self.iso.default_timezone,
+        )
+        hourly = next(
+            timestamps
+            for name, timestamps, _, _, _ in configs
+            if name == "solar_curtailment_total_hourly"
+        )
+
+        assert len(hourly) == 24
+        assert hourly[1] == pd.Timestamp("2026-11-01 01:00", tz="-07:00")
+        assert hourly[2] == pd.Timestamp("2026-11-01 02:00", tz="-08:00")
+        assert hourly[-1] == pd.Timestamp("2026-11-01 23:00", tz="-08:00")
+
+    def test_renewables_report_has_no_2_am_hour_when_dst_starts(self):
+        configs = get_dataframe_config_for_renewables_report(
+            pd.Timestamp("2026-03-08", tz=self.iso.default_timezone),
+            self.iso.default_timezone,
+        )
+        five_minute = next(
+            timestamps
+            for name, timestamps, _, _, _ in configs
+            if name == "solar_generation_caiso_5_min"
+        )
+
+        assert len(five_minute) == 288
+        assert five_minute.isna().sum() == 12
+        assert five_minute[23] == pd.Timestamp("2026-03-08 01:55", tz="-08:00")
+        assert five_minute[36] == pd.Timestamp("2026-03-08 03:00", tz="-07:00")
+        assert five_minute[-1] == pd.Timestamp("2026-03-08 23:55", tz="-07:00")
+
+    @pytest.mark.parametrize(
+        "date, expected_rows, second_hour_start, last_start",
+        [
+            (
+                "2026-11-01",
+                288,
+                pd.Timestamp("2026-11-01 02:00", tz="-08:00"),
+                pd.Timestamp("2026-11-01 23:55", tz="-08:00"),
+            ),
+            (
+                "2026-03-08",
+                276,
+                pd.Timestamp("2026-03-08 03:00", tz="-07:00"),
+                pd.Timestamp("2026-03-08 23:55", tz="-07:00"),
+            ),
+        ],
+    )
+    def test_daily_energy_storage_slots_follow_the_wall_clock_on_dst_days(
+        self,
+        date,
+        expected_rows,
+        second_hour_start,
+        last_start,
+    ):
+        """The report always has 288 five-minute values. Value 24 belongs to the
+        hour after 1 AM on the wall clock, and the day ends at 23:55."""
+        html = f"var tot_charge_rtd = {list(range(288))};"
+        report_start = pd.Timestamp(date, tz=self.iso.default_timezone)
+
+        df = daily_energy_storage.build_storage_soc_rtd(html, report_start)
+
+        assert len(df) == expected_rows
+        assert df["Interval Start"].notna().all()
+        slot = 36 if date == "2026-03-08" else 24
+        assert df.loc[df["SOC"] == slot, "Interval Start"].iloc[0] == second_hour_start
+        assert df["Interval Start"].iloc[-1] == last_start
+        assert df["SOC"].iloc[-1] == 287
 
     """get_gas_prices"""
 

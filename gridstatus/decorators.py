@@ -150,7 +150,8 @@ class support_date_range:
                 and args_dict.get("date") == "today"
             ):
                 args_dict["date"] = pd.Timestamp.now(tz=default_timezone).floor("D")
-                args_dict["end"] = args_dict["date"] + pd.Timedelta(days=1)
+                # A calendar day, so DST days span 23 or 25 hours.
+                args_dict["end"] = args_dict["date"] + pd.DateOffset(days=1)
 
             args_dict["date"] = utils._handle_date(
                 args_dict["date"],
