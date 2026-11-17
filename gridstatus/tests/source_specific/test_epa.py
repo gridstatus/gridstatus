@@ -10,7 +10,7 @@ from urllib3.connectionpool import HTTPSConnectionPool
 
 from gridstatus import EPA
 from gridstatus.base import NoDataFoundException, NotSupported
-from gridstatus.epa.epa_constants import POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
+from gridstatus.epa.epa_constants import CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS
 
 
 @pytest.fixture
@@ -53,10 +53,10 @@ def test_utc_window_and_facility_timezones(epa, day):
     rows = [hourly(d, h, f) for d in [prior, day] for h in range(24) for f in [1, 2]]
     attrs = [attributes(1, 30.4, -87.2), attributes(2, 25.8, -80.2)]
     epa.session.get.side_effect = [response(rows)] + [response({"items": attrs})] * 2
-    df = epa.get_power_plant_emissions_generation(day)
+    df = epa.get_clean_air_markets_program_data(day)
     start = pd.Timestamp(day, tz="UTC")
     assert len(df) == 48
-    assert df.columns.tolist() == POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
+    assert df.columns.tolist() == CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS
     assert df["Interval Start"].min() == start
     assert df["Interval Start"].max() == start + pd.Timedelta(hours=23)
     assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)).all()
@@ -72,7 +72,7 @@ def test_utc_window_and_facility_timezones(epa, day):
     for facility, utc_hour in [(1, 6), (2, 5)]:
         rows = [hourly(day, 0, facility)]
         epa.session.get.side_effect = [response(rows)]
-        result = epa.get_power_plant_emissions_generation(day)
+        result = epa.get_clean_air_markets_program_data(day)
         assert result["Interval Start"].iloc[0] == start + pd.Timedelta(hours=utc_hour)
 
 
@@ -90,7 +90,7 @@ def test_pagination_year_join_and_range(epa):
         response({"items": []}),
         response([hourly("2011-01-02")]),
     ]
-    df = epa.get_power_plant_emissions_generation(
+    df = epa.get_clean_air_markets_program_data(
         ("2011-01-01", "2011-01-03"),
         state_codes=["ND"],
         error="raise",
@@ -103,7 +103,7 @@ def test_pagination_year_join_and_range(epa):
         ),
     )
     assert epa.session.get.call_count == 5  # One hourly request, four attribute pages.
-    cached = epa.get_power_plant_emissions_generation("2011-01-02", state_codes=["ND"])
+    cached = epa.get_clean_air_markets_program_data("2011-01-02", state_codes=["ND"])
     assert cached["Owner Operator"].tolist() == ["new"]
     assert epa.session.get.call_count == 6  # Annual attributes reused across calls.
     assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "ND"
@@ -111,10 +111,10 @@ def test_pagination_year_join_and_range(epa):
 
 @pytest.mark.integration
 @pytest.mark.skipif(not os.getenv("EPA_API_KEY"), reason="EPA_API_KEY is required")
-def test_power_plant_emissions_generation_live():
-    df = EPA().get_power_plant_emissions_generation("2011-01-01", state_codes=["ND"])
+def test_clean_air_markets_program_data_live():
+    df = EPA().get_clean_air_markets_program_data("2011-01-01", state_codes=["ND"])
     assert not df.empty
-    assert df.columns.tolist() == POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
+    assert df.columns.tolist() == CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS
     assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
     assert df["Interval End"].dtype == "datetime64[ns, UTC]"
     assert df["Facility ID"].dtype == "Int64"
@@ -140,7 +140,7 @@ def test_partial_range_normalizes_timezone_and_preserves_end(epa):
         response(rows),
         response({"items": [attributes()]}),
     ]
-    df = epa.get_power_plant_emissions_generation(
+    df = epa.get_clean_air_markets_program_data(
         "2023-07-01T03:00:00-04:00",
         end="2023-07-02T05:00:00-04:00",
         error="raise",
@@ -162,18 +162,18 @@ def test_partial_range_normalizes_timezone_and_preserves_end(epa):
 def test_missing_coordinates_fail(epa, attrs):
     epa.session.get.side_effect = [response([hourly()]), response({"items": attrs})]
     with pytest.raises(ValueError, match="coordinates"):
-        epa.get_power_plant_emissions_generation("2023-07-01")
+        epa.get_clean_air_markets_program_data("2023-07-01")
 
 
 def test_no_data_and_http_failure(epa):
     epa.session.get.return_value = response([])
     with pytest.raises(NoDataFoundException):
-        epa.get_power_plant_emissions_generation("2023-07-01")
+        epa.get_clean_air_markets_program_data("2023-07-01")
     epa.session.get.return_value.raise_for_status.side_effect = requests.HTTPError(
         "429",
     )
     with pytest.raises(requests.HTTPError):
-        epa.get_power_plant_emissions_generation("2023-07-01")
+        epa.get_clean_air_markets_program_data("2023-07-01")
 
 
 def test_requires_epa_key(monkeypatch):
@@ -185,19 +185,19 @@ def test_requires_epa_key(monkeypatch):
 
 def test_latest_requires_explicit_date(epa):
     with pytest.raises(NotSupported, match="explicit date"):
-        epa.get_power_plant_emissions_generation("latest")
+        epa.get_clean_air_markets_program_data("latest")
     epa.session.get.assert_not_called()
 
 
 def test_first_available_day_and_earlier_dates(epa):
     with pytest.raises(ValueError, match="1995-01-01"):
-        epa.get_power_plant_emissions_generation("1994-12-31")
+        epa.get_clean_air_markets_program_data("1994-12-31")
     epa.session.get.assert_not_called()
     epa.session.get.side_effect = [
         response([hourly("1995-01-01")]),
         response({"items": [attributes()]}),
     ]
-    result = epa.get_power_plant_emissions_generation("1995-01-01")
+    result = epa.get_clean_air_markets_program_data("1995-01-01")
     assert (
         epa.session.get.call_args_list[0].kwargs["params"]["beginDate"] == "1995-01-01"
     )
@@ -235,7 +235,7 @@ def test_http_retries_and_validation(monkeypatch, statuses, retry_after, delays)
     try:
         if statuses[-1] == 400:
             with pytest.raises(ValueError, match="2026-09-30"):
-                client.get_power_plant_emissions_generation(
+                client.get_clean_air_markets_program_data(
                     "2026-09-25",
                     end="2026-10-02",
                     error="raise",
@@ -243,10 +243,10 @@ def test_http_retries_and_validation(monkeypatch, statuses, retry_after, delays)
             assert "endDate=2026-10-01" in send.call_args.args[2]
         elif statuses[-1] == 429:
             with pytest.raises(requests.HTTPError, match="429"):
-                client.get_power_plant_emissions_generation("2023-07-01")
+                client.get_clean_air_markets_program_data("2023-07-01")
         else:
             with pytest.raises(NoDataFoundException):
-                client.get_power_plant_emissions_generation("2023-07-01")
+                client.get_clean_air_markets_program_data("2023-07-01")
         assert send.call_count == len(statuses)
         assert [call.args[0] for call in sleep.call_args_list] == delays
     finally:

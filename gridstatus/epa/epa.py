@@ -15,8 +15,8 @@ from gridstatus.decorators import support_date_range
 from gridstatus.epa.epa_constants import (
     ATTRIBUTE_COLUMN_RENAMES,
     ATTRIBUTE_COLUMNS,
+    CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS,
     HOURLY_COLUMN_RENAMES,
-    POWER_PLANT_EMISSIONS_GENERATION_COLUMNS,
 )
 from gridstatus.gs_logging import setup_gs_logger
 
@@ -133,7 +133,7 @@ class EPA:
         return self._facility_attributes_cache[cache_key]
 
     @support_date_range(frequency=None)
-    def get_power_plant_emissions_generation(
+    def get_clean_air_markets_program_data(
         self,
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: str | pd.Timestamp | None = None,
@@ -231,7 +231,7 @@ class EPA:
             errors="raise",
         ).dt.date
         return hourly.reindex(
-            columns=POWER_PLANT_EMISSIONS_GENERATION_COLUMNS,
+            columns=CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS,
         ).sort_values(
             ["Interval Start", "Facility ID", "Unit ID"],
             ignore_index=True,
