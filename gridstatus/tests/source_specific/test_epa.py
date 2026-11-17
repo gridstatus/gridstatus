@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 from unittest.mock import Mock
 
@@ -76,28 +77,57 @@ def test_utc_window_and_facility_timezones(epa, day):
 
 
 def test_pagination_year_join_and_range(epa):
+    # Leland Olds changed from Mountain to Central time during 2010.
+    attrs = attributes(latitude=47.2819, longitude=-101.3194)
     epa.FACILITIES_ATTRIBUTES_PAGE_SIZE = 1
     epa.session.get.side_effect = [
         response(
-            [hourly("2023-12-31", 23), hourly("2024-01-01"), hourly("2024-01-02")],
+            [hourly("2010-12-31", 23), hourly("2011-01-01"), hourly("2011-01-02")],
         ),
-        response({"items": [{**attributes(), "ownerOperator": "old"}]}),
+        response({"items": [{**attrs, "ownerOperator": "old"}]}),
         response({"items": []}),
-        response({"items": [{**attributes(), "ownerOperator": "new"}]}),
+        response({"items": [{**attrs, "ownerOperator": "new"}]}),
         response({"items": []}),
-        response([hourly("2024-01-02")]),
+        response([hourly("2011-01-02")]),
     ]
     df = epa.get_power_plant_emissions_generation(
-        ("2024-01-01", "2024-01-03"),
-        state_codes=["DE"],
+        ("2011-01-01", "2011-01-03"),
+        state_codes=["ND"],
         error="raise",
     )
     assert df["Owner Operator"].tolist() == ["old", "new", "new"]
+    assert df["Interval Start"].tolist() == list(
+        pd.to_datetime(
+            ["2011-01-01 05:00", "2011-01-01 06:00", "2011-01-02 06:00"],
+            utc=True,
+        ),
+    )
     assert epa.session.get.call_count == 5  # One hourly request, four attribute pages.
-    cached = epa.get_power_plant_emissions_generation("2024-01-02", state_codes=["DE"])
+    cached = epa.get_power_plant_emissions_generation("2011-01-02", state_codes=["ND"])
     assert cached["Owner Operator"].tolist() == ["new"]
     assert epa.session.get.call_count == 6  # Annual attributes reused across calls.
-    assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "DE"
+    assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "ND"
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not os.getenv("EPA_API_KEY"), reason="EPA_API_KEY is required")
+def test_power_plant_emissions_generation_live():
+    df = EPACAM().get_power_plant_emissions_generation("2011-01-01", state_codes=["ND"])
+    assert not df.empty
+    assert df.columns.tolist() == POWER_PLANT_EMISSIONS_GENERATION_COLUMNS
+    assert df["Interval Start"].dtype == "datetime64[ns, UTC]"
+    assert df["Interval End"].dtype == "datetime64[ns, UTC]"
+    assert df["Facility ID"].dtype == "Int64"
+    assert df["Unit ID"].dtype == "string"
+    assert df["State"].eq("ND").all()
+    assert df[["Latitude", "Longitude"]].notna().all().all()
+    assert not df.duplicated(["Interval Start", "Facility ID", "Unit ID"]).any()
+    assert (df["Interval End"] - df["Interval Start"] == pd.Timedelta(hours=1)).all()
+    assert df["Interval Start"].min() == pd.Timestamp("2011-01-01", tz="UTC")
+    assert df["Interval End"].max() == pd.Timestamp("2011-01-02", tz="UTC")
+    leland_olds = df.loc[df["Facility ID"].eq(2817) & df["Unit ID"].eq("1")]
+    assert len(leland_olds) == 24
+    assert leland_olds["Gross Load"].gt(0).all()
 
 
 def test_partial_range_normalizes_timezone_and_preserves_end(epa):

@@ -25,7 +25,11 @@ BASE_URL = "https://api.epa.gov/easey"
 
 
 @lru_cache(maxsize=10000)
-def _standard_offset(latitude: float, longitude: float, year: int) -> pd.Timedelta:
+def _standard_offset(
+    latitude: float,
+    longitude: float,
+    local: datetime,
+) -> pd.Timedelta:
     # CAMPD reports local standard time year-round, including during DST.
     if (
         pd.isna(latitude)
@@ -36,7 +40,8 @@ def _standard_offset(latitude: float, longitude: float, year: int) -> pd.Timedel
     timezone = get_tz(longitude, latitude)
     if not timezone:
         raise ValueError(f"No time zone for EPA coordinates {latitude}, {longitude}")
-    local = datetime(year, 1, 1, tzinfo=ZoneInfo(timezone))
+    # Use the reporting hour: some counties changed standard time zones mid-year.
+    local = local.replace(tzinfo=ZoneInfo(timezone))
     offset, dst = local.utcoffset(), local.dst()
     assert offset is not None and dst is not None
     return pd.Timedelta(offset - dst)
@@ -195,21 +200,21 @@ class EPACAM:
             how="left",
             validate="many_to_one",
         )
-        facilities = hourly[
-            ["facilityId", "latitude", "longitude", "year"]
-        ].drop_duplicates()
-        facilities["offset"] = [
-            _standard_offset(lat, lon, year)
-            for lat, lon, year in facilities[
-                ["latitude", "longitude", "year"]
-            ].itertuples(index=False, name=None)
-        ]
-        hourly = hourly.merge(facilities, how="left", validate="many_to_one")
         local = pd.to_datetime(hourly["date"]) + pd.to_timedelta(
             hourly["hour"],
             unit="h",
         )
-        hourly["Interval Start"] = (local - hourly["offset"]).dt.tz_localize("UTC")
+        offsets = pd.to_timedelta(
+            [
+                _standard_offset(lat, lon, hour)
+                for lat, lon, hour in zip(
+                    hourly["latitude"],
+                    hourly["longitude"],
+                    local,
+                )
+            ],
+        )
+        hourly["Interval Start"] = (local - offsets).dt.tz_localize("UTC")
         hourly["Interval End"] = hourly["Interval Start"] + pd.Timedelta(hours=1)
         hourly = hourly.loc[
             hourly["Interval Start"].between(start, end, inclusive="left")
