@@ -1,6 +1,6 @@
 import os
 from io import BytesIO
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pandas as pd
 import pytest
@@ -10,7 +10,10 @@ from urllib3.connectionpool import HTTPSConnectionPool
 
 from gridstatus import EPA
 from gridstatus.base import NoDataFoundException, NotSupported
-from gridstatus.epa.epa_constants import CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS
+from gridstatus.epa.epa_constants import (
+    BULK_COLUMN_RENAMES,
+    CLEAN_AIR_MARKETS_PROGRAM_DATA_COLUMNS,
+)
 
 
 @pytest.fixture
@@ -44,6 +47,76 @@ def hourly(day="2023-07-01", hour=0, facility=591):
         "so2MassMeasureFlg": "Measured",
         "so2RateMeasureFlg": "Calculated",
     }
+
+
+def bulk_response(rows):
+    csv = pd.DataFrame(rows).reindex(columns=list(BULK_COLUMN_RENAMES.values()))
+    csv.columns = list(BULK_COLUMN_RENAMES)
+    result = MagicMock(raw=BytesIO(csv.to_csv(index=False).encode()))
+    result.__enter__.return_value = result
+    return result
+
+
+@pytest.mark.parametrize(
+    "year,quarter,latitude,longitude",
+    [
+        (1995, 1, 39.7302, -75.5371),
+        (2010, 4, 47.2819, -101.3194),
+        (2025, 3, 39.7302, -75.5371),
+    ],
+)
+def test_bulk_matches_api_and_preserves_quarter_boundary(
+    epa,
+    year,
+    quarter,
+    latitude,
+    longitude,
+):
+    period = pd.Period(year=year, quarter=quarter, freq="Q")
+    rows = [
+        hourly(str(period.start_time.date())),
+        hourly(str(period.end_time.date()), 23),
+    ]
+    attrs = response({"items": [attributes(latitude=latitude, longitude=longitude)]})
+    stream = bulk_response(rows)
+    epa.session.get.side_effect = [stream, attrs, response(rows)]
+    chunks = list(
+        epa.get_clean_air_markets_program_data_bulk(year, quarter, chunk_size=1),
+    )
+    assert [len(chunk) for chunk in chunks] == [1, 1]
+    result = pd.concat(chunks, ignore_index=True)
+    expected = epa.get_clean_air_markets_program_data(
+        period.start_time,
+        end=(period + 1).start_time + pd.Timedelta(days=1),
+        error="raise",
+    )
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+    assert result["Unit ID"].tolist() == ["01", "01"]
+    assert result["Interval Start"].iloc[-1] > (period + 1).start_time.tz_localize(
+        "UTC",
+    )
+    assert result["Facility ID"].dtype == "Int64"
+    assert result["Unit ID"].dtype == "string"
+    assert (
+        epa.session.get.call_count == 3
+    )  # Annual attributes reused by both batches and API.
+    stream.__exit__.assert_called_once()
+
+
+def test_bulk_fails_on_bad_file_and_closes_stream(epa):
+    stream = bulk_response([hourly("2025-07-01"), hourly("2025-10-01")])
+    epa.session.get.side_effect = [stream, response({"items": [attributes()]})]
+    chunks = epa.get_clean_air_markets_program_data_bulk(2025, 3, chunk_size=1)
+    assert len(next(chunks)) == 1
+    with pytest.raises(ValueError, match="outside its quarter"):
+        next(chunks)
+    stream.__exit__.assert_called_once()
+    stream = bulk_response([])
+    stream.raise_for_status.side_effect = requests.HTTPError("404")
+    epa.session.get.side_effect = [stream]
+    with pytest.raises(requests.HTTPError, match="404"):
+        list(epa.get_clean_air_markets_program_data_bulk(2026, 4))
+    stream.__exit__.assert_called_once()
 
 
 @pytest.mark.parametrize("day", ["2023-01-01", "2023-07-01", "2023-11-05"])
