@@ -1159,6 +1159,17 @@ def process_dam_as_only_offers(
     return df
 
 
+# ERCOT renamed the RRS AS Capability columns in the 60-Day SCED Gen and Load
+# Resource files starting with Operating Day March 29, 2026 (RRSPF->RRSPFR,
+# RRSFF->RRSFFR, RRSUF->RRSUFR). Map them back to the original names so the
+# output columns stay the same for both old and new files.
+SCED_AS_CAPABILITY_NEW_TO_OLD = {
+    "AS Capability RRSPFR": "AS Capability RRSPF",
+    "AS Capability RRSFFR": "AS Capability RRSFF",
+    "AS Capability RRSUFR": "AS Capability RRSUF",
+}
+
+
 def process_sced_gen(
     df,
     output_format: CurveOutputFormat | str = CurveOutputFormat.LIST,
@@ -1230,6 +1241,8 @@ def process_sced_gen(
         + [sced1_offer_col, sced2_offer_col]
         + tpo_cols
     )
+
+    df = df.rename(columns=SCED_AS_CAPABILITY_NEW_TO_OLD)
 
     for col in all_cols:
         if col not in df.columns:
@@ -1320,6 +1333,8 @@ def process_sced_load(
     )
 
     all_cols = resource_cols + telemetry_cols + as_cols + [bid_curve_col]
+    df = df.rename(columns=SCED_AS_CAPABILITY_NEW_TO_OLD)
+
     for col in all_cols:
         if col not in df.columns:
             df[col] = np.nan
