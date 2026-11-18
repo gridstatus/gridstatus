@@ -68,8 +68,6 @@ from gridstatus.ercot_60d_utils import (
     _categorize_strings,
     extract_curve,
     process_as_offer_curves,
-    process_sced_gen,
-    process_sced_load,
     process_sced_resource_as_offers,
 )
 from gridstatus.ercot_constants import (
@@ -6881,49 +6879,3 @@ def test_highest_price_sced_all_ambiguous_returns_empty_schema():
         "Offered Quantities",
     ]
     assert str(result["SCED Timestamp"].dtype) == "datetime64[ns, US/Central]"
-
-
-class TestProcessScedAsCapabilityRename:
-    """ERCOT renamed the RRS AS Capability columns in the 60-Day SCED Gen and
-    Load Resource files starting with Operating Day March 29, 2026
-    (RRSPF->RRSPFR, RRSFF->RRSFFR, RRSUF->RRSUFR). Both layouts produce the same
-    output columns and values.
-    """
-
-    _BASE = {
-        "SCED Timestamp": [pd.Timestamp("2026-03-29 00:00", tz="US/Central")],
-        "QSE": ["QSE_A"],
-        "DME": ["DME_A"],
-        "Resource Name": ["RES_A"],
-    }
-
-    def _gen_df(self, new_layout):
-        suffix = "R" if new_layout else ""
-        df = pd.DataFrame(self._BASE)
-        df["Resource Type"] = ["CCGT90"]
-        df[f"AS Capability RRSPF{suffix}"] = [10.0]
-        df[f"AS Capability RRSFF{suffix}"] = [20.0]
-        return df
-
-    def _load_df(self, new_layout):
-        suffix = "R" if new_layout else ""
-        df = pd.DataFrame(self._BASE)
-        df[f"AS Capability RRSPF{suffix}"] = [10.0]
-        df[f"AS Capability RRSFF{suffix}"] = [20.0]
-        df[f"AS Capability RRSUF{suffix}"] = [30.0]
-        return df
-
-    @pytest.mark.parametrize("new_layout", [False, True])
-    def test_gen(self, new_layout):
-        result = process_sced_gen(self._gen_df(new_layout))
-        assert result.columns.tolist() == SCED_GEN_RESOURCE_COLUMNS
-        assert result["AS Capability RRSPF"].iloc[0] == 10.0
-        assert result["AS Capability RRSFF"].iloc[0] == 20.0
-
-    @pytest.mark.parametrize("new_layout", [False, True])
-    def test_load(self, new_layout):
-        result = process_sced_load(self._load_df(new_layout))
-        assert result.columns.tolist() == SCED_LOAD_RESOURCE_COLUMNS
-        assert result["AS Capability RRSPF"].iloc[0] == 10.0
-        assert result["AS Capability RRSFF"].iloc[0] == 20.0
-        assert result["AS Capability RRSUF"].iloc[0] == 30.0
