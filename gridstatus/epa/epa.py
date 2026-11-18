@@ -31,7 +31,6 @@ BASE_URL = "https://api.epa.gov/easey"
 def _standard_offset(
     latitude: float,
     longitude: float,
-    local: datetime,
 ) -> pd.Timedelta:
     # CAMPD reports local standard time year-round, including during DST.
     if (
@@ -43,8 +42,9 @@ def _standard_offset(
     timezone = get_tz(longitude, latitude)
     if not timezone:
         raise ValueError(f"No time zone for EPA coordinates {latitude}, {longitude}")
-    # Use the reporting hour: some counties changed standard time zones mid-year.
-    local = local.replace(tzinfo=ZoneInfo(timezone))
+    # Use PUDL's fixed January 2011 reference for EPA reporting time. Applying
+    # historical civil-time changes can collapse two reported hours onto one UTC key.
+    local = datetime(2011, 1, 1, tzinfo=ZoneInfo(timezone))
     offset, dst = local.utcoffset(), local.dst()
     assert offset is not None and dst is not None
     return pd.Timedelta(offset - dst)
@@ -148,8 +148,9 @@ class EPA:
         Includes emissions, heat input, gross load, and annual unit attributes.
 
         Dates define a UTC interval, with an exclusive end (one day by default).
-        EPA's local standard reporting hours are converted using facility coordinates;
-        missing coordinates raise rather than silently guessing a time zone. Gross Load
+        EPA's local standard reporting hours use a fixed offset from facility coordinates
+        (January 2011 reference), not historical civil-time zone changes. Missing
+        coordinates raise rather than silently guessing a time zone. Gross Load
         is MW, not MWh. Local reporting dates begin on 1995-01-01. EPA validates
         the latest supported reporting quarter; its validation errors are preserved.
         Ranges are not clamped to EPA's latest supported date. Pass error="raise"
@@ -295,11 +296,10 @@ class EPA:
         )
         offsets = pd.to_timedelta(
             [
-                _standard_offset(lat, lon, hour)
-                for lat, lon, hour in zip(
+                _standard_offset(lat, lon)
+                for lat, lon in zip(
                     hourly["latitude"],
                     hourly["longitude"],
-                    local,
                 )
             ],
         )

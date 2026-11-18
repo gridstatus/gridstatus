@@ -182,6 +182,31 @@ def test_pagination_year_join_and_range(epa):
     assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "ND"
 
 
+def test_fixed_reporting_offset_during_historical_zone_change(epa):
+    # Beulah moved from Mountain to Central in November 2010. Applying that civil
+    # transition to EPA's 24 reporting hours makes local 01:00 and 02:00 collide.
+    rows = [hourly("2010-11-07", hour) for hour in range(24)]
+    stream = bulk_response(rows)
+    epa.session.get.side_effect = [
+        response(rows),
+        response({"items": [attributes(latitude=47.2819, longitude=-101.3194)]}),
+        stream,
+    ]
+    expected = epa.get_clean_air_markets_program_data(
+        ("2010-11-07", "2010-11-09"),
+        error="raise",
+    )
+    assert expected["Interval Start"].tolist() == list(
+        pd.date_range("2010-11-07 06:00", periods=24, freq="h", tz="UTC"),
+    )
+    # Split between the formerly colliding hours: conversion must not depend on batching.
+    result = pd.concat(
+        epa.get_clean_air_markets_program_data_bulk(2010, 4, chunk_size=2),
+        ignore_index=True,
+    )
+    pd.testing.assert_frame_equal(result, expected, check_dtype=False)
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(not os.getenv("EPA_API_KEY"), reason="EPA_API_KEY is required")
 def test_clean_air_markets_program_data_live():
