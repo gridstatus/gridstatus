@@ -1,14 +1,17 @@
 import os
 from collections.abc import Iterator
+from contextlib import ExitStack
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, cast
+from pathlib import Path
+from typing import Any, BinaryIO, cast
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter
 from tzfpy import get_tz
+from urllib3.response import HTTPResponse
 from urllib3.util.retry import Retry
 
 from gridstatus.base import NoDataFoundException, NotSupported
@@ -204,6 +207,7 @@ class EPA:
         quarter: int,
         chunk_size: int = 100_000,
         verbose: bool = False,
+        file_path: str | Path | None = None,
     ) -> Iterator[pd.DataFrame]:
         """Yield a published national CAMPD quarter in bounded CSV batches.
 
@@ -216,6 +220,8 @@ class EPA:
         An API key is still needed for annual facility attributes. Bulk files
         are snapshots and can lag API revisions. Missing files and interrupted
         downloads raise; callers can restart the quarter with idempotent writes.
+        Supply file_path to read a downloaded CSV with the same validation and
+        normalization. Annual attributes still come from the API.
         """
         if year < 1995 or quarter not in (1, 2, 3, 4) or chunk_size < 1:
             raise ValueError("Use year >= 1995, quarter 1–4, and chunk_size >= 1")
@@ -223,17 +229,25 @@ class EPA:
             f"{BASE_URL}/bulk-files/emissions/hourly/quarter/"
             f"emissions-hourly-{year}-q{quarter}.csv"
         )
-        if verbose:
-            logger.info(f"Fetching {url}")
-        with self.session.get(
-            url,
-            stream=True,
-            timeout=self.REQUEST_TIMEOUT,
-        ) as response:
-            response.raise_for_status()
-            response.raw.decode_content = True
+        with ExitStack() as stack:
+            source: BinaryIO | HTTPResponse
+            if file_path is not None:
+                source = stack.enter_context(Path(file_path).open("rb"))
+            else:
+                if verbose:
+                    logger.info(f"Fetching {url}")
+                response = stack.enter_context(
+                    self.session.get(
+                        url,
+                        stream=True,
+                        timeout=self.REQUEST_TIMEOUT,
+                    ),
+                )
+                response.raise_for_status()
+                response.raw.decode_content = True
+                source = response.raw
             with pd.read_csv(
-                response.raw,
+                source,
                 usecols=list(BULK_COLUMN_RENAMES),
                 dtype=str,
                 keep_default_na=False,

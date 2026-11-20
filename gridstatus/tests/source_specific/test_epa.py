@@ -57,6 +57,7 @@ def bulk_response(rows):
     return result
 
 
+@pytest.mark.parametrize("local_file", [False, True])
 @pytest.mark.parametrize(
     "year,quarter,latitude,longitude",
     [
@@ -71,6 +72,8 @@ def test_bulk_matches_api_and_preserves_quarter_boundary(
     quarter,
     latitude,
     longitude,
+    local_file,
+    tmp_path,
 ):
     period = pd.Period(year=year, quarter=quarter, freq="Q")
     rows = [
@@ -79,9 +82,20 @@ def test_bulk_matches_api_and_preserves_quarter_boundary(
     ]
     attrs = response({"items": [attributes(latitude=latitude, longitude=longitude)]})
     stream = bulk_response(rows)
-    epa.session.get.side_effect = [stream, attrs, response(rows)]
+    path = tmp_path / "quarter.csv" if local_file else None
+    if path is not None:
+        path.write_bytes(stream.raw.getvalue())
+    epa.session.get.side_effect = ([stream] if not local_file else []) + [
+        attrs,
+        response(rows),
+    ]
     chunks = list(
-        epa.get_clean_air_markets_program_data_bulk(year, quarter, chunk_size=1),
+        epa.get_clean_air_markets_program_data_bulk(
+            year,
+            quarter,
+            chunk_size=1,
+            file_path=path,
+        ),
     )
     assert [len(chunk) for chunk in chunks] == [1, 1]
     result = pd.concat(chunks, ignore_index=True)
@@ -97,10 +111,13 @@ def test_bulk_matches_api_and_preserves_quarter_boundary(
     )
     assert result["Facility ID"].dtype == "Int64"
     assert result["Unit ID"].dtype == "string"
-    assert (
-        epa.session.get.call_count == 3
-    )  # Annual attributes reused by both batches and API.
-    stream.__exit__.assert_called_once()
+    assert epa.session.get.call_count == (2 if local_file else 3)
+    if not local_file:
+        stream.__exit__.assert_called_once()
+    else:
+        assert all(
+            "bulk-files" not in call.args[0] for call in epa.session.get.call_args_list
+        )
 
 
 def test_bulk_fails_on_bad_file_and_closes_stream(epa):
