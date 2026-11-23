@@ -1,5 +1,7 @@
 import os
 from io import BytesIO
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pandas as pd
@@ -49,7 +51,7 @@ def hourly(day="2023-07-01", hour=0, facility=591):
     }
 
 
-def bulk_response(rows):
+def bulk_response(rows: list[dict[str, Any]]) -> MagicMock:
     csv = pd.DataFrame(rows).reindex(columns=list(BULK_COLUMN_RENAMES.values()))
     csv.columns = list(BULK_COLUMN_RENAMES)
     result = MagicMock(raw=BytesIO(csv.to_csv(index=False).encode()))
@@ -67,14 +69,14 @@ def bulk_response(rows):
     ],
 )
 def test_bulk_matches_api_and_preserves_quarter_boundary(
-    epa,
-    year,
-    quarter,
-    latitude,
-    longitude,
-    local_file,
-    tmp_path,
-):
+    epa: EPA,
+    year: int,
+    quarter: int,
+    latitude: float,
+    longitude: float,
+    local_file: bool,
+    tmp_path: Path,
+) -> None:
     period = pd.Period(year=year, quarter=quarter, freq="Q")
     rows = [
         hourly(str(period.start_time.date())),
@@ -120,7 +122,7 @@ def test_bulk_matches_api_and_preserves_quarter_boundary(
         )
 
 
-def test_bulk_fails_on_bad_file_and_closes_stream(epa):
+def test_bulk_fails_on_bad_file_and_closes_stream(epa: EPA) -> None:
     stream = bulk_response([hourly("2025-07-01"), hourly("2025-10-01")])
     epa.session.get.side_effect = [stream, response({"items": [attributes()]})]
     chunks = epa.get_clean_air_markets_program_data_bulk(2025, 3, chunk_size=1)
@@ -199,7 +201,7 @@ def test_pagination_year_join_and_range(epa):
     assert epa.session.get.call_args_list[1].kwargs["params"]["stateCode"] == "ND"
 
 
-def test_fixed_reporting_offset_during_historical_zone_change(epa):
+def test_fixed_reporting_offset_during_historical_zone_change(epa: EPA) -> None:
     # Beulah moved from Mountain to Central in November 2010. Applying that civil
     # transition to EPA's 24 reporting hours makes local 01:00 and 02:00 collide.
     rows = [hourly("2010-11-07", hour) for hour in range(24)]
