@@ -32,6 +32,7 @@
 - [Installation](#installation)
 - [Getting started](#getting-started)
 - [What's available](#whats-available)
+- [MCP server for AI assistants](#mcp-server-for-ai-assistants)
 - [Resources and help](#resources--help)
 
 ## Open source `gridstatus` vs. the hosted Grid Status API
@@ -89,6 +90,22 @@ Available data includes load, fuel mix, forecasts, locational marginal prices (L
 - **Datasets (vary by ISO):** fuel mix, load (demand), load forecasts, locational marginal prices (LMP, day-ahead & real-time), storage, ancillary-service prices, interconnection queues, and more.
 
 The exact dataset coverage per ISO is documented in the [API reference](https://opensource.gridstatus.io/).
+
+## MCP server for AI assistants
+
+Grid Status hosts an [MCP](https://modelcontextprotocol.io) server that gives AI assistants and coding agents, such as Claude, Codex, Cursor, and VS Code, access to the hosted Grid Status data. It serves the [hosted API](https://www.gridstatus.io/api) data, not this library. There's nothing to install and no API key: your client signs in with a Grid Status account, free or paid.
+
+```text
+https://api.gridstatus.io/mcp
+```
+
+In Claude Code, for example, add it and then run `/mcp` to sign in:
+
+```bash
+claude mcp add --transport http --scope user gridstatus https://api.gridstatus.io/mcp
+```
+
+Setup steps for each client are in the [MCP server docs](https://docs.gridstatus.io/developers/ai-agents/mcp-server).
 
 ## Resources & help
 
