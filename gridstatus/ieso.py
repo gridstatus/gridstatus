@@ -5,9 +5,10 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Literal
 from urllib.error import HTTPError
+from urllib.request import urlopen
 from warnings import warn
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -38,6 +39,8 @@ from gridstatus.ieso_constants import (
     ZONAL_LOAD_COLUMNS,
 )
 
+# Limit socket inactivity even when the caller has no dataset-level deadline.
+REPORT_TIMEOUT_SECONDS = 30
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTIFICATES_CHAIN_FILE = os.path.join(
     CURRENT_DIR,
@@ -847,7 +850,7 @@ class IESO(ISOBase):
 
         return data.sort_values("Interval Start")
 
-    def _request(self, url: str, verbose: bool = False):
+    def _request(self, url: str, verbose: bool = False) -> requests.Response:
         logger.info(f"Fetching URL: {url}")
 
         max_retries = 3
@@ -863,7 +866,7 @@ class IESO(ISOBase):
             tls_verify = True
 
         while retry_num < max_retries:
-            r = requests.get(url, verify=tls_verify)
+            r = requests.get(url, verify=tls_verify, timeout=REPORT_TIMEOUT_SECONDS)
 
             if r.ok:
                 break
@@ -1207,7 +1210,15 @@ class IESO(ISOBase):
         """
         base_url = RESOURCE_ADEQUACY_REPORT_BASE_URL
 
-        r = self._request(base_url)
+        # Fetch the directory itself, avoiding a redirect on every poll. A reset
+        # here would otherwise discard the entire poll before discovering any files.
+        listing_url = f"{base_url}/"
+        try:
+            r = self._request(listing_url)
+        except (requests.ConnectionError, requests.Timeout) as error:
+            logger.warning("Retrying adequacy listing after %s", error)
+            time.sleep(1)
+            r = self._request(listing_url)
 
         # Match all PUB_Adequacy3 files (not just for a specific date)
         pattern = r'<a href="(PUB_Adequacy3_.*?\.xml)">.*?</a>\s+(\d{2}-\w{3}-\d{4} \d{2}:\d{2})'
@@ -1270,6 +1281,7 @@ class IESO(ISOBase):
                 except (
                     http.client.RemoteDisconnected,
                     requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout,
                 ) as e:
                     retries += 1
                     if retries < max_retries:
@@ -1281,9 +1293,12 @@ class IESO(ISOBase):
                         )
                         time.sleep(wait_time)
                     else:
-                        logger.error(
-                            f"Failed to fetch file {file} after {max_retries} retries: {e!s}",
+                        # Returning later publications could advance the ETL
+                        # cursor past this file before it has been ingested.
+                        e.add_note(
+                            f"Failed to fetch {file} after {max_retries} attempts",
                         )
+                        raise
                 except Exception as e:
                     logger.error(f"Unexpected error processing file {file}: {e!s}")
                     break  # Don't retry for unexpected errors
@@ -2490,7 +2505,15 @@ class IESO(ISOBase):
         if verbose:
             logger.info(f"Fetching LMP data from {url}")
 
-        data = pd.read_csv(url, skiprows=1)
+        with urlopen(url, timeout=REPORT_TIMEOUT_SECONDS) as response:
+            compression = (
+                "gzip" if response.headers.get("Content-Encoding") == "gzip" else None
+            )
+            data = pd.read_csv(
+                BytesIO(response.read()),
+                skiprows=1,
+                compression=compression,
+            )
 
         if minutes_per_interval == 5:
             data["Interval Start"] = pd.to_datetime(

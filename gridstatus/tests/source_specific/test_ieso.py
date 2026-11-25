@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 import numpy as np
 import pandas as pd
 import pytest
+import requests
 from pandas.core.dtypes.common import is_numeric_dtype
 
 from gridstatus import IESO, utils
@@ -17,6 +18,7 @@ from gridstatus.ieso_constants import (
     INTERTIE_LIMITS_COLUMNS,
     MAXIMUM_DAYS_IN_PAST_FOR_COMPLETE_GENERATOR_REPORT,
     ONTARIO_LOCATION,
+    RESOURCE_ADEQUACY_REPORT_BASE_URL,
     RESOURCE_ADEQUACY_REPORT_DATA_STRUCTURE_MAP,
     ZONAL_LOAD_COLUMNS,
 )
@@ -712,6 +714,45 @@ class TestIESO(BaseTestISO):
             assert col in df.columns
         assert (df["Last Modified"] > last_modified).all()
 
+    @pytest.mark.parametrize("persistent_failure", [False, True])
+    def test_incremental_adequacy_retries_transport_failures(
+        self,
+        persistent_failure: bool,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        directory = f"{RESOURCE_ADEQUACY_REPORT_BASE_URL}/"
+        files = ["PUB_Adequacy3_20261125_v92.xml", "PUB_Adequacy3_20261125_v93.xml"]
+        listing = "\n".join(
+            f'<a href="{name}">{name}</a> 25-Nov-2026 09:53' for name in files
+        )
+        report = Mock(ok=True, text="<Document>available</Document>")
+        get = Mock(
+            side_effect=[
+                requests.ConnectionError("listing reset"),
+                Mock(ok=True, text=listing),
+                report,
+                requests.ReadTimeout("file stalled"),
+                requests.ReadTimeout("file stalled"),
+                requests.ReadTimeout("file stalled") if persistent_failure else report,
+            ],
+        )
+        monkeypatch.setattr("gridstatus.ieso.requests.get", get)
+        monkeypatch.setattr("gridstatus.ieso.time.sleep", Mock())
+        since = pd.Timestamp("2026-11-25 09:52", tz=self.default_timezone)
+        if persistent_failure:
+            with pytest.raises(requests.ReadTimeout):
+                self.iso._get_all_resource_adequacy_jsons_by_last_modified(since)
+        else:
+            reports = self.iso._get_all_resource_adequacy_jsons_by_last_modified(since)
+            assert len(reports) == 2
+        assert [call.args[0] for call in get.call_args_list] == [
+            directory,
+            directory,
+            directory + files[0],
+            *[directory + files[1]] * 3,
+        ]
+        assert all(call.kwargs["timeout"] == 30 for call in get.call_args_list)
+
     @pytest.mark.parametrize("by_last_modified", [False, True])
     def test_adequacy_missing_file_warns_and_keeps_available_reports(
         self,
@@ -1279,6 +1320,19 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=5)
 
     """get_lmp_day_ahead_hourly"""
+
+    def test_day_ahead_lmp_download_timeout(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        download = Mock(side_effect=TimeoutError("file stalled"))
+        monkeypatch.setattr("gridstatus.ieso.urlopen", download)
+        with pytest.raises(TimeoutError):
+            self.iso.get_lmp_day_ahead_hourly("latest")
+        download.assert_called_once_with(
+            "https://reports-public.ieso.ca/public/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv",
+            timeout=30,
+        )
 
     def test_get_lmp_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette("test_get_lmp_day_ahead_hourly_latest.yaml"):
