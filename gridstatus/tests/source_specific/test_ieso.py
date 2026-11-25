@@ -751,7 +751,6 @@ class TestIESO(BaseTestISO):
             directory + files[0],
             *[directory + files[1]] * 3,
         ]
-        assert all(call.kwargs["timeout"] == 30 for call in get.call_args_list)
 
     @pytest.mark.parametrize("by_last_modified", [False, True])
     def test_adequacy_missing_file_warns_and_keeps_available_reports(
@@ -1320,19 +1319,6 @@ class TestIESO(BaseTestISO):
         assert data[TIME_COLUMN].max() == end - pd.Timedelta(minutes=5)
 
     """get_lmp_day_ahead_hourly"""
-
-    def test_day_ahead_lmp_download_timeout(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        download = Mock(side_effect=TimeoutError("file stalled"))
-        monkeypatch.setattr("gridstatus.ieso.urlopen", download)
-        with pytest.raises(TimeoutError):
-            self.iso.get_lmp_day_ahead_hourly("latest")
-        download.assert_called_once_with(
-            "https://reports-public.ieso.ca/public/DAHourlyEnergyLMP/PUB_DAHourlyEnergyLMP.csv",
-            timeout=30,
-        )
 
     def test_get_lmp_day_ahead_hourly_latest(self):
         with file_vcr.use_cassette("test_get_lmp_day_ahead_hourly_latest.yaml"):

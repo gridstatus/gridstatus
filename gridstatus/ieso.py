@@ -5,10 +5,9 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
-from io import BytesIO, StringIO
+from io import StringIO
 from typing import Literal
 from urllib.error import HTTPError
-from urllib.request import urlopen
 from warnings import warn
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -39,8 +38,6 @@ from gridstatus.ieso_constants import (
     ZONAL_LOAD_COLUMNS,
 )
 
-# Limit socket inactivity even when the caller has no dataset-level deadline.
-REPORT_TIMEOUT_SECONDS = 30
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CERTIFICATES_CHAIN_FILE = os.path.join(
     CURRENT_DIR,
@@ -850,7 +847,7 @@ class IESO(ISOBase):
 
         return data.sort_values("Interval Start")
 
-    def _request(self, url: str, verbose: bool = False) -> requests.Response:
+    def _request(self, url: str, verbose: bool = False):
         logger.info(f"Fetching URL: {url}")
 
         max_retries = 3
@@ -866,7 +863,7 @@ class IESO(ISOBase):
             tls_verify = True
 
         while retry_num < max_retries:
-            r = requests.get(url, verify=tls_verify, timeout=REPORT_TIMEOUT_SECONDS)
+            r = requests.get(url, verify=tls_verify)
 
             if r.ok:
                 break
@@ -2505,15 +2502,7 @@ class IESO(ISOBase):
         if verbose:
             logger.info(f"Fetching LMP data from {url}")
 
-        with urlopen(url, timeout=REPORT_TIMEOUT_SECONDS) as response:
-            compression = (
-                "gzip" if response.headers.get("Content-Encoding") == "gzip" else None
-            )
-            data = pd.read_csv(
-                BytesIO(response.read()),
-                skiprows=1,
-                compression=compression,
-            )
+        data = pd.read_csv(url, skiprows=1)
 
         if minutes_per_interval == 5:
             data["Interval Start"] = pd.to_datetime(
