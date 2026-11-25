@@ -1,6 +1,11 @@
 import datetime
+import functools
+import http.server
 import logging
+import socket
+import threading
 from unittest.mock import Mock
+from urllib.error import HTTPError
 from xml.etree import ElementTree
 
 import numpy as np
@@ -9,7 +14,7 @@ import pytest
 import requests
 from pandas.core.dtypes.common import is_numeric_dtype
 
-from gridstatus import IESO, utils
+from gridstatus import IESO, ieso, utils
 from gridstatus.base import NoDataFoundException, NotSupported
 from gridstatus.ieso import _safe_find_float, _safe_find_int, _safe_find_text
 from gridstatus.ieso_constants import (
@@ -2595,3 +2600,59 @@ class TestIESOSafeXMLParsing:
 
         assert _safe_find_text(root, "ns:item", namespaces=ns) == "test_value"
         assert _safe_find_int(root, "ns:number", namespaces=ns) == 42
+
+
+class TestIESORequestTimeouts:
+    iso = IESO()
+
+    def test_request_gives_up_on_a_server_that_never_answers(
+        self,
+        monkeypatch,
+        silent_server_url,
+    ):
+        monkeypatch.setattr(ieso, "REQUEST_TIMEOUT_SECONDS", 1)
+
+        with pytest.raises(requests.exceptions.Timeout):
+            self.iso._request(silent_server_url)
+
+    def test_read_csv_gives_up_on_a_server_that_never_answers(
+        self,
+        monkeypatch,
+        silent_server_url,
+    ):
+        monkeypatch.setattr(ieso, "REQUEST_TIMEOUT_SECONDS", 1)
+
+        with pytest.raises(TimeoutError):
+            self.iso._read_csv(silent_server_url)
+
+    def test_read_csv_reads_a_served_file_and_raises_for_a_missing_one(
+        self,
+        tmp_path,
+    ):
+        (tmp_path / "report.csv").write_text(
+            "CREATED AT 2026/11/25\nHour,Price\n1,2.5\n",
+        )
+        handler = functools.partial(
+            http.server.SimpleHTTPRequestHandler,
+            directory=str(tmp_path),
+        )
+        with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+
+            data = self.iso._read_csv(f"{base_url}/report.csv", skiprows=1)
+            with pytest.raises(HTTPError) as error:
+                self.iso._read_csv(f"{base_url}/missing.csv", skiprows=1)
+            server.shutdown()
+
+        assert data.to_dict("records") == [{"Hour": 1, "Price": 2.5}]
+        assert error.value.code == 404
+
+
+@pytest.fixture
+def silent_server_url():
+    """A server that accepts connections and never sends a byte."""
+    with socket.socket() as server:
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+        yield f"http://127.0.0.1:{server.getsockname()[1]}/report.csv"
