@@ -1226,7 +1226,15 @@ class IESO(ISOBase):
         """
         base_url = RESOURCE_ADEQUACY_REPORT_BASE_URL
 
-        r = self._request(base_url)
+        # Fetch the directory itself, avoiding a redirect on every poll. A reset
+        # here would otherwise discard the entire poll before discovering any files.
+        listing_url = f"{base_url}/"
+        try:
+            r = self._request(listing_url)
+        except (requests.ConnectionError, requests.Timeout) as error:
+            logger.warning("Retrying adequacy listing after %s", error)
+            time.sleep(1)
+            r = self._request(listing_url)
 
         # Match all PUB_Adequacy3 files (not just for a specific date)
         pattern = r'<a href="(PUB_Adequacy3_.*?\.xml)">.*?</a>\s+(\d{2}-\w{3}-\d{4} \d{2}:\d{2})'
@@ -1289,6 +1297,7 @@ class IESO(ISOBase):
                 except (
                     http.client.RemoteDisconnected,
                     requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout,
                 ) as e:
                     retries += 1
                     if retries < max_retries:
@@ -1300,9 +1309,12 @@ class IESO(ISOBase):
                         )
                         time.sleep(wait_time)
                     else:
-                        logger.error(
-                            f"Failed to fetch file {file} after {max_retries} retries: {e!s}",
+                        # Returning later publications could advance the ETL
+                        # cursor past this file before it has been ingested.
+                        e.add_note(
+                            f"Failed to fetch {file} after {max_retries} attempts",
                         )
+                        raise
                 except Exception as e:
                     logger.error(f"Unexpected error processing file {file}: {e!s}")
                     break  # Don't retry for unexpected errors
