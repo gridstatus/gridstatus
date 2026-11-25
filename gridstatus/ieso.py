@@ -5,9 +5,10 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Literal
 from urllib.error import HTTPError
+from urllib.request import urlopen
 from warnings import warn
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -43,6 +44,10 @@ CERTIFICATES_CHAIN_FILE = os.path.join(
     CURRENT_DIR,
     "public_certificates/ieso/intermediate_and_root.pem",
 )
+
+# Longest wait to connect, and between bytes of a response. Without a limit, a
+# connection the server stops answering holds its thread forever.
+REQUEST_TIMEOUT_SECONDS = 30
 
 # Date when IESO switched to new market and retired several datasets
 RETIRED_DATE = datetime.date(2025, 5, 1)
@@ -705,7 +710,7 @@ class IESO(ISOBase):
     ):
         url = f"https://reports-public.ieso.ca/public/RealtimeMktPriceYear/PUB_RealtimeMktPriceYear_{date.year}.csv"
 
-        raw_data = pd.read_csv(url, skiprows=3, header=[0, 1])
+        raw_data = self._read_csv(url, skiprows=3, header=[0, 1])
 
         # Columns are multi-level
         data = raw_data.melt(
@@ -788,7 +793,7 @@ class IESO(ISOBase):
 
         # Data is only available for a limited number of days through this method
         try:
-            data = pd.read_csv(
+            data = self._read_csv(
                 url,
                 skiprows=4,
                 usecols=[0, 1],
@@ -823,7 +828,7 @@ class IESO(ISOBase):
 
         url = f"https://reports-public.ieso.ca/public/PriceHOEPPredispOR/PUB_PriceHOEPPredispOR_{date.year}.csv"
 
-        data = pd.read_csv(url, skiprows=1, header=2)
+        data = self._read_csv(url, skiprows=1, header=2)
 
         data["Interval End"] = (
             pd.to_datetime(data["Date"]) + pd.to_timedelta(data["Hour"], unit="h")
@@ -863,7 +868,11 @@ class IESO(ISOBase):
             tls_verify = True
 
         while retry_num < max_retries:
-            r = requests.get(url, verify=tls_verify)
+            r = requests.get(
+                url,
+                verify=tls_verify,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
 
             if r.ok:
                 break
@@ -887,6 +896,16 @@ class IESO(ISOBase):
             )
 
         return r
+
+    def _read_csv(self, url: str, **read_csv_kwargs) -> pd.DataFrame:
+        """Read a CSV report, giving up when the server stops responding.
+
+        ``pd.read_csv(url)`` opens the URL with no timeout. This raises the same
+        ``urllib.error.HTTPError`` for a missing file.
+        """
+        with urlopen(url, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            content = response.read()
+        return pd.read_csv(BytesIO(content), **read_csv_kwargs)
 
     @support_date_range(frequency="DAY_START")
     def get_resource_adequacy_report(
@@ -1850,7 +1869,7 @@ class IESO(ISOBase):
         Returns:
             DataFrame containing the parsed data
         """
-        df = pd.read_csv(
+        df = self._read_csv(
             url,
             skiprows=3,
             header=[0, 1],
@@ -2490,7 +2509,7 @@ class IESO(ISOBase):
         if verbose:
             logger.info(f"Fetching LMP data from {url}")
 
-        data = pd.read_csv(url, skiprows=1)
+        data = self._read_csv(url, skiprows=1)
 
         if minutes_per_interval == 5:
             data["Interval Start"] = pd.to_datetime(
@@ -3737,7 +3756,7 @@ class IESO(ISOBase):
         date: str | pd.Timestamp | tuple[pd.Timestamp, pd.Timestamp],
         end: pd.Timestamp | None = None,
     ) -> pd.DataFrame:
-        df = pd.read_csv(url, skiprows=3, parse_dates=["Date"])
+        df = self._read_csv(url, skiprows=3, parse_dates=["Date"])
 
         if "Interval" in df.columns:
             interval_start = (
@@ -4162,7 +4181,7 @@ class IESO(ISOBase):
 
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}_{date.strftime('%Y%m%d')}{file_hour}.csv"
 
-        data = pd.read_csv(url, skiprows=1)
+        data = self._read_csv(url, skiprows=1)
 
         base_datetime = pd.to_datetime(date).normalize()
         data["Interval Start"] = (
@@ -4246,7 +4265,7 @@ class IESO(ISOBase):
         else:
             url = f"{PUBLIC_REPORTS_URL_PREFIX}/{file_directory}/PUB_{file_directory}_{date.strftime('%Y%m%d')}.csv"
 
-            data = pd.read_csv(url, skiprows=1)
+            data = self._read_csv(url, skiprows=1)
             base_datetime = date.normalize()
 
         data["Interval Start"] = base_datetime + pd.to_timedelta(
