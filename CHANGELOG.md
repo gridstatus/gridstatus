@@ -205,6 +205,14 @@
 * Relaxed the `certifi` upper bound so installs can pick up 2026 releases, which drop the distrusted eMudhra emSign roots, in [#973](https://github.com/gridstatus/gridstatus/pull/973)
 * Fixed a `timedelta64[ns]` to `timedelta64[h]` conversion error on newer pandas in [#812](https://github.com/gridstatus/gridstatus/pull/812)
 
+#### NYISO
+* NYISO capacity auction results via `NYISO.get_capacity_market_results`, parsing the stable public monthly ICAP Market Report. Returns a tidy, one-row-per-(delivery month, capacity locality) DataFrame of Spot / Monthly / Strip auction clearing prices (published UCAP price and derived ICAP price, in $/kW-month), the locational EFORd translation factor, and the delivery-month cleared quantity and requirement, by NYISO capacity locality (NYCA, G-J Locality, NYC/Zone J, Long Island/Zone K). Supports `"latest"`, a single month, or a `date`/`end` range. Partially addresses [#687](https://github.com/gridstatus/gridstatus/issues/687); demand curves, masked bid data, LSE-specific obligations, settlement charges, non-delivery penalties, and scarcity-related settlement data are out of scope and left to follow-up work.
+
+### Fixes
+
+#### NYISO
+* `NYISO.get_capacity_prices` now uses shared ICAP Market Report URL resolution, including versioned, URL-encoded, and legacy `.xls` filename handling. Existing return schema is unchanged.
+
 ## v0.36.0 - April 20, 2026
 
 ### Additions (New Features/Datasets)
