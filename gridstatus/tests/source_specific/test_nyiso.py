@@ -74,7 +74,8 @@ class TestNYISO(BaseTestISO):
     def test_range_two_days_across_month(self):
         today = gridstatus.utils._handle_date("today", self.iso.default_timezone)
         first_day_of_month = today.replace(day=1, hour=5, minute=0, second=0)
-        last_day_of_prev_month = first_day_of_month - pd.Timedelta(days=1)
+        # Calendar-day arithmetic so DST transition days (23h/25h) are handled
+        last_day_of_prev_month = first_day_of_month - pd.DateOffset(days=1)
         with nyiso_vcr.use_cassette(
             f"test_get_fuel_mix_range_two_days_across_month_{last_day_of_prev_month.strftime('%Y-%m-%d')}_{first_day_of_month.strftime('%Y-%m-%d')}.yaml",
         ):
@@ -84,7 +85,9 @@ class TestNYISO(BaseTestISO):
             )
 
         # Midnight of the end date
-        assert df["Time"].max() == first_day_of_month.normalize() + pd.Timedelta(days=1)
+        assert df["Time"].max() == (
+            first_day_of_month.normalize() + pd.DateOffset(days=1)
+        )
         # First 5 minute interval of the start date
         assert df["Time"].min() == last_day_of_prev_month.normalize() + pd.Timedelta(
             minutes=5,
