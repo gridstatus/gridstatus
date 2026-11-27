@@ -1372,8 +1372,13 @@ class NYISO(ISOBase):
 
         logger.info(f"Requesting {capacity_url_2024}")
 
+        # NB: pd.read_excel(url) goes through urllib, whose default certificate
+        # store often lacks the root that nyiso.com chains to
+        response = requests.get(capacity_url_2024, timeout=60)
+        response.raise_for_status()
+
         generators = pd.read_excel(
-            capacity_url_2024,
+            BytesIO(response.content),
             sheet_name=[
                 "Table III-2a",
                 "Table III-2b",
