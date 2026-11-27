@@ -245,6 +245,36 @@ class TestNYISO(BaseTestISO):
         with pytest.raises(ValueError, match="MCP Table"):
             iso.get_capacity_market_results("June 1, 2016", auction_type="spot")
 
+    def test_latest_capacity_month_falls_back_when_not_posted(self):
+        # Early in a month (or in January, before the new year's document folder
+        # exists) the current report can't be resolved yet; "latest" should use
+        # the previous month instead of raising.
+        iso = NYISO()
+        tried = []
+
+        def resolve(date, verbose=False):
+            tried.append(date)
+            if date.month == 1:
+                raise ValueError("Year 2027 is not currently supported")
+            return "url"
+
+        iso._resolve_capacity_report_url = resolve
+        now = pd.Timestamp("2027-01-05 10:00", tz=iso.default_timezone)
+        assert iso._resolve_latest_capacity_month(now) == pd.Timestamp(
+            "2026-12-01",
+            tz=iso.default_timezone,
+        )
+        assert len(tried) == 1
+
+    def test_latest_capacity_month_uses_current_month_when_posted(self):
+        iso = NYISO()
+        iso._resolve_capacity_report_url = lambda date, verbose=False: "url"
+        now = pd.Timestamp("2026-10-20 10:00", tz=iso.default_timezone)
+        assert iso._resolve_latest_capacity_month(now) == pd.Timestamp(
+            "2026-10-01",
+            tz=iso.default_timezone,
+        )
+
     def test_get_capacity_prices_unsupported_vintage_raises(self):
         # Pre-~2019 reports (e.g. the 2017/2018 single-sheet .xls files) lack the
         # "MCP Table" sheet; get_capacity_prices must raise clearly.

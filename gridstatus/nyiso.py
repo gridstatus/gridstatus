@@ -2,7 +2,7 @@ import warnings
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
 from io import BytesIO
-from typing import BinaryIO, Dict, Literal, NamedTuple, cast
+from typing import BinaryIO, Literal, NamedTuple, cast
 
 import numpy as np
 import pandas as pd
@@ -128,7 +128,6 @@ def _read_latest_oasis_postings_csv(folder: str) -> tuple[pd.DataFrame, pd.Times
     return pd.read_csv(BytesIO(response.content)), last_modified
 
 
-
 # NYISO's three Installed Capacity (ICAP) auction types. NYISO capacity is bought
 # and sold on an Unforced Capacity (UCAP) basis, so the clearing prices published
 # in the monthly ICAP Market Report are UCAP-denominated ($/kW-month).
@@ -141,7 +140,7 @@ class CapacityAuctionType(StrEnum):
 # The monthly ICAP Market Report lives under a per-year document-folder id in
 # NYISO's document store (https://www.nyiso.com/documents/20142/<folder-id>/...).
 # The folder id changes every year; new years must be added here as they publish.
-CAPACITY_REPORT_YEAR_CODES: Dict[int, int] = {
+CAPACITY_REPORT_YEAR_CODES: dict[int, int] = {
     2014: 1410927,
     2015: 1410895,
     2016: 1410901,
@@ -164,7 +163,7 @@ CAPACITY_REPORT_YEAR_CODES: Dict[int, int] = {
 # earlier reports contain only NYCA, NYC and Long Island. Locality parsing is
 # driven by these labels (not by column position), so a report with a different
 # set of localities is handled correctly rather than mislabeled.
-CAPACITY_LOCALITY_MAP: Dict[str, str] = {
+CAPACITY_LOCALITY_MAP: dict[str, str] = {
     "NYCA": "NYCA",
     "GHIJ": "G-J Locality",
     "NYC": "NYC (Zone J)",
@@ -175,7 +174,7 @@ CAPACITY_LOCALITY_MAP: Dict[str, str] = {
 # Normalized (stripped/lower-cased) label -> standardized locality name, used to
 # map each cover-sheet column to a locality by its header text rather than by a
 # fixed left-to-right order.
-COVER_LOCALITY_LABELS: Dict[str, str] = {
+COVER_LOCALITY_LABELS: dict[str, str] = {
     "new york control area": "NYCA",
     "nyca": "NYCA",
     "g-j locality": "G-J Locality",
@@ -1833,12 +1832,12 @@ class NYISO(ISOBase):
         candidates.append(f"{base}/ICAP-Market-Report-{month}-{year}.xlsx")
         # URL-encoded "space dash space" style (e.g. December 2023).
         candidates.append(
-            f"{base}/ICAP%20Market%20Report%20-%20{month}%20{year}.xlsx",  # noqa: E501
+            f"{base}/ICAP%20Market%20Report%20-%20{month}%20{year}.xlsx",
         )
         # Legacy .xls variants (older report vintages).
         candidates.append(f"{base}/ICAP-Market-Report-{month}-{year}.xls")
         candidates.append(
-            f"{base}/ICAP%20Market%20Report%20-%20{month}%20{year}.xls",  # noqa: E501
+            f"{base}/ICAP%20Market%20Report%20-%20{month}%20{year}.xls",
         )
         return candidates
 
@@ -1893,6 +1892,30 @@ class NYISO(ISOBase):
             + (f" (last error: {last_error})" if last_error else ""),
         )
 
+    def _resolve_latest_capacity_month(
+        self,
+        now: pd.Timestamp,
+        verbose: bool = False,
+    ) -> pd.Timestamp:
+        """Return the newest delivery month whose ICAP Market Report is posted.
+
+        NYISO posts a month's report some days into that month, and a new year's
+        document folder only exists once its first report is out. Until then the
+        current month cannot be resolved, so "latest" falls back one month.
+        """
+        month_start = now.normalize().replace(day=1)
+        try:
+            self._resolve_capacity_report_url(month_start, verbose=verbose)
+            return month_start
+        except (FileNotFoundError, ValueError):
+            previous = month_start - pd.DateOffset(months=1)
+            if verbose:
+                logger.info(
+                    f"No ICAP Market Report for {month_start.strftime('%B %Y')} "
+                    f"yet; using {previous.strftime('%B %Y')}",
+                )
+            return previous
+
     def _download_capacity_report(
         self,
         date: pd.Timestamp,
@@ -1938,8 +1961,11 @@ class NYISO(ISOBase):
             a DataFrame of monthly capacity prices (all three auctions) for \
                 each of the four capacity localities within NYISO
         """
-        if date is None:
-            date = pd.Timestamp.now(tz=self.default_timezone)
+        if date is None or date in ("latest", "today"):
+            date = self._resolve_latest_capacity_month(
+                pd.Timestamp.now(tz=self.default_timezone),
+                verbose=verbose,
+            )
         else:
             date = utils._handle_date(date, tz=self.default_timezone)
 
@@ -2032,7 +2058,10 @@ class NYISO(ISOBase):
             )
 
         if isinstance(date, str) and date == "latest":
-            date = pd.Timestamp.now(tz=self.default_timezone)
+            date = self._resolve_latest_capacity_month(
+                pd.Timestamp.now(tz=self.default_timezone),
+                verbose=verbose,
+            )
         # support_date_range has already resolved date to a Timestamp for every
         # other input (single date or the start of a range chunk).
         date = cast(pd.Timestamp, date)
