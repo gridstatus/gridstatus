@@ -1196,13 +1196,26 @@ class NYISO(ISOBase):
             ],
         ).dropna(subset=["Queue Pos.", "Project Name"], how="all")
 
+        withdrawn = withdrawn.rename(
+            columns={
+                "Utility ": "Utility",
+                "Owner/Developer": "Developer Name",
+                "Last Update": "Last Updated Date",
+            },
+        )
         withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
         # assume it was withdrawn when last updated
-        withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
+        withdrawn["Withdrawn Date"] = withdrawn["Last Updated Date"]
         withdrawn["Withdrawal Comment"] = None
-        withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
-        withdrawn = withdrawn.rename(columns={"Owner/Developer": "Developer Name"})
+        # NYISO sometimes leaves a withdrawn project on an active sheet too.
+        # Keep only the withdrawn row. Match on name as well as queue position
+        # because separate phases of a project can share a queue position.
+        withdrawn_keys = pd.MultiIndex.from_frame(
+            withdrawn[["Queue Pos.", "Project Name"]],
+        )
+        active_keys = pd.MultiIndex.from_frame(active[["Queue Pos.", "Project Name"]])
+        active = active[~active_keys.isin(withdrawn_keys)]
 
         # make completed look like the other two sheets
         completed = pd.read_excel(excel_file, sheet_name="In Service", header=[0, 1])

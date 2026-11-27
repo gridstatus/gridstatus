@@ -52,16 +52,19 @@ def _interconnection_queue_workbook() -> io.BytesIO:
         "Utility",
         "Proposed COD",
     ]
-    for sheet_name, queue_pos in [
-        ("Interconnection Queue", "1000"),
-        (" Cluster Projects", "C24-100"),
+    for sheet_name, projects in [
+        # A later phase sharing a withdrawn project's queue position stays active
+        ("Interconnection Queue", [("1000", "Active"), ("0127A", "Torne Phase 2")]),
+        # A withdrawn project NYISO also left on the active sheet
+        (" Cluster Projects", [("C24-100", "Active"), ("C24-001", "Vineyard East")]),
     ]:
         ws = wb.create_sheet(sheet_name)
         ws.append(active_header)
-        ws.append(
-            [queue_pos, "Active", date, 10, 10, "S", "Kings", "NY", "Active 345kV"]
-            + ["ConEd", "06-2028"],
-        )
+        for queue_pos, name in projects:
+            ws.append(
+                [queue_pos, name, date, 10, 10, "S", "Kings", "NY", "Active 345kV"]
+                + ["ConEd", "06-2028"],
+            )
 
     withdrawn_header = [
         "Queue Pos.",
@@ -82,7 +85,7 @@ def _interconnection_queue_workbook() -> io.BytesIO:
     ws = wb.create_sheet("Withdrawn")
     ws.append(withdrawn_header)
     ws.append(
-        ["0005", "Sithe", "Torne Valley", date, 860, None, "NG", "Rockland", "NY"]
+        ["0127A", "Sithe", "Torne Phase 1", date, 860, None, "NG", "Rockland", "NY"]
         + ["G", "Ramapo 345kV", "CONED", 0, updated],
     )
     # Blank padding rows where only State is filled in
@@ -745,7 +748,7 @@ class TestNYISO(BaseTestISO):
         df = self.iso.get_interconnection_queue()
 
         assert df["Status"].value_counts().to_dict() == {
-            "Active": 2,
+            "Active": 3,
             "Withdrawn": 2,
             "Completed": 1,
         }
@@ -763,6 +766,16 @@ class TestNYISO(BaseTestISO):
         assert cluster["Generation Type"] == "Wind"
         assert cluster["Capacity (MW)"] == 1187
         assert cluster["Withdrawn Date"] == pd.Timestamp("2025-01-31")
+        assert cluster["Last Updated Date"] == pd.Timestamp("2025-01-31")
+
+        # The withdrawn project left on the active sheet is only returned once
+        assert (df["Queue ID"] == "C24-001").sum() == 1
+        # Phases sharing a queue position are separate projects
+        phases = df.loc[df["Queue ID"] == "0127A"].set_index("Project Name")["Status"]
+        assert phases.to_dict() == {
+            "Torne Phase 1": "Withdrawn",
+            "Torne Phase 2": "Active",
+        }
 
     # This test is in addition to the base_test_iso test
     def test_get_interconnection_queue_handles_new_file(self):
