@@ -30,98 +30,6 @@ def nyiso_real_time_file(first_stamp: str, last_stamp: str) -> pd.DataFrame:
     )
 
 
-def _interconnection_queue_workbook() -> io.BytesIO:
-    """Build a minimal NYISO interconnection queue workbook that reproduces the
-    quirks of the published file: blank padding rows on the Withdrawn sheet and a
-    title row above the header on the Cluster Projects-Withdrawn sheet."""
-    wb = Workbook()
-    wb.remove(wb.active)
-    date = pd.Timestamp("2024-08-01").to_pydatetime()
-    updated = pd.Timestamp("2025-01-31").to_pydatetime()
-
-    active_header = [
-        "Queue Pos.",
-        "Project Name",
-        "Date of IR",
-        "SP (MW)",
-        "WP (MW)",
-        "Type/ Fuel",
-        "County",
-        "State",
-        "Points of Interconnection",
-        "Utility",
-        "Proposed COD",
-    ]
-    for sheet_name, projects in [
-        # A later phase sharing a withdrawn project's queue position stays active
-        ("Interconnection Queue", [("1000", "Active"), ("0127A", "Torne Phase 2")]),
-        # A withdrawn project NYISO also left on the active sheet
-        (" Cluster Projects", [("C24-100", "Active"), ("C24-001", "Vineyard East")]),
-    ]:
-        ws = wb.create_sheet(sheet_name)
-        ws.append(active_header)
-        for queue_pos, name in projects:
-            ws.append(
-                [queue_pos, name, date, 10, 10, "S", "Kings", "NY", "Active 345kV"]
-                + ["ConEd", "06-2028"],
-            )
-
-    withdrawn_header = [
-        "Queue Pos.",
-        "Owner/Developer",
-        "Project Name",
-        "Date of IR",
-        "SP (MW)",
-        "WP (MW)",
-        "Type/ Fuel",
-        "County",
-        "State",
-        "Z",
-        "Interconnection Point",
-        "Utility ",
-        "S",
-        "Last Update",
-    ]
-    ws = wb.create_sheet("Withdrawn")
-    ws.append(withdrawn_header)
-    ws.append(
-        ["0127A", "Sithe", "Torne Phase 1", date, 860, None, "NG", "Rockland", "NY"]
-        + ["G", "Ramapo 345kV", "CONED", 0, updated],
-    )
-    # Blank padding rows where only State is filled in
-    for _ in range(3):
-        ws.append([None] * 8 + ["NY"] + [None] * 5)
-
-    ws = wb.create_sheet("Cluster Projects-Withdrawn")
-    ws.append(["Cluster Projects - Withdrawn, note all queue projects may differ"])
-    ws.append(withdrawn_header)
-    ws.append(
-        ["C24-001", "Vineyard LLC", "Vineyard East", date, 1187, 1187, "W"]
-        + ["Nassau", "NY", "K", "Ruland Rd 345kV", "NYPA", 0, updated],
-    )
-
-    ws = wb.create_sheet("In Service")
-    ws.append(
-        ["Queue", "Queue", "Queue", "Date", "SP", "WP", "Type/", "Location"]
-        + ["Location", "Z", "Interconnection", "Interconnection", "Interconnection"]
-        + ["Last Update", "Availability", "Proposed", "Proposed"],
-    )
-    ws.append(
-        ["Pos.", "Owner/Developer", "Project Name", "of IR", "(MW)", "(MW)", "Fuel"]
-        + ["County", "State", None, "Point", "Utility ", "S", None, "of Studies"]
-        + [" In-Service", "COD"],
-    )
-    ws.append(
-        ["0001", "Con Edison", "Middletown", date, 100, 100, "AC", "Orange", "NY"]
-        + ["G", "Coop Corn 345kV", "NYPA", 14, updated, "SRIS", "I/S", None],
-    )
-
-    buffer = io.BytesIO()
-    wb.save(buffer)
-    buffer.seek(0)
-    return buffer
-
-
 class TestNYISO(BaseTestISO):
     iso = NYISO()
 
@@ -739,11 +647,106 @@ class TestNYISO(BaseTestISO):
 
     """get_interconnection_queue"""
 
+    @staticmethod
+    def _interconnection_queue_workbook() -> io.BytesIO:
+        """Build a minimal NYISO interconnection queue workbook that reproduces the
+        quirks of the published file: blank padding rows on the Withdrawn sheet and a
+        title row above the header on the Cluster Projects-Withdrawn sheet."""
+        wb = Workbook()
+        wb.remove(wb.active)
+        date = pd.Timestamp("2024-08-01").to_pydatetime()
+        updated = pd.Timestamp("2025-01-31").to_pydatetime()
+
+        active_header = [
+            "Queue Pos.",
+            "Project Name",
+            "Date of IR",
+            "SP (MW)",
+            "WP (MW)",
+            "Type/ Fuel",
+            "County",
+            "State",
+            "Points of Interconnection",
+            "Utility",
+            "Proposed COD",
+        ]
+        for sheet_name, projects in [
+            # A later phase sharing a withdrawn project's queue position stays active
+            ("Interconnection Queue", [("1000", "Active"), ("0127A", "Torne Phase 2")]),
+            # A withdrawn project NYISO also left on the active sheet
+            (
+                " Cluster Projects",
+                [("C24-100", "Active"), ("C24-001", "Vineyard East")],
+            ),
+        ]:
+            ws = wb.create_sheet(sheet_name)
+            ws.append(active_header)
+            for queue_pos, name in projects:
+                ws.append(
+                    [queue_pos, name, date, 10, 10, "S", "Kings", "NY", "Active 345kV"]
+                    + ["ConEd", "06-2028"],
+                )
+
+        withdrawn_header = [
+            "Queue Pos.",
+            "Owner/Developer",
+            "Project Name",
+            "Date of IR",
+            "SP (MW)",
+            "WP (MW)",
+            "Type/ Fuel",
+            "County",
+            "State",
+            "Z",
+            "Interconnection Point",
+            "Utility ",
+            "S",
+            "Last Update",
+        ]
+        ws = wb.create_sheet("Withdrawn")
+        ws.append(withdrawn_header)
+        ws.append(
+            ["0127A", "Sithe", "Torne Phase 1", date, 860, None, "NG", "Rockland", "NY"]
+            + ["G", "Ramapo 345kV", "CONED", 0, updated],
+        )
+        # Blank padding rows where only State is filled in
+        for _ in range(3):
+            ws.append([None] * 8 + ["NY"] + [None] * 5)
+
+        ws = wb.create_sheet("Cluster Projects-Withdrawn")
+        ws.append(["Cluster Projects - Withdrawn, note all queue projects may differ"])
+        ws.append(withdrawn_header)
+        ws.append(
+            ["C24-001", "Vineyard LLC", "Vineyard East", date, 1187, 1187, "W"]
+            + ["Nassau", "NY", "K", "Ruland Rd 345kV", "NYPA", 0, updated],
+        )
+
+        ws = wb.create_sheet("In Service")
+        ws.append(
+            ["Queue", "Queue", "Queue", "Date", "SP", "WP", "Type/", "Location"]
+            + ["Location", "Z", "Interconnection", "Interconnection", "Interconnection"]
+            + ["Last Update", "Availability", "Proposed", "Proposed"],
+        )
+        ws.append(
+            ["Pos.", "Owner/Developer", "Project Name", "of IR", "(MW)", "(MW)", "Fuel"]
+            + ["County", "State", None, "Point", "Utility ", "S", None, "of Studies"]
+            + [" In-Service", "COD"],
+        )
+        ws.append(
+            ["0001", "Con Edison", "Middletown", date, 100, 100, "AC", "Orange", "NY"]
+            + ["G", "Coop Corn 345kV", "NYPA", 14, updated, "SRIS", "I/S", None],
+        )
+
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return buffer
+
     def test_get_interconnection_queue_withdrawn_sheet_quirks(self, monkeypatch):
         monkeypatch.setattr(
             self.iso,
             "get_raw_interconnection_queue",
-            _interconnection_queue_workbook,
+            self._interconnection_queue_workbook,
         )
         df = self.iso.get_interconnection_queue()
 
