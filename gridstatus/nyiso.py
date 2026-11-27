@@ -134,6 +134,32 @@ https://www.nyiso.com/en/energy-market-operational-data
 """
 
 
+def _read_queue_sheet(
+    excel_file: pd.ExcelFile,
+    sheet_name: str,
+    header_marker: str = "Queue Pos.",
+    max_header_row: int = 10,
+) -> pd.DataFrame:
+    """Read an interconnection queue sheet whose header row may sit below title
+    rows. The header is the first row with a cell equal to ``header_marker``."""
+    preview = pd.read_excel(
+        excel_file,
+        sheet_name=sheet_name,
+        header=None,
+        nrows=max_header_row,
+    )
+    is_marker = preview.map(
+        lambda v: isinstance(v, str) and v.strip() == header_marker,
+    ).any(axis=1)
+    if not is_marker.any():
+        raise ValueError(
+            f"Could not find a '{header_marker}' header row in the first "
+            f"{max_header_row} rows of sheet '{sheet_name}'",
+        )
+    header_row = int(is_marker.idxmax())
+    return pd.read_excel(excel_file, sheet_name=sheet_name, header=header_row)
+
+
 class DatasetInterval(NamedTuple):
     time_type: Literal["start", "end", "instantaneous"]
     interval_duration_minutes: int | None
@@ -1161,20 +1187,35 @@ class NYISO(ISOBase):
 
         active["Status"] = InterconnectionQueueStatus.ACTIVE.value
 
-        withdrawn = pd.read_excel(excel_file, sheet_name="Withdrawn")
-        cluster_withdrawn = pd.read_excel(
-            excel_file,
-            sheet_name="Cluster Projects-Withdrawn",
-        )
-        withdrawn = pd.concat([withdrawn, cluster_withdrawn])
+        # The withdrawn sheets may have title rows above the header and
+        # blank padding rows (only "State" filled in) at the bottom
+        withdrawn = pd.concat(
+            [
+                _read_queue_sheet(excel_file, sheet_name)
+                for sheet_name in ["Withdrawn", "Cluster Projects-Withdrawn"]
+            ],
+        ).dropna(subset=["Queue Pos.", "Project Name"], how="all")
 
+        withdrawn = withdrawn.rename(
+            columns={
+                "Utility ": "Utility",
+                "Owner/Developer": "Developer Name",
+                "Last Update": "Last Updated Date",
+            },
+        )
         withdrawn["Status"] = InterconnectionQueueStatus.WITHDRAWN.value
         # assume it was withdrawn when last updated
-        withdrawn["Withdrawn Date"] = withdrawn["Last Update"]
+        withdrawn["Withdrawn Date"] = withdrawn["Last Updated Date"]
         withdrawn["Withdrawal Comment"] = None
-        withdrawn = withdrawn.rename(columns={"Utility ": "Utility"})
 
-        withdrawn = withdrawn.rename(columns={"Owner/Developer": "Developer Name"})
+        # NYISO sometimes leaves a withdrawn project on an active sheet too.
+        # Keep only the withdrawn row. Match on name as well as queue position
+        # because separate phases of a project can share a queue position.
+        withdrawn_keys = pd.MultiIndex.from_frame(
+            withdrawn[["Queue Pos.", "Project Name"]],
+        )
+        active_keys = pd.MultiIndex.from_frame(active[["Queue Pos.", "Project Name"]])
+        active = active[~active_keys.isin(withdrawn_keys)]
 
         # make completed look like the other two sheets
         completed = pd.read_excel(excel_file, sheet_name="In Service", header=[0, 1])
